@@ -1,0 +1,4 @@
+* linguist-vendored
+*.py linguist-vendored=false
+*.f linguist-vendored=false
+*.f90 linguist-vendored=false
