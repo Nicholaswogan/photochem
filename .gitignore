@@ -8,6 +8,7 @@ Photo.run
 build
 *.a
 a.out
+test.run
 
 src/Stringifor
 build_dir
