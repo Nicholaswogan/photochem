@@ -1,6 +1,8 @@
 
 
-cd ../cvode-5.7.0/build_dir
+cd ../cvode-5.7.0
+mkdir build_dir
+cd build_dir
 cmake \
 -DBUILD_EXAMPLES=OFF \
 -DCMAKE_INSTALL_PREFIX=../../dependencies \
@@ -11,7 +13,9 @@ cmake \
 ../
 make install
 
-cd ../../fortran-yaml/build_dir
+cd ../../fortran-yaml
+mkdir build_dir
+cd build_dir
 cmake \
 -DCMAKE_Fortran_COMPILER=gfortran \
 -DCMAKE_INSTALL_PREFIX=../../dependencies \

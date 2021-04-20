@@ -9,3 +9,11 @@ build
 *.a
 a.out
 
+src/Stringifor
+build_dir
+src/dependencies/lib
+src/dependencies/include
+src/dependencies/examples
+src/dependencies/cmake
+
+
