@@ -1,23 +1,21 @@
 description: Settings for the photochemical model.
 
 settings:
-  grid:
+  atmosphere-grid:
     bottom: 0.0 # cm
     top: 1.0e7 # cm
     number-of-layers: 200
   photo-grid:
-    regular-grid: true
     lower-wavelength: 100.0 # nm
     upper-wavelength: 800.0 # nm
     number-of-bins: 150
-  # filename: "grid.txt" # can specify a grid file if regular-grid: false. Path is relative to program (not this file)
   
 planet:
   gravity: 981.0 # cm/s2
   surface-pressure: 1.0 # bar
   planet-radius: 6.371e8 # cm
   surface-albedo: 0.25 # cm
-  topopause-altitude: 1.1e6 # cm
+  tropopause-altitude: 1.1e6 # cm
   lightning: # turn it on or off
     on-off: true
     NO-production: 1.0e9 # column-integrated NO production rate from lightning
@@ -38,11 +36,11 @@ species:
       H: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -62,11 +60,11 @@ species:
       H: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -96,11 +94,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -130,11 +128,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -163,11 +161,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -187,11 +185,11 @@ species:
       O: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -212,11 +210,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -246,11 +244,11 @@ species:
       O: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -281,11 +279,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -316,11 +314,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -349,11 +347,11 @@ species:
       C: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -374,11 +372,11 @@ species:
       H: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -408,11 +406,11 @@ species:
       H: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -442,11 +440,11 @@ species:
       H: 3
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -476,11 +474,11 @@ species:
       H: 4
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -509,11 +507,11 @@ species:
       S: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -542,11 +540,11 @@ species:
       S: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -566,11 +564,11 @@ species:
       S: 3
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -590,11 +588,11 @@ species:
       S: 4
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -614,11 +612,11 @@ species:
       S: 8
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -639,11 +637,11 @@ species:
       H: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -673,11 +671,11 @@ species:
       H: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -707,11 +705,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -741,11 +739,11 @@ species:
       O: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -775,11 +773,11 @@ species:
       C: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -809,11 +807,11 @@ species:
       C: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -844,11 +842,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -878,11 +876,11 @@ species:
       N: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -913,11 +911,11 @@ species:
       H: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -946,11 +944,11 @@ species:
       N: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -970,11 +968,11 @@ species:
       N: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -995,11 +993,11 @@ species:
       H: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1029,11 +1027,11 @@ species:
       H: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1063,11 +1061,11 @@ species:
       H: 3
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1096,11 +1094,11 @@ species:
       C: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1130,11 +1128,11 @@ species:
       H: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1164,11 +1162,11 @@ species:
       H: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1198,11 +1196,11 @@ species:
       H: 4
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1232,11 +1230,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1267,11 +1265,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1301,11 +1299,11 @@ species:
       O: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1337,11 +1335,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1371,11 +1369,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1405,11 +1403,11 @@ species:
       O: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1429,11 +1427,11 @@ species:
       O: 3
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1463,11 +1461,11 @@ species:
       O: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1497,11 +1495,11 @@ species:
       O: 3
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1531,11 +1529,11 @@ species:
       O: 3
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1566,11 +1564,11 @@ species:
       O: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1601,11 +1599,11 @@ species:
       O: 3
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1636,11 +1634,11 @@ species:
       O: 4
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1670,11 +1668,11 @@ species:
       H: 4
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1704,11 +1702,11 @@ species:
       H: 6
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1739,11 +1737,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1774,11 +1772,11 @@ species:
       O: 1
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 50.0
@@ -1808,11 +1806,11 @@ species:
       H: 2
     note: From the NIST database
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 50.0
@@ -1843,11 +1841,11 @@ species:
       H: 1
     note: Estimated from thermodynamic data at 298 K and species HCO
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1877,11 +1875,11 @@ species:
       H: 3
     note: Estimated from thermodynamic data at 298 K and species C2H4
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1911,11 +1909,11 @@ species:
       H: 5
     note: Estimated from thermodynamic data at 298 K and species C2H4
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1946,11 +1944,11 @@ species:
       O: 1
     note: Estimated from thermodynamic data at 298 K and species CO2
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -1980,11 +1978,11 @@ species:
       H: 2
     note: Estimated from thermodynamic data at 298 K and species CH2
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -2015,11 +2013,11 @@ species:
       O: 1
     note: Estimated from thermodynamic data at 298 K and species HNCO
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -2049,11 +2047,11 @@ species:
       H: 1
     note: Estimated from thermodynamic data at 298 K and species HCO
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -2084,11 +2082,11 @@ species:
       O: 1
     note: Estimated from thermodynamic data at 298 K and species HO2
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -2119,11 +2117,11 @@ species:
       O: 1
     note: Estimated from thermodynamic data at 298 K and species H2CO
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -2154,11 +2152,11 @@ species:
       O: 1
     note: Estimated from thermodynamic data at 298 K and species CH3OH
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -2189,11 +2187,11 @@ species:
       H: 2
     note: Estimated from thermodynamic data at 298 K and species H2CO
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -2223,11 +2221,11 @@ species:
       H: 2
     note: Estimated from thermodynamic data at 298 K and species C2H2
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -2257,11 +2255,11 @@ species:
       H: 1
     note: Estimated from thermodynamic data at 298 K and species C4H2
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 50.0
@@ -2293,11 +2291,11 @@ species:
       O: 1
     note: Estimated from thermodynamic data at 298 K and species CH2CO
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 50.0
@@ -2328,11 +2326,11 @@ species:
       O: 1
     note: Estimated from thermodynamic data at 298 K and species CH2CO
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 50.0
@@ -2363,11 +2361,11 @@ species:
       O: 1
     note: Estimated from thermodynamic data at 298 K and species CH3CHO
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 50.0
@@ -2398,11 +2396,11 @@ species:
       O: 1
     note: Estimated from thermodynamic data at 298 K and species CH3CHO
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 50.0
@@ -2433,11 +2431,11 @@ species:
       O: 1
     note: Estimated from thermodynamic data at 298 K and species CH3CHO
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 50.0
@@ -2468,11 +2466,11 @@ species:
       O: 2
     note: Estimated from thermodynamic data at 298 K and species CH2CO
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 50.0
@@ -2503,11 +2501,11 @@ species:
       O: 3
     note: Estimated from thermodynamic data at 298 K and species HNO3
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -2536,11 +2534,11 @@ species:
       O: 1
     note: Estimated from thermodynamic data at 298 K and species O
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -2561,11 +2559,11 @@ species:
       H: 3
     note: Estimated from thermodynamic data at 298 K and species N2H4
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 0.0
@@ -2597,11 +2595,11 @@ species:
       O: 1
     note: Estimated from thermodynamic data at 298 K and species CH2CO
     lower-boundary:
-      value: 0.0
-      type: deposition velocity
+      vdep: 0.0
+      type: constant deposition velocity
     upper-boundary:
-      value: 0.0
-      type: effusion velocity
+      veff: 0.0
+      type: constant effusion velocity
     thermo:
       temperature-ranges:
         - 50.0
