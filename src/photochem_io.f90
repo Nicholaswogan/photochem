@@ -5,7 +5,7 @@ module photochem_types ! make a giant IO object
   private
   integer,parameter :: real_kind = kind(1.0d0)
   
-  public PhotoChemData, PhotoSettings, PhotoPlanet
+  public PhotoMechanism, PhotoSettings, PhotoPlanet
   
   type :: PhotoSettings
     real(real_kind) :: bottom_atmosphere
@@ -22,6 +22,7 @@ module photochem_types ! make a giant IO object
     real(real_kind) :: surface_pressure
     real(real_kind) :: planet_radius
     real(real_kind) :: surface_albedo
+    logical :: water_sat_trop
     real(real_kind) :: trop_alt
     logical :: lightning
     real(real_kind) :: lightning_NO_production
@@ -29,10 +30,47 @@ module photochem_types ! make a giant IO object
     real(real_kind) :: rainout_multiplier
   end type
   
-  type :: PhotoChemData
+  ! type :: PhotoMolecules
+  !   integer :: nsp, natoms
+  !   character(len=8), allocatable :: atoms_names(:)
+  !   character(len=8), allocatable :: species_names(:)
+  !   integer, allocatable :: species_composition(:,:)
+  !   integer, allocatable :: lowerboundcond(:)
+  !   real(real_kind), allocatable :: lower_vdep(:)
+  !   real(real_kind), allocatable :: lower_flux(:)
+  !   real(real_kind), allocatable :: lower_distributed_height(:)
+  !   real(real_kind), allocatable :: lower_fixed_mr(:)
+  !   integer, allocatable :: upperboundcond(:)
+  !   real(real_kind), allocatable :: upper_veff(:)
+  !   real(real_kind), allocatable :: upper_flux(:)
+  !   real(real_kind), allocatable :: thermo_data(:,:,:)
+  !   real(real_kind), allocatable :: thermo_temps(:,:)  
+  ! end type
+  ! 
+  ! type :: PhotoReactions
+  !   integer :: nr
+  !   character(len=8), allocatable :: reactions_names(:,:)
+  !   integer, allocatable :: reactions_indices(:,:)
+  !   character(len=15), allocatable :: rxtypes(:)
+  !   real(real_kind), allocatable :: rateparams(:,:)
+  ! 
+  !   integer, allocatable :: nump(:)
+  !   integer, allocatable :: numl(:)
+  !   integer, allocatable :: iprod(:,:)
+  !   integer, allocatable :: iloss(:,:,:)
+  ! end type
+  
+  type :: PhotoMechanism
     type(PhotoSettings) :: settings
     type(PhotoPlanet) :: planet
-    integer :: nsp, nr, natoms
+    ! type(PhotoMolecules) :: molecules
+    ! type(PhotoReactions) : reactions
+    
+    integer :: nsp
+    integer :: nrF
+    integer :: nrR
+    integer :: nrT
+    integer :: natoms
     character(len=8), allocatable :: atoms_names(:)
     character(len=8), allocatable :: species_names(:)
     integer, allocatable :: species_composition(:,:)
@@ -46,41 +84,66 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: upper_flux(:)
     real(real_kind), allocatable :: thermo_data(:,:,:)
     real(real_kind), allocatable :: thermo_temps(:,:)
+    
+    ! character(len=8), allocatable :: reactants_names(:,:)
+    ! character(len=8), allocatable :: products_names(:,:)
+    ! integer, allocatable :: reactants_sp_inds(:,:)
+    ! integer, allocatable :: products_sp_inds(:,:)
+    
     character(len=8), allocatable :: reactions_names(:,:)
     integer, allocatable :: reactions_indices(:,:)
     character(len=15), allocatable :: rxtypes(:)
     real(real_kind), allocatable :: rateparams(:,:)
+    
+    integer, allocatable :: nump(:) ! length nsp. number of 
+    integer, allocatable :: numl(:)
+    integer, allocatable :: iprod(:,:)
+    integer, allocatable :: iloss(:,:)
+    integer, allocatable :: nreactants(:)
+    integer, allocatable :: nproducts(:)
   end type
   
 end module
 
 
-module photochem_vars ! unpack the IO object to plain variables 
-  use photochem_types, only : PhotoChemData
-  implicit none
-  integer,parameter :: real_kind = kind(1.0d0)
-end module
+! module photochem_vars ! unpack the object to plain variables 
+!   use photochem_types, only : PhotoMechanism
+!   implicit none
+!   integer, private, parameter :: real_kind = kind(1.0d0)
+!   public
+! end module
 
+! module settings
+! end module
+! 
+! module planet
+! end module
+! 
+! module molecules
+! end module
+! 
+! module reactions
+! end module
 
 module photochem_io
   use yaml_types, only : type_node, type_dictionary, type_list, type_error, &
-                         type_list_item, type_scalar
+                         type_list_item, type_scalar, type_key_value_pair
   use stringifor, only : string
-  use photochem_types, only : PhotoChemData, PhotoSettings, PhotoPlanet
+  use photochem_types, only : PhotoMechanism, PhotoSettings, PhotoPlanet
   implicit none
 
   private 
   
-  public tester
+  public get_photodata
   
   integer,parameter :: real_kind = kind(1.0d0)
   
 contains
   
-  subroutine tester(infile,photodata) ! read yaml and make giant IO object
+  subroutine get_photodata(infile,photomech) ! read yaml and make giant IO object
     use yaml, only : parse, error_length
     character(len=*), intent(in) :: infile
-    type(PhotoChemData), intent(out) :: photodata
+    type(PhotoMechanism), intent(out) :: photomech
     
     character(error_length) :: error
     class (type_node), pointer :: root
@@ -93,7 +156,7 @@ contains
     
     select type (root)
       class is (type_dictionary)
-        call parserootdict(root,infile,photodata)
+        call parserootdict(root,infile,photomech)
         call root%finalize()
         deallocate(root)
       class default
@@ -102,10 +165,10 @@ contains
     end select
   end subroutine
   
-  subroutine parserootdict(mapping, infile,photodata)
+  subroutine parserootdict(mapping, infile,photomech)
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
-    type(PhotoChemData), intent(out) :: photodata
+    type(PhotoMechanism), intent(out) :: photomech
     
     
     class (type_dictionary), pointer :: settings, planet
@@ -113,13 +176,14 @@ contains
     type (type_error), pointer :: config_error
     class (type_list_item), pointer :: item
     class (type_dictionary), pointer :: dict
+    class (type_key_value_pair), pointer :: key_value_pair
 
     ! temporary work variables
     type(string) :: tmp
     type(string), allocatable :: tmps(:)
     character(len=8) :: outstr(5)
     integer :: outarr(5)
-    integer :: i, j
+    integer :: i, j, ind(1)
     
     settings => mapping%get_dictionary('settings',.true.,error = config_error)
     if (associated(config_error)) call handleerror(config_error%message,infile)
@@ -133,12 +197,12 @@ contains
     if (associated(config_error)) call handleerror(config_error%message,infile)
     
     ! settings
-    call get_settings(settings, infile, photodata%settings)
+    call get_settings(settings, infile, photomech%settings)
     
     ! planet
-    call get_planet(planet, infile, photodata%planet)
+    call get_planet(planet, infile, photomech%planet)
     
-    ! atmoms
+    ! atoms
     item => atoms%first
     do while (associated(item))
       select type (element => item%node)
@@ -151,33 +215,35 @@ contains
       item => item%next
     enddo
     call tmp%split(tokens=tmps) ! list of atoms
-    photodata%natoms = size(tmps)
-    allocate(photodata%atoms_names(photodata%natoms))
-    do i = 1,photodata%natoms
-      photodata%atoms_names(i) = tmps(i)%chars()
+    photomech%natoms = size(tmps)
+    allocate(photomech%atoms_names(photomech%natoms))
+    do i = 1,photomech%natoms
+      photomech%atoms_names(i) = tmps(i)%chars()
     enddo
     ! done with atoms
     
     ! now do species
-    photodata%nsp = 0 ! count number of species
+    photomech%nsp = 0 ! count number of species
     item => species%first
     do while (associated(item))
       item => item%next
-      photodata%nsp = photodata%nsp + 1
+      photomech%nsp = photomech%nsp + 1
     enddo
         
-    allocate(photodata%species_composition(photodata%natoms,photodata%nsp))
-    allocate(photodata%species_names(photodata%nsp))
-    allocate(photodata%lowerboundcond(photodata%nsp))
-    allocate(photodata%lower_vdep(photodata%nsp))
-    allocate(photodata%lower_flux(photodata%nsp))
-    allocate(photodata%lower_distributed_height(photodata%nsp))
-    allocate(photodata%lower_fixed_mr(photodata%nsp))
-    allocate(photodata%upperboundcond(photodata%nsp))
-    allocate(photodata%upper_veff(photodata%nsp))
-    allocate(photodata%upper_flux(photodata%nsp))
-    allocate(photodata%thermo_data(7,2,photodata%nsp))
-    allocate(photodata%thermo_temps(3,photodata%nsp))
+    allocate(photomech%species_composition(photomech%natoms,photomech%nsp))
+    allocate(photomech%species_names(photomech%nsp+2))
+    photomech%species_names(photomech%nsp+1) = "M" ! always add these guys
+    photomech%species_names(photomech%nsp+2) = "hv"
+    allocate(photomech%lowerboundcond(photomech%nsp))
+    allocate(photomech%lower_vdep(photomech%nsp))
+    allocate(photomech%lower_flux(photomech%nsp))
+    allocate(photomech%lower_distributed_height(photomech%nsp))
+    allocate(photomech%lower_fixed_mr(photomech%nsp))
+    allocate(photomech%upperboundcond(photomech%nsp))
+    allocate(photomech%upper_veff(photomech%nsp))
+    allocate(photomech%upper_flux(photomech%nsp))
+    allocate(photomech%thermo_data(7,2,photomech%nsp))
+    allocate(photomech%thermo_temps(3,photomech%nsp))
     j = 1
     item => species%first
     do while (associated(item))
@@ -185,18 +251,28 @@ contains
       class is (type_dictionary)
         dict => element%get_dictionary("composition",.true.,error = config_error)  ! get composition
         if (associated(config_error)) call handleerror(config_error%message,infile)
-        do i=1,photodata%natoms
-          photodata%species_composition(i,j) = dict%get_integer(photodata%atoms_names(i),0,error = config_error) ! no error possible.
+        key_value_pair => dict%first ! to see if
+        do while (associated(key_value_pair))
+          ind = findloc(photomech%atoms_names,trim(key_value_pair%key))
+          if (ind(1) == 0) then
+            print*,'IOError: The atom "', trim(key_value_pair%key), '" is not in the list of atoms.'
+            stop
+          endif
+          key_value_pair =>key_value_pair%next
         enddo
-        photodata%species_names(j) = trim(element%get_string("name",error = config_error)) ! get name
-        if (associated(config_error)) call handleerror(config_error%message,infile)
-        call get_boundaryconds(element,photodata%species_names(j), infile, &
-                               photodata%lowerboundcond(j), photodata%lower_vdep(j), &
-                               photodata%lower_flux(j), photodata%lower_distributed_height(j), &
-                               photodata%lower_fixed_mr(j), &
-                               photodata%upperboundcond(j), photodata%upper_veff(j), photodata%upper_flux(j))! get boundary conditions
         
-        call get_thermodata(element,photodata%species_names(j), infile,photodata%thermo_temps(:,j),photodata%thermo_data(:,:,j)) ! get thermodynamic data
+        do i=1,photomech%natoms
+          photomech%species_composition(i,j) = dict%get_integer(photomech%atoms_names(i),0,error = config_error) ! no error possible.
+        enddo
+        photomech%species_names(j) = trim(element%get_string("name",error = config_error)) ! get name
+        if (associated(config_error)) call handleerror(config_error%message,infile)
+        call get_boundaryconds(element,photomech%species_names(j), infile, &
+                               photomech%lowerboundcond(j), photomech%lower_vdep(j), &
+                               photomech%lower_flux(j), photomech%lower_distributed_height(j), &
+                               photomech%lower_fixed_mr(j), &
+                               photomech%upperboundcond(j), photomech%upper_veff(j), photomech%upper_flux(j))! get boundary conditions
+        
+        call get_thermodata(element,photomech%species_names(j), infile,photomech%thermo_temps(:,j),photomech%thermo_data(:,:,j)) ! get thermodynamic data
         
       class default
         print*,"IOError: Problem with species number ", j,"  in the input file"
@@ -207,30 +283,34 @@ contains
     enddo
     
     ! reactions
-    photodata%nr = 0 ! count equations
+    photomech%nrF = 0 ! count forward reactions
     item => reactions%first
     do while (associated(item))
       item => item%next
-      photodata%nr = photodata%nr + 1
+      photomech%nrF = photomech%nrF + 1
     enddo
     
-    allocate(photodata%reactions_names(5,photodata%nr))
-    allocate(photodata%reactions_indices(5,photodata%nr))
-    allocate(photodata%rateparams(6,photodata%nr))
-    allocate(photodata%rxtypes(photodata%nr))
+    ! determine which reactions to reverse. Determine maximum number of reactants, and productants
+
+      
+    allocate(photomech%reactions_names(5,photomech%nrF))
+    allocate(photomech%reactions_indices(5,photomech%nrF))
+    allocate(photomech%rateparams(6,photomech%nrF)) ! This will need knowledge of which rection it is reversing
+    allocate(photomech%rxtypes(photomech%nrF))
     j = 1
     item => reactions%first
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
-        tmp = trim(element%get_string("equation","",error = config_error))
+        tmp = trim(element%get_string("equation",error = config_error))
+        if (associated(config_error)) call handleerror(config_error%message,infile)
         call parse_equation(tmp,outstr)
-        photodata%reactions_names(:,j) = outstr
-        call species_name2number(tmp ,outstr, photodata%species_names, &
-                                 photodata%species_composition, photodata%natoms, &
-                                 photodata%nsp, outarr)
-        photodata%reactions_indices(:,j) = outarr
-        call get_rateparams(element, photodata%rxtypes(j), photodata%rateparams(:,j))
+        photomech%reactions_names(:,j) = outstr
+        call species_name2number(tmp ,outstr, photomech%species_names, &
+                                 photomech%species_composition, photomech%natoms, &
+                                 photomech%nsp, outarr)
+        photomech%reactions_indices(:,j) = outarr
+        call get_rateparams(element, infile, photomech%rxtypes(j), photomech%rateparams(:,j))
       class default
         print*,"IOError: Problem with reaction number ",j," in the input file."
         stop
@@ -238,6 +318,21 @@ contains
       item => item%next
       j = j + 1
     enddo
+    
+    ! now get nump and numl
+    
+    ! check for inconsistencies
+    ! if rainout is on, water must be a reactant
+    ind = findloc(photomech%species_names,'H2O')
+    if ((photomech%planet%rainout) .and. (ind(1)==0)) then
+      print*,'IOError: H2O must be a species when rainout is turned on'
+      stop
+    endif
+    if ((photomech%planet%rainout) .and. (ind(1)==0)) then
+      print*,'IOError: H2O must be a species when rainout is turned on'
+      stop
+    endif
+    
 
   end subroutine
   
@@ -289,8 +384,14 @@ contains
     if (associated(config_error)) call handleerror(config_error%message,infile)  
     outplanet%surface_albedo = fileplanet%get_real("surface-albedo",error = config_error)
     if (associated(config_error)) call handleerror(config_error%message,infile)  
-    outplanet%trop_alt = fileplanet%get_real("tropopause-altitude",error = config_error)
+    outplanet%water_sat_trop = fileplanet%get_logical("water-saturated-troposhere",error = config_error)
     if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (outplanet%water_sat_trop) then
+      outplanet%trop_alt = fileplanet%get_real("tropopause-altitude",error = config_error)
+      if (associated(config_error)) call handleerror(config_error%message,infile)
+    else
+      outplanet%trop_alt = 0.d0 ! no tropopause.
+    endif
     
     tmpdict => fileplanet%get_dictionary("lightning",.true.,error = config_error)
     if (associated(config_error)) call handleerror(config_error%message,infile)
@@ -465,7 +566,7 @@ contains
     ! get data
     tmpdict1 => tmpdict%get_dictionary("data",.true.,error = config_error)
     if (associated(config_error)) call handleerror(config_error%message,infile)
-    tmplist =>tmpdict1%get_list("P1",.true.,error = config_error)
+    tmplist =>tmpdict1%get_list("poly1",.true.,error = config_error)
     if (associated(config_error)) call handleerror(config_error%message,infile)
     j = 1
     item => tmplist%first
@@ -488,8 +589,12 @@ contains
       item => item%next
       j = j + 1
     enddo
+    if (j-1 /= 7) then
+      print*,"IOError: Missing thermodynamic data for ",trim(molecule_name)
+      stop
+    endif
 
-    tmplist =>tmpdict1%get_list("P2",.false.,error = config_error)
+    tmplist =>tmpdict1%get_list("poly2",.false.,error = config_error)
     if ((.not.associated(tmplist)) .and. (i == 1)) then
       ! nothing happens
     elseif ((.not.associated(tmplist)) .and. (i == 2)) then
@@ -517,12 +622,17 @@ contains
         item => item%next
         j = j + 1
       enddo
+      if (j-1 /= 7) then
+        print*,"IOError: Missing thermodynamic data for ",trim(molecule_name)
+        stop
+      endif
     endif
     
   end subroutine
   
-  subroutine get_rateparams(reaction, rxtype, rateparam)
+  subroutine get_rateparams(reaction, infile, rxtype, rateparam)
     class(type_dictionary), intent(in) :: reaction
+    character(len=*), intent(in) :: infile
     character(len=15), intent(out) :: rxtype
     real(real_kind), intent(out) :: rateparam(6)
     
@@ -532,24 +642,36 @@ contains
     
     rateparam = 0.d0
     
-    rxtype= reaction%get_string("type","",error = config_error)
+    rxtype= reaction%get_string("type","",error = config_error) ! no error possible
     if (trim(rxtype) == '') rxtype = "elementary"
     
     ! get params
     if ((trim(rxtype) == 'elementary') .or. (trim(rxtype) == 'three-body')) then
       tmpdict => reaction%get_dictionary('rate-constant',.true.,error = config_error)
-      rateparam(1) = tmpdict%get_real('A',0.d0,error = config_error)
-      rateparam(2) = tmpdict%get_real('b',0.d0,error = config_error)
-      rateparam(3) = tmpdict%get_real('Ea',0.d0,error = config_error)
+      if (associated(config_error)) call handleerror(config_error%message,infile)
+      rateparam(1) = tmpdict%get_real('A',error = config_error)
+      if (associated(config_error)) call handleerror(config_error%message,infile)
+      rateparam(2) = tmpdict%get_real('b',error = config_error)
+      if (associated(config_error)) call handleerror(config_error%message,infile)
+      rateparam(3) = tmpdict%get_real('Ea',error = config_error)
+      if (associated(config_error)) call handleerror(config_error%message,infile)
     elseif (trim(rxtype) == 'falloff') then
       tmpdict => reaction%get_dictionary('low-P-rate-constant',.true.,error = config_error)
-      rateparam(1) = tmpdict%get_real('A',0.d0,error = config_error)
-      rateparam(2) = tmpdict%get_real('b',0.d0,error = config_error)
-      rateparam(3) = tmpdict%get_real('Ea',0.d0,error = config_error)
+      if (associated(config_error)) call handleerror(config_error%message,infile)
+      rateparam(1) = tmpdict%get_real('A',error = config_error)
+      if (associated(config_error)) call handleerror(config_error%message,infile)
+      rateparam(2) = tmpdict%get_real('b',error = config_error)
+      if (associated(config_error)) call handleerror(config_error%message,infile)
+      rateparam(3) = tmpdict%get_real('Ea',error = config_error)
+      if (associated(config_error)) call handleerror(config_error%message,infile)
       tmpdict => reaction%get_dictionary('high-P-rate-constant',.true.,error = config_error)
-      rateparam(4) = tmpdict%get_real('A',0.d0,error = config_error)
-      rateparam(5) = tmpdict%get_real('b',0.d0,error = config_error)
-      rateparam(6) = tmpdict%get_real('Ea',0.d0,error = config_error)
+      if (associated(config_error)) call handleerror(config_error%message,infile)
+      rateparam(4) = tmpdict%get_real('A',error = config_error)
+      if (associated(config_error)) call handleerror(config_error%message,infile)
+      rateparam(5) = tmpdict%get_real('b',error = config_error)
+      if (associated(config_error)) call handleerror(config_error%message,infile)
+      rateparam(6) = tmpdict%get_real('Ea',error = config_error)
+      if (associated(config_error)) call handleerror(config_error%message,infile)
     elseif (trim(rxtype) == 'photolysis') then
       ! nothing
     else
@@ -559,23 +681,28 @@ contains
     
   end subroutine
   
-  subroutine parse_equation(instring,outstring)
+  subroutine parse_equation(instring, outstring)
     type(string), intent(in) :: instring
     character(len=8), intent(out) :: outstring(5)
+    logical :: reverse
+    
     type(string) :: string1, string2, string3, string4
     type(string), allocatable :: eq1(:), eqr(:), eqp(:)
     integer i
     string1 = instring%replace(old='+', new=' ')
-    string2 = string1%replace(old='M', new=' ')
-    string3 = string2%replace(old='(', new=' ')
-    string1 = string3%replace(old='hv', new=' ')
-    string4 = string1%replace(old=')', new=' ')
+    string2 = string1%replace(old='(', new=' ')
+    string3 = string2%replace(old=')', new=' ')
+    string2 = string3%replace(old='M', new=' ')
+    string4 = string2%replace(old='hv', new=' ')
     if (index(instring%chars(), "<=>") /= 0) then
       call string4%split(eq1, sep="<=>")
+      reverse = .true.
     elseif (index(instring%chars(), " =>") /= 0) then
       call string4%split(eq1, sep=" =>")
+      reverse = .false.
     else
-      ! problem
+      print*,"IOError: Invalid reaction arrow in reaction ",instring
+      stop
     endif
     call eq1(1)%split(eqr, sep=" ")
     call eq1(2)%split(eqp, sep=" ")
@@ -637,16 +764,16 @@ contains
 end module
 
 program main
-  use photochem_io, only: tester
-  use photochem_types, only: PhotoChemData
+  use photochem_io, only: get_photodata
+  use photochem_types, only: PhotoMechanism
   implicit none
-  type(PhotoChemData) :: photodata
+  type(PhotoMechanism) :: photomech
 
-  call tester("../zahnle.yaml", photodata)
-  
-  print*,photodata%settings%top_atmosphere
-  
+  call get_photodata("../zahnle.yaml", photomech)
+
+  print*,photomech%species_names
 end program
+
 
 
 
