@@ -1,99 +1,4 @@
 
-module photochem_types ! make a giant IO object
-  implicit none
-  
-  private
-  integer,parameter :: real_kind = kind(1.0d0)
-  
-  public PhotoMechanism, PhotoSettings, PhotoPlanet
-  
-  type :: PhotoSettings
-    real(real_kind) :: bottom_atmosphere
-    real(real_kind) :: top_atmosphere 
-    integer :: nz
-    real(real_kind) :: lower_wavelength
-    real(real_kind) :: upper_wavelength
-    integer :: nw !number of bins
-  end type
-  
-  type :: PhotoPlanet
-    real(real_kind) :: gravity
-    real(real_kind) :: surface_pressure
-    real(real_kind) :: planet_radius
-    real(real_kind) :: surface_albedo
-    logical :: water_sat_trop
-    real(real_kind) :: trop_alt
-    logical :: lightning
-    real(real_kind) :: lightning_NO_production
-    logical :: rainout
-    real(real_kind) :: rainout_multiplier
-  end type
-  
-  type :: PhotoMechanism
-    type(PhotoSettings) :: settings
-    type(PhotoPlanet) :: planet
-    ! type(PhotoMolecules) :: molecules
-    ! type(PhotoReactions) : reactions
-    
-    integer :: nsp
-    integer :: natoms
-    character(len=8), allocatable :: atoms_names(:)
-    character(len=8), allocatable :: species_names(:)
-    integer, allocatable :: species_composition(:,:)
-    integer, allocatable :: lowerboundcond(:)
-    real(real_kind), allocatable :: lower_vdep(:)
-    real(real_kind), allocatable :: lower_flux(:)
-    real(real_kind), allocatable :: lower_distributed_height(:)
-    real(real_kind), allocatable :: lower_fixed_mr(:)
-    integer, allocatable :: upperboundcond(:)
-    real(real_kind), allocatable :: upper_veff(:)
-    real(real_kind), allocatable :: upper_flux(:)
-    real(real_kind), allocatable :: thermo_data(:,:,:)
-    real(real_kind), allocatable :: thermo_temps(:,:)
-    
-    integer :: nrF
-    integer :: nrR
-    integer :: nrT
-    integer :: max_num_reactants
-    integer :: max_num_products
-    character(len=8), allocatable :: reactants_names(:,:) ! not really needed.
-    character(len=8), allocatable :: products_names(:,:)
-    integer, allocatable :: reactants_sp_inds(:,:)
-    integer, allocatable :: products_sp_inds(:,:)
-    integer, allocatable :: nreactants(:)
-    integer, allocatable :: nproducts(:)
-    integer, allocatable :: reverse_info(:) ! all for calculating rates
-    character(len=15), allocatable :: rxtypes(:)
-    real(real_kind), allocatable :: rateparams(:,:)
-    
-    integer, allocatable :: nump(:) ! length nsp. number of 
-    integer, allocatable :: numl(:)
-    integer, allocatable :: iprod(:,:)
-    integer, allocatable :: iloss(:,:)
-    
-  end type
-  
-end module
-
-
-! module photochem_vars ! unpack the object to plain variables 
-!   use photochem_types, only : PhotoMechanism
-!   implicit none
-!   integer, private, parameter :: real_kind = kind(1.0d0)
-!   public
-! end module
-
-! module settings
-! end module
-! 
-! module planet
-! end module
-! 
-! module molecules
-! end module
-! 
-! module reactions
-! end module
 
 module photochem_io
   use yaml_types, only : type_node, type_dictionary, type_list, type_error, &
@@ -104,7 +9,7 @@ module photochem_io
 
   private 
   
-  public get_photodata
+  public get_photodata, print_reaction
   
   integer,parameter :: real_kind = kind(1.0d0)
   
@@ -992,38 +897,6 @@ contains
   end subroutine
 
 end module
-
-program main
-  use photochem_io, only: get_photodata
-  use photochem_types, only: PhotoMechanism
-  implicit none
-  type(PhotoMechanism) :: photomech
-  integer i, j, k
-
-  call get_photodata("../zahnle.yaml", photomech)
-
-  do i = 1,photomech%nrT
-    write(*, '(1i5,3x,1i5,3x)', advance="no") i, photomech%reverse_info(i)
-  
-    do j = 1,photomech%nreactants(i)-1
-      k = photomech%reactants_sp_inds(j,i)
-      write(*, '(A,1x,A,1x)', advance="no") trim(photomech%species_names(k)),'+'
-    enddo
-    k = photomech%reactants_sp_inds(photomech%nreactants(i),i)
-    write(*, '(A,1x,A)', advance="no") trim(photomech%species_names(k)),'=> '
-  
-    do j = 1,photomech%nproducts(i)-1
-      k = photomech%products_sp_inds(j,i)
-      write(*, '(A,1x,A,1x)', advance="no") trim(photomech%species_names(k)),'+'
-    enddo
-    k = photomech%products_sp_inds(photomech%nproducts(i),i)
-    write(*, '(A)', advance="no") trim(photomech%species_names(k))
-  
-    write(*,*)
-  enddo  
-  
-end program
-
 
 
 

@@ -1,10 +1,15 @@
 
+.SUFFIXES:
+FC=gfortran
 
-FCC=gfortran
+FCFLAGS = -g -fbounds-check
+
 IDIR=dependencies/modules
 LDIR=dependencies/lib
-LIBS=-lyaml -lstringifor
 FFLAGS=-I$(IDIR) -L$(LDIR)
+LIBS=-lyaml -lstringifor
 
-hellomake:
-	$(FCC) photochem_io.f90 $(FFLAGS) $(LIBS) -o test.run
+
+
+hellomake: 
+	$(FC) photochem_types.f90 photochem_io.f90 main.f90 $(FFLAGS) $(LIBS) -o test.run
