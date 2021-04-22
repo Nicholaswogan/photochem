@@ -85,13 +85,16 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: thermo_data(:,:,:)
     real(real_kind), allocatable :: thermo_temps(:,:)
     
-    ! character(len=8), allocatable :: reactants_names(:,:)
-    ! character(len=8), allocatable :: products_names(:,:)
-    ! integer, allocatable :: reactants_sp_inds(:,:)
-    ! integer, allocatable :: products_sp_inds(:,:)
+    integer :: max_num_reactants
+    integer :: max_num_products
+    character(len=8), allocatable :: reactants_names(:,:) ! not really needed.
+    character(len=8), allocatable :: products_names(:,:)
+    integer, allocatable :: reactants_sp_inds(:,:)
+    integer, allocatable :: products_sp_inds(:,:)
+    integer, allocatable :: nreactants(:)
+    integer, allocatable :: nproducts(:)
     
-    character(len=8), allocatable :: reactions_names(:,:)
-    integer, allocatable :: reactions_indices(:,:)
+    integer, allocatable :: reverse_info(:,:) ! all for calculating rates
     character(len=15), allocatable :: rxtypes(:)
     real(real_kind), allocatable :: rateparams(:,:)
     
@@ -99,8 +102,7 @@ module photochem_types ! make a giant IO object
     integer, allocatable :: numl(:)
     integer, allocatable :: iprod(:,:)
     integer, allocatable :: iloss(:,:)
-    integer, allocatable :: nreactants(:)
-    integer, allocatable :: nproducts(:)
+    
   end type
   
 end module
@@ -170,7 +172,6 @@ contains
     character(len=*), intent(in) :: infile
     type(PhotoMechanism), intent(out) :: photomech
     
-    
     class (type_dictionary), pointer :: settings, planet
     class (type_list), pointer :: atoms, species, reactions
     type (type_error), pointer :: config_error
@@ -180,10 +181,11 @@ contains
 
     ! temporary work variables
     type(string) :: tmp
-    type(string), allocatable :: tmps(:)
+    type(string), allocatable :: tmps(:), eqr(:), eqp(:)
     character(len=8) :: outstr(5)
     integer :: outarr(5)
     integer :: i, j, ind(1)
+    logical :: reverse
     
     settings => mapping%get_dictionary('settings',.true.,error = config_error)
     if (associated(config_error)) call handleerror(config_error%message,infile)
@@ -230,7 +232,8 @@ contains
       photomech%nsp = photomech%nsp + 1
     enddo
         
-    allocate(photomech%species_composition(photomech%natoms,photomech%nsp))
+    allocate(photomech%species_composition(photomech%natoms,photomech%nsp+2))
+    photomech%species_composition = 0
     allocate(photomech%species_names(photomech%nsp+2))
     photomech%species_names(photomech%nsp+1) = "M" ! always add these guys
     photomech%species_names(photomech%nsp+2) = "hv"
@@ -282,6 +285,7 @@ contains
       j = j + 1
     enddo
     
+    
     ! reactions
     photomech%nrF = 0 ! count forward reactions
     item => reactions%first
@@ -290,11 +294,44 @@ contains
       photomech%nrF = photomech%nrF + 1
     enddo
     
+    allocate(photomech%reverse_info(2,photomech%nrF))
+    photomech%reverse_info = 0
     ! determine which reactions to reverse. Determine maximum number of reactants, and productants
+    photomech%max_num_reactants = 1
+    photomech%max_num_products = 1
+    photomech%nrR = 0
+    j = 1
+    item => reactions%first
+    do while (associated(item))
+      select type (element => item%node)
+      class is (type_dictionary)
+        tmp = trim(element%get_string("equation",error = config_error))
+        call parse_reaction(tmp, reverse, eqr, eqp)
+        if (reverse) then
+          photomech%nrR = photomech%nrR + 1
+          photomech%reverse_info(1,j) = 1  ! whether the reaction is reversed
+          photomech%reverse_info(2,j) = photomech%nrR + photomech%nrF ! the reaction number of reversed reaction
+          if (size(eqr) > photomech%max_num_products) photomech%max_num_products = size(eqr)
+          if (size(eqp) > photomech%max_num_reactants) photomech%max_num_reactants = size(eqp)
+        endif
+        if (size(eqr) > photomech%max_num_reactants) photomech%max_num_reactants = size(eqr)
+        if (size(eqp) > photomech%max_num_products) photomech%max_num_products = size(eqp)
+      class default
+        print*,"IOError: Problem with reaction number ",j," in the input file."
+        stop
+      end select
+      item => item%next
+      j = j+1
+    enddo
+    photomech%nrT = photomech%nrR + photomech%nrF
 
-      
-    allocate(photomech%reactions_names(5,photomech%nrF))
-    allocate(photomech%reactions_indices(5,photomech%nrF))
+    ! allocate stuff and loop through reactions again
+    allocate(photomech%nreactants(photomech%nrT))
+    allocate(photomech%nproducts(photomech%nrT))
+    allocate(photomech%reactants_sp_inds(photomech%max_num_reactants,photomech%nrT))
+    allocate(photomech%products_sp_inds(photomech%max_num_products,photomech%nrT))
+    allocate(photomech%reactants_names(photomech%max_num_reactants,photomech%nrF))
+    allocate(photomech%products_names(photomech%max_num_products,photomech%nrF))
     allocate(photomech%rateparams(6,photomech%nrF)) ! This will need knowledge of which rection it is reversing
     allocate(photomech%rxtypes(photomech%nrF))
     j = 1
@@ -304,12 +341,29 @@ contains
       class is (type_dictionary)
         tmp = trim(element%get_string("equation",error = config_error))
         if (associated(config_error)) call handleerror(config_error%message,infile)
-        call parse_equation(tmp,outstr)
-        photomech%reactions_names(:,j) = outstr
-        call species_name2number(tmp ,outstr, photomech%species_names, &
-                                 photomech%species_composition, photomech%natoms, &
-                                 photomech%nsp, outarr)
-        photomech%reactions_indices(:,j) = outarr
+        
+        call parse_equation(tmp, photomech%max_num_reactants, photomech%max_num_products, &
+                            photomech%nreactants(j), photomech%nproducts(j), &
+                            photomech%reactants_names(:,j), photomech%products_names(:,j))
+        if (photomech%reverse_info(1,j) == 1) then
+          ! reaction has a reverse
+          i = photomech%reverse_info(2,j)
+          photomech%nreactants(i) = photomech%nproducts(j)
+          photomech%nproducts(i) = photomech%nreactants(j)
+        endif
+
+        call species_name2number(tmp, photomech%max_num_reactants, photomech%max_num_products, &
+                                 photomech%reactants_names(:,j), photomech%products_names(:,j), &
+                                 photomech%species_names, photomech%species_composition, &
+                                 photomech%natoms, photomech%nsp, &
+                                 photomech%reactants_sp_inds(:,j), photomech%products_sp_inds(:,j))
+        if (photomech%reverse_info(1,j) == 1) then
+          ! reaction has a reverse
+          i = photomech%reverse_info(2,j)
+          photomech%reactants_sp_inds(:,i) = photomech%products_sp_inds(:,j)
+          photomech%products_sp_inds(:,i) = photomech%reactants_sp_inds(:,j)
+        endif
+
         call get_rateparams(element, infile, photomech%rxtypes(j), photomech%rateparams(:,j))
       class default
         print*,"IOError: Problem with reaction number ",j," in the input file."
@@ -681,24 +735,22 @@ contains
     
   end subroutine
   
-  subroutine parse_equation(instring, outstring)
+  subroutine parse_reaction(instring, reverse, eqr, eqp)
     type(string), intent(in) :: instring
-    character(len=8), intent(out) :: outstring(5)
-    logical :: reverse
+    logical, intent(out) :: reverse
+    type(string), allocatable, intent(out) :: eqr(:), eqp(:)
     
     type(string) :: string1, string2, string3, string4
-    type(string), allocatable :: eq1(:), eqr(:), eqp(:)
+    type(string), allocatable :: eq1(:)
     integer i
     string1 = instring%replace(old='+', new=' ')
     string2 = string1%replace(old='(', new=' ')
     string3 = string2%replace(old=')', new=' ')
-    string2 = string3%replace(old='M', new=' ')
-    string4 = string2%replace(old='hv', new=' ')
     if (index(instring%chars(), "<=>") /= 0) then
-      call string4%split(eq1, sep="<=>")
+      call string3%split(eq1, sep="<=>")
       reverse = .true.
     elseif (index(instring%chars(), " =>") /= 0) then
-      call string4%split(eq1, sep=" =>")
+      call string3%split(eq1, sep=" =>")
       reverse = .false.
     else
       print*,"IOError: Invalid reaction arrow in reaction ",instring
@@ -706,44 +758,83 @@ contains
     endif
     call eq1(1)%split(eqr, sep=" ")
     call eq1(2)%split(eqp, sep=" ")
-    outstring = ''
-    do i=1,size(eqr)
-      outstring(i) = eqr(i)%chars()
+  end subroutine
+  
+  subroutine parse_equation(instring, max_num_react, max_num_prod, numr, nump, outreact, outprod)
+    type(string), intent(in) :: instring
+    integer, intent(in) :: max_num_react, max_num_prod
+    integer, intent(out) :: numr, nump
+    character(len=8), intent(out) :: outreact(max_num_react), outprod(max_num_prod)
+    logical :: reverse
+    type(string), allocatable :: eqr(:), eqp(:)
+    integer :: i
+    
+    call parse_reaction(instring, reverse, eqr, eqp)
+    
+    numr = size(eqr)
+    nump = size(eqp)
+    
+    outreact = ''
+    outprod = ''
+    do i=1,numr
+      outreact(i) = eqr(i)%chars()
     enddo
-    do i=1,size(eqp)
-      outstring(2+i) = eqp(i)%chars()
+    do i=1,nump
+      outprod(i) = eqp(i)%chars()
     enddo
   end subroutine
   
-  subroutine species_name2number(reaction, instring, species_names, species_composition, natoms, nsp, outarr)
+  subroutine species_name2number(reaction, max_num_react, max_num_prod, reacts, prods, &
+                                 species_names, species_composition, natoms, nsp, &
+                                 react_sp_nums, prod_sp_nums)
     type(string) :: reaction
-    character(len=8), intent(in) :: instring(5)
-    character(len=8), intent(in) :: species_names(nsp)
-    integer, intent(in) :: species_composition(natoms,nsp)
+    integer, intent(in) :: max_num_react, max_num_prod
+    
+    character(len=8), intent(in) :: reacts(max_num_react)
+    character(len=8), intent(in) :: prods(max_num_prod)
+    
+    character(len=8), intent(in) :: species_names(nsp+2)
+    integer, intent(in) :: species_composition(natoms,nsp+2)
     integer, intent(in) :: nsp, natoms
-    integer, intent(out) :: outarr(5)
+    
+    integer, intent(out) :: react_sp_nums(max_num_react)
+    integer, intent(out) :: prod_sp_nums(max_num_prod)
+    
     integer :: i, ind(1)
     integer :: reactant_atoms(natoms), product_atoms(natoms)
     reactant_atoms = 0
     product_atoms = 0
-    do i = 1,5
-      ind = findloc(species_names,instring(i))
-      outarr(i) = ind(1)
-      if ((instring(i) /= '') .and. (ind(1) == 0)) then
+    
+    do i = 1,max_num_react
+      ind = findloc(species_names,reacts(i))
+      react_sp_nums(i) = ind(1)
+      if ((reacts(i) /= '') .and. (ind(1) == 0)) then
         print*,"IOError: ", & 
-               "Species ",trim(instring(i))," in reaction ",reaction, &
+               "Species ",trim(reacts(i))," in reaction ",reaction, &
                "is not in the list of species."
         stop
       endif
     enddo
-    do i=1,2
-      if (outarr(i) /= 0) then
-        reactant_atoms = reactant_atoms + species_composition(:,outarr(i))
+    
+    do i = 1,max_num_prod
+      ind = findloc(species_names,prods(i))
+      prod_sp_nums(i) = ind(1)
+      if ((prods(i) /= '') .and. (ind(1) == 0)) then
+        print*,"IOError: ", & 
+               "Species ",trim(reacts(i))," in reaction ",reaction, &
+               "is not in the list of species."
+        stop
       endif
     enddo
-    do i=3,5
-      if (outarr(i) /= 0) then
-        product_atoms = product_atoms + species_composition(:,outarr(i))
+  
+    do i=1,max_num_react
+      if (react_sp_nums(i) /= 0) then
+        reactant_atoms = reactant_atoms + species_composition(:,react_sp_nums(i))
+      endif
+    enddo
+    do i=1,max_num_prod
+      if (prod_sp_nums(i) /= 0) then
+        product_atoms = product_atoms + species_composition(:,prod_sp_nums(i))
       endif
     enddo
     if (.not. all(reactant_atoms == product_atoms)) then
@@ -768,10 +859,15 @@ program main
   use photochem_types, only: PhotoMechanism
   implicit none
   type(PhotoMechanism) :: photomech
+  integer i
 
   call get_photodata("../zahnle.yaml", photomech)
 
-  print*,photomech%species_names
+
+  do i = 1,photomech%nrT
+    print*,photomech%reactants_sp_inds(:,i), "=>",photomech%products_sp_inds(:,i), "|", &
+    photomech%nreactants(i),photomech%nproducts(i)
+  enddo
 end program
 
 
