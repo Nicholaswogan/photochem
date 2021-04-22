@@ -9,6 +9,8 @@ build
 *.a
 a.out
 test.run
+*.dSYM
+
 
 src/Stringifor
 build_dir

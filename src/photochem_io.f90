@@ -10,8 +10,7 @@ module photochem_types ! make a giant IO object
   type :: PhotoSettings
     real(real_kind) :: bottom_atmosphere
     real(real_kind) :: top_atmosphere 
-    integer :: nz = 0
-    
+    integer :: nz
     real(real_kind) :: lower_wavelength
     real(real_kind) :: upper_wavelength
     integer :: nw !number of bins
@@ -30,36 +29,6 @@ module photochem_types ! make a giant IO object
     real(real_kind) :: rainout_multiplier
   end type
   
-  ! type :: PhotoMolecules
-  !   integer :: nsp, natoms
-  !   character(len=8), allocatable :: atoms_names(:)
-  !   character(len=8), allocatable :: species_names(:)
-  !   integer, allocatable :: species_composition(:,:)
-  !   integer, allocatable :: lowerboundcond(:)
-  !   real(real_kind), allocatable :: lower_vdep(:)
-  !   real(real_kind), allocatable :: lower_flux(:)
-  !   real(real_kind), allocatable :: lower_distributed_height(:)
-  !   real(real_kind), allocatable :: lower_fixed_mr(:)
-  !   integer, allocatable :: upperboundcond(:)
-  !   real(real_kind), allocatable :: upper_veff(:)
-  !   real(real_kind), allocatable :: upper_flux(:)
-  !   real(real_kind), allocatable :: thermo_data(:,:,:)
-  !   real(real_kind), allocatable :: thermo_temps(:,:)  
-  ! end type
-  ! 
-  ! type :: PhotoReactions
-  !   integer :: nr
-  !   character(len=8), allocatable :: reactions_names(:,:)
-  !   integer, allocatable :: reactions_indices(:,:)
-  !   character(len=15), allocatable :: rxtypes(:)
-  !   real(real_kind), allocatable :: rateparams(:,:)
-  ! 
-  !   integer, allocatable :: nump(:)
-  !   integer, allocatable :: numl(:)
-  !   integer, allocatable :: iprod(:,:)
-  !   integer, allocatable :: iloss(:,:,:)
-  ! end type
-  
   type :: PhotoMechanism
     type(PhotoSettings) :: settings
     type(PhotoPlanet) :: planet
@@ -67,9 +36,6 @@ module photochem_types ! make a giant IO object
     ! type(PhotoReactions) : reactions
     
     integer :: nsp
-    integer :: nrF
-    integer :: nrR
-    integer :: nrT
     integer :: natoms
     character(len=8), allocatable :: atoms_names(:)
     character(len=8), allocatable :: species_names(:)
@@ -85,6 +51,9 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: thermo_data(:,:,:)
     real(real_kind), allocatable :: thermo_temps(:,:)
     
+    integer :: nrF
+    integer :: nrR
+    integer :: nrT
     integer :: max_num_reactants
     integer :: max_num_products
     character(len=8), allocatable :: reactants_names(:,:) ! not really needed.
@@ -93,8 +62,7 @@ module photochem_types ! make a giant IO object
     integer, allocatable :: products_sp_inds(:,:)
     integer, allocatable :: nreactants(:)
     integer, allocatable :: nproducts(:)
-    
-    integer, allocatable :: reverse_info(:,:) ! all for calculating rates
+    integer, allocatable :: reverse_info(:) ! all for calculating rates
     character(len=15), allocatable :: rxtypes(:)
     real(real_kind), allocatable :: rateparams(:,:)
     
@@ -142,7 +110,7 @@ module photochem_io
   
 contains
   
-  subroutine get_photodata(infile,photomech) ! read yaml and make giant IO object
+  subroutine get_photodata(infile,photomech) 
     use yaml, only : parse, error_length
     character(len=*), intent(in) :: infile
     type(PhotoMechanism), intent(out) :: photomech
@@ -182,21 +150,19 @@ contains
     ! temporary work variables
     type(string) :: tmp
     type(string), allocatable :: tmps(:), eqr(:), eqp(:)
-    character(len=8) :: outstr(5)
-    integer :: outarr(5)
-    integer :: i, j, ind(1)
+    integer :: i, j, k, ind(1)
     logical :: reverse
     
     settings => mapping%get_dictionary('settings',.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     planet => mapping%get_dictionary('planet',.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     atoms => mapping%get_list('atoms',.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     species => mapping%get_list('species',.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     reactions => mapping%get_list('reactions',.true.,error = config_error) 
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     
     ! settings
     call get_settings(settings, infile, photomech%settings)
@@ -231,7 +197,7 @@ contains
       item => item%next
       photomech%nsp = photomech%nsp + 1
     enddo
-        
+    
     allocate(photomech%species_composition(photomech%natoms,photomech%nsp+2))
     photomech%species_composition = 0
     allocate(photomech%species_names(photomech%nsp+2))
@@ -253,7 +219,7 @@ contains
       select type (element => item%node)
       class is (type_dictionary)
         dict => element%get_dictionary("composition",.true.,error = config_error)  ! get composition
-        if (associated(config_error)) call handleerror(config_error%message,infile)
+        if (associated(config_error)) call handle_error(config_error%message,infile)
         key_value_pair => dict%first ! to see if
         do while (associated(key_value_pair))
           ind = findloc(photomech%atoms_names,trim(key_value_pair%key))
@@ -268,15 +234,14 @@ contains
           photomech%species_composition(i,j) = dict%get_integer(photomech%atoms_names(i),0,error = config_error) ! no error possible.
         enddo
         photomech%species_names(j) = trim(element%get_string("name",error = config_error)) ! get name
-        if (associated(config_error)) call handleerror(config_error%message,infile)
+        if (associated(config_error)) call handle_error(config_error%message,infile)
         call get_boundaryconds(element,photomech%species_names(j), infile, &
                                photomech%lowerboundcond(j), photomech%lower_vdep(j), &
                                photomech%lower_flux(j), photomech%lower_distributed_height(j), &
                                photomech%lower_fixed_mr(j), &
                                photomech%upperboundcond(j), photomech%upper_veff(j), photomech%upper_flux(j))! get boundary conditions
-        
-        call get_thermodata(element,photomech%species_names(j), infile,photomech%thermo_temps(:,j),photomech%thermo_data(:,:,j)) ! get thermodynamic data
-        
+        call get_thermodata(element,photomech%species_names(j), infile,photomech%thermo_temps(:,j), &
+                            photomech%thermo_data(:,:,j)) ! get thermodynamic data
       class default
         print*,"IOError: Problem with species number ", j,"  in the input file"
         stop
@@ -284,7 +249,7 @@ contains
       item => item%next
       j = j + 1
     enddo
-    
+    ! done with species
     
     ! reactions
     photomech%nrF = 0 ! count forward reactions
@@ -294,13 +259,15 @@ contains
       photomech%nrF = photomech%nrF + 1
     enddo
     
-    allocate(photomech%reverse_info(2,photomech%nrF))
-    photomech%reverse_info = 0
-    ! determine which reactions to reverse. Determine maximum number of reactants, and productants
+    allocate(photomech%rateparams(6,photomech%nrF))
+    allocate(photomech%rxtypes(photomech%nrF))
+    ! determine which reactions to reverse. 
+    ! Determine maximum number of reactants, and productants
     photomech%max_num_reactants = 1
     photomech%max_num_products = 1
     photomech%nrR = 0
     j = 1
+    i = 1
     item => reactions%first
     do while (associated(item))
       select type (element => item%node)
@@ -309,13 +276,13 @@ contains
         call parse_reaction(tmp, reverse, eqr, eqp)
         if (reverse) then
           photomech%nrR = photomech%nrR + 1
-          photomech%reverse_info(1,j) = 1  ! whether the reaction is reversed
-          photomech%reverse_info(2,j) = photomech%nrR + photomech%nrF ! the reaction number of reversed reaction
           if (size(eqr) > photomech%max_num_products) photomech%max_num_products = size(eqr)
           if (size(eqp) > photomech%max_num_reactants) photomech%max_num_reactants = size(eqp)
         endif
         if (size(eqr) > photomech%max_num_reactants) photomech%max_num_reactants = size(eqr)
         if (size(eqp) > photomech%max_num_products) photomech%max_num_products = size(eqp)
+        call get_rateparams(element, infile, photomech%rxtypes(j), photomech%rateparams(:,j))
+        call compare_rxtype_string(tmp, eqr, eqp, photomech%rxtypes(j))
       class default
         print*,"IOError: Problem with reaction number ",j," in the input file."
         stop
@@ -330,41 +297,39 @@ contains
     allocate(photomech%nproducts(photomech%nrT))
     allocate(photomech%reactants_sp_inds(photomech%max_num_reactants,photomech%nrT))
     allocate(photomech%products_sp_inds(photomech%max_num_products,photomech%nrT))
+    allocate(photomech%reverse_info(photomech%nrT))
+    photomech%reverse_info = 0
     allocate(photomech%reactants_names(photomech%max_num_reactants,photomech%nrF))
     allocate(photomech%products_names(photomech%max_num_products,photomech%nrF))
-    allocate(photomech%rateparams(6,photomech%nrF)) ! This will need knowledge of which rection it is reversing
-    allocate(photomech%rxtypes(photomech%nrF))
     j = 1
+    k = 1
     item => reactions%first
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
         tmp = trim(element%get_string("equation",error = config_error))
-        if (associated(config_error)) call handleerror(config_error%message,infile)
+        if (associated(config_error)) call handle_error(config_error%message,infile)
         
         call parse_equation(tmp, photomech%max_num_reactants, photomech%max_num_products, &
                             photomech%nreactants(j), photomech%nproducts(j), &
-                            photomech%reactants_names(:,j), photomech%products_names(:,j))
-        if (photomech%reverse_info(1,j) == 1) then
-          ! reaction has a reverse
-          i = photomech%reverse_info(2,j)
-          photomech%nreactants(i) = photomech%nproducts(j)
-          photomech%nproducts(i) = photomech%nreactants(j)
-        endif
-
+                            photomech%reactants_names(:,j), photomech%products_names(:,j), reverse)
+                            
         call species_name2number(tmp, photomech%max_num_reactants, photomech%max_num_products, &
                                  photomech%reactants_names(:,j), photomech%products_names(:,j), &
                                  photomech%species_names, photomech%species_composition, &
                                  photomech%natoms, photomech%nsp, &
                                  photomech%reactants_sp_inds(:,j), photomech%products_sp_inds(:,j))
-        if (photomech%reverse_info(1,j) == 1) then
+        if (reverse) then
           ! reaction has a reverse
-          i = photomech%reverse_info(2,j)
+          i = photomech%nrF + k
+          photomech%reverse_info(j) = i ! the reaction number of reversed reaction
+          photomech%reverse_info(i) = j ! the reaction number of the forward reaction
+          photomech%nreactants(i) = photomech%nproducts(j)
+          photomech%nproducts(i) = photomech%nreactants(j)
           photomech%reactants_sp_inds(:,i) = photomech%products_sp_inds(:,j)
           photomech%products_sp_inds(:,i) = photomech%reactants_sp_inds(:,j)
+          k = k + 1
         endif
-
-        call get_rateparams(element, infile, photomech%rxtypes(j), photomech%rateparams(:,j))
       class default
         print*,"IOError: Problem with reaction number ",j," in the input file."
         stop
@@ -387,10 +352,157 @@ contains
       stop
     endif
     
+    call check_for_duplicates(photomech)
+    
 
   end subroutine
   
+  subroutine check_for_duplicates(photomech)
+    type(PhotoMechanism), intent(in) :: photomech
+    
+    integer i, j, ii, k
+    logical l, m
+    
+    do i = 1,photomech%nrT-1
+      do ii = i+1,photomech%nrT
+        l = all(photomech%reactants_sp_inds(:,i) == photomech%reactants_sp_inds(:,ii))
+        m = all(photomech%products_sp_inds(:,i) == photomech%products_sp_inds(:,ii))
+        if ((m) .and. (l)) then
+          print*,"IOError: Reaction list constains duplicates."
+          if (photomech%reverse_info(i) > 0) then
+            print*,"It is a reversable reaction."
+          endif
+          call print_reaction(photomech,i)
+          stop
+        endif
+      enddo
+    enddo
+    
+  end subroutine
   
+  subroutine print_reaction(photomech,rxn)
+    type(PhotoMechanism), intent(in) :: photomech
+    integer, intent(in) :: rxn
+    
+    integer j, k
+    
+    write(*, '(1x)', advance="no")
+    do j = 1,photomech%nreactants(rxn)-1
+      k = photomech%reactants_sp_inds(j,rxn)
+      write(*, '(A,1x,A,1x)', advance="no") trim(photomech%species_names(k)),'+'
+    enddo
+    k = photomech%reactants_sp_inds(photomech%nreactants(rxn),rxn)
+    write(*, '(A,1x,A)', advance="no") trim(photomech%species_names(k)),'=> '
+
+    do j = 1,photomech%nproducts(rxn)-1
+      k = photomech%products_sp_inds(j,rxn)
+      write(*, '(A,1x,A,1x)', advance="no") trim(photomech%species_names(k)),'+'
+    enddo
+    k = photomech%products_sp_inds(photomech%nproducts(rxn),rxn)
+    write(*, '(A)', advance="no") trim(photomech%species_names(k))
+    write(*,*)
+  end subroutine
+  
+  subroutine compare_rxtype_string(tmp, eqr, eqp,rxtype)
+    type(string), allocatable, intent(in) :: eqr(:), eqp(:)
+    type(string), intent(in) :: tmp
+    character(len=*) :: rxtype
+    integer i
+    logical k, j, m, l, kk, jj
+    l = .false.
+    m = .false.
+    k = .false.
+    kk = .false.
+    j = .false.
+    jj = .false.
+    
+    if ((trim(rxtype) == 'three-body') .or. (trim(rxtype) == 'falloff')) then
+      do i = 1,size(eqr)
+        if ((trim(eqr(i)%chars()) == 'M').and.j) jj = .true.
+        if (trim(eqr(i)%chars()) == 'M') j = .true.
+        if (trim(eqr(i)%chars()) == 'hv') m = .true.
+      enddo
+      do i = 1,size(eqp)
+        if ((trim(eqp(i)%chars()) == 'M').and.k) kk = .true.
+        if (trim(eqp(i)%chars()) == 'M') k = .true.
+        if (trim(eqp(i)%chars()) == 'hv') l = .true.
+      enddo
+      if (trim(eqr(size(eqr))%chars()) /= 'M') then
+        print*,'IOError: ',trim(rxtype), ' reaction ',tmp, &
+                ' must have "M" as the last reactant'
+        stop
+      endif
+      if (trim(eqp(size(eqp))%chars()) /= 'M') then
+        print*,'IOError: ',trim(rxtype), ' reaction ',tmp, &
+                ' must have "M" as the last product'
+        stop
+      endif
+      if ((j).and.(k)) then
+        ! good
+      else
+        print*,'IOError: ',trim(rxtype), ' reaction ',tmp, &
+                ' must have "M" on both sides'
+        stop
+      endif
+      if ((jj).or.(kk)) then
+        print*,'IOError: ',trim(rxtype), ' reaction ',tmp, &
+                ' can only have one "M" on either side'
+        stop
+      endif
+      if ((m).or.(l)) then
+        print*,'IOError: ',trim(rxtype), ' reaction ',tmp, &
+                ' can not contain "hv". Only photolysis reactions can.'
+        stop
+      endif
+    elseif (trim(rxtype) == 'elementary') then
+      do i = 1,size(eqr)
+        if (trim(eqr(i)%chars()) == 'M') j = .true.
+        if (trim(eqr(i)%chars()) == 'hv') m = .true.
+      enddo
+      do i = 1,size(eqp)
+        if (trim(eqp(i)%chars()) == 'M') k = .true.
+        if (trim(eqp(i)%chars()) == 'hv') l = .true.
+      enddo
+      if ((j).or.(k)) then
+        print*,'IOError: ',trim(rxtype), ' reaction ',tmp, &
+                ' can not contain "M".'
+        stop
+      endif
+      if ((m).or.(l)) then
+        print*,'IOError: ',trim(rxtype), ' reaction ',tmp, &
+                ' can not contain "hv". Only photolysis reactions can.'
+        stop
+      endif
+    elseif (trim(rxtype) == 'photolysis') then
+      do i = 1,size(eqr)
+        if (trim(eqr(i)%chars()) == 'M') j = .true.
+        if ((trim(eqr(i)%chars()) == 'hv').and.(m)) jj = .true.
+        if (trim(eqr(i)%chars()) == 'hv') m = .true.
+      enddo
+      do i = 1,size(eqp)
+        if (trim(eqp(i)%chars()) == 'M') k = .true.
+        if (trim(eqp(i)%chars()) == 'hv') l = .true.
+      enddo
+      if ((j).or.(k)) then
+        print*,'IOError: ',trim(rxtype), ' reaction ',tmp, &
+                ' can not contain "M".'
+        stop
+      endif
+      if (jj) then
+        print*,'IOError: ',trim(rxtype), ' reaction ',tmp, &
+                ' can only have one "hv" on the left side.'
+        stop
+      endif
+      if ((m).and..not.(l)) then
+        ! good
+      else
+        print*,'IOError: ',trim(rxtype), ' reaction ',tmp, &
+                ' must have "hv" on the left and no "hv" on the right.'
+        stop
+      endif
+    endif
+  end subroutine
+
   subroutine get_settings(filesettings, infile, outsettings)
     class(type_dictionary), intent(in) :: filesettings
     character(len=*), intent(in) :: infile
@@ -400,24 +512,24 @@ contains
     class(type_dictionary), pointer :: tmpdict
     
     tmpdict => filesettings%get_dictionary("atmosphere-grid",.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     
     outsettings%bottom_atmosphere = tmpdict%get_real("bottom",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     outsettings%top_atmosphere = tmpdict%get_real("top",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     outsettings%nz = tmpdict%get_integer("number-of-layers",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     
     tmpdict => filesettings%get_dictionary("photo-grid",.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     
     outsettings%lower_wavelength = tmpdict%get_real("lower-wavelength",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     outsettings%upper_wavelength = tmpdict%get_real("upper-wavelength",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     outsettings%nw = tmpdict%get_integer("number-of-bins",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     
   
   end subroutine
@@ -431,43 +543,43 @@ contains
     class(type_dictionary), pointer :: tmpdict
     
     outplanet%gravity = fileplanet%get_real("gravity",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     outplanet%surface_pressure = fileplanet%get_real("surface-pressure",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     outplanet%planet_radius = fileplanet%get_real("planet-radius",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)  
+    if (associated(config_error)) call handle_error(config_error%message,infile)  
     outplanet%surface_albedo = fileplanet%get_real("surface-albedo",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)  
+    if (associated(config_error)) call handle_error(config_error%message,infile)  
     outplanet%water_sat_trop = fileplanet%get_logical("water-saturated-troposhere",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     if (outplanet%water_sat_trop) then
       outplanet%trop_alt = fileplanet%get_real("tropopause-altitude",error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
     else
       outplanet%trop_alt = 0.d0 ! no tropopause.
     endif
     
     tmpdict => fileplanet%get_dictionary("lightning",.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     
     outplanet%lightning = tmpdict%get_logical("on-off",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     if (.not. outplanet%lightning) then
       outplanet%lightning_NO_production = 0.d0
     else
       outplanet%lightning_NO_production = tmpdict%get_real("NO-production",error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
     endif
     tmpdict => fileplanet%get_dictionary("rainout",.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     
     outplanet%rainout= tmpdict%get_logical("on-off",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     if (.not.outplanet%rainout) then
       outplanet%rainout_multiplier = 1.d0
     else
       outplanet%rainout_multiplier = tmpdict%get_real("multiplier",error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
     endif
   end subroutine
   
@@ -488,9 +600,9 @@ contains
     character(len=:), allocatable :: bctype
     
     tmpdict => molecule%get_dictionary("lower-boundary",.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     bctype = tmpdict%get_string("type",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     
     ! constant deposition velocity = vdep
     ! constant mixing-ratio = mixing-ratio
@@ -499,7 +611,7 @@ contains
     if (bctype == "constant deposition velocity") then
       lowercond = 0
       Lvdep = tmpdict%get_real("vdep",error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       Lflux = 0.d0
       LdistH = 0.d0
       Lmr = 0.d0 
@@ -509,22 +621,22 @@ contains
       Lflux = 0.d0
       LdistH = 0.d0
       Lmr = tmpdict%get_real("mixing-ratio",error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
     elseif (bctype == "constant flux") then
       lowercond = 2
       Lvdep = 0.d0
       Lflux = tmpdict%get_real("flux",error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       LdistH = 0.d0
       Lmr = 0.d0 
     elseif (bctype == "deposition velocity + distributed flux") then
       lowercond = 3
       Lvdep = tmpdict%get_real("vdep",error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       Lflux = tmpdict%get_real("flux",error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       LdistH = tmpdict%get_real("distributed-height",error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       Lmr = 0.d0 
     else
       print*,'IOError: "',trim(bctype),'" is not a valid lower boundary condition for ',trim(molecule_name)
@@ -532,22 +644,22 @@ contains
     endif
     
     tmpdict => molecule%get_dictionary("upper-boundary",.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     bctype = tmpdict%get_string("type",error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     
     ! constant effusion velocity = veff
     ! constant flux = flux
     if (bctype == "constant effusion velocity") then
       uppercond = 0
       Uveff = tmpdict%get_real("veff",error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       Uflux = 0.d0
     elseif (bctype == "constant flux") then
       uppercond = 2
       Uveff = 0.d0
       Uflux = tmpdict%get_real("flux",error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
     else
       print*,'IOError: "',trim(bctype),'" is not a valid upper boundary condition for ',trim(molecule_name)
       stop
@@ -576,18 +688,18 @@ contains
     thermo_data_entry = -1.d0
     
     tmpdict => molecule%get_dictionary("thermo",.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     
     ! check thermodynamic model
     if (tmpdict%get_string("model",error = config_error) /= "Shomate") then
       print*,"IOError: Thermodynamic data must be in Shomate format for ",trim(molecule_name)
       stop
     endif
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     
     ! get temperature ranges
     tmplist =>tmpdict%get_list("temperature-ranges",.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     j = 1
     item => tmplist%first
     do while (associated(item))
@@ -619,9 +731,9 @@ contains
     
     ! get data
     tmpdict1 => tmpdict%get_dictionary("data",.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     tmplist =>tmpdict1%get_list("poly1",.true.,error = config_error)
-    if (associated(config_error)) call handleerror(config_error%message,infile)
+    if (associated(config_error)) call handle_error(config_error%message,infile)
     j = 1
     item => tmplist%first
     do while (associated(item)) 
@@ -692,7 +804,6 @@ contains
     
     type (type_error), pointer :: config_error
     class(type_dictionary), pointer :: tmpdict
-    class(type_scalar), pointer :: tmpscalar
     
     rateparam = 0.d0
     
@@ -702,30 +813,30 @@ contains
     ! get params
     if ((trim(rxtype) == 'elementary') .or. (trim(rxtype) == 'three-body')) then
       tmpdict => reaction%get_dictionary('rate-constant',.true.,error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       rateparam(1) = tmpdict%get_real('A',error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       rateparam(2) = tmpdict%get_real('b',error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       rateparam(3) = tmpdict%get_real('Ea',error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
     elseif (trim(rxtype) == 'falloff') then
       tmpdict => reaction%get_dictionary('low-P-rate-constant',.true.,error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       rateparam(1) = tmpdict%get_real('A',error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       rateparam(2) = tmpdict%get_real('b',error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       rateparam(3) = tmpdict%get_real('Ea',error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       tmpdict => reaction%get_dictionary('high-P-rate-constant',.true.,error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       rateparam(4) = tmpdict%get_real('A',error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       rateparam(5) = tmpdict%get_real('b',error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
       rateparam(6) = tmpdict%get_real('Ea',error = config_error)
-      if (associated(config_error)) call handleerror(config_error%message,infile)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
     elseif (trim(rxtype) == 'photolysis') then
       ! nothing
     else
@@ -740,32 +851,60 @@ contains
     logical, intent(out) :: reverse
     type(string), allocatable, intent(out) :: eqr(:), eqp(:)
     
-    type(string) :: string1, string2, string3, string4
-    type(string), allocatable :: eq1(:)
+    type(string) :: string1, string2, string3
+    type(string), allocatable :: eq1(:), eq2(:)
+    type(string), allocatable :: eqr1(:), eqp1(:)
     integer i
-    string1 = instring%replace(old='+', new=' ')
-    string2 = string1%replace(old='(', new=' ')
-    string3 = string2%replace(old=')', new=' ')
+    string1 = instring%replace(old='(', new=' ')
+    string2 = string1%replace(old=')', new=' ')
+    string3 = string2%replace(old='+', new=' ')
     if (index(instring%chars(), "<=>") /= 0) then
-      call string3%split(eq1, sep="<=>")
+      call string2%split(eq1, sep="<=>")
+      call string3%split(eq2, sep="<=>")
       reverse = .true.
     elseif (index(instring%chars(), " =>") /= 0) then
-      call string3%split(eq1, sep=" =>")
+      call string2%split(eq1, sep="=>")
+      call string3%split(eq2, sep="=>")
       reverse = .false.
     else
       print*,"IOError: Invalid reaction arrow in reaction ",instring
+      print*,'Note, forward reactions must have a space before the arrow, like " =>"'
       stop
     endif
-    call eq1(1)%split(eqr, sep=" ")
-    call eq1(2)%split(eqp, sep=" ")
+    
+    call eq1(1)%split(eqr1, sep="+")
+    call eq1(2)%split(eqp1, sep="+")
+    ! remove white space
+    allocate(eqr(size(eqr1)))
+    allocate(eqp(size(eqp1)))
+    do i=1,size(eqr1)
+      eqr(i) = eqr1(i)%replace(old=' ', new='')
+    enddo
+    do i=1,size(eqp1)
+      eqp(i) = eqp1(i)%replace(old=' ', new='')
+    enddo
+    
+    call eq2(1)%split(eqr1, sep=" ")
+    call eq2(2)%split(eqp1, sep=" ")
+    
+    if ((size(eqr1) /= size(eqr)) .or. (size(eqp1) /= size(eqp))) then
+      print*,'IOError: Missing "+" sign(s) in reaction ',instring
+      stop
+    endif
+    
+    if (size(eqr) + size(eqp) /= instring%count('+') + 2) then
+      print*,'IOError: Too many "+" signs in reaction ',instring
+      stop
+    endif
   end subroutine
   
-  subroutine parse_equation(instring, max_num_react, max_num_prod, numr, nump, outreact, outprod)
+  subroutine parse_equation(instring, max_num_react, max_num_prod, numr, nump, &
+                            outreact, outprod, reverse)
     type(string), intent(in) :: instring
     integer, intent(in) :: max_num_react, max_num_prod
     integer, intent(out) :: numr, nump
     character(len=8), intent(out) :: outreact(max_num_react), outprod(max_num_prod)
-    logical :: reverse
+    logical, intent(out) :: reverse
     type(string), allocatable :: eqr(:), eqp(:)
     integer :: i
     
@@ -821,7 +960,7 @@ contains
       prod_sp_nums(i) = ind(1)
       if ((prods(i) /= '') .and. (ind(1) == 0)) then
         print*,"IOError: ", & 
-               "Species ",trim(reacts(i))," in reaction ",reaction, &
+               "Species ",trim(prods(i))," in reaction ",reaction, &
                "is not in the list of species."
         stop
       endif
@@ -845,7 +984,7 @@ contains
     endif
   end subroutine
   
-  subroutine handleerror(message,infile)
+  subroutine handle_error(message,infile)
     character(len=*), intent(in) :: message
     character(len=*), intent(in) :: infile
     print*,"IOError: ",trim(infile),trim(message)
@@ -859,16 +998,33 @@ program main
   use photochem_types, only: PhotoMechanism
   implicit none
   type(PhotoMechanism) :: photomech
-  integer i
+  integer i, j, k
 
   call get_photodata("../zahnle.yaml", photomech)
 
-
   do i = 1,photomech%nrT
-    print*,photomech%reactants_sp_inds(:,i), "=>",photomech%products_sp_inds(:,i), "|", &
-    photomech%nreactants(i),photomech%nproducts(i)
-  enddo
+    write(*, '(1i5,3x,1i5,3x)', advance="no") i, photomech%reverse_info(i)
+  
+    do j = 1,photomech%nreactants(i)-1
+      k = photomech%reactants_sp_inds(j,i)
+      write(*, '(A,1x,A,1x)', advance="no") trim(photomech%species_names(k)),'+'
+    enddo
+    k = photomech%reactants_sp_inds(photomech%nreactants(i),i)
+    write(*, '(A,1x,A)', advance="no") trim(photomech%species_names(k)),'=> '
+  
+    do j = 1,photomech%nproducts(i)-1
+      k = photomech%products_sp_inds(j,i)
+      write(*, '(A,1x,A,1x)', advance="no") trim(photomech%species_names(k)),'+'
+    enddo
+    k = photomech%products_sp_inds(photomech%nproducts(i),i)
+    write(*, '(A)', advance="no") trim(photomech%species_names(k))
+  
+    write(*,*)
+  enddo  
+  
 end program
+
+
 
 
 
