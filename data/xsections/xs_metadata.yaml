@@ -1,0 +1,631 @@
+# The details for every cross section reaction
+
+H2O:
+  reactions:
+    H2O + hv => H + OH:
+      citations:
+      - nm-range: 0.1 - 242.46
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    H2O + hv => H2 + O1D:
+      citations:
+      - nm-range: 0.1 - 242.46
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    H2O + hv => O + H + H:
+      citations:
+      - nm-range: 0.1 - 242.46
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 242.46
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+H2S:
+  reactions:
+    H2S + hv => HS + H:
+      citations:
+      - nm-range: 0.06 - 265.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.06 - 265.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+C2H6:
+  reactions:
+    C2H6 + hv => CH3 + CH3:
+      citations:
+      - nm-range: 0.06 - 160.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    C2H6 + hv => C2H5 + H:
+      citations:
+      - nm-range: 0.06 - 160.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    C2H6 + hv => 1CH2 + CH4:
+      citations:
+      - nm-range: 0.06 - 160.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    C2H6 + hv => C2H4 + H2:
+      citations:
+      - nm-range: 0.06 - 160.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.06 - 160.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+HO2:
+  reactions:
+    HO2 + hv => OH + O:
+      citations:
+      - nm-range: 0.1 - 250.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 250.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+HNO3:
+  reactions:
+    HNO3 + hv => OH + NO2:
+      citations:
+      - nm-range: 0.061 - 330.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.061 - 330.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+NO:
+  reactions:
+    NO + hv => N + O:
+      citations:
+      - nm-range: 0.1 - 191.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 191.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+HCN:
+  reactions:
+    HCN + hv => H + CN:
+      citations:
+      - nm-range: 0.1 - 195.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 195.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+HNCO:
+  reactions:
+    HNCO + hv => NH + CO:
+      citations:
+      - nm-range: 0.06 - 354.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    HNCO + hv => H + NCO:
+      citations:
+      - nm-range: 0.06 - 354.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.06 - 354.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+CN:
+  reactions:
+    CN + hv => C + N:
+      citations:
+      - nm-range: 0.061 - 159.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.061 - 159.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+O2:
+  reactions:
+    O2 + hv => O + O:
+      citations:
+      - nm-range: 0.1 - 242.37
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    O2 + hv => O + O1D:
+      citations:
+      - nm-range: 0.1 - 242.37
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 242.37
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+SO2:
+  reactions:
+    SO2 + hv => SO + O:
+      citations:
+      - nm-range: 0.06 - 239.9
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    SO2 + hv => S + O2:
+      citations:
+      - nm-range: 0.06 - 239.9
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.06 - 239.9
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+CH:
+  reactions:
+    CH + hv => C + H:
+      citations:
+      - nm-range: 0.0 - 358.99
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.0 - 358.99
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+CH3OH:
+  reactions:
+    CH3OH + hv => CH3 + OH:
+      citations:
+      - nm-range: 0.1 - 1350.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    CH3OH + hv => H2CO + H2:
+      citations:
+      - nm-range: 0.1 - 1350.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 1350.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+O3:
+  reactions:
+    O3 + hv => O + O2:
+      citations:
+      - nm-range: 0.06 - 900.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    O3 + hv => O1D + O2:
+      citations:
+      - nm-range: 0.06 - 900.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.06 - 900.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+OCS:
+  reactions:
+    OCS + hv => CO + S:
+      citations:
+      - nm-range: 0.06 - 336.9
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    OCS + hv => CS + O:
+      citations:
+      - nm-range: 0.06 - 336.9
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    OCS + hv => CS + O1D:
+      citations:
+      - nm-range: 0.06 - 336.9
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.06 - 336.9
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+CH4:
+  reactions:
+    CH4 + hv => 1CH2 + H2:
+      citations:
+      - nm-range: 0.1 - 277.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    CH4 + hv => CH3 + H:
+      citations:
+      - nm-range: 0.1 - 277.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    CH4 + hv => CH2 + H + H:
+      citations:
+      - nm-range: 0.1 - 277.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    CH4 + hv => CH + H2 + H:
+      citations:
+      - nm-range: 0.1 - 277.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 277.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+C2H4:
+  reactions:
+    C2H4 + hv => C2H2 + H + H:
+      citations:
+      - nm-range: 0.1 - 197.3
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    C2H4 + hv => C2H2 + H2:
+      citations:
+      - nm-range: 0.1 - 197.3
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 197.3
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+SO:
+  reactions:
+    SO + hv => S + O:
+      citations:
+      - nm-range: 0.06 - 231.4
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.06 - 231.4
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+H2O2:
+  reactions:
+    H2O2 + hv => OH + OH:
+      citations:
+      - nm-range: 0.1 - 350.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 350.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+N2O:
+  reactions:
+    N2O + hv => N2 + O:
+      citations:
+      - nm-range: 0.06 - 240.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    N2O + hv => N2 + O1D:
+      citations:
+      - nm-range: 0.06 - 240.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.06 - 240.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+H2CO:
+  reactions:
+    H2CO + hv => HCO + H:
+      citations:
+      - nm-range: 0.1 - 370.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    H2CO + hv => CO + H2:
+      citations:
+      - nm-range: 0.1 - 370.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    H2CO + hv => CO + H + H:
+      citations:
+      - nm-range: 0.1 - 370.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 370.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+C2H2:
+  reactions:
+    C2H2 + hv => C2 + H2:
+      citations:
+      - nm-range: 0.1 - 230.6
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    C2H2 + hv => C2H + H:
+      citations:
+      - nm-range: 0.1 - 230.6
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 230.6
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+NO2:
+  reactions:
+    NO2 + hv => NO + O1D:
+      citations:
+      - nm-range: 0.06 - 397.75
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    NO2 + hv => NO + O:
+      citations:
+      - nm-range: 0.06 - 397.75
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.06 - 397.75
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+NO3:
+  reactions:
+    NO3 + hv => NO2 + O:
+      citations:
+      - nm-range: 0.06 - 703.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    NO3 + hv => NO + O2:
+      citations:
+      - nm-range: 0.06 - 703.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.06 - 703.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+CS2:
+  reactions:
+    CS2 + hv => CS + S:
+      citations:
+      - nm-range: 0.06 - 277.8
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.06 - 277.8
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+N2:
+  reactions:
+    N2 + hv => N + N:
+      citations:
+      - nm-range: 0.1 - 103.76
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 103.76
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+NH2:
+  reactions:
+    NH2 + hv => NH + H:
+      citations:
+      - nm-range: 0.1 - 197.05
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 197.05
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+NH3:
+  reactions:
+    NH3 + hv => NH2 + H:
+      citations:
+      - nm-range: 0.1 - 279.8
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    NH3 + hv => NH + H2:
+      citations:
+      - nm-range: 0.1 - 279.8
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    NH3 + hv => NH + H + H:
+      citations:
+      - nm-range: 0.1 - 279.8
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 279.8
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+C2:
+  reactions:
+    C2 + hv => C + C:
+      citations:
+      - nm-range: 0.06 - 143.6
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.06 - 143.6
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
+
+CO2:
+  reactions:
+    CO2 + hv => CO + O1D:
+      citations:
+      - nm-range: 0.1 - 227.5
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+    CO2 + hv => CO + O:
+      citations:
+      - nm-range: 0.1 - 227.5
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+      notes:
+  xsections:
+    citations:
+    - nm-range: 0.1 - 227.5
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+    notes:
+  general-notes:
