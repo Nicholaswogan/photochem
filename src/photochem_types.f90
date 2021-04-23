@@ -1,7 +1,6 @@
 
 module photochem_types ! make a giant IO object
   implicit none
-  
   private
   integer,parameter :: real_kind = kind(1.0d0)
   
@@ -30,16 +29,20 @@ module photochem_types ! make a giant IO object
   end type
   
   type :: PhotoMechanism
+    ! settings
     type(PhotoSettings) :: settings
-    type(PhotoPlanet) :: planet
-    ! type(PhotoMolecules) :: molecules
-    ! type(PhotoReactions) : reactions
     
+    ! planet information
+    type(PhotoPlanet) :: planet
+    
+    ! molecule data
     integer :: nsp
     integer :: natoms
-    character(len=8), allocatable :: atoms_names(:)
+    character(len=8), allocatable :: atoms_names(:) 
+    real(real_kind), allocatable :: atoms_mass(:) 
     character(len=8), allocatable :: species_names(:)
     integer, allocatable :: species_composition(:,:)
+    real(real_kind), allocatable :: species_mass(:) 
     integer, allocatable :: lowerboundcond(:)
     real(real_kind), allocatable :: lower_vdep(:)
     real(real_kind), allocatable :: lower_flux(:)
@@ -51,22 +54,24 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: thermo_data(:,:,:)
     real(real_kind), allocatable :: thermo_temps(:,:)
     
-    integer :: nrF
-    integer :: nrR
-    integer :: nrT
+    ! reaction
+    integer :: nrF ! number of forward reactions
+    integer :: nrR ! number of reverse reactions
+    integer :: nrT ! number of total reactions
     integer :: max_num_reactants
     integer :: max_num_products
-    character(len=8), allocatable :: reactants_names(:,:) ! not really needed.
+    character(len=8), allocatable :: reactants_names(:,:)
     character(len=8), allocatable :: products_names(:,:)
-    integer, allocatable :: reactants_sp_inds(:,:)
+    integer, allocatable :: reactants_sp_inds(:,:) ! for getting species nums in reactions
     integer, allocatable :: products_sp_inds(:,:)
-    integer, allocatable :: nreactants(:)
-    integer, allocatable :: nproducts(:)
-    integer, allocatable :: reverse_info(:) ! all for calculating rates
+    integer, allocatable :: nreactants(:) ! number of reactants
+    integer, allocatable :: nproducts(:) ! number of products
+    integer, allocatable :: reverse_info(:) ! indexs between forward and reverse reactions
     character(len=15), allocatable :: rxtypes(:)
     real(real_kind), allocatable :: rateparams(:,:)
     
-    integer, allocatable :: nump(:) ! length nsp. number of 
+    ! to do
+    integer, allocatable :: nump(:) ! 
     integer, allocatable :: numl(:)
     integer, allocatable :: iprod(:,:)
     integer, allocatable :: iloss(:,:)

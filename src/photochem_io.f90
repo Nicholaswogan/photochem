@@ -1,21 +1,20 @@
 
-
 module photochem_io
   use yaml_types, only : type_node, type_dictionary, type_list, type_error, &
                          type_list_item, type_scalar, type_key_value_pair
   use stringifor, only : string
   use photochem_types, only : PhotoMechanism, PhotoSettings, PhotoPlanet
   implicit none
-
   private 
-  
-  public get_photodata, print_reaction
-  
   integer,parameter :: real_kind = kind(1.0d0)
-  
+  ! Reads input files, and loads info into a
+  ! ReactionMechanism object.
+
+  public get_photomech, print_reaction
+    
 contains
   
-  subroutine get_photodata(infile,photomech) 
+  subroutine get_photomech(infile,photomech) 
     use yaml, only : parse, error_length
     character(len=*), intent(in) :: infile
     type(PhotoMechanism), intent(out) :: photomech
@@ -23,30 +22,37 @@ contains
     character(error_length) :: error
     class (type_node), pointer :: root
     
+    ! parse yaml file
     root => parse(infile,unit=100,error=error)
     if (error/='') then
       write (*,*) 'PARSE ERROR: '//trim(error)
       stop
     end if
-    
     select type (root)
       class is (type_dictionary)
-        call parserootdict(root,infile,photomech)
+        call parse_yaml(root,infile,photomech)
         call root%finalize()
         deallocate(root)
       class default
         print*,"yaml file must have dictionaries at root level"
         stop
     end select
+    
+    ! now get photon flux
+    
+    ! now get input atmosphere
+    
+    ! now get xsections
+     
   end subroutine
   
-  subroutine parserootdict(mapping, infile,photomech)
+  subroutine parse_yaml(mapping, infile,photomech)
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
     type(PhotoMechanism), intent(out) :: photomech
     
-    class (type_dictionary), pointer :: settings, planet
-    class (type_list), pointer :: atoms, species, reactions
+    class (type_dictionary), pointer :: settings, planet, atoms
+    class (type_list), pointer :: species, reactions
     type (type_error), pointer :: config_error
     class (type_list_item), pointer :: item
     class (type_dictionary), pointer :: dict
@@ -54,7 +60,7 @@ contains
 
     ! temporary work variables
     type(string) :: tmp
-    type(string), allocatable :: tmps(:), eqr(:), eqp(:)
+    type(string), allocatable :: eqr(:), eqp(:)
     integer :: i, j, k, ind(1)
     logical :: reverse
     
@@ -62,7 +68,7 @@ contains
     if (associated(config_error)) call handle_error(config_error%message,infile)
     planet => mapping%get_dictionary('planet',.true.,error = config_error)
     if (associated(config_error)) call handle_error(config_error%message,infile)
-    atoms => mapping%get_list('atoms',.true.,error = config_error)
+    atoms => mapping%get_dictionary('atoms',.true.,error = config_error)
     if (associated(config_error)) call handle_error(config_error%message,infile)
     species => mapping%get_list('species',.true.,error = config_error)
     if (associated(config_error)) call handle_error(config_error%message,infile)
@@ -76,22 +82,23 @@ contains
     call get_planet(planet, infile, photomech%planet)
     
     ! atoms
-    item => atoms%first
-    do while (associated(item))
-      select type (element => item%node)
-      class is (type_scalar)
-        tmp = tmp//" "//trim(element%string)
-      class default
-        print*,"IOError: Problem reading in atoms."
-        stop
-      end select
-      item => item%next
+    ! count atoms
+    photomech%natoms = 0
+    key_value_pair => atoms%first
+    do while (associated(key_value_pair))
+      photomech%natoms = photomech%natoms +1
+      key_value_pair => key_value_pair%next
     enddo
-    call tmp%split(tokens=tmps) ! list of atoms
-    photomech%natoms = size(tmps)
     allocate(photomech%atoms_names(photomech%natoms))
-    do i = 1,photomech%natoms
-      photomech%atoms_names(i) = tmps(i)%chars()
+    allocate(photomech%atoms_mass(photomech%natoms))
+    j = 1
+    key_value_pair => atoms%first
+    do while (associated(key_value_pair))
+      photomech%atoms_names(j) = trim(key_value_pair%key)
+      photomech%atoms_mass(j) = atoms%get_real(trim(key_value_pair%key),error = config_error)
+      if (associated(config_error)) call handle_error(config_error%message,infile)
+      key_value_pair => key_value_pair%next
+      j = j + 1
     enddo
     ! done with atoms
     
@@ -103,6 +110,7 @@ contains
       photomech%nsp = photomech%nsp + 1
     enddo
     
+    allocate(photomech%species_mass(photomech%nsp))
     allocate(photomech%species_composition(photomech%natoms,photomech%nsp+2))
     photomech%species_composition = 0
     allocate(photomech%species_names(photomech%nsp+2))
@@ -138,6 +146,7 @@ contains
         do i=1,photomech%natoms
           photomech%species_composition(i,j) = dict%get_integer(photomech%atoms_names(i),0,error = config_error) ! no error possible.
         enddo
+        photomech%species_mass(j) = sum(photomech%species_composition(:,j) * photomech%atoms_mass)
         photomech%species_names(j) = trim(element%get_string("name",error = config_error)) ! get name
         if (associated(config_error)) call handle_error(config_error%message,infile)
         call get_boundaryconds(element,photomech%species_names(j), infile, &
@@ -215,11 +224,11 @@ contains
         tmp = trim(element%get_string("equation",error = config_error))
         if (associated(config_error)) call handle_error(config_error%message,infile)
         
-        call parse_equation(tmp, photomech%max_num_reactants, photomech%max_num_products, &
+        call get_reaction_chars(tmp, photomech%max_num_reactants, photomech%max_num_products, &
                             photomech%nreactants(j), photomech%nproducts(j), &
                             photomech%reactants_names(:,j), photomech%products_names(:,j), reverse)
                             
-        call species_name2number(tmp, photomech%max_num_reactants, photomech%max_num_products, &
+        call get_reaction_sp_nums(tmp, photomech%max_num_reactants, photomech%max_num_products, &
                                  photomech%reactants_names(:,j), photomech%products_names(:,j), &
                                  photomech%species_names, photomech%species_composition, &
                                  photomech%natoms, photomech%nsp, &
@@ -243,8 +252,6 @@ contains
       j = j + 1
     enddo
     
-    ! now get nump and numl
-    
     ! check for inconsistencies
     ! if rainout is on, water must be a reactant
     ind = findloc(photomech%species_names,'H2O')
@@ -265,7 +272,7 @@ contains
   subroutine check_for_duplicates(photomech)
     type(PhotoMechanism), intent(in) :: photomech
     
-    integer i, j, ii, k
+    integer i, ii
     logical l, m
     
     do i = 1,photomech%nrT-1
@@ -435,8 +442,7 @@ contains
     if (associated(config_error)) call handle_error(config_error%message,infile)
     outsettings%nw = tmpdict%get_integer("number-of-bins",error = config_error)
     if (associated(config_error)) call handle_error(config_error%message,infile)
-    
-  
+
   end subroutine
   
   subroutine get_planet(fileplanet, infile, outplanet)
@@ -503,7 +509,7 @@ contains
     type (type_error), pointer :: config_error
     class(type_dictionary), pointer :: tmpdict
     character(len=:), allocatable :: bctype
-    
+
     tmpdict => molecule%get_dictionary("lower-boundary",.true.,error = config_error)
     if (associated(config_error)) call handle_error(config_error%message,infile)
     bctype = tmpdict%get_string("type",error = config_error)
@@ -628,7 +634,7 @@ contains
     enddo
     
     ! check amount of thermodynamic data
-    if (thermo_temps_entry(3) == -1.d0) then
+    if (thermo_temps_entry(3) < -0.5d0) then
       i = 1
     else
       i = 2
@@ -711,8 +717,8 @@ contains
     class(type_dictionary), pointer :: tmpdict
     
     rateparam = 0.d0
-    
-    rxtype= reaction%get_string("type","",error = config_error) ! no error possible
+    ! no error possible
+    rxtype = reaction%get_string("type","",error = config_error) 
     if (trim(rxtype) == '') rxtype = "elementary"
     
     ! get params
@@ -803,10 +809,11 @@ contains
     endif
   end subroutine
   
-  subroutine parse_equation(instring, max_num_react, max_num_prod, numr, nump, &
-                            outreact, outprod, reverse)
+  subroutine get_reaction_chars(instring, max_num_react, max_num_prod, numr, nump, &
+                                outreact, outprod, reverse)
     type(string), intent(in) :: instring
     integer, intent(in) :: max_num_react, max_num_prod
+    
     integer, intent(out) :: numr, nump
     character(len=8), intent(out) :: outreact(max_num_react), outprod(max_num_prod)
     logical, intent(out) :: reverse
@@ -828,18 +835,16 @@ contains
     enddo
   end subroutine
   
-  subroutine species_name2number(reaction, max_num_react, max_num_prod, reacts, prods, &
+  subroutine get_reaction_sp_nums(reaction, max_num_react, max_num_prod, reacts, prods, &
                                  species_names, species_composition, natoms, nsp, &
                                  react_sp_nums, prod_sp_nums)
-    type(string) :: reaction
+    type(string), intent(in) :: reaction
     integer, intent(in) :: max_num_react, max_num_prod
-    
     character(len=8), intent(in) :: reacts(max_num_react)
     character(len=8), intent(in) :: prods(max_num_prod)
-    
+    integer, intent(in) :: nsp, natoms
     character(len=8), intent(in) :: species_names(nsp+2)
     integer, intent(in) :: species_composition(natoms,nsp+2)
-    integer, intent(in) :: nsp, natoms
     
     integer, intent(out) :: react_sp_nums(max_num_react)
     integer, intent(out) :: prod_sp_nums(max_num_prod)

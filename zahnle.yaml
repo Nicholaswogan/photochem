@@ -25,11 +25,11 @@ planet:
     multiplier: 1.0 # multiplier for rainout rates
 
 atoms:
-  - H
-  - N
-  - O
-  - C
-  - S
+  H: 1.00797 # molar masses (g/mol)
+  N: 14.0067
+  O: 15.9994
+  C: 12.011
+  S: 32.06
 
 species:
   - name: H

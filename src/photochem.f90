@@ -11,8 +11,8 @@ contains
     use photochem_data, only: rateparams, rxtypes, nreactants, &
                               nproducts, reactants_sp_inds, products_sp_inds, &
                               reverse_info, nrF, nrR ! all protected vars
-    use photochem_const, only: Rgas, k_boltz ! protected
-    use photochem_wrk, only: real_nz_nsp ! module of preallocated work arrays
+    use photochem_const, only: Rgas, k_boltz ! constants
+    use photochem_vars, only: real_nz_nsp ! pre-allocated work array
                               
     real(real_kind), intent(in) :: temperature(nz)
     real(real_kind), intent(in) :: density(nz)
@@ -76,7 +76,7 @@ contains
   
   subroutine compute_gibbs_energy(temperature, nz, nsp, gibbs_energy)
     use photochem_data, only:thermo_data, thermo_temps
-    use photochem_wrk, only: real_nz, int_nz 
+    use photochem_vars, only: real_nz, int_nz ! work arrays
     
     real(real_kind), intent(in) :: temperature(nz)
     integer, intent(in) :: nz, nsp
