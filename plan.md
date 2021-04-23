@@ -39,7 +39,7 @@ What about loss rates? We can mirror above. This will make `xl` in units of mole
 ```fortran
 nl = numl(k) ! k is a species
 ! nl is number of reactions that destroy species k
-do i=1,np
+do i=1,nl
   m = iloss(i,k) ! This will JUST be reaction number
   l = numreactants(m) ! number of reactants
   do ii = 1,l

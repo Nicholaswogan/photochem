@@ -61,7 +61,7 @@ contains
     ! temporary work variables
     type(string) :: tmp
     type(string), allocatable :: eqr(:), eqp(:)
-    integer :: i, j, k, ind(1)
+    integer :: i, j, k, kk, l, ind(1)
     logical :: reverse
     
     settings => mapping%get_dictionary('settings',.true.,error = config_error)
@@ -252,13 +252,59 @@ contains
       j = j + 1
     enddo
     
+    ! nump, numl, iprod, iloss
+    ! first find nump and numlm then allocate iprod and iloss
+    allocate(photomech%nump(photomech%nsp))
+    allocate(photomech%numl(photomech%nsp))
+    photomech%numl = 0
+    photomech%nump = 0
+    do j = 1,photomech%nrT
+      k = photomech%nreactants(j)
+      do i = 1,k
+        kk = photomech%reactants_sp_inds(i,j)
+        if ((kk /= photomech%nsp+1) .and. (kk /= photomech%nsp+2)) then
+          photomech%numl(kk) = photomech%numl(kk) + 1
+        endif
+      enddo
+      k = photomech%nproducts(j)
+      do i = 1,k
+        kk = photomech%products_sp_inds(i,j)
+        if ((kk /= photomech%nsp+1) .and. (kk /= photomech%nsp+2)) then
+          photomech%nump(kk) = photomech%nump(kk) + 1
+        endif
+      enddo
+    enddo
+    allocate(photomech%iprod(maxval(photomech%nump),photomech%nsp))
+    allocate(photomech%iloss(maxval(photomech%numl),photomech%nsp))
+    photomech%iprod = 0
+    photomech%iloss = 0
+    photomech%numl = 0
+    photomech%nump = 0
+    ! loop again and get iprod
+    do j = 1,photomech%nrT
+      k = photomech%nreactants(j)
+      do i = 1,k
+        kk = photomech%reactants_sp_inds(i,j)
+        if ((kk /= photomech%nsp+1) .and. (kk /= photomech%nsp+2)) then
+          photomech%numl(kk) = photomech%numl(kk) + 1
+          l = photomech%numl(kk)
+          photomech%iloss(l,kk) = j
+        endif
+      enddo
+      k = photomech%nproducts(j)
+      do i = 1,k
+        kk = photomech%products_sp_inds(i,j)
+        if ((kk /= photomech%nsp+1) .and. (kk /= photomech%nsp+2)) then
+          photomech%nump(kk) = photomech%nump(kk) + 1
+          l = photomech%nump(kk)
+          photomech%iprod(l,kk) = j
+        endif
+      enddo
+    enddo
+    
     ! check for inconsistencies
     ! if rainout is on, water must be a reactant
     ind = findloc(photomech%species_names,'H2O')
-    if ((photomech%planet%rainout) .and. (ind(1)==0)) then
-      print*,'IOError: H2O must be a species when rainout is turned on'
-      stop
-    endif
     if ((photomech%planet%rainout) .and. (ind(1)==0)) then
       print*,'IOError: H2O must be a species when rainout is turned on'
       stop

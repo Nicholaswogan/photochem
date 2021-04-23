@@ -32,10 +32,10 @@ module photochem_types ! make a giant IO object
     ! settings
     type(PhotoSettings) :: settings
     
-    ! planet information
+    ! planet
     type(PhotoPlanet) :: planet
     
-    ! molecule data
+    ! molecules
     integer :: nsp
     integer :: natoms
     character(len=8), allocatable :: atoms_names(:) 
@@ -54,7 +54,7 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: thermo_data(:,:,:)
     real(real_kind), allocatable :: thermo_temps(:,:)
     
-    ! reaction
+    ! reactions
     integer :: nrF ! number of forward reactions
     integer :: nrR ! number of reverse reactions
     integer :: nrT ! number of total reactions
@@ -69,12 +69,16 @@ module photochem_types ! make a giant IO object
     integer, allocatable :: reverse_info(:) ! indexs between forward and reverse reactions
     character(len=15), allocatable :: rxtypes(:)
     real(real_kind), allocatable :: rateparams(:,:)
+    integer, allocatable :: nump(:) ! number of production mechanisms (rxns) for each sp
+    integer, allocatable :: numl(:) ! number of loss mechanisms (rxns) for each sp
+    integer, allocatable :: iprod(:,:) ! (nmax,nsp) returns reaction # of production mechanism for sp
+    integer, allocatable :: iloss(:,:) ! (nmax,nsp) returns reaction # of loss mechanism for sp
+    integer :: kj ! number of photolysis reactions
+    integer, allocatable :: photonums(:) ! the reaction number of each photolysis reaction
     
-    ! to do
-    integer, allocatable :: nump(:) ! 
-    integer, allocatable :: numl(:)
-    integer, allocatable :: iprod(:,:)
-    integer, allocatable :: iloss(:,:)
+    ! raditative properties
+    real(real_kind), allocatable :: xs_x_qy(:,:,:) ! (kj,nz,nw) cross section * quantum yield
+    real(real_kind), allocatable :: photon_flux(:) ! (nw) photonzzz
     
   end type
   

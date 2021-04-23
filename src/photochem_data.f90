@@ -10,8 +10,10 @@ module photochem_data
   integer, protected :: nsp
   integer, protected :: natoms
   character(len=8), allocatable, protected :: atoms_names(:) 
+  real(real_kind), allocatable, protected :: atoms_mass(:) 
   character(len=8), allocatable, protected :: species_names(:)
   integer, allocatable, protected :: species_composition(:,:)
+  real(real_kind), allocatable, protected :: species_mass(:) 
   integer, allocatable, protected :: lowerboundcond(:)
   real(real_kind), allocatable, protected :: lower_vdep(:)
   real(real_kind), allocatable, protected :: lower_flux(:)
@@ -46,12 +48,12 @@ module photochem_data
 
 contains
   
-  subroutine get_data(yaml_file,)
+  subroutine get_data(yaml_file)
     use photochem_types, only: PhotoMechanism
     use photochem_io, only: get_photomech
     use photochem_vars, only: ...  
     
-    character(len=*), intent(in) :: 
+    character(len=*), intent(in) :: yaml_file
     
     type(PhotoMechanism) :: photomech
     
@@ -59,16 +61,16 @@ contains
     if (allocated(atoms_names)) then
       deallocate(atoms_names)
       deallocate(species_names)
-      .
-      .
-      .
+
+
       ! deallocate work variables
 
     endif
     
-    call get_photomech(yaml_file,)
+    call get_photomech(yaml_file)
     
     ! allocate
+    allocate()
     
     ! allocate work variables
   end subroutine

@@ -6,7 +6,7 @@ module photochem_vars
   ! variables that need to be carried from
   ! one iteration to the next of the photochemical model
   ! e.g.: initial conditions for nonlinear solves
-  public ...
+  ! public ...
   
   ! also some pre-allocated work arrays
   public real_nz_nsp, real_nz, int_nz
