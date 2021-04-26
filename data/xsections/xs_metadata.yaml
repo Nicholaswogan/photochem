@@ -1,4 +1,6 @@
-# The details for every cross section reaction
+# The details for every cross section reaction.
+# "reactions" refers to quantum yield data
+# "xsections" refers to the photolysis cross sections.
 
 H2O:
   reactions:

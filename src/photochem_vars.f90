@@ -1,5 +1,5 @@
 
-module photochem_vars
+module photochem_wrk
   implicit none
   private
   integer, parameter :: real_kind = kind(1.0d0)

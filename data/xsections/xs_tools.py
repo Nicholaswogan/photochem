@@ -8,7 +8,9 @@ def check_consistency(verbose=True):
     fil = open('xs_metadata.yaml','r')
     meta_data = yaml.load(fil)
     fil.close()
+    all_species = []
     for species in meta_data.keys():
+        all_species.append(species)
         # check directory exists
         if not os.path.isdir(species):
             raise Exception(species+' in xsections meta-data is not a directory.')
@@ -19,6 +21,20 @@ def check_consistency(verbose=True):
         for rx in meta_data[species]['reactions'].keys():
             if not os.path.isfile(species+'/'+rx.replace(' ','_')+'.txt'):
                 raise Exception('Reaction '+rx+' in xsections meta-data does not have a corresponding data file.')
+    
+    directories = [a for a in os.listdir() if os.path.isdir(a) and a[0]!='.']
+    try:
+        directories.remove('__pycache__')
+    except:
+        pass
+    
+    if set(all_species) != set(directories):
+        bad = list(set(all_species).symmetric_difference(set(directories)))
+        bad_str = ''
+        for b in bad:
+            bad_str += ' "'+b+'"'
+        raise Exception('The folder(s)'+bad_str+' are not in the meta-data file.')
+        
     if verbose:
         print('xs_metadata.yaml is consistent with the data files.')
 

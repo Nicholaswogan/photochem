@@ -4,14 +4,12 @@ Problem with PhotochemPy
 - xsections suck
 - mysterious if statements
 - haze particles
+- crumbly foundation in general
+- not generalized
 
 
-Modules
-- Photochem
 
 
-
-I need to deal with more than 2 reactants and 3 products.
 
 I think I understand the production rates. But i'm still worried about double counting reactions for stuff like H + H => H2. haha no double counting makes sense!
 
