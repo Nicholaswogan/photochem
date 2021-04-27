@@ -24,11 +24,19 @@ H2O:
       notes:
   xsections:
     citations:
-    - nm-range: 0.1 - 242.46
+    - nm-range: 0.1 - 192.057
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
-    notes:
-  general-notes:
+    - nm-range: 192.057 - 230.413
+      citation: Ranjan et al. (2020)
+      DOI: 10.3847/1538-4357/ab9363
+    - nm-range: 230.413 - 242.46
+      citation: None. zeroed out.
+      DOI:
+    notes: Ranjan et al. (2020) measure xs at 292 K. In the data file I say the
+      xsection is 300 K. The difference is probably unimportant.
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 H2S:
   reactions:
@@ -44,7 +52,8 @@ H2S:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 C2H6:
   reactions:
@@ -78,7 +87,8 @@ C2H6:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 HO2:
   reactions:
@@ -94,7 +104,8 @@ HO2:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 HNO3:
   reactions:
@@ -110,7 +121,8 @@ HNO3:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 NO:
   reactions:
@@ -126,7 +138,8 @@ NO:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 HCN:
   reactions:
@@ -142,7 +155,8 @@ HCN:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 HNCO:
   reactions:
@@ -164,7 +178,8 @@ HNCO:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 CN:
   reactions:
@@ -180,7 +195,8 @@ CN:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 O2:
   reactions:
@@ -202,7 +218,8 @@ O2:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 SO2:
   reactions:
@@ -224,7 +241,8 @@ SO2:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 CH:
   reactions:
@@ -240,7 +258,8 @@ CH:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 CH3OH:
   reactions:
@@ -262,7 +281,8 @@ CH3OH:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 O3:
   reactions:
@@ -284,7 +304,8 @@ O3:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 OCS:
   reactions:
@@ -312,7 +333,8 @@ OCS:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 CH4:
   reactions:
@@ -346,7 +368,8 @@ CH4:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 C2H4:
   reactions:
@@ -368,7 +391,8 @@ C2H4:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 SO:
   reactions:
@@ -384,7 +408,8 @@ SO:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 H2O2:
   reactions:
@@ -400,7 +425,8 @@ H2O2:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 N2O:
   reactions:
@@ -422,7 +448,8 @@ N2O:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 H2CO:
   reactions:
@@ -450,7 +477,8 @@ H2CO:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 C2H2:
   reactions:
@@ -472,7 +500,8 @@ C2H2:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 NO2:
   reactions:
@@ -494,7 +523,8 @@ NO2:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 NO3:
   reactions:
@@ -516,7 +546,8 @@ NO3:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 CS2:
   reactions:
@@ -532,7 +563,8 @@ CS2:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 N2:
   reactions:
@@ -548,7 +580,8 @@ N2:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 NH2:
   reactions:
@@ -564,7 +597,8 @@ NH2:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 NH3:
   reactions:
@@ -592,7 +626,8 @@ NH3:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 C2:
   reactions:
@@ -608,7 +643,8 @@ C2:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
 
 CO2:
   reactions:
@@ -630,4 +666,5 @@ CO2:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
-  general-notes:
+  general-notes: Huebner and Mukherjee 2015 does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.

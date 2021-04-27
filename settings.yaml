@@ -1,33 +1,41 @@
 description: Settings for the photochemical model.
 
-background-gas: N2
+
 
 atmosphere-grid:
   bottom: 0.0 # cm
   top: 1.0e7 # cm
   number-of-layers: 200
-  
+
 photo-grid:
   lower-wavelength: 100.0 # nm
   upper-wavelength: 800.0 # nm
   number-of-bins: 150
-  
-lightning: # turn it on or off
-  on-off: false
-  NO-production: 1.0e9 # column-integrated NO production rate from lightning
-  
-rainout:
-  on-off: false
-  multiplier: 1.0 # multiplier for rainout rates
-  
-gravity: 981.0 # cm/s2
-surface-pressure: 1.0 # bar
-planet-radius: 6.371e8 # cm
-surface-albedo: 0.25 # cm
 
-water-saturated-troposhere: true
+# lightning: # turn it on or off
+#   on-off: false
+#   NO-production: 1.0e9 # column-integrated NO production rate from lightning
 
-tropopause-altitude: 1.1e6 # cm
+# rainout:
+#   on-off: false
+#   multiplier: 1.0 # multiplier for rainout rates
+
+planet:
+  background-gas: N2
+  gravity: 981.0 # cm/s2
+  surface-pressure: 1.0 # bar
+  planet-radius: 6.371e8 # cm
+  surface-albedo: 0.25 # cm
+  water:
+    water-saturated-troposhere: true
+    tropopause-altitude: 1.1e6 # cm
+    rainout: true
+    rainout-multiplier: 1.0
+
+# if false, then do not read thermodynamic data, and do not reverse
+# reactions
+reverse-reactions: true
+
 
 
 
@@ -42,7 +50,7 @@ boundary-conditions:
     upper-boundary:
       veff: 0.0
       type: constant effusion velocity
-      
+
   - name: H2
     lower-boundary:
       vdep: 0.0
@@ -50,7 +58,7 @@ boundary-conditions:
     upper-boundary:
       veff: 0.0
       type: constant effusion velocity
-      
+
   - name: H2O
     lower-boundary:
       vdep: 0.0
@@ -58,7 +66,7 @@ boundary-conditions:
     upper-boundary:
       veff: 0.0
       type: constant effusion velocity
-      
+
   - name: OH
     lower-boundary:
       vdep: 0.0
@@ -66,7 +74,7 @@ boundary-conditions:
     upper-boundary:
       veff: 0.0
       type: constant effusion velocity
-      
+
   - name: O
     lower-boundary:
       vdep: 0.0
