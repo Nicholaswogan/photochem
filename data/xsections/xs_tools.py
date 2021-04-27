@@ -55,6 +55,12 @@ def check_consistency(verbose=True):
                 tmp.append(float(line.split()[j]))
             xs.append(np.array(tmp))
 
+        xs_temps = [float(a.strip('K')) for a in lines[1].strip().split()[1:]]
+        for i in range(0,len(xs_temps)-1):
+            if not xs_temps[i] < xs_temps[i+1]:
+                raise Exception('Temperature columns must be sorted for species '+sp)
+
+
         wv_qys = []
         qys = []
         qy_temps = []
@@ -77,7 +83,9 @@ def check_consistency(verbose=True):
             qys.append(qy)
 
             qy_temps.append([float(a.strip('K')) for a in lines[1].strip().split()[1:]])
-
+            for i in range(0,len(qy_temps[-1])-1):
+                if not qy_temps[-1][i] < qy_temps[-1][i+1]:
+                    raise Exception('Temperature columns must be sorted for reaction '+rx+' quantum yields')
 
         nr = len(meta_data[spec]['reactions'])
         for i in range(1,nr):
