@@ -142,7 +142,7 @@ def generate_photo_yaml_entries(species_list):
     fil = open('xs_metadata.yaml','r')
     meta_data = yaml.load(fil)
     fil.close()
-    all_photo_species = [key for key in meta_data.keys()]
+    all_photo_species = [key for key in meta_data.keys() if key != 'overall-notes']
     photo_species = list(species_set.intersection(set(all_photo_species)))
 
     # grab reactions
