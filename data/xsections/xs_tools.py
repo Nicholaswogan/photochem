@@ -11,17 +11,18 @@ def check_consistency(verbose=True):
     fil.close()
     all_species = []
     for species in meta_data.keys():
-        all_species.append(species)
-        # check directory exists
-        if not os.path.isdir(species):
-            raise Exception(species+' in xsections meta-data is not a directory.')
+        if species!='overall-notes':
+            all_species.append(species)
+            # check directory exists
+            if not os.path.isdir(species):
+                raise Exception(species+' in xsections meta-data is not a directory.')
 
-        if not os.path.isfile(species+'/'+species+'_xs.txt'):
-            raise Exception(species+' in xsections meta-data does not have corresponding cross section data.')
+            if not os.path.isfile(species+'/'+species+'_xs.txt'):
+                raise Exception(species+' in xsections meta-data does not have corresponding cross section data.')
 
-        for rx in meta_data[species]['reactions'].keys():
-            if not os.path.isfile(species+'/'+rx.replace(' ','_')+'.txt'):
-                raise Exception('Reaction '+rx+' in xsections meta-data does not have a corresponding data file.')
+            for rx in meta_data[species]['reactions'].keys():
+                if not os.path.isfile(species+'/'+rx.replace(' ','_')+'.txt'):
+                    raise Exception('Reaction '+rx+' in xsections meta-data does not have a corresponding data file.')
 
     directories = [a for a in os.listdir() if os.path.isdir(a) and a[0]!='.']
     try:
@@ -37,7 +38,7 @@ def check_consistency(verbose=True):
         raise Exception('The folder(s)'+bad_str+' are not in the meta-data file.')
 
     # now read in data, and make sure it is sensible
-    for spec in meta_data.keys():
+    for spec in all_species:
         # get the xs
         fil = open(spec+'/'+spec+'_xs.txt','r')
         lines = fil.readlines()
