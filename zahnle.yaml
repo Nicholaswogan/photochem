@@ -5672,7 +5672,7 @@ reactions:
     type: photolysis
   - equation: CS2 + hv => CS + S
     type: photolysis
-  - equation: N2 + hv => N + N
+  - equation: N2 + hv => N + N 
     type: photolysis
   - equation: NH2 + hv => NH + H
     type: photolysis
@@ -5686,6 +5686,7 @@ reactions:
     type: photolysis
   - equation: CO2 + hv => CO + O1D
     type: photolysis
-  - equation: CO2 + hv => CO + O
+  - equation: CO2 + hv => CO + O 
     type: photolysis
+    
 
