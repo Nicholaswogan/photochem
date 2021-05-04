@@ -4,36 +4,35 @@ module photochem_types ! make a giant IO object
   private
   integer,parameter :: real_kind = kind(1.0d0)
   
-  public PhotoMechanism, PhotoSettings, PhotoPlanet
+  public PhotoMechanism, PhotoSettings
   
   type :: PhotoSettings
-    real(real_kind) :: bottom_atmosphere
-    real(real_kind) :: top_atmosphere 
-    integer :: nz
-    real(real_kind) :: lower_wavelength
-    real(real_kind) :: upper_wavelength
-    integer :: nw !number of bins
-  end type
-  
-  type :: PhotoPlanet
+    
     real(real_kind) :: gravity
     real(real_kind) :: surface_pressure
     real(real_kind) :: planet_radius
     real(real_kind) :: surface_albedo
     logical :: water_sat_trop
     real(real_kind) :: trop_alt
-    logical :: lightning
-    real(real_kind) :: lightning_NO_production
-    logical :: rainout
-    real(real_kind) :: rainout_multiplier
+    
+    real(real_kind) :: bottom_atmosphere
+    real(real_kind) :: top_atmosphere 
+    integer :: nz
+    real(real_kind) :: lower_wavelength
+    real(real_kind) :: upper_wavelength
+    integer :: nw !number of bins
+
+    integer, allocatable :: lowerboundcond(:)
+    real(real_kind), allocatable :: lower_vdep(:)
+    real(real_kind), allocatable :: lower_flux(:)
+    real(real_kind), allocatable :: lower_distributed_height(:)
+    real(real_kind), allocatable :: lower_fixed_mr(:)
+    integer, allocatable :: upperboundcond(:)
+    real(real_kind), allocatable :: upper_veff(:)
+    real(real_kind), allocatable :: upper_flux(:)
   end type
   
   type :: PhotoMechanism
-    ! settings
-    type(PhotoSettings) :: settings
-    
-    ! planet
-    type(PhotoPlanet) :: planet
     
     ! molecules
     integer :: nsp
@@ -43,14 +42,6 @@ module photochem_types ! make a giant IO object
     character(len=8), allocatable :: species_names(:)
     integer, allocatable :: species_composition(:,:)
     real(real_kind), allocatable :: species_mass(:) 
-    integer, allocatable :: lowerboundcond(:)
-    real(real_kind), allocatable :: lower_vdep(:)
-    real(real_kind), allocatable :: lower_flux(:)
-    real(real_kind), allocatable :: lower_distributed_height(:)
-    real(real_kind), allocatable :: lower_fixed_mr(:)
-    integer, allocatable :: upperboundcond(:)
-    real(real_kind), allocatable :: upper_veff(:)
-    real(real_kind), allocatable :: upper_flux(:)
     real(real_kind), allocatable :: thermo_data(:,:,:)
     real(real_kind), allocatable :: thermo_temps(:,:)
     
@@ -76,6 +67,8 @@ module photochem_types ! make a giant IO object
     integer :: kj ! number of photolysis reactions
     integer, allocatable :: photonums(:) ! the reaction number of each photolysis reaction
     
+    
+    ! needs to go somewhere else
     ! raditative properties
     real(real_kind), allocatable :: xs_x_qy(:,:,:) ! (kj,nz,nw) cross section * quantum yield
     real(real_kind), allocatable :: photon_flux(:) ! (nw) photonzzz

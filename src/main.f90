@@ -8,7 +8,7 @@ program main
   character(len=:), allocatable :: rxstring
   integer i
 
-  call get_photomech("../zahnle.yaml", photomech, err)
+  call get_photomech("../zahnle_rx.yaml", photomech, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     print*,'yes'
@@ -20,6 +20,7 @@ program main
     call reaction_string(photomech,i,rxstring)
     print*,rxstring
   enddo
+  deallocate(rxstring)
   
   do i=1,photomech%nsp
     print*,photomech%species_mass(i), photomech%species_names(i)
@@ -41,7 +42,7 @@ subroutine test(filename,rxn,rxstring1,err)
   
   type(PhotoMechanism) :: photomech
   character(len=:), allocatable :: rxstring
-  integer i
+  ! integer i
   
   call get_photomech(filename, photomech, err)
   if (len_trim(err) > 0) return 

@@ -3,7 +3,7 @@ module photochem_io
   use yaml_types, only : type_node, type_dictionary, type_list, type_error, &
                          type_list_item, type_scalar, type_key_value_pair
   use stringifor, only : string
-  use photochem_types, only : PhotoMechanism, PhotoSettings, PhotoPlanet
+  use photochem_types, only : PhotoMechanism, PhotoSettings
   implicit none
   private 
   integer,parameter :: real_kind = kind(1.0d0)
@@ -41,24 +41,18 @@ contains
         err = "yaml file must have dictionaries at root level"
         return
     end select
-    
-    ! now get photon flux
-    
-    ! now get input atmosphere
-    
-    ! now get xsections
      
   end subroutine
   
-  subroutine parse_yaml(mapping, infile,photomech, err)
+  subroutine parse_yaml(mapping, infile, photomech, err)
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
     type(PhotoMechanism), intent(out) :: photomech
     character(len=err_len), intent(out) :: err
     
-    class (type_dictionary), pointer :: settings, planet, atoms
+    class (type_dictionary), pointer :: atoms
     class (type_list), pointer :: species, reactions
-    type (type_error), pointer :: config_error
+    type (type_error), pointer :: io_err
     class (type_list_item), pointer :: item
     class (type_dictionary), pointer :: dict
     class (type_key_value_pair), pointer :: key_value_pair
@@ -69,30 +63,13 @@ contains
     integer :: i, j, k, kk, l, ind(1)
     logical :: reverse
     err = ''
-    
-    settings => mapping%get_dictionary('settings',.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    planet => mapping%get_dictionary('planet',.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    atoms => mapping%get_dictionary('atoms',.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    species => mapping%get_list('species',.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    reactions => mapping%get_list('reactions',.true.,error = config_error) 
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    
-    ! settings
-    call get_settings(settings, infile, photomech%settings, err)
-    if (len_trim(err) > 0) return
-    
-    ! planet
-    call get_planet(planet, infile, photomech%planet, err)
-    if (len_trim(err) > 0) return
+
+    atoms => mapping%get_dictionary('atoms',.true.,error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    species => mapping%get_list('species',.true.,error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    reactions => mapping%get_list('reactions',.true.,error = io_err) 
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     !!! atoms !!
     photomech%natoms = 0
@@ -107,9 +84,8 @@ contains
     key_value_pair => atoms%first
     do while (associated(key_value_pair))
       photomech%atoms_names(j) = trim(key_value_pair%key)
-      photomech%atoms_mass(j) = atoms%get_real(trim(key_value_pair%key),error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
+      photomech%atoms_mass(j) = atoms%get_real(trim(key_value_pair%key),error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       key_value_pair => key_value_pair%next
       j = j + 1
     enddo
@@ -129,14 +105,6 @@ contains
     allocate(photomech%species_names(photomech%nsp+2))
     photomech%species_names(photomech%nsp+1) = "M" ! always add these guys
     photomech%species_names(photomech%nsp+2) = "hv"
-    allocate(photomech%lowerboundcond(photomech%nsp))
-    allocate(photomech%lower_vdep(photomech%nsp))
-    allocate(photomech%lower_flux(photomech%nsp))
-    allocate(photomech%lower_distributed_height(photomech%nsp))
-    allocate(photomech%lower_fixed_mr(photomech%nsp))
-    allocate(photomech%upperboundcond(photomech%nsp))
-    allocate(photomech%upper_veff(photomech%nsp))
-    allocate(photomech%upper_flux(photomech%nsp))
     allocate(photomech%thermo_data(7,2,photomech%nsp))
     allocate(photomech%thermo_temps(3,photomech%nsp))
     j = 1
@@ -144,10 +112,9 @@ contains
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
-        dict => element%get_dictionary("composition",.true.,error = config_error)  ! get composition
-        if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-        if (associated(config_error)) return
-        key_value_pair => dict%first ! to see if
+        dict => element%get_dictionary("composition",.true.,error = io_err)  ! get composition
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        key_value_pair => dict%first ! dont allow unspecified atoms
         do while (associated(key_value_pair))
           ind = findloc(photomech%atoms_names,trim(key_value_pair%key))
           if (ind(1) == 0) then
@@ -158,19 +125,12 @@ contains
         enddo
         
         do i=1,photomech%natoms
-          photomech%species_composition(i,j) = dict%get_integer(photomech%atoms_names(i),0,error = config_error) ! no error possible.
+          photomech%species_composition(i,j) = dict%get_integer(photomech%atoms_names(i),0,error = io_err) ! no error possible.
         enddo
         photomech%species_mass(j) = sum(photomech%species_composition(:,j) * photomech%atoms_mass)
-        photomech%species_names(j) = trim(element%get_string("name",error = config_error)) ! get name
-        if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-        if (associated(config_error)) return
-        call get_boundaryconds(element,photomech%species_names(j), infile, &
-                               photomech%lowerboundcond(j), photomech%lower_vdep(j), &
-                               photomech%lower_flux(j), photomech%lower_distributed_height(j), &
-                               photomech%lower_fixed_mr(j), &
-                               photomech%upperboundcond(j), photomech%upper_veff(j), &
-                              photomech%upper_flux(j), err)! get boundary conditions
-        if (len_trim(err) > 0) return
+        photomech%species_names(j) = trim(element%get_string("name",error = io_err)) ! get name
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          
         call get_thermodata(element,photomech%species_names(j), infile,photomech%thermo_temps(:,j), &
                             photomech%thermo_data(:,:,j), err) ! get thermodynamic data
         if (len_trim(err) > 0) return
@@ -199,14 +159,13 @@ contains
     photomech%max_num_products = 1
     photomech%nrR = 0
     j = 1
-    i = 1
     item => reactions%first
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
-        tmp = trim(element%get_string("equation",error = config_error))
-        if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-        if (associated(config_error)) return
+        tmp = trim(element%get_string("equation",error = io_err))
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        
         call parse_reaction(tmp, reverse, eqr, eqp, err)
         if (len_trim(err) > 0) return
         if (reverse) then
@@ -235,7 +194,7 @@ contains
     allocate(photomech%reactants_sp_inds(photomech%max_num_reactants,photomech%nrT))
     allocate(photomech%products_sp_inds(photomech%max_num_products,photomech%nrT))
     allocate(photomech%reverse_info(photomech%nrT))
-    photomech%reverse_info = 0
+    photomech%reverse_info = 0 ! initialize
     allocate(photomech%reactants_names(photomech%max_num_reactants,photomech%nrF))
     allocate(photomech%products_names(photomech%max_num_products,photomech%nrF))
     j = 1
@@ -244,9 +203,9 @@ contains
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
-        tmp = trim(element%get_string("equation",error = config_error))
-        if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-        if (associated(config_error)) return
+        tmp = trim(element%get_string("equation",error = io_err))
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        
         
         call get_reaction_chars(tmp, photomech%max_num_reactants, photomech%max_num_products, &
                             photomech%nreactants(j), photomech%nproducts(j), &
@@ -279,7 +238,7 @@ contains
     enddo
     
     ! nump, numl, iprod, iloss
-    ! first find nump and numlm then allocate iprod and iloss
+    ! first find nump and numl then allocate iprod and iloss
     allocate(photomech%nump(photomech%nsp))
     allocate(photomech%numl(photomech%nsp))
     photomech%numl = 0
@@ -306,7 +265,7 @@ contains
     photomech%iloss = 0
     photomech%numl = 0
     photomech%nump = 0
-    ! loop again and get iprod
+    ! loop again and get iprod and iloss
     do j = 1,photomech%nrT
       k = photomech%nreactants(j)
       do i = 1,k
@@ -327,19 +286,11 @@ contains
         endif
       enddo
     enddo
-    
-    ! check for inconsistencies
-    ! if rainout is on, water must be a reactant
-    ind = findloc(photomech%species_names,'H2O')
-    if ((photomech%planet%rainout) .and. (ind(1)==0)) then
-      err = 'IOError: H2O must be a species when rainout is turned on'
-      return
-    endif
+    !!! end reactions !!!
     
     call check_for_duplicates(photomech,err)
     if (len(trim(err)) > 0) return
     
-
   end subroutine
   
   subroutine check_for_duplicates(photomech,err)
@@ -488,205 +439,6 @@ contains
       endif
     endif
   end subroutine
-
-  subroutine get_settings(filesettings, infile, outsettings, err)
-    class(type_dictionary), intent(in) :: filesettings
-    character(len=*), intent(in) :: infile
-    type(PhotoSettings), intent(out) :: outsettings
-    character(len=err_len), intent(out) :: err
-    
-    type (type_error), pointer :: config_error
-    class(type_dictionary), pointer :: tmpdict
-    
-    tmpdict => filesettings%get_dictionary("atmosphere-grid",.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    
-    outsettings%bottom_atmosphere = tmpdict%get_real("bottom",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    outsettings%top_atmosphere = tmpdict%get_real("top",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    outsettings%nz = tmpdict%get_integer("number-of-layers",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    
-    tmpdict => filesettings%get_dictionary("photo-grid",.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    
-    outsettings%lower_wavelength = tmpdict%get_real("lower-wavelength",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    outsettings%upper_wavelength = tmpdict%get_real("upper-wavelength",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    outsettings%nw = tmpdict%get_integer("number-of-bins",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-
-  end subroutine
-  
-  subroutine get_planet(fileplanet, infile, outplanet, err)
-    class(type_dictionary), intent(in) :: fileplanet
-    character(len=*), intent(in) :: infile
-    type(PhotoPlanet), intent(out) :: outplanet
-    character(len=err_len), intent(out) :: err
-    
-    type (type_error), pointer :: config_error
-    class(type_dictionary), pointer :: tmpdict
-    
-    outplanet%gravity = fileplanet%get_real("gravity",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    outplanet%surface_pressure = fileplanet%get_real("surface-pressure",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    outplanet%planet_radius = fileplanet%get_real("planet-radius",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return  
-    outplanet%surface_albedo = fileplanet%get_real("surface-albedo",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    outplanet%water_sat_trop = fileplanet%get_logical("water-saturated-troposhere",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    if (outplanet%water_sat_trop) then
-      outplanet%trop_alt = fileplanet%get_real("tropopause-altitude",error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-    else
-      outplanet%trop_alt = 0.d0 ! no tropopause.
-    endif
-    
-    tmpdict => fileplanet%get_dictionary("lightning",.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    
-    outplanet%lightning = tmpdict%get_logical("on-off",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    if (.not. outplanet%lightning) then
-      outplanet%lightning_NO_production = 0.d0
-    else
-      outplanet%lightning_NO_production = tmpdict%get_real("NO-production",error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-    endif
-    tmpdict => fileplanet%get_dictionary("rainout",.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    
-    outplanet%rainout= tmpdict%get_logical("on-off",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    if (.not.outplanet%rainout) then
-      outplanet%rainout_multiplier = 1.d0
-    else
-      outplanet%rainout_multiplier = tmpdict%get_real("multiplier",error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-    endif
-  end subroutine
-  
-  subroutine get_boundaryconds(molecule, molecule_name, infile, &
-                               lowercond, Lvdep, Lflux, LdistH, Lmr, &
-                               uppercond, Uveff, Uflux, err)
-    class(type_dictionary), intent(in) :: molecule
-    character(len=*), intent(in) :: molecule_name
-    character(len=*), intent(in) :: infile
-    
-    integer, intent(out) :: lowercond
-    real(real_kind), intent(out) :: Lvdep, Lflux, LdistH, Lmr
-    integer, intent(out) :: uppercond
-    real(real_kind), intent(out) :: Uveff, Uflux
-    character(len=err_len), intent(out) :: err
-    
-    type (type_error), pointer :: config_error
-    class(type_dictionary), pointer :: tmpdict
-    character(len=:), allocatable :: bctype
-    err = ''
-
-    tmpdict => molecule%get_dictionary("lower-boundary",.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    bctype = tmpdict%get_string("type",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    
-    ! constant deposition velocity = vdep
-    ! constant mixing-ratio = mixing-ratio
-    ! constant flux = flux
-    ! deposition velocity + distributed flux = vdep + flux + distributed-height
-    if (bctype == "constant deposition velocity") then
-      lowercond = 0
-      Lvdep = tmpdict%get_real("vdep",error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      Lflux = 0.d0
-      LdistH = 0.d0
-      Lmr = 0.d0 
-    elseif (bctype == "constant mixing-ratio") then
-      lowercond = 1
-      Lvdep = 0.d0
-      Lflux = 0.d0
-      LdistH = 0.d0
-      Lmr = tmpdict%get_real("mixing-ratio",error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-    elseif (bctype == "constant flux") then
-      lowercond = 2
-      Lvdep = 0.d0
-      Lflux = tmpdict%get_real("flux",error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      LdistH = 0.d0
-      Lmr = 0.d0 
-    elseif (bctype == "deposition velocity + distributed flux") then
-      lowercond = 3
-      Lvdep = tmpdict%get_real("vdep",error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      Lflux = tmpdict%get_real("flux",error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      LdistH = tmpdict%get_real("distributed-height",error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      Lmr = 0.d0 
-    else
-      err = 'IOError: "'//trim(bctype)//'" is not a valid lower boundary condition for '//trim(molecule_name)
-      return
-    endif
-    
-    tmpdict => molecule%get_dictionary("upper-boundary",.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    bctype = tmpdict%get_string("type",error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    
-    ! constant effusion velocity = veff
-    ! constant flux = flux
-    if (bctype == "constant effusion velocity") then
-      uppercond = 0
-      Uveff = tmpdict%get_real("veff",error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      Uflux = 0.d0
-    elseif (bctype == "constant flux") then
-      uppercond = 2
-      Uveff = 0.d0
-      Uflux = tmpdict%get_real("flux",error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-    else
-      err = 'IOError: "'//trim(bctype)//'" is not a valid upper boundary condition for '//trim(molecule_name)
-      return
-    endif
-    
-  end subroutine
     
   
   subroutine get_thermodata(molecule, molecule_name, infile, thermo_temps_entry, thermo_data_entry, err)
@@ -698,34 +450,34 @@ contains
     real(real_kind), intent(out) :: thermo_data_entry(7,2)
     character(len=err_len), intent(out) :: err
     
-    type (type_error), pointer :: config_error
-    class(type_dictionary), pointer :: tmpdict, tmpdict1
+    type (type_error), pointer :: io_err
+    class(type_dictionary), pointer :: tmpdict
     class(type_list), pointer :: tmplist
-    class(type_list_item), pointer :: item
+    class(type_list_item), pointer :: item, item1
     logical :: success
     
-    integer :: j, i
+    integer :: j, i, k
     
     err = ''
     thermo_temps_entry = -1.d0
     thermo_data_entry = -1.d0
     
-    tmpdict => molecule%get_dictionary("thermo",.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
+    tmpdict => molecule%get_dictionary("thermo",.true.,error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    
     
     ! check thermodynamic model
-    if (tmpdict%get_string("model",error = config_error) /= "Shomate") then
+    if (tmpdict%get_string("model",error = io_err) /= "Shomate") then
       err = "IOError: Thermodynamic data must be in Shomate format for "//trim(molecule_name)
       return
     endif
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    
     
     ! get temperature ranges
-    tmplist =>tmpdict%get_list("temperature-ranges",.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
+    tmplist =>tmpdict%get_list("temperature-ranges",.true.,error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    
     j = 1
     item => tmplist%first
     do while (associated(item))
@@ -756,24 +508,41 @@ contains
     endif
     
     ! get data
-    tmpdict1 => tmpdict%get_dictionary("data",.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    tmplist =>tmpdict1%get_list("poly1",.true.,error = config_error)
-    if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-    if (associated(config_error)) return
-    j = 1
+    tmplist => tmpdict%get_list("data",.true.,error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+    k = 1
     item => tmplist%first
-    do while (associated(item)) 
+    do while (associated(item))
+      if (k > i) then
+        err = "IOError: Too much thermodynamic data for "//trim(molecule_name)
+        return
+      endif
       select type (listitem => item%node)
-      class is (type_scalar)
-        if (j > 7) then
-          err = "IOError: Too much thermodynamic data for "//trim(molecule_name)
-          return
-        endif
-        thermo_data_entry(j, 1) = listitem%to_real(-1.d0,success)
-        if (.not. success) then
-          err = "IOError: Problem reading thermodynamic data for "//trim(molecule_name)
+      class is (type_list)
+        j = 1
+        item1 => listitem%first
+        do while (associated(item1)) 
+          select type (listitem1 => item1%node)
+          class is (type_scalar)
+            if (j > 7) then
+              err = "IOError: Too much thermodynamic data for "//trim(molecule_name)
+              return
+            endif
+            thermo_data_entry(j, k) = listitem1%to_real(-1.d0,success)
+            if (.not.success) then
+              err = "IOError: Problem reading thermodynamic data for "//trim(molecule_name)
+              return
+            endif
+          class default
+            err = "IOError: Problem reading thermodynamic data for "//trim(molecule_name)
+            return
+          end select
+        item1 => item1%next
+        j = j + 1
+        enddo
+        if (j-1 /= 7) then
+          err = "IOError: Missing thermodynamic data for "//trim(molecule_name)
           return
         endif
       class default
@@ -781,45 +550,11 @@ contains
         return
       end select
       item => item%next
-      j = j + 1
+      k = k + 1
     enddo
-    if (j-1 /= 7) then
-      err = "IOError: Missing thermodynamic data for "//trim(molecule_name)
+    if (k - 1 /= i) then
+      err = "IOError: More temperature ranges than thermodynamic data for "//trim(molecule_name)
       return
-    endif
-
-    tmplist =>tmpdict1%get_list("poly2",.false.,error = config_error)
-    if ((.not.associated(tmplist)) .and. (i == 1)) then
-      ! nothing happens
-    elseif ((.not.associated(tmplist)) .and. (i == 2)) then
-      err = 'IOError: More temperature ranges than thermodynamic data for '//trim(molecule_name)
-      return
-    else
-      j = 1
-      item => tmplist%first
-      do while (associated(item)) 
-        select type (listitem => item%node)
-        class is (type_scalar)
-          if (j > 7) then
-            err = "IOError: Too much thermodynamic data for "//trim(molecule_name)
-            return
-          endif
-          thermo_data_entry(j, 2) = listitem%to_real(-1.d0,success)
-          if (.not. success) then
-            err = "IOError: Problem reading thermodynamic data for  "//trim(molecule_name)
-            return
-          endif
-        class default
-          err = "IOError: Problem reading thermodynamic data for "//trim(molecule_name)
-          return
-        end select
-        item => item%next
-        j = j + 1
-      enddo
-      if (j-1 /= 7) then
-        err = "IOError: Missing thermodynamic data for "//trim(molecule_name)
-        return
-      endif
     endif
     
   end subroutine
@@ -831,53 +566,53 @@ contains
     real(real_kind), intent(out) :: rateparam(6)
     character(len=err_len), intent(out) :: err
     
-    type (type_error), pointer :: config_error
+    type (type_error), pointer :: io_err
     class(type_dictionary), pointer :: tmpdict
     err = ''
     rateparam = 0.d0
     ! no error possible
-    rxtype = reaction%get_string("type","",error = config_error) 
+    rxtype = reaction%get_string("type","",error = io_err) 
     if (trim(rxtype) == '') rxtype = "elementary"
     
     ! get params
     if ((trim(rxtype) == 'elementary') .or. (trim(rxtype) == 'three-body')) then
-      tmpdict => reaction%get_dictionary('rate-constant',.true.,error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      rateparam(1) = tmpdict%get_real('A',error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      rateparam(2) = tmpdict%get_real('b',error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      rateparam(3) = tmpdict%get_real('Ea',error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
+      tmpdict => reaction%get_dictionary('rate-constant',.true.,error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      rateparam(1) = tmpdict%get_real('A',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      rateparam(2) = tmpdict%get_real('b',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      rateparam(3) = tmpdict%get_real('Ea',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
     elseif (trim(rxtype) == 'falloff') then
-      tmpdict => reaction%get_dictionary('low-P-rate-constant',.true.,error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      rateparam(1) = tmpdict%get_real('A',error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      rateparam(2) = tmpdict%get_real('b',error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      rateparam(3) = tmpdict%get_real('Ea',error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      tmpdict => reaction%get_dictionary('high-P-rate-constant',.true.,error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      rateparam(4) = tmpdict%get_real('A',error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      rateparam(5) = tmpdict%get_real('b',error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
-      rateparam(6) = tmpdict%get_real('Ea',error = config_error)
-      if (associated(config_error)) err = trim(infile)//trim(config_error%message)
-      if (associated(config_error)) return
+      tmpdict => reaction%get_dictionary('low-P-rate-constant',.true.,error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      rateparam(1) = tmpdict%get_real('A',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      rateparam(2) = tmpdict%get_real('b',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      rateparam(3) = tmpdict%get_real('Ea',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      tmpdict => reaction%get_dictionary('high-P-rate-constant',.true.,error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      rateparam(4) = tmpdict%get_real('A',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      rateparam(5) = tmpdict%get_real('b',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      rateparam(6) = tmpdict%get_real('Ea',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
     elseif (trim(rxtype) == 'photolysis') then
       ! nothing
     else
@@ -1029,6 +764,217 @@ contains
       return
     endif
   end subroutine
+  
+  
+  
+  ! subroutine get_settings(filesettings, infile, outsettings, err)
+  !   class(type_dictionary), intent(in) :: filesettings
+  !   character(len=*), intent(in) :: infile
+  !   type(PhotoSettings), intent(out) :: outsettings
+  !   character(len=err_len), intent(out) :: err
+  ! 
+  !   type (type_error), pointer :: io_err
+  !   class(type_dictionary), pointer :: tmpdict
+  ! 
+  !   tmpdict => filesettings%get_dictionary("atmosphere-grid",.true.,error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  ! 
+  !   outsettings%bottom_atmosphere = tmpdict%get_real("bottom",error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   outsettings%top_atmosphere = tmpdict%get_real("top",error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   outsettings%nz = tmpdict%get_integer("number-of-layers",error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  ! 
+  !   tmpdict => filesettings%get_dictionary("photo-grid",.true.,error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  ! 
+  !   outsettings%lower_wavelength = tmpdict%get_real("lower-wavelength",error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   outsettings%upper_wavelength = tmpdict%get_real("upper-wavelength",error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   outsettings%nw = tmpdict%get_integer("number-of-bins",error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  ! 
+  ! end subroutine
+  
+  ! subroutine get_planet(fileplanet, infile, outplanet, err)
+  !   class(type_dictionary), intent(in) :: fileplanet
+  !   character(len=*), intent(in) :: infile
+  !   type(PhotoPlanet), intent(out) :: outplanet
+  !   character(len=err_len), intent(out) :: err
+  ! 
+  !   type (type_error), pointer :: io_err
+  !   class(type_dictionary), pointer :: tmpdict
+  ! 
+  !   outplanet%gravity = fileplanet%get_real("gravity",error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   outplanet%surface_pressure = fileplanet%get_real("surface-pressure",error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   outplanet%planet_radius = fileplanet%get_real("planet-radius",error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   outplanet%surface_albedo = fileplanet%get_real("surface-albedo",error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   outplanet%water_sat_trop = fileplanet%get_logical("water-saturated-troposhere",error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   if (outplanet%water_sat_trop) then
+  !     outplanet%trop_alt = fileplanet%get_real("tropopause-altitude",error = io_err)
+  !     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   else
+  !     outplanet%trop_alt = 0.d0 ! no tropopause.
+  !   endif
+  ! 
+  !   tmpdict => fileplanet%get_dictionary("lightning",.true.,error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  ! 
+  !   outplanet%lightning = tmpdict%get_logical("on-off",error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   if (.not. outplanet%lightning) then
+  !     outplanet%lightning_NO_production = 0.d0
+  !   else
+  !     outplanet%lightning_NO_production = tmpdict%get_real("NO-production",error = io_err)
+  !     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   endif
+  !   tmpdict => fileplanet%get_dictionary("rainout",.true.,error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  ! 
+  !   outplanet%rainout= tmpdict%get_logical("on-off",error = io_err)
+  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   if (.not.outplanet%rainout) then
+  !     outplanet%rainout_multiplier = 1.d0
+  !   else
+  !     outplanet%rainout_multiplier = tmpdict%get_real("multiplier",error = io_err)
+  !     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+  ! 
+  !   endif
+  ! end subroutine
+  
+  
+  subroutine get_boundaryconds(molecule, molecule_name, infile, &
+                               lowercond, Lvdep, Lflux, LdistH, Lmr, &
+                               uppercond, Uveff, Uflux, err)
+    class(type_dictionary), intent(in) :: molecule
+    character(len=*), intent(in) :: molecule_name
+    character(len=*), intent(in) :: infile
+    
+    integer, intent(out) :: lowercond
+    real(real_kind), intent(out) :: Lvdep, Lflux, LdistH, Lmr
+    integer, intent(out) :: uppercond
+    real(real_kind), intent(out) :: Uveff, Uflux
+    character(len=err_len), intent(out) :: err
+    
+    type (type_error), pointer :: io_err
+    class(type_dictionary), pointer :: tmpdict
+    character(len=:), allocatable :: bctype
+    err = ''
+
+    tmpdict => molecule%get_dictionary("lower-boundary",.true.,error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    
+    bctype = tmpdict%get_string("type",error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    
+    
+    ! constant deposition velocity = vdep
+    ! constant mixing-ratio = mixing-ratio
+    ! constant flux = flux
+    ! deposition velocity + distributed flux = vdep + flux + distributed-height
+    if (bctype == "constant deposition velocity") then
+      lowercond = 0
+      Lvdep = tmpdict%get_real("vdep",error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      Lflux = 0.d0
+      LdistH = 0.d0
+      Lmr = 0.d0 
+    elseif (bctype == "constant mixing-ratio") then
+      lowercond = 1
+      Lvdep = 0.d0
+      Lflux = 0.d0
+      LdistH = 0.d0
+      Lmr = tmpdict%get_real("mixing-ratio",error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+    elseif (bctype == "constant flux") then
+      lowercond = 2
+      Lvdep = 0.d0
+      Lflux = tmpdict%get_real("flux",error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      LdistH = 0.d0
+      Lmr = 0.d0 
+    elseif (bctype == "deposition velocity + distributed flux") then
+      lowercond = 3
+      Lvdep = tmpdict%get_real("vdep",error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      Lflux = tmpdict%get_real("flux",error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      LdistH = tmpdict%get_real("distributed-height",error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      Lmr = 0.d0 
+    else
+      err = 'IOError: "'//trim(bctype)//'" is not a valid lower boundary condition for '//trim(molecule_name)
+      return
+    endif
+    
+    tmpdict => molecule%get_dictionary("upper-boundary",.true.,error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    
+    bctype = tmpdict%get_string("type",error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    
+    
+    ! constant effusion velocity = veff
+    ! constant flux = flux
+    if (bctype == "constant effusion velocity") then
+      uppercond = 0
+      Uveff = tmpdict%get_real("veff",error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      Uflux = 0.d0
+    elseif (bctype == "constant flux") then
+      uppercond = 2
+      Uveff = 0.d0
+      Uflux = tmpdict%get_real("flux",error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+    else
+      err = 'IOError: "'//trim(bctype)//'" is not a valid upper boundary condition for '//trim(molecule_name)
+      return
+    endif
+    
+  end subroutine
+  
+  ! allocate(photomech%lowerboundcond(photomech%nsp))
+  ! allocate(photomech%lower_vdep(photomech%nsp))
+  ! allocate(photomech%lower_flux(photomech%nsp))
+  ! allocate(photomech%lower_distributed_height(photomech%nsp))
+  ! allocate(photomech%lower_fixed_mr(photomech%nsp))
+  ! allocate(photomech%upperboundcond(photomech%nsp))
+  ! allocate(photomech%upper_veff(photomech%nsp))
+  ! allocate(photomech%upper_flux(photomech%nsp))
 
 end module
 

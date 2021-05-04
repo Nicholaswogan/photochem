@@ -1,7 +1,5 @@
 description: Settings for the photochemical model.
 
-
-
 atmosphere-grid:
   bottom: 0.0 # cm
   top: 1.0e7 # cm
@@ -11,14 +9,6 @@ photo-grid:
   lower-wavelength: 100.0 # nm
   upper-wavelength: 800.0 # nm
   number-of-bins: 150
-
-# lightning: # turn it on or off
-#   on-off: false
-#   NO-production: 1.0e9 # column-integrated NO production rate from lightning
-
-# rainout:
-#   on-off: false
-#   multiplier: 1.0 # multiplier for rainout rates
 
 planet:
   background-gas: N2
