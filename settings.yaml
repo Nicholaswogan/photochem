@@ -5,29 +5,26 @@ atmosphere-grid:
   top: 1.0e7 # cm
   number-of-layers: 200
 
-photo-grid:
+photolysis-grid:
+  regular-grid: true
   lower-wavelength: 100.0 # nm
   upper-wavelength: 800.0 # nm
   number-of-bins: 150
+  # input-file: my/input/file.txt
 
 planet:
   background-gas: N2
-  gravity: 981.0 # cm/s2
   surface-pressure: 1.0 # bar
-  planet-radius: 6.371e8 # cm
+  planet-mass: 5.972e27 # grams
+  planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
   surface-albedo: 0.25 # cm
   water:
     water-saturated-troposhere: true
     tropopause-altitude: 1.1e6 # cm
-    rainout: true
-    rainout-multiplier: 1.0
 
 # if false, then do not read thermodynamic data, and do not reverse
 # reactions
 reverse-reactions: true
-
-
-
 
 # Assumes vdep = 0 boundary condition for species not specified.
 # Assumes species is long-lived unless specified

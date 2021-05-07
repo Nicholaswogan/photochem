@@ -8,8 +8,6 @@ module photochem_io
   private 
   integer,parameter :: real_kind = kind(1.0d0)
   integer, parameter :: err_len = 1000
-  ! Reads input files, and loads info into a
-  ! ReactionMechanism object.
 
   public get_photomech, reaction_string
     
@@ -27,14 +25,14 @@ contains
     
     ! parse yaml file
     root => parse(infile,unit=100,error=error)
-    if (error/='') then
+    if (error /= '') then
       err = trim(error)
       return
     end if
     select type (root)
       class is (type_dictionary)
-        call parse_yaml(root, infile, photomech, err)
-        if (len(trim(err)) > 0) return
+        call get_rxmechanism(root, infile, photomech, err)
+        if (len_trim(err) > 0) return
         call root%finalize()
         deallocate(root)
       class default
@@ -44,7 +42,7 @@ contains
      
   end subroutine
   
-  subroutine parse_yaml(mapping, infile, photomech, err)
+  subroutine get_rxmechanism(mapping, infile, photomech, err)
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
     type(PhotoMechanism), intent(out) :: photomech
