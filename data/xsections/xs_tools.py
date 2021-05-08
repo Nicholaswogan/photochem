@@ -4,9 +4,9 @@ from ruamel.yaml import YAML
 yaml = YAML(typ='safe')
 
 def check_consistency(verbose=True):
-    '''Checks for consistency between xs_metadata.yaml, and the data folders/files
+    '''Checks for consistency between metadata.yaml, and the data folders/files
     '''
-    fil = open('xs_metadata.yaml','r')
+    fil = open('metadata.yaml','r')
     meta_data = yaml.load(fil)
     fil.close()
     all_species = []
@@ -140,14 +140,14 @@ def check_consistency(verbose=True):
                 raise Exception('The citation range in the meta-data does not align with the xs data for '+sp)
 
     if verbose:
-        print('xs_metadata.yaml is consistent with the data files.')
+        print('metadata.yaml is consistent with the data files.')
 
 def generate_photo_yaml_entries(species_list):
     '''Generates list of photolysis reactions given a list of species.
     '''
     check_consistency(verbose=False)
     species_set = set(species_list)
-    fil = open('xs_metadata.yaml','r')
+    fil = open('metadata.yaml','r')
     meta_data = yaml.load(fil)
     fil.close()
     all_photo_species = [key for key in meta_data.keys() if key != 'overall-notes']
