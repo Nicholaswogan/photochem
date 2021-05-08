@@ -9,7 +9,7 @@ photolysis-grid:
   regular-grid: true
   lower-wavelength: 100.0 # nm
   upper-wavelength: 800.0 # nm
-  number-of-bins: 150
+  number-of-bins: 5
   # input-file: my/input/file.txt
 
 planet:
@@ -22,11 +22,7 @@ planet:
     water-saturated-troposhere: true
     tropopause-altitude: 1.1e6 # cm
 
-# if false, then do not read thermodynamic data, and do not reverse
-# reactions
-reverse-reactions: true
-
-# Assumes vdep = 0 boundary condition for species not specified.
+# Assumes veff = vdep = 0 boundary condition for species not specified.
 # Assumes species is long-lived unless specified
 boundary-conditions:
   - name: H

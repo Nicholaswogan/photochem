@@ -1,5 +1,7 @@
 description: The zahnle reaction mechanism.
 
+reverse-reactions: true
+
 atoms:
   H: 1.00797 # (g/mol)
   N: 14.0067

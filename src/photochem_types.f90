@@ -3,11 +3,21 @@ module photochem_types ! make a giant IO object
   implicit none
   private
   integer,parameter :: real_kind = kind(1.0d0)
+  integer, parameter :: str_len = 1000
   
-  public PhotoMechanism, PhotoSettings
+  public PhotoMechanism, PhotoSettings, PhotoRadTran
   
   type :: PhotoSettings
+    real(real_kind) :: bottom_atmosphere
+    real(real_kind) :: top_atmosphere 
+    integer :: nz
     
+    logical :: regular_grid
+    real(real_kind) :: lower_wavelength
+    real(real_kind) :: upper_wavelength
+    integer :: nw
+    character(len=str_len) :: grid_file
+
     real(real_kind) :: gravity
     real(real_kind) :: surface_pressure
     real(real_kind) :: planet_radius
@@ -15,13 +25,6 @@ module photochem_types ! make a giant IO object
     logical :: water_sat_trop
     real(real_kind) :: trop_alt
     
-    real(real_kind) :: bottom_atmosphere
-    real(real_kind) :: top_atmosphere 
-    integer :: nz
-    real(real_kind) :: lower_wavelength
-    real(real_kind) :: upper_wavelength
-    integer :: nw !number of bins
-
     integer, allocatable :: lowerboundcond(:)
     real(real_kind), allocatable :: lower_vdep(:)
     real(real_kind), allocatable :: lower_flux(:)
@@ -46,6 +49,7 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: thermo_temps(:,:)
     
     ! reactions
+    logical :: reverse
     integer :: nrF ! number of forward reactions
     integer :: nrR ! number of reverse reactions
     integer :: nrT ! number of total reactions
@@ -64,15 +68,28 @@ module photochem_types ! make a giant IO object
     integer, allocatable :: numl(:) ! number of loss mechanisms (rxns) for each sp
     integer, allocatable :: iprod(:,:) ! (nmax,nsp) returns reaction # of production mechanism for sp
     integer, allocatable :: iloss(:,:) ! (nmax,nsp) returns reaction # of loss mechanism for sp
+    
     integer :: kj ! number of photolysis reactions
-    integer, allocatable :: photonums(:) ! the reaction number of each photolysis reaction
+    integer, allocatable :: photonums(:) ! (kj) the reaction number of each photolysis reaction
+
+  end type
+  
+  type :: PhotoRadTran
     
-    
-    ! needs to go somewhere else
-    ! raditative properties
+    integer :: nw
+    real(real_kind), allocatable :: wavl(:)
+
     real(real_kind), allocatable :: xs_x_qy(:,:,:) ! (kj,nz,nw) cross section * quantum yield
-    real(real_kind), allocatable :: photon_flux(:) ! (nw) photonzzz
+    integer, allocatable :: num_temp_cols(:) ! (kj)
+    real(real_kind), allocatable :: xs_data(:,:,:) ! (maxval(num_temp_cols), nw, kj)
+    real(real_kind), allocatable :: xs_data_temps(:,:) ! (maxval(num_temp_cols), kj)
     
+    
+    real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
+
+    real(real_kind), allocatable :: sigray(:,:) ! (len(raynums), nw)
+    integer, allocatable :: raynums(:) ! species number of rayleigh species
+
   end type
   
 end module

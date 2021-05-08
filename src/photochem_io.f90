@@ -3,13 +3,14 @@ module photochem_io
   use yaml_types, only : type_node, type_dictionary, type_list, type_error, &
                          type_list_item, type_scalar, type_key_value_pair
   use stringifor, only : string
-  use photochem_types, only : PhotoMechanism, PhotoSettings
+  use photochem_types, only : PhotoMechanism, PhotoSettings, PhotoRadTran
   implicit none
   private 
   integer,parameter :: real_kind = kind(1.0d0)
   integer, parameter :: err_len = 1000
+  integer, parameter :: str_len = 1000
 
-  public get_photomech, reaction_string
+  public get_photomech, get_photorad, get_photoset, reaction_string
     
 contains
   
@@ -69,6 +70,9 @@ contains
     reactions => mapping%get_list('reactions',.true.,error = io_err) 
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
+    ! should i reverse reactions?
+    photomech%reverse = mapping%get_logical('reverse-reactions',.true.,error = io_err)
+    
     !!! atoms !!
     photomech%natoms = 0
     key_value_pair => atoms%first
@@ -103,8 +107,10 @@ contains
     allocate(photomech%species_names(photomech%nsp+2))
     photomech%species_names(photomech%nsp+1) = "M" ! always add these guys
     photomech%species_names(photomech%nsp+2) = "hv"
-    allocate(photomech%thermo_data(7,2,photomech%nsp))
-    allocate(photomech%thermo_temps(3,photomech%nsp))
+    if (photomech%reverse) then
+      allocate(photomech%thermo_data(7,2,photomech%nsp))
+      allocate(photomech%thermo_temps(3,photomech%nsp))
+    endif
     j = 1
     item => species%first
     do while (associated(item))
@@ -128,10 +134,12 @@ contains
         photomech%species_mass(j) = sum(photomech%species_composition(:,j) * photomech%atoms_mass)
         photomech%species_names(j) = trim(element%get_string("name",error = io_err)) ! get name
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          
-        call get_thermodata(element,photomech%species_names(j), infile,photomech%thermo_temps(:,j), &
-                            photomech%thermo_data(:,:,j), err) ! get thermodynamic data
-        if (len_trim(err) > 0) return
+        
+        if (photomech%reverse) then
+          call get_thermodata(element,photomech%species_names(j), infile,photomech%thermo_temps(:,j), &
+                              photomech%thermo_data(:,:,j), err) ! get thermodynamic data
+          if (len_trim(err) > 0) return
+        endif
       class default
         err = "IOError: Problem with species number "//char(j)//"  in the input file"
         return
@@ -156,6 +164,7 @@ contains
     photomech%max_num_reactants = 1
     photomech%max_num_products = 1
     photomech%nrR = 0
+    photomech%kj = 0
     j = 1
     item => reactions%first
     do while (associated(item))
@@ -167,6 +176,11 @@ contains
         call parse_reaction(tmp, reverse, eqr, eqp, err)
         if (len_trim(err) > 0) return
         if (reverse) then
+          if (.not.photomech%reverse) then
+            err = 'IOError: reaction file '//trim(infile)//' contains reverse reaction '//tmp// &
+                  ', which is incompatible with "reverse-reactions: false"'
+            return
+          endif
           photomech%nrR = photomech%nrR + 1
           if (size(eqr) > photomech%max_num_products) photomech%max_num_products = size(eqr)
           if (size(eqp) > photomech%max_num_reactants) photomech%max_num_reactants = size(eqp)
@@ -175,6 +189,9 @@ contains
         if (size(eqp) > photomech%max_num_products) photomech%max_num_products = size(eqp)
         call get_rateparams(element, infile, photomech%rxtypes(j), photomech%rateparams(:,j), err)
         if (len_trim(err) > 0) return
+        if (photomech%rxtypes(j)=='photolysis') then
+          photomech%kj = photomech%kj + 1
+        endif
         call compare_rxtype_string(tmp, eqr, eqp, photomech%rxtypes(j),err)
         if (len_trim(err) > 0) return
       class default
@@ -191,7 +208,9 @@ contains
     allocate(photomech%nproducts(photomech%nrT))
     allocate(photomech%reactants_sp_inds(photomech%max_num_reactants,photomech%nrT))
     allocate(photomech%products_sp_inds(photomech%max_num_products,photomech%nrT))
-    allocate(photomech%reverse_info(photomech%nrT))
+    if (photomech%reverse) then
+      allocate(photomech%reverse_info(photomech%nrT))
+    endif
     photomech%reverse_info = 0 ! initialize
     allocate(photomech%reactants_names(photomech%max_num_reactants,photomech%nrF))
     allocate(photomech%products_names(photomech%max_num_products,photomech%nrF))
@@ -203,7 +222,6 @@ contains
       class is (type_dictionary)
         tmp = trim(element%get_string("equation",error = io_err))
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        
         
         call get_reaction_chars(tmp, photomech%max_num_reactants, photomech%max_num_products, &
                             photomech%nreactants(j), photomech%nproducts(j), &
@@ -284,6 +302,17 @@ contains
         endif
       enddo
     enddo
+    
+    ! photolysis
+    allocate(photomech%photonums(photomech%kj))
+    j = 1
+    do i = 1, photomech%nrF
+      if (photomech%rxtypes(i) == 'photolysis') then
+        photomech%photonums(j) = i
+        j = j + 1
+      endif
+    enddo
+    
     !!! end reactions !!!
     
     call check_for_duplicates(photomech,err)
@@ -763,108 +792,70 @@ contains
     endif
   end subroutine
   
+  subroutine get_photoset(infile, photoset, err)
+    use yaml, only : parse, error_length
+    character(len=*), intent(in) :: infile
+    type(PhotoSettings), intent(out) :: photoset
+    character(len=err_len), intent(out) :: err
   
+    character(error_length) :: error
+    class (type_node), pointer :: root
+    err = ''
+    
+    root => parse(infile,unit=100,error=error)
+    if (error /= '') then
+      err = trim(error)
+      return
+    end if
+    select type (root)
+      class is (type_dictionary)
+        call unpack_settings(root, infile, photoset, err)
+      class default
+        err = trim(infile)//" file must have dictionaries at root level"
+        return
+    end select
+    ! tmpdict => photoset%get_dictionary("atmosphere-grid",.true.,error = io_err)
+    ! if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+
+  end subroutine
   
-  ! subroutine get_settings(filesettings, infile, outsettings, err)
-  !   class(type_dictionary), intent(in) :: filesettings
-  !   character(len=*), intent(in) :: infile
-  !   type(PhotoSettings), intent(out) :: outsettings
-  !   character(len=err_len), intent(out) :: err
-  ! 
-  !   type (type_error), pointer :: io_err
-  !   class(type_dictionary), pointer :: tmpdict
-  ! 
-  !   tmpdict => filesettings%get_dictionary("atmosphere-grid",.true.,error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  ! 
-  !   outsettings%bottom_atmosphere = tmpdict%get_real("bottom",error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   outsettings%top_atmosphere = tmpdict%get_real("top",error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   outsettings%nz = tmpdict%get_integer("number-of-layers",error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  ! 
-  !   tmpdict => filesettings%get_dictionary("photo-grid",.true.,error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  ! 
-  !   outsettings%lower_wavelength = tmpdict%get_real("lower-wavelength",error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   outsettings%upper_wavelength = tmpdict%get_real("upper-wavelength",error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   outsettings%nw = tmpdict%get_integer("number-of-bins",error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  ! 
-  ! end subroutine
-  
-  ! subroutine get_planet(fileplanet, infile, outplanet, err)
-  !   class(type_dictionary), intent(in) :: fileplanet
-  !   character(len=*), intent(in) :: infile
-  !   type(PhotoPlanet), intent(out) :: outplanet
-  !   character(len=err_len), intent(out) :: err
-  ! 
-  !   type (type_error), pointer :: io_err
-  !   class(type_dictionary), pointer :: tmpdict
-  ! 
-  !   outplanet%gravity = fileplanet%get_real("gravity",error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   outplanet%surface_pressure = fileplanet%get_real("surface-pressure",error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   outplanet%planet_radius = fileplanet%get_real("planet-radius",error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   outplanet%surface_albedo = fileplanet%get_real("surface-albedo",error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   outplanet%water_sat_trop = fileplanet%get_logical("water-saturated-troposhere",error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   if (outplanet%water_sat_trop) then
-  !     outplanet%trop_alt = fileplanet%get_real("tropopause-altitude",error = io_err)
-  !     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   else
-  !     outplanet%trop_alt = 0.d0 ! no tropopause.
-  !   endif
-  ! 
-  !   tmpdict => fileplanet%get_dictionary("lightning",.true.,error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  ! 
-  !   outplanet%lightning = tmpdict%get_logical("on-off",error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   if (.not. outplanet%lightning) then
-  !     outplanet%lightning_NO_production = 0.d0
-  !   else
-  !     outplanet%lightning_NO_production = tmpdict%get_real("NO-production",error = io_err)
-  !     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   endif
-  !   tmpdict => fileplanet%get_dictionary("rainout",.true.,error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  ! 
-  !   outplanet%rainout= tmpdict%get_logical("on-off",error = io_err)
-  !   if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   if (.not.outplanet%rainout) then
-  !     outplanet%rainout_multiplier = 1.d0
-  !   else
-  !     outplanet%rainout_multiplier = tmpdict%get_real("multiplier",error = io_err)
-  !     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-  ! 
-  !   endif
-  ! end subroutine
+  subroutine unpack_settings(mapping, infile, photoset, err)
+    class (type_dictionary), intent(in), pointer :: mapping
+    character(len=*), intent(in) :: infile
+    type(PhotoSettings), intent(out) :: photoset
+    character(len=err_len), intent(out) :: err
+    
+    class (type_dictionary), pointer :: tmp1
+    type (type_error), pointer :: io_err
+    
+    err = ''
+    
+    tmp1 => mapping%get_dictionary('photolysis-grid',.true.,error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    photoset%regular_grid = tmp1%get_logical('regular-grid',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+    if (photoset%regular_grid) then
+      photoset%lower_wavelength = tmp1%get_real('lower-wavelength',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      photoset%upper_wavelength = tmp1%get_real('upper-wavelength',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      photoset%nw = tmp1%get_real('number-of-bins',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (photoset%nw < 1) then 
+        err = 'Number of photolysis bins must be >= 1 in '//trim(infile)
+        return
+      endif
+      if (photoset%lower_wavelength > photoset%upper_wavelength) then
+        err = 'lower-wavelength must be smaller than upper-wavelength in '//trim(infile)
+        return
+      endif
+    else
+      photoset%grid_file = tmp1%get_string('input-file',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    endif
+    
+  end subroutine
   
   
   subroutine get_boundaryconds(molecule, molecule_name, infile, &
@@ -973,7 +964,306 @@ contains
   ! allocate(photomech%upperboundcond(photomech%nsp))
   ! allocate(photomech%upper_veff(photomech%nsp))
   ! allocate(photomech%upper_flux(photomech%nsp))
+  
+  
+  subroutine get_photorad(photoset, photomech, photorad, err)
+    type(PhotoSettings), intent(in) :: photoset
+    type(PhotoMechanism), intent(in) :: photomech
+    type(PhotoRadTran), intent(out) :: photorad
+    character(len=err_len), intent(out) :: err
+    
+    integer :: i
+    err = ''
+    
+    ! compute wavelength grid
+    if (photoset%regular_grid) then
+      photorad%nw = photoset%nw
+      allocate(photorad%wavl(photoset%nw+1))
+      photorad%wavl(1) = photoset%lower_wavelength
+      do i = 2,photoset%nw+1
+        photorad%wavl(i) = photorad%wavl(i-1) + &
+                           (photoset%upper_wavelength - photoset%lower_wavelength)/photoset%nw
+      enddo
+    else
+      ! read file
+      err = 'ahhhh'
+      return
+    endif
+    
+    ! get rayleigh
+    call get_rayleigh(photomech, photorad, err)
+    if (len_trim(err) /= 0) return
+    
+    ! get photolysis xsections
+    call get_photolysis_xs(photomech, photorad, err)
+    if (len_trim(err) /= 0) return
+    
+  end subroutine
+  
+  subroutine get_photolysis_xs(photomech, photorad, err)
+    type(PhotoMechanism), intent(in) :: photomech
+    type(PhotoRadTran), intent(inout) :: photorad ! inout!
+    character(len=err_len), intent(out) :: err
+    
+    integer, parameter :: maxcols = 200
+    character(len=:), allocatable :: xsroot
+    character(len=:), allocatable :: filename, xsfilename, reaction
+    character(len=str_len) :: line
+    character(len=100) :: tmp(maxcols), tmp1
+    real(real_kind), allocatable :: file_xs(:,:), file_qy(:,:), file_wav(:), file_line(:)
+    
+    integer :: i, j, k, l, m, io
+    err = ''
+    
+    xsroot = "../data/xsections/"
+    
+    ! count temperature columns
+    allocate(photorad%num_temp_cols(photomech%kj))
+    do i = 1,photomech%kj
+      filename = ''
+      j = photomech%photonums(i)
+      call reaction_string(photomech,j,reaction)
+      filename = reaction
+      do k = 1,len(filename)-1
+        if (filename(k:k) == ' ') then
+          filename(k:k) = '_'
+        endif
+      enddo
+      filename = filename//'.txt'
 
+      k = photomech%reactants_sp_inds(1,j)
+      filename = trim(photomech%species_names(k))//'/'//filename
+      xsfilename = trim(photomech%species_names(k))//'/'//trim(photomech%species_names(k))//'_xs.txt'
+      open(101, file=xsroot//filename,status='old',iostat=io)
+      if (io /= 0) then
+        err = 'The photolysis reaction '//reaction//' does not have quantum yield data'
+        return
+      endif
+      read(101,*)
+      read(101,'(A)') line
+      do k=1,maxcols
+        read(line,*,iostat=io) tmp(1:k)
+        if (io /= 0) exit
+      enddo
+      if (k == maxcols+1) then
+        err = 'More cross section temperature data than allowed for reaction '//reaction
+        return
+      endif
+      photorad%num_temp_cols(i) = k - 2
+      close(101)
+    enddo
+    
+    ! allocate
+    allocate(photorad%xs_data(maxval(photorad%num_temp_cols),photorad%nw,photomech%kj))
+    allocate(photorad%xs_data_temps(maxval(photorad%num_temp_cols),photomech%kj))
+    photorad%xs_data_temps = 0.d0
+
+    ! read in data
+    do i = 1,photomech%kj
+      filename = ''
+      j = photomech%photonums(i)
+      call reaction_string(photomech,j,reaction)
+      filename = reaction
+      do k = 1,len(filename)-1
+        if (filename(k:k) == ' ') then
+          filename(k:k) = '_'
+        endif
+      enddo
+      filename = filename//'.txt'
+
+      k = photomech%reactants_sp_inds(1,j)
+      filename = trim(photomech%species_names(k))//'/'//filename
+      open(101, file=xsroot//filename,status='old',iostat=io)
+      read(101,*)
+      read(101,'(A)') line
+       
+      do k=1,photorad%num_temp_cols(i) + 1
+        read(line,*,iostat=io) tmp(1:k)
+      enddo
+      do k=1,photorad%num_temp_cols(i)
+        tmp1 = tmp(k+1)
+        read(tmp1(1:index(tmp1,'K')-1),*,iostat=io) photorad%xs_data_temps(k,i)
+        if (io /= 0) then
+          err = 'Problem reading in cross sections for reaction '//reaction
+          return
+        endif
+      enddo
+      
+      ! count lines
+      k = 0
+      do while(io == 0)
+        read(101,*, iostat=io)
+        if (io == 0) k = k + 1
+      enddo
+      allocate(file_wav(k))
+      allocate(file_qy(k,photorad%num_temp_cols(i)))
+      allocate(file_line(photorad%num_temp_cols(i)+1))
+      
+      rewind(101)
+      read(101,*)
+      read(101,*)
+      do l = 1, k
+        read(101,'(A)',iostat=io) line
+        read(line,*) file_wav(l)
+        do m = 1,photorad%num_temp_cols(i)+1
+          read(line,*) file_line(1:m)
+        enddo
+        file_qy(l,:) = file_line(2:)
+      enddo
+      
+      ! interpolate to grid. save in photorad%xs_data
+      
+      close(101)
+      deallocate(file_wav,file_qy)
+      
+      ! now do xs
+      open(102, file=xsroot//xsfilename,status='old',iostat=io)
+      if (io /= 0) then
+        err = 'The photolysis reaction '//reaction//' does not have cross section data'
+        return
+      endif
+      ! count lines
+      k = 0
+      do while(io == 0)
+        read(102,*, iostat=io)
+        if (io == 0) k = k + 1
+      enddo
+      allocate(file_wav(k))
+      allocate(file_xs(k,photorad%num_temp_cols(i)))
+      
+      rewind(102)
+      read(102,*)
+      read(102,*)
+      do l = 1, k
+        read(102,'(A)',iostat=io) line
+        read(line,*) file_wav(l)
+        do m = 1,photorad%num_temp_cols(i)+1
+          read(line,*) file_line(1:m)
+        enddo
+        file_xs(l,:) = file_line(2:)
+      enddo
+      print*,file_xs
+      ! interpolate to grid. save in photorad%xs_data
+      
+      close(102)
+      deallocate(file_xs, file_wav, file_line)
+      stop
+    enddo
+    
+    
+    
+    
+  end subroutine
+  
+  
+  subroutine get_rayleigh(photomech, photorad, err)
+    use yaml, only : parse, error_length
+    type(PhotoMechanism), intent(in) :: photomech
+    type(PhotoRadTran), intent(inout) :: photorad ! inout!
+    character(len=err_len), intent(out) :: err
+    
+    real(real_kind), allocatable :: A(:), B(:), Delta(:)
+    character(len=str_len) :: rayleigh_file
+
+    character(error_length) :: error
+    class (type_node), pointer :: root
+    integer :: i, j
+    err = ''
+    
+    rayleigh_file = "../data/xsections/rayleigh.yaml"
+    
+    ! parse yaml file
+    root => parse(rayleigh_file,unit=100,error=error)
+    if (error /= '') then
+      err = trim(error)
+      return
+    end if
+    select type (root)
+      class is (type_dictionary)
+        call rayleigh_params(root,photomech,trim(rayleigh_file),err, &
+                             photorad%raynums, A, B, Delta)
+        if (len_trim(err) /= 0) return
+        call root%finalize()
+        deallocate(root)
+    end select
+    
+    ! compute cross sections
+    allocate(photorad%sigray(size(A),photorad%nw))
+    do i = 1,photorad%nw
+      do j = 1,size(A)
+        call rayleigh_vardavas(A(j), B(j), Delta(j), photorad%wavl(i), &
+                               photorad%sigray(j, i))
+      enddo
+    enddo
+
+  end subroutine
+  
+  subroutine rayleigh_params(mapping,photomech,infile,err, raynums, A, B, Delta)
+    class (type_dictionary), intent(in), pointer :: mapping
+    type(PhotoMechanism), intent(in) :: photomech
+    character(len=*), intent(in) :: infile
+    character(len=err_len), intent(out) :: err
+    
+    class (type_key_value_pair), pointer :: key_value_pair
+    class (type_dictionary), pointer :: tmp1, tmp2
+    type (type_error), pointer :: io_err
+    real(real_kind), allocatable, intent(out) :: A(:), B(:), Delta(:)
+    integer, allocatable, intent(out) :: raynums(:)
+    
+    integer :: j, ind(1)  
+    
+    j = 0
+    key_value_pair => mapping%first
+    do while (associated(key_value_pair))
+      ind = findloc(photomech%species_names,trim(key_value_pair%key))
+      if (ind(1) /= 0) then 
+        j = j + 1
+      endif
+      key_value_pair => key_value_pair%next
+    enddo
+    allocate(raynums(j))
+    allocate(A(j))
+    allocate(B(j))
+    allocate(Delta(j))
+    j = 1
+    key_value_pair => mapping%first
+    do while (associated(key_value_pair))
+      ind = findloc(photomech%species_names,trim(key_value_pair%key))
+      if (ind(1) /= 0) then 
+        raynums(j) = ind(1)
+        
+        tmp1 => mapping%get_dictionary(key_value_pair%key,.true.,error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (trim(tmp1%get_string('formalism',error=io_err)) /= 'vardavas') then
+          err = "Unknown formalism for Rayleigh cross section for "//trim(key_value_pair%key)
+          return
+        endif
+        tmp2 => tmp1%get_dictionary("data",.true.,error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        Delta(j) = tmp2%get_real("Delta",error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        A(j) = tmp2%get_real("A",error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        B(j) = tmp2%get_real("B",error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        j = j + 1
+      endif
+      key_value_pair => key_value_pair%next
+    enddo
+  end subroutine
+  
+  subroutine rayleigh_vardavas(A, B, Delta, lambda, sigray)
+    real(real_kind), intent(in) :: A, B, Delta, lambda
+    real(real_kind), intent(out) :: sigray
+    
+    sigray = 4.577d-21*((6.d0+3.d0*Delta)/(6.d0-7.d0*Delta)) * &
+            (A*(1.d0+B/(lambda*1.d-3)**2.d0))**2.d0 * &
+            (1.d0/(lambda*1.d-3)**4.d0)
+
+  end subroutine
+  
+  
+  
 end module
 
 

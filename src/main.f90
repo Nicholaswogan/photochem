@@ -1,32 +1,52 @@
 
 program main
-  use photochem_io, only: get_photomech, reaction_string
-  use photochem_types, only: PhotoMechanism
+  use photochem_io, only: get_photomech, get_photorad, get_photoset, reaction_string
+  use photochem_types, only: PhotoMechanism, PhotoRadTran, PhotoSettings
   implicit none
+  type(PhotoSettings) :: photoset
   type(PhotoMechanism) :: photomech
+  type(PhotoRadTran) :: photorad
   character(len=1000) :: err
-  character(len=:), allocatable :: rxstring
-  integer i
+  ! character(len=:), allocatable :: rxstring
+  ! integer i
+  
+  call get_photoset("../settings.yaml", photoset, err)
+  if (len(trim(err)) > 0) then
+    print*,trim(err)
+    print*,'error worked!'
+    stop
+  endif
 
   call get_photomech("../zahnle_rx.yaml", photomech, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
-    print*,'yes'
+    print*,'error worked'
     stop
   endif
-
-
-  do i=1,photomech%nrT
-    call reaction_string(photomech,i,rxstring)
-    print*,rxstring
-  enddo
-  deallocate(rxstring)
   
-  do i=1,photomech%nsp
-    print*,photomech%species_mass(i), photomech%species_names(i)
-  enddo
+  call get_photorad(photoset, photomech, photorad, err)
+  if (len(trim(err)) > 0) then
+    print*,trim(err)
+    print*,'error worked rayleigh'
+    stop
+  endif
+  
+
+
+  ! do i=1,photomech%nrT
+  !   call reaction_string(photomech,i,rxstring)
+  !   print*,rxstring
+  ! enddo
+  ! deallocate(rxstring)
+  ! 
+  ! do i=1,photomech%nsp
+  !   print*,photomech%species_mass(i), photomech%species_names(i)
+  ! enddo
   
 end program
+
+
+
 
 
 
