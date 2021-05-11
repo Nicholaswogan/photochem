@@ -834,7 +834,10 @@ contains
     class (type_list_item), pointer :: item
     type (type_error), pointer :: io_err
     
-    integer :: j
+    character(len=str_len) :: background_gas, spec_type, spec_name
+    integer :: j, i, ind(1), ind1(1), ll, sl
+    character(len=20), allocatable :: dups(:)
+    real(real_kind) :: grav
     
     err = ''
     
@@ -867,9 +870,9 @@ contains
     ! atmosphere grid
     tmp1 => mapping%get_dictionary('atmosphere-grid',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photoset%bottom_atmosphere = tmp1%get_real('bottom',error = io_err)
+    photoset%bottom_atmos = tmp1%get_real('bottom',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photoset%top_atmosphere = tmp1%get_real('top',error = io_err)
+    photoset%top_atmos = tmp1%get_real('top',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photoset%nz = tmp1%get_real('number-of-layers',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -877,7 +880,28 @@ contains
     ! Planet
     tmp1 => mapping%get_dictionary('planet',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photoset%background_gas = tmp1%get_string('background-gas',error = io_err)
+    
+    photoset%back_gas = tmp1%get_logical('use-background-gas',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    
+    if (photoset%back_gas) then
+      background_gas = tmp1%get_string('background-gas',error = io_err)
+      ind = findloc(photomech%species_names,trim(background_gas))
+      if (ind(1) == 0) then
+        err = 'IOError: Background gas "'//trim(background_gas)// &
+              '" is not one of the species in the reaction mechanism.'
+        return
+      else
+        photoset%back_gas_ind = ind(1)
+      endif
+    else
+      photoset%back_gas_ind = -1
+      ! err = "Currently, the model requires there to be a background gas."// &
+      !       " You must set 'use-background-gas: true'"
+      ! return
+    endif
+    
+    
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photoset%surface_pressure = tmp1%get_real('surface-pressure',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -907,43 +931,187 @@ contains
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photoset%water_sat_trop = tmp2%get_logical('water-saturated-troposphere',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    ind = findloc(photomech%species_names,'H2O')
+    if (ind(1) == 0) then
+      err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
+      return
+    endif
     if (photoset%water_sat_trop) then  
       photoset%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      if ((photoset%trop_alt < photoset%bottom_atmosphere) .or. &
-          (photoset%trop_alt > photoset%top_atmosphere)) then
+      if ((photoset%trop_alt < photoset%bottom_atmos) .or. &
+          (photoset%trop_alt > photoset%top_atmos)) then
           err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
           return
       endif
     endif
     
-    ! boundary conditions
+    ! boundary conditions and species types
     bcs => mapping%get_list('boundary-conditions',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
-    j = 0
-    item => bcs%first
-    do while (associated(item))
-      j = j + 1
-      item => item%next
-    enddo
-    
+    allocate(photoset%species_type(photomech%nsp))
+    photoset%species_type = 1 ! long lived by default
+    if (photoset%back_gas) then
+      photoset%species_type(photoset%back_gas_ind) = 0 ! background gas
+    endif
+      
+    ! determine number of short lived species. 
+    allocate(dups(photomech%nsp))
+    j = 1
+    photoset%nsl = 0
     item => bcs%first
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
-        print*,'hi'
+        if (j > photomech%nsp) then
+          err = "IOError: Too many boundary condition entries in settings file."
+          return
+        endif
+        dups(j) = element%get_string('name',error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        ! check for duplicates
+        if (j > 1) then
+          do i = 1,j-1
+            if (dups(j) == dups(i)) then
+              err = "IOError: Species "//trim(dups(i))// &
+              " has more than one boundary conditions entry in the settings file."
+              return
+            endif
+          enddo
+        endif
+        ! check if in rxmech
+        ind = findloc(photomech%species_names,dups(j))
+        if (ind(1) == 0) then
+          err = "IOError: Species "//trim(dups(j))// &
+          ' in settings file is not in the reaction mechanism file.'
+          return 
+        endif
+        if ((ind(1) == photoset%back_gas_ind) .and. (photoset%back_gas)) then ! can't be backgroudn gas
+          err = "IOError: Species "//trim(dups(j))// &
+          ' in settings file is the background gas, and can not have boundary conditions.'
+          return
+        endif
+        
+        spec_type = element%get_string('type','long lived',error = io_err)
+        if (spec_type == 'short lived') then
+          photoset%nsl = photoset%nsl + 1
+          photoset%species_type(ind(1)) = 2
+        elseif (spec_type == 'long lived') then
+          ! do nothing
+        else
+          err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
+          return
+        endif
       class default
         err = "IOError: Boundary conditions must be a list of dictionaries."
         return
       end select 
       item => item%next
+      j = j + 1
     enddo
-  
     
+    ! allocate book keeping
+    if (photoset%back_gas) then
+      photoset%nq = photomech%nsp - photoset%nsl  - 1 ! minus one for background gas
+    else
+      photoset%nq = photomech%nsp - photoset%nsl 
+    endif
+    allocate(photoset%LL_inds(photoset%nq))
+    allocate(photoset%SL_inds(photoset%nsl))
+    sl = 0
+    ll = 0
+    do i = 1,photomech%nsp
+      if (photoset%species_type(i) == 0) then
+        ! nothing. background gas
+      elseif (photoset%species_type(i) == 1) then
+        ll = ll + 1
+        photoset%LL_inds(ll) = i
+      elseif (photoset%species_type(i) == 2) then
+        sl = sl + 1
+        photoset%SL_inds(sl) = i
+      else
+        err = "IOError: Problem reading in species types in settings file."
+        return
+      endif
+    enddo
+    
+    ! allocate boundary conditions
+    allocate(photoset%lowerboundcond(photoset%nq))
+    allocate(photoset%lower_vdep(photoset%nq))
+    allocate(photoset%lower_flux(photoset%nq))
+    allocate(photoset%lower_dist_height(photoset%nq))
+    allocate(photoset%lower_fix_mr(photoset%nq))
+    allocate(photoset%upperboundcond(photoset%nq))
+    allocate(photoset%upper_veff(photoset%nq))
+    allocate(photoset%upper_flux(photoset%nq))
+    ! default boundary conditions
+    photoset%lowerboundcond = 0
+    photoset%lower_vdep = 0.d0
+    photoset%upperboundcond = 0
+    photoset%upper_veff = 0.d0
+  
+    item => bcs%first
+    do while (associated(item))
+      select type (element => item%node)
+      class is (type_dictionary)
+        spec_name = element%get_string('name',error = io_err)
+        ind = findloc(photomech%species_names,spec_name)
+    
+        spec_type = element%get_string('type','long lived',error = io_err)
+        if (spec_type == 'long lived') then
+          ! find proper index
+          ind1 = findloc(photoset%LL_inds,ind(1))
+          i = ind1(1)
+          ! get boundary condition
+          call get_boundaryconds(element, spec_name, infile, &
+                                 photoset%lowerboundcond(i), photoset%lower_vdep(i), &
+                                 photoset%lower_flux(i), photoset%lower_dist_height(i), &
+                                 photoset%lower_fix_mr(i), &
+                                 photoset%upperboundcond(i), photoset%upper_veff(i), &
+                                 photoset%upper_flux(i), err)
+          if (len_trim(err) /= 0) return
+        endif
+      end select 
+      item => item%next
+    enddo    
+    
+    ! set up the atmosphere grid
+    allocate(photoset%z(photoset%nz))
+    allocate(photoset%dz(photoset%nz))
+    call vertical_grid(photoset%bottom_atmos,photoset%top_atmos,photoset%nz, &
+                       photoset%z, photoset%dz)
+    
+    ! compute the gravity
+    allocate(photoset%grav(photoset%nz))
+    do i =1,photoset%nz
+      call compute_gravity((photoset%planet_radius + photoset%z(i))/1.d2, &
+                            photoset%planet_mass/1.d3, grav)
+      photoset%grav(i) = grav*1.d2 ! convert to cgs
+    enddo
     
   end subroutine
   
+  subroutine compute_gravity(radius, mass, grav)
+    use photochem_const, only: G_grav
+    real(real_kind), intent(in) :: radius, mass
+    real(real_kind), intent(out) :: grav
+    grav = G_grav * mass / radius**2.d0
+  end subroutine
+
+  subroutine vertical_grid(bottom, top, nz, z, dz)
+    real(real_kind), intent(in) :: bottom, top
+    integer, intent(in) :: nz
+    real(real_kind), intent(out) :: z(nz), dz(nz)
+    
+    integer :: i
+  
+    dz = (top - bottom)/nz
+    z(1) = dz(1)/2.d0
+    do i = 2,nz
+      z(i) = z(i-1) + dz(i)
+    enddo
+  end subroutine
   
   subroutine get_boundaryconds(molecule, molecule_name, infile, &
                                lowercond, Lvdep, Lflux, LdistH, Lmr, &
@@ -1042,17 +1210,7 @@ contains
     endif
     
   end subroutine
-  
-  ! allocate(photomech%lowerboundcond(photomech%nsp))
-  ! allocate(photomech%lower_vdep(photomech%nsp))
-  ! allocate(photomech%lower_flux(photomech%nsp))
-  ! allocate(photomech%lower_distributed_height(photomech%nsp))
-  ! allocate(photomech%lower_fixed_mr(photomech%nsp))
-  ! allocate(photomech%upperboundcond(photomech%nsp))
-  ! allocate(photomech%upper_veff(photomech%nsp))
-  ! allocate(photomech%upper_flux(photomech%nsp))
-  
-  
+    
   subroutine get_photorad(photomech, photoset, photorad, err)
     type(PhotoMechanism), intent(in) :: photomech
     type(PhotoSettings), intent(in) :: photoset
@@ -1405,10 +1563,6 @@ contains
   end subroutine
 
 end module
-
-
-
-
 
 
 

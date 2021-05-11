@@ -13,6 +13,7 @@ photolysis-grid:
   # input-file: my/input/file.txt
 
 planet:
+  use-background-gas: true
   background-gas: N2
   surface-pressure: 1.0 # bar
   planet-mass: 5.972e27 # grams
@@ -36,8 +37,8 @@ boundary-conditions:
 
   - name: H2
     lower-boundary:
-      vdep: 0.0
-      type: constant deposition velocity
+      flux: 1.0e9
+      type: constant flux
     upper-boundary:
       veff: 0.0
       type: constant effusion velocity
@@ -59,6 +60,23 @@ boundary-conditions:
       type: constant effusion velocity
 
   - name: O
+    lower-boundary:
+      vdep: 0.0
+      type: constant deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: constant effusion velocity
+      
+  - name: O1D
+    type: short lived
+    lower-boundary:
+      vdep: 0.0
+      type: constant deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: constant effusion velocity
+      
+  - name: N2H3
     lower-boundary:
       vdep: 0.0
       type: constant deposition velocity

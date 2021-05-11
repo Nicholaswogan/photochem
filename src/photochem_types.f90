@@ -8,9 +8,10 @@ module photochem_types ! make a giant IO object
   public PhotoMechanism, PhotoSettings, PhotoRadTran
   
   type :: PhotoSettings
-    real(real_kind) :: bottom_atmosphere
-    real(real_kind) :: top_atmosphere 
+    real(real_kind) :: bottom_atmos
+    real(real_kind) :: top_atmos 
     integer :: nz
+    real(real_kind), allocatable :: z(:), dz(:)
     
     logical :: regular_grid
     real(real_kind) :: lower_wavelength
@@ -18,20 +19,29 @@ module photochem_types ! make a giant IO object
     integer :: nw
     character(len=str_len) :: grid_file
 
-    character(len=str_len) :: background_gas
+    logical :: back_gas
+    integer :: back_gas_ind
     real(real_kind) :: surface_pressure
     real(real_kind) :: planet_mass
     real(real_kind) :: planet_radius
+    real(real_kind), allocatable :: grav(:) ! compute from planet mass and radius
     real(real_kind) :: surface_albedo
     logical :: water_sat_trop
     real(real_kind) :: trop_alt
     
-    integer, allocatable :: lowerboundcond(:)
+    ! species types/bookkeeping
+    integer, allocatable :: species_type(:)
+    integer :: nq ! nubmer of long lived
+    integer :: nsl ! number of short lived
+    integer, allocatable :: LL_inds(:)
+    integer, allocatable :: SL_inds(:)
+    
+    integer, allocatable :: lowerboundcond(:) ! 0, 1, 2 or 3
     real(real_kind), allocatable :: lower_vdep(:)
     real(real_kind), allocatable :: lower_flux(:)
-    real(real_kind), allocatable :: lower_distributed_height(:)
-    real(real_kind), allocatable :: lower_fixed_mr(:)
-    integer, allocatable :: upperboundcond(:)
+    real(real_kind), allocatable :: lower_dist_height(:)
+    real(real_kind), allocatable :: lower_fix_mr(:)
+    integer, allocatable :: upperboundcond(:) ! 0 or 1
     real(real_kind), allocatable :: upper_veff(:)
     real(real_kind), allocatable :: upper_flux(:)
   end type
@@ -80,18 +90,19 @@ module photochem_types ! make a giant IO object
     integer :: nw
     real(real_kind), allocatable :: wavl(:) ! (nw+1)
 
-    real(real_kind), allocatable :: xs_x_qy(:,:,:) ! (kj,nz,nw) cross section * quantum yield
     integer, allocatable :: num_temp_cols(:) ! (kj)
     integer, allocatable :: sum_temp_cols(:) ! (kj)
     ! All data for every reaction in single vector to save memory
     real(real_kind), allocatable :: xs_data(:) ! (sum(num_temp_cols)*nw) 
     real(real_kind), allocatable :: xs_data_temps(:,:) ! (maxval(num_temp_cols), kj)
-    
-    
-    real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
 
     real(real_kind), allocatable :: sigray(:,:) ! (len(raynums), nw)
     integer, allocatable :: raynums(:) ! species number of rayleigh species
+    
+    ! need some photons
+    real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
+    
+    real(real_kind), allocatable :: xs_x_qy(:,:,:) ! (kj,nz,nw) cross section * quantum yield
 
   end type
   
