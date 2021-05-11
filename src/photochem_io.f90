@@ -792,9 +792,10 @@ contains
     endif
   end subroutine
   
-  subroutine get_photoset(infile, photoset, err)
+  subroutine get_photoset(infile, photomech, photoset, err)
     use yaml, only : parse, error_length
     character(len=*), intent(in) :: infile
+    type(PhotoMechanism), intent(in) :: photomech
     type(PhotoSettings), intent(out) :: photoset
     character(len=err_len), intent(out) :: err
   
@@ -809,7 +810,9 @@ contains
     end if
     select type (root)
       class is (type_dictionary)
-        call unpack_settings(root, infile, photoset, err)
+        call unpack_settings(root, infile, photomech, photoset, err)
+        call root%finalize()
+        deallocate(root)
       class default
         err = trim(infile)//" file must have dictionaries at root level"
         return
@@ -819,17 +822,23 @@ contains
 
   end subroutine
   
-  subroutine unpack_settings(mapping, infile, photoset, err)
+  subroutine unpack_settings(mapping, infile, photomech, photoset, err)
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
+    type(PhotoMechanism), intent(in) :: photomech
     type(PhotoSettings), intent(out) :: photoset
     character(len=err_len), intent(out) :: err
     
-    class (type_dictionary), pointer :: tmp1
+    class (type_dictionary), pointer :: tmp1, tmp2
+    class (type_list), pointer :: bcs
+    class (type_list_item), pointer :: item
     type (type_error), pointer :: io_err
+    
+    integer :: j
     
     err = ''
     
+    ! photolysis grid
     tmp1 => mapping%get_dictionary('photolysis-grid',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photoset%regular_grid = tmp1%get_logical('regular-grid',error = io_err)
@@ -854,6 +863,84 @@ contains
       photoset%grid_file = tmp1%get_string('input-file',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     endif
+    
+    ! atmosphere grid
+    tmp1 => mapping%get_dictionary('atmosphere-grid',.true.,error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    photoset%bottom_atmosphere = tmp1%get_real('bottom',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    photoset%top_atmosphere = tmp1%get_real('top',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    photoset%nz = tmp1%get_real('number-of-layers',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    
+    ! Planet
+    tmp1 => mapping%get_dictionary('planet',.true.,error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    photoset%background_gas = tmp1%get_string('background-gas',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    photoset%surface_pressure = tmp1%get_real('surface-pressure',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (photoset%surface_pressure < 0.d0) then
+      err = 'IOError: Planet surface pressure must be greater than zero.'
+      return
+    endif
+    photoset%planet_mass = tmp1%get_real('planet-mass',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (photoset%planet_mass < 0.d0) then
+      err = 'IOError: Planet mass must be greater than zero.'
+      return
+    endif
+    photoset%planet_radius = tmp1%get_real('planet-radius',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (photoset%planet_radius < 0.d0) then
+      err = 'IOError: Planet radius must be greater than zero.'
+      return
+    endif
+    photoset%surface_albedo = tmp1%get_real('surface-albedo',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (photoset%surface_albedo < 0.d0) then
+      err = 'IOError: Surface albedo must be greater than zero.'
+      return
+    endif
+    tmp2 => tmp1%get_dictionary('water',.true.,error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    photoset%water_sat_trop = tmp2%get_logical('water-saturated-troposphere',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (photoset%water_sat_trop) then  
+      photoset%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if ((photoset%trop_alt < photoset%bottom_atmosphere) .or. &
+          (photoset%trop_alt > photoset%top_atmosphere)) then
+          err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
+          return
+      endif
+    endif
+    
+    ! boundary conditions
+    bcs => mapping%get_list('boundary-conditions',.true.,error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    
+    j = 0
+    item => bcs%first
+    do while (associated(item))
+      j = j + 1
+      item => item%next
+    enddo
+    
+    item => bcs%first
+    do while (associated(item))
+      select type (element => item%node)
+      class is (type_dictionary)
+        print*,'hi'
+      class default
+        err = "IOError: Boundary conditions must be a list of dictionaries."
+        return
+      end select 
+      item => item%next
+    enddo
+  
+    
     
   end subroutine
   
@@ -966,9 +1053,9 @@ contains
   ! allocate(photomech%upper_flux(photomech%nsp))
   
   
-  subroutine get_photorad(photoset, photomech, photorad, err)
-    type(PhotoSettings), intent(in) :: photoset
+  subroutine get_photorad(photomech, photoset, photorad, err)
     type(PhotoMechanism), intent(in) :: photomech
+    type(PhotoSettings), intent(in) :: photoset
     type(PhotoRadTran), intent(out) :: photorad
     character(len=err_len), intent(out) :: err
     
@@ -986,7 +1073,7 @@ contains
       enddo
     else
       ! read file
-      err = 'ahhhh'
+      err = 'Still need to add support for reading in wavelength grid from file'
       return
     endif
     
@@ -994,7 +1081,7 @@ contains
     call get_rayleigh(photomech, photorad, err)
     if (len_trim(err) /= 0) return
     
-    ! get photolysis xsections
+    ! get photolysis xsections data
     call get_photolysis_xs(photomech, photorad, err)
     if (len_trim(err) /= 0) return
     
@@ -1011,14 +1098,17 @@ contains
     character(len=str_len) :: line
     character(len=100) :: tmp(maxcols), tmp1
     real(real_kind), allocatable :: file_xs(:,:), file_qy(:,:), file_wav(:), file_line(:)
+    real(real_kind), allocatable :: dumby(:,:)
+    real(real_kind), parameter :: rdelta = 1.d-4
     
-    integer :: i, j, k, l, m, io
+    integer :: i, j, k, l, m, mm, io, kk, ierr
     err = ''
     
     xsroot = "../data/xsections/"
     
     ! count temperature columns
     allocate(photorad%num_temp_cols(photomech%kj))
+    allocate(photorad%sum_temp_cols(photomech%kj))
     do i = 1,photomech%kj
       filename = ''
       j = photomech%photonums(i)
@@ -1052,9 +1142,13 @@ contains
       photorad%num_temp_cols(i) = k - 2
       close(101)
     enddo
+    photorad%sum_temp_cols(1) = 0
+    do i = 2,photomech%kj
+      photorad%sum_temp_cols(i) = photorad%sum_temp_cols(i-1) + photorad%num_temp_cols(i-1)
+    enddo
     
     ! allocate
-    allocate(photorad%xs_data(maxval(photorad%num_temp_cols),photorad%nw,photomech%kj))
+    allocate(photorad%xs_data(sum(photorad%num_temp_cols)*photorad%nw))
     allocate(photorad%xs_data_temps(maxval(photorad%num_temp_cols),photomech%kj))
     photorad%xs_data_temps = 0.d0
 
@@ -1073,6 +1167,7 @@ contains
 
       k = photomech%reactants_sp_inds(1,j)
       filename = trim(photomech%species_names(k))//'/'//filename
+      xsfilename = trim(photomech%species_names(k))//'/'//trim(photomech%species_names(k))//'_xs.txt'
       open(101, file=xsroot//filename,status='old',iostat=io)
       read(101,*)
       read(101,'(A)') line
@@ -1095,10 +1190,11 @@ contains
         read(101,*, iostat=io)
         if (io == 0) k = k + 1
       enddo
-      allocate(file_wav(k))
-      allocate(file_qy(k,photorad%num_temp_cols(i)))
+      allocate(file_wav(k+4))
+      allocate(file_qy(k+4,photorad%num_temp_cols(i)))
       allocate(file_line(photorad%num_temp_cols(i)+1))
-      
+      allocate(dumby(photorad%nw,photorad%num_temp_cols(i)))
+
       rewind(101)
       read(101,*)
       read(101,*)
@@ -1112,6 +1208,30 @@ contains
       enddo
       
       ! interpolate to grid. save in photorad%xs_data
+      ierr = 0
+      do l = 1, photorad%num_temp_cols(i)
+        kk = k
+        call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(1)*(1.d0-rdelta), 0.d0, ierr)
+        call addpnt(file_wav, file_qy(:,l), kk+4, k, 0.d0, 0.d0, ierr)
+        call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(k)*(1.d0+rdelta), 0.d0, ierr)
+        call addpnt(file_wav, file_qy(:,l), kk+4, k, huge(rdelta), 0.d0, ierr)
+        if (ierr /= 0) then
+          err = 'IOError: Problem interpolating quantum yield data to photolysis grid for reaction '// &
+                trim(reaction)
+          return
+        endif
+        m = ((l-1)*photorad%nw + 1) + (photorad%sum_temp_cols(i)*photorad%nw)
+        mm = (photorad%nw*l) + (photorad%sum_temp_cols(i)*photorad%nw)
+        call inter2(photorad%nw+1,photorad%wavl,dumby(:,l), &
+                    kk+4,file_wav,file_qy(:,l),ierr)
+        photorad%xs_data(m:mm) = dumby(:,l)
+        k = kk
+        if (ierr /= 0) then
+          err = 'IOError: Problem interpolating quantum yield data to photolysis grid for reaction '// &
+                trim(reaction)
+          return
+        endif
+      enddo
       
       close(101)
       deallocate(file_wav,file_qy)
@@ -1123,13 +1243,13 @@ contains
         return
       endif
       ! count lines
-      k = 0
+      k = -2 ! skip first two lines
       do while(io == 0)
         read(102,*, iostat=io)
         if (io == 0) k = k + 1
       enddo
-      allocate(file_wav(k))
-      allocate(file_xs(k,photorad%num_temp_cols(i)))
+      allocate(file_wav(k+4))
+      allocate(file_xs(k+4,photorad%num_temp_cols(i)))
       
       rewind(102)
       read(102,*)
@@ -1142,16 +1262,38 @@ contains
         enddo
         file_xs(l,:) = file_line(2:)
       enddo
-      print*,file_xs
-      ! interpolate to grid. save in photorad%xs_data
-      
+
+      ierr = 0
+      do l = 1, photorad%num_temp_cols(i)
+        kk = k
+        call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(1)*(1.d0-rdelta), 0.d0,ierr)
+        call addpnt(file_wav, file_xs(:,l), kk+4, k, 0.d0, 0.d0,ierr)
+        call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(k)*(1.d0+rdelta), 0.d0,ierr)
+        call addpnt(file_wav, file_xs(:,l), kk+4, k, huge(rdelta), 0.d0,ierr)
+        if (ierr /= 0) then
+          err = 'IOError: Problem interpolating quantum yield data to photolysis grid for reaction '// &
+                trim(reaction)
+          return
+        endif
+        m = ((l-1)*photorad%nw + 1) + (photorad%sum_temp_cols(i)*photorad%nw)
+        mm =(photorad%nw*l) + (photorad%sum_temp_cols(i)*photorad%nw)
+
+        call inter2(photorad%nw+1,photorad%wavl,dumby(:,l), &
+                    kk+4,file_wav,file_xs(:,l),ierr)
+        photorad%xs_data(m:mm) = photorad%xs_data(m:mm) * dumby(:,l)
+        k = kk
+        
+        if (ierr /= 0) then
+          err = 'IOError: Problem interpolating xs data to photolysis grid for reaction '// &
+                trim(reaction)
+          return
+        endif
+      enddo
+
       close(102)
-      deallocate(file_xs, file_wav, file_line)
-      stop
+      deallocate(file_xs, file_wav, file_line, dumby)
+
     enddo
-    
-    
-    
     
   end subroutine
   
@@ -1195,7 +1337,7 @@ contains
                                photorad%sigray(j, i))
       enddo
     enddo
-
+    deallocate(A,B,Delta)
   end subroutine
   
   subroutine rayleigh_params(mapping,photomech,infile,err, raynums, A, B, Delta)
@@ -1261,9 +1403,7 @@ contains
             (1.d0/(lambda*1.d-3)**4.d0)
 
   end subroutine
-  
-  
-  
+
 end module
 
 

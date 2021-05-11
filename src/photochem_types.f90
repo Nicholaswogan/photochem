@@ -18,8 +18,9 @@ module photochem_types ! make a giant IO object
     integer :: nw
     character(len=str_len) :: grid_file
 
-    real(real_kind) :: gravity
+    character(len=str_len) :: background_gas
     real(real_kind) :: surface_pressure
+    real(real_kind) :: planet_mass
     real(real_kind) :: planet_radius
     real(real_kind) :: surface_albedo
     logical :: water_sat_trop
@@ -77,11 +78,13 @@ module photochem_types ! make a giant IO object
   type :: PhotoRadTran
     
     integer :: nw
-    real(real_kind), allocatable :: wavl(:)
+    real(real_kind), allocatable :: wavl(:) ! (nw+1)
 
     real(real_kind), allocatable :: xs_x_qy(:,:,:) ! (kj,nz,nw) cross section * quantum yield
     integer, allocatable :: num_temp_cols(:) ! (kj)
-    real(real_kind), allocatable :: xs_data(:,:,:) ! (maxval(num_temp_cols), nw, kj)
+    integer, allocatable :: sum_temp_cols(:) ! (kj)
+    ! All data for every reaction in single vector to save memory
+    real(real_kind), allocatable :: xs_data(:) ! (sum(num_temp_cols)*nw) 
     real(real_kind), allocatable :: xs_data_temps(:,:) ! (maxval(num_temp_cols), kj)
     
     

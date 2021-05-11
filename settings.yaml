@@ -9,7 +9,7 @@ photolysis-grid:
   regular-grid: true
   lower-wavelength: 100.0 # nm
   upper-wavelength: 800.0 # nm
-  number-of-bins: 5
+  number-of-bins: 10
   # input-file: my/input/file.txt
 
 planet:
@@ -19,7 +19,7 @@ planet:
   planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
   surface-albedo: 0.25 # cm
   water:
-    water-saturated-troposhere: true
+    water-saturated-troposphere: true
     tropopause-altitude: 1.1e6 # cm
 
 # Assumes veff = vdep = 0 boundary condition for species not specified.

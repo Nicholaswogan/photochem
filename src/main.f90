@@ -10,13 +10,6 @@ program main
   ! character(len=:), allocatable :: rxstring
   ! integer i
   
-  call get_photoset("../settings.yaml", photoset, err)
-  if (len(trim(err)) > 0) then
-    print*,trim(err)
-    print*,'error worked!'
-    stop
-  endif
-
   call get_photomech("../zahnle_rx.yaml", photomech, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
@@ -24,7 +17,14 @@ program main
     stop
   endif
   
-  call get_photorad(photoset, photomech, photorad, err)
+  call get_photoset("../settings.yaml", photomech, photoset, err)
+  if (len(trim(err)) > 0) then
+    print*,trim(err)
+    print*,'error worked!'
+    stop
+  endif
+  
+  call get_photorad(photomech, photoset, photorad, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     print*,'error worked rayleigh'

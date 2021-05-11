@@ -8,12 +8,13 @@ IDIR=dependencies/modules
 LDIR=dependencies/lib
 FFLAGS=-I$(IDIR) -L$(LDIR)
 LIBS=-lyaml -lstringifor
+OBJLIBS=dependencies/lib/binning.o
 
 %.o: %.f90
 	$(FC) $(FCFLAGS) -c $< $(FFLAGS) $(LIBS) 
 
 photo.run: $(OBJ)
-	$(FC) $(FCFLAGS) -o $@ $(OBJ) $(FFLAGS) $(LIBS) 
+	$(FC) $(FCFLAGS) -o $@ $(OBJ) $(OBJLIBS) $(FFLAGS) $(LIBS) 
 	
 clean:
 	@rm -f *.mod *.o photo.run

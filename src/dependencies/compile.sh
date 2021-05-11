@@ -35,5 +35,9 @@ FoBiS.py build -mode stringifor-static-gnu
 cp lib/libstringifor.a ../dependencies/lib
 cp lib/mod/* ../dependencies/modules
 
+# interpolation
+cd ../dependencies
+gfortran -c ../binning/binning.f -o lib/binning.o -O3
+
 
 
