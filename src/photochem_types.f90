@@ -73,8 +73,13 @@ module photochem_types ! make a giant IO object
     integer, allocatable :: nreactants(:) ! number of reactants
     integer, allocatable :: nproducts(:) ! number of products
     integer, allocatable :: reverse_info(:) ! indexs between forward and reverse reactions
-    character(len=15), allocatable :: rxtypes(:)
-    real(real_kind), allocatable :: rateparams(:,:)
+    integer, allocatable :: rxtypes(:) ! 0 is photolysis, 1 is elementary, 2 is three-body, 3 is falloff
+    real(real_kind), allocatable :: rateparams(:,:) ! (10, nrF)
+    real(real_kind), allocatable :: efficiencies(:,:) ! (maxval(num_efficient), nrF)
+    integer, allocatable :: eff_sp_inds(:,:) ! (maxval(num_efficient), nrF)
+    integer, allocatable :: num_efficient(:) ! number of efficiencies for each reaction
+    real(real_kind), allocatable :: def_eff(:) ! default efficiency
+    integer, allocatable :: falloff_type(:) ! type of falloff function (0 = none, 1 = Troe without T2,..)
     integer, allocatable :: nump(:) ! number of production mechanisms (rxns) for each sp
     integer, allocatable :: numl(:) ! number of loss mechanisms (rxns) for each sp
     integer, allocatable :: iprod(:,:) ! (nmax,nsp) returns reaction # of production mechanism for sp
@@ -100,9 +105,8 @@ module photochem_types ! make a giant IO object
     integer, allocatable :: raynums(:) ! species number of rayleigh species
     
     ! need some photons
-    real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
-    
-    real(real_kind), allocatable :: xs_x_qy(:,:,:) ! (kj,nz,nw) cross section * quantum yield
+    ! real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
+    ! real(real_kind), allocatable :: xs_x_qy(:,:,:) ! (kj,nz,nw) cross section * quantum yield
 
   end type
   

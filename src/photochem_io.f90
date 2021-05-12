@@ -105,8 +105,8 @@ contains
     allocate(photomech%species_composition(photomech%natoms,photomech%nsp+2))
     photomech%species_composition = 0
     allocate(photomech%species_names(photomech%nsp+2))
-    photomech%species_names(photomech%nsp+1) = "M" ! always add these guys
-    photomech%species_names(photomech%nsp+2) = "hv"
+    photomech%species_names(photomech%nsp+1) = "hv" ! always add these guys
+    photomech%species_names(photomech%nsp+2) = "M"
     if (photomech%reverse) then
       allocate(photomech%thermo_data(7,2,photomech%nsp))
       allocate(photomech%thermo_temps(3,photomech%nsp))
@@ -129,7 +129,8 @@ contains
         enddo
         
         do i=1,photomech%natoms
-          photomech%species_composition(i,j) = dict%get_integer(photomech%atoms_names(i),0,error = io_err) ! no error possible.
+          photomech%species_composition(i,j) =  &
+              dict%get_integer(photomech%atoms_names(i),0,error = io_err) ! no error possible.
         enddo
         photomech%species_mass(j) = sum(photomech%species_composition(:,j) * photomech%atoms_mass)
         photomech%species_names(j) = trim(element%get_string("name",error = io_err)) ! get name
@@ -157,8 +158,11 @@ contains
       photomech%nrF = photomech%nrF + 1
     enddo
     
-    allocate(photomech%rateparams(6,photomech%nrF))
+    allocate(photomech%rateparams(10,photomech%nrF))
     allocate(photomech%rxtypes(photomech%nrF))
+    allocate(photomech%falloff_type(photomech%nrF))
+    allocate(photomech%num_efficient(photomech%nrF))
+    photomech%falloff_type = - huge(1)
     ! determine which reactions to reverse. 
     ! Determine maximum number of reactants, and productants
     photomech%max_num_reactants = 1
@@ -172,6 +176,10 @@ contains
       class is (type_dictionary)
         tmp = trim(element%get_string("equation",error = io_err))
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        
+        call get_rateparams(element, infile, photomech%rxtypes(j), &
+                          photomech%falloff_type(j), photomech%rateparams(:,j), err)
+        if (len_trim(err) > 0) return
         
         call parse_reaction(tmp, reverse, eqr, eqp, err)
         if (len_trim(err) > 0) return
@@ -187,9 +195,10 @@ contains
         endif
         if (size(eqr) > photomech%max_num_reactants) photomech%max_num_reactants = size(eqr)
         if (size(eqp) > photomech%max_num_products) photomech%max_num_products = size(eqp)
-        call get_rateparams(element, infile, photomech%rxtypes(j), photomech%rateparams(:,j), err)
-        if (len_trim(err) > 0) return
-        if (photomech%rxtypes(j)=='photolysis') then
+        
+        call count_efficiencies(element, photomech%num_efficient(j))
+        
+        if (photomech%rxtypes(j) == 0) then ! if photolysis reaction
           photomech%kj = photomech%kj + 1
         endif
         call compare_rxtype_string(tmp, eqr, eqp, photomech%rxtypes(j),err)
@@ -214,6 +223,14 @@ contains
     photomech%reverse_info = 0 ! initialize
     allocate(photomech%reactants_names(photomech%max_num_reactants,photomech%nrF))
     allocate(photomech%products_names(photomech%max_num_products,photomech%nrF))
+    ! efficiency stuff
+    allocate(photomech%efficiencies(maxval(photomech%num_efficient),photomech%nrF))
+    allocate(photomech%eff_sp_inds(maxval(photomech%num_efficient),photomech%nrF))
+    allocate(photomech%def_eff(photomech%nrF))
+    photomech%efficiencies = -huge(1.d0) ! so everything blows up if we make a mistake
+    photomech%eff_sp_inds = -huge(0)
+    photomech%def_eff = 1.d0 ! default is 1
+    
     j = 1
     k = 1
     item => reactions%first
@@ -222,6 +239,9 @@ contains
       class is (type_dictionary)
         tmp = trim(element%get_string("equation",error = io_err))
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        
+        call get_efficient(element, j, infile, photomech, err)
+        if (len_trim(err)>0) return
         
         call get_reaction_chars(tmp, photomech%max_num_reactants, photomech%max_num_products, &
                             photomech%nreactants(j), photomech%nproducts(j), &
@@ -307,7 +327,7 @@ contains
     allocate(photomech%photonums(photomech%kj))
     j = 1
     do i = 1, photomech%nrF
-      if (photomech%rxtypes(i) == 'photolysis') then
+      if (photomech%rxtypes(i) == 0) then
         photomech%photonums(j) = i
         j = j + 1
       endif
@@ -319,6 +339,69 @@ contains
     if (len(trim(err)) > 0) return
     
   end subroutine
+  
+  subroutine get_efficient(reaction, rxn, infile, photomech, err)
+    class(type_dictionary), intent(in) :: reaction
+    integer, intent(in) :: rxn
+    character(len=*), intent(in) :: infile
+    type(PhotoMechanism), intent(inout) :: photomech
+    character(len=*), intent(out) :: err
+    
+    class(type_dictionary), pointer :: tmpdict
+    class (type_key_value_pair), pointer :: key_value_pair
+    type (type_error), pointer :: io_err
+    character(len=20) :: rxn_str
+    integer :: ind(1), j
+    
+    tmpdict => reaction%get_dictionary("efficiencies",.false.,error = io_err)
+    
+    if (associated(tmpdict)) then
+      j = 1
+      key_value_pair => tmpdict%first
+      do while (associated(key_value_pair))
+        
+        ind = findloc(photomech%species_names,trim(key_value_pair%key))
+        if (ind(1) == 0) then
+          write(rxn_str,*) rxn
+          err = 'IOError: Reaction number '//trim(adjustl(rxn_str))//' has efficiencies for species that are'// &
+          ' not in the list of species'
+        endif
+        photomech%eff_sp_inds(j,rxn) = ind(1)
+        photomech%efficiencies(j,rxn) = tmpdict%get_real(trim(key_value_pair%key),error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+
+        key_value_pair => key_value_pair%next
+        j = j + 1
+      enddo
+    endif
+    
+    photomech%def_eff(rxn) = reaction%get_real("default-efficiency",1.d0,error = io_err)
+
+  end subroutine
+  
+  
+  subroutine count_efficiencies(reaction, numeff)
+    class(type_dictionary), intent(in) :: reaction
+    integer, intent(out) :: numeff
+    
+    class(type_dictionary), pointer :: tmpdict
+    class (type_key_value_pair), pointer :: key_value_pair
+    type (type_error), pointer :: io_err
+    
+    tmpdict => reaction%get_dictionary("efficiencies",.false.,error = io_err)
+    
+    numeff = 0
+    if (associated(tmpdict)) then
+      ! how many?
+      key_value_pair => tmpdict%first
+      do while (associated(key_value_pair))
+        numeff = numeff + 1
+        key_value_pair => key_value_pair%next
+      enddo
+    endif
+    
+  end subroutine
+  
   
   subroutine check_for_duplicates(photomech,err)
     type(PhotoMechanism), intent(in) :: photomech
@@ -365,11 +448,12 @@ contains
     rxstring = rxstring // trim(photomech%species_names(k))
   end subroutine
   
-  subroutine compare_rxtype_string(tmp, eqr, eqp, rxtype, err)
+  subroutine compare_rxtype_string(tmp, eqr, eqp, rxtype_int, err)
     type(string), allocatable, intent(in) :: eqr(:), eqp(:)
     type(string), intent(in) :: tmp
+    integer, intent(in) :: rxtype_int
     character(len=err_len), intent(out) :: err
-    character(len=*) :: rxtype
+    character(len=15) :: rxtype
     integer i
     logical k, j, m, l, kk, jj
     l = .false.
@@ -379,7 +463,16 @@ contains
     j = .false.
     jj = .false.
     err = ''
-    
+    if (rxtype_int == 0) then
+      rxtype = 'photolysis'
+    elseif (rxtype_int == 1) then
+      rxtype = 'elementary'
+    elseif (rxtype_int == 2) then
+      rxtype = 'three-body'
+    elseif (rxtype_int == 3) then
+      rxtype = 'falloff'
+    endif
+  
     if ((trim(rxtype) == 'three-body') .or. (trim(rxtype) == 'falloff')) then
       do i = 1,size(eqr)
         if ((trim(eqr(i)%chars()) == 'M').and.j) jj = .true.
@@ -468,7 +561,8 @@ contains
   end subroutine
     
   
-  subroutine get_thermodata(molecule, molecule_name, infile, thermo_temps_entry, thermo_data_entry, err)
+  subroutine get_thermodata(molecule, molecule_name, infile, &
+                            thermo_temps_entry, thermo_data_entry, err)
     class(type_dictionary), intent(in) :: molecule
     character(len=*), intent(in) :: molecule_name
     character(len=*), intent(in) :: infile
@@ -586,23 +680,37 @@ contains
     
   end subroutine
   
-  subroutine get_rateparams(reaction, infile, rxtype, rateparam, err)
+  subroutine get_rateparams(reaction, infile, rxtype, falloff_type, rateparam, err)
     class(type_dictionary), intent(in) :: reaction
     character(len=*), intent(in) :: infile
-    character(len=15), intent(out) :: rxtype
-    real(real_kind), intent(out) :: rateparam(6)
+    integer, intent(out) :: rxtype
+    integer, intent(out) :: falloff_type
+    real(real_kind), intent(out) :: rateparam(10)
     character(len=err_len), intent(out) :: err
     
     type (type_error), pointer :: io_err
     class(type_dictionary), pointer :: tmpdict
+    character(len=15) :: rxtype_str
     err = ''
     rateparam = 0.d0
     ! no error possible
-    rxtype = reaction%get_string("type","",error = io_err) 
-    if (trim(rxtype) == '') rxtype = "elementary"
+    rxtype_str = reaction%get_string("type","",error = io_err) 
+    if (rxtype_str == 'photolysis') then
+      rxtype = 0
+    elseif ((rxtype_str == 'elementary') .or. (rxtype_str == '')) then
+      rxtype = 1
+    elseif (rxtype_str == 'three-body') then
+      rxtype = 2
+    elseif (rxtype_str == 'falloff') then
+      rxtype = 3
+    else
+      err = 'IOError: reaction type '//trim(rxtype_str)//' is not a valid reaction type.'
+      return
+    endif
+    falloff_type = -huge(1)
     
     ! get params
-    if ((trim(rxtype) == 'elementary') .or. (trim(rxtype) == 'three-body')) then
+    if ((rxtype_str == 'elementary') .or. (rxtype_str == 'three-body')) then
       tmpdict => reaction%get_dictionary('rate-constant',.true.,error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
@@ -615,7 +723,7 @@ contains
       rateparam(3) = tmpdict%get_real('Ea',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-    elseif (trim(rxtype) == 'falloff') then
+    elseif (rxtype_str == 'falloff') then
       tmpdict => reaction%get_dictionary('low-P-rate-constant',.true.,error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
@@ -639,12 +747,29 @@ contains
       
       rateparam(6) = tmpdict%get_real('Ea',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-    elseif (trim(rxtype) == 'photolysis') then
-      ! nothing
-    else
-      err = 'IOError: reaction type '//trim(rxtype)//' is not a valid reaction type.'
-      return
+        
+      nullify(tmpdict)
+      tmpdict => reaction%get_dictionary('Troe',.false.,error = io_err)
+      if (associated(tmpdict)) then
+        rateparam(7) = tmpdict%get_real('A',error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        rateparam(8) = tmpdict%get_real('T1',error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+
+        rateparam(9) = tmpdict%get_real('T2',error = io_err)
+        if (associated(io_err)) then ! T2 is not there
+          falloff_type = 1
+          nullify(io_err)
+        else ! T2 is there
+          falloff_type = 2
+        endif
+        
+        rateparam(10) = tmpdict%get_real('T3',error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      else
+        falloff_type = 0 ! no falloff function
+      endif
+        
     endif
     
   end subroutine
@@ -987,7 +1112,7 @@ contains
           ' in settings file is not in the reaction mechanism file.'
           return 
         endif
-        if ((ind(1) == photoset%back_gas_ind) .and. (photoset%back_gas)) then ! can't be backgroudn gas
+        if ((ind(1) == photoset%back_gas_ind) .and. (photoset%back_gas)) then ! can't be background gas
           err = "IOError: Species "//trim(dups(j))// &
           ' in settings file is the background gas, and can not have boundary conditions.'
           return
@@ -1076,21 +1201,98 @@ contains
       item => item%next
     enddo    
     
-    ! set up the atmosphere grid
-    allocate(photoset%z(photoset%nz))
-    allocate(photoset%dz(photoset%nz))
-    call vertical_grid(photoset%bottom_atmos,photoset%top_atmos,photoset%nz, &
-                       photoset%z, photoset%dz)
     
-    ! compute the gravity
-    allocate(photoset%grav(photoset%nz))
-    do i =1,photoset%nz
-      call compute_gravity((photoset%planet_radius + photoset%z(i))/1.d2, &
-                            photoset%planet_mass/1.d3, grav)
-      photoset%grav(i) = grav*1.d2 ! convert to cgs
+    ! check for SL nonlinearities
+    call check_sl(photomech, photoset, err)
+    if (len_trim(err) /= 0) return
+
+    ! ! set up the atmosphere grid
+    ! allocate(photoset%z(photoset%nz))
+    ! allocate(photoset%dz(photoset%nz))
+    ! call vertical_grid(photoset%bottom_atmos,photoset%top_atmos,photoset%nz, &
+    !                    photoset%z, photoset%dz)
+    ! 
+    ! ! compute the gravity
+    ! allocate(photoset%grav(photoset%nz))
+    ! do i =1,photoset%nz
+    !   call compute_gravity((photoset%planet_radius + photoset%z(i))/1.d2, &
+    !                         photoset%planet_mass/1.d3, grav)
+    !   photoset%grav(i) = grav*1.d2 ! convert to cgs
+    ! enddo
+    
+  end subroutine
+  
+  subroutine check_sl(photomech, photoset, err)
+    type(PhotoMechanism), intent(in) :: photomech
+    type(PhotoSettings), intent(in) :: photoset
+    character(len=err_len), intent(out) :: err
+    
+    integer :: i, j, l, k, kk, m, mm, n, ind(1), counter
+    character(len=:), allocatable :: reaction
+    err = ''
+    
+    do i = 1, photoset%nsl
+      j = photoset%SL_inds(i)
+      ! can not be an efficiency.
+      do k = 1,photomech%nrF
+        if ((photomech%rxtypes(k) == 2) .or. (photomech%rxtypes(k) == 3)) then ! if three body or falloff
+          ind = findloc(photomech%eff_sp_inds(:,k),j)
+          if (ind(1) /= 0) then
+            call reaction_string(photomech,k,reaction)
+            err = 'IOError: Reaction "'//reaction//'" has short-lived species collision efficiencies.' // &
+            ' This is not allowed. Either remove the efficiencies, or change the species to long lived.'
+            return
+          endif
+        endif
+      enddo
+      
+      
+      l = photomech%nump(j)
+      do k = 1,l
+        kk = photomech%iprod(k,j)
+        call reaction_string(photomech,kk,reaction)
+        m = photomech%nreactants(kk)
+        do mm = 1, m
+          ! are SL species produced by other SL species?
+          ind = findloc(photoset%SL_inds,photomech%reactants_sp_inds(mm,kk))
+          if (ind(1) /= 0) then
+            err = 'IOError: Reaction "'//reaction//'" has short-lived species as reactants'// &
+            ' and products. This is not allowed. Change one or both of the species to long-lived.'
+            return
+          endif
+        enddo
+      enddo
+
+      l = photomech%numl(j)
+      do k = 1,l
+        kk = photomech%iloss(k,j)
+        call reaction_string(photomech,kk,reaction)
+        m = photomech%nreactants(kk)
+        counter = 0
+        do mm = 1, m
+          n = photomech%reactants_sp_inds(mm,kk)
+          ind = findloc(photoset%SL_inds,n)
+          if ((ind(1) /= 0) .and. (n == j)) then
+            counter = counter + 1
+            if (counter > 1) then
+              err = 'IOError: Reaction "'//reaction//'" short lived species react'// &
+              ' with themselves. This is not allowed. Change the species to long lived.'
+              return
+            endif
+          elseif ((ind(1) /= 0) .and. (n /= j)) then
+            err = 'IOError: Reaction "'//reaction//'" short lived species react'// &
+            ' with other short lived species. This is not allowed.'
+            return
+          elseif (photomech%species_names(n) == 'hv') then
+            err = 'IOError: Photolysis reaction "'//reaction//'" can not have short lived species.'
+            return
+          endif
+        enddo
+      enddo
     enddo
     
   end subroutine
+  
   
   subroutine compute_gravity(radius, mass, grav)
     use photochem_const, only: G_grav
@@ -1429,7 +1631,7 @@ contains
         call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(k)*(1.d0+rdelta), 0.d0,ierr)
         call addpnt(file_wav, file_xs(:,l), kk+4, k, huge(rdelta), 0.d0,ierr)
         if (ierr /= 0) then
-          err = 'IOError: Problem interpolating quantum yield data to photolysis grid for reaction '// &
+          err = 'IOError: Problem interpolating xs data to photolysis grid for reaction '// &
                 trim(reaction)
           return
         endif

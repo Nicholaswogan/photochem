@@ -7,7 +7,7 @@ module photochem
   
 contains
   
-  subroutine compute_reaction_rates(temperature, density, nz, nrT, reaction_rates, err)
+  subroutine compute_reaction_rates(temperature, density, densities, nsp, nz, nrT, reaction_rates, err)
     use photochem_data, only: rateparams, rxtypes, nreactants, &
                               nproducts, reactants_sp_inds, products_sp_inds, &
                               reverse_info, nrF, reverse ! all protected vars
@@ -16,33 +16,75 @@ contains
                               
     real(real_kind), intent(in) :: temperature(nz)
     real(real_kind), intent(in) :: density(nz)
-    integer, intent(in) :: nz, nrT
+    real(real_kind), intent(in) :: densities(nsp,nz)
+    integer, intent(in) :: nsp, nz, nrT
     real(real_kind), intent(out) :: reaction_rates(nz, nrT)
     character(len=err_len), intent(out) :: err
     
     integer :: i, j, k, n, l, m
-    real(real_kind) :: Troe, A1, A2
+    real(real_kind) :: eff_den, F, k0, kinf, Pr
     real(real_kind) :: gibbR_forward, gibbP_forward
     real(real_kind) :: Dg_forward
     err = ''
     
     do i = 1,nrF
-      if (rxtypes(i) == "falloff") then
-        do j = 1,nz
-          Troe = 1.d0 ! Here we must compute troe.
-          A1  = rateparams(1,i) * temperature(j)**rateparams(2,i) &
-                * dexp(-rateparams(3,i)/temperature(j)) * density(j)
-          B1 = rateparams(4,i) * temperature(j)**rateparams(5,i) &
-                * dexp(-rateparams(6,i)/temperature(j))
-          reaction_rates(j,i) = A1 * Troe/(A1/B1 + 1.d0)
-        enddo
-      else ! three-body or elementary are the same
+      if (rxtypes(i) == 1) then ! elementary        
         do j = 1,nz 
           reaction_rates(j,i) = rateparams(1,i) * temperature(j)**rateparams(2,i) &
                                 * dexp(-rateparams(3,i)/temperature(j))
         enddo
+      elseif (rxtypes(i) == 2) then ! three-body
+        n = num_efficient(i)
+        do j = 1,nz
+          eff_den = density(j) * def_eff(i)
+          ! subtract the default efficiency, then add the perscribed one
+          do k = 1,n ! if n is 0 then it will be skipped
+            l = eff_sp_inds(k,i)
+            eff_den = eff_den - def_eff(i)*densities(l,j) &
+                              + efficiencies(k,i)*densities(l,j)
+          enddo
+          reaction_rates(j,i) = rateparams(1,i) * temperature(j)**rateparams(2,i) &
+                                * dexp(-rateparams(3,i)/temperature(j)) &
+                                * eff_den ! we multiply density here!
+        enddo
+      elseif (rxtypes(i) == 3) then ! falloff
+        ! compute eff_den, kinf, and Pr at all altitudes
+        n = num_efficient(i)
+        do j = 1,nz
+          eff_den(j) = density(j) * def_eff(i)
+          ! subtract the default efficiency, then add the perscribed one
+          do k = 1,n
+            l = eff_sp_inds(k,i)
+            eff_den(j) = eff_den(j) - def_eff(i)*densities(l,j) &
+                                    + efficiencies(k,i)*densities(l,j)
+          enddo
+          k0  = rateparams(1,i) * temperature(j)**rateparams(2,i) &
+                * dexp(-rateparams(3,i)/temperature(j))
+          kinf(j) = rateparams(4,i) * temperature(j)**rateparams(5,i) &
+                  * dexp(-rateparams(6,i)/temperature(j))
+          Pr(j) = k0*eff_den(j)/kinf(j)                        
+        enddo
+        
+        ! compute falloff function
+        if (falloff_type(i) == 0) then ! no falloff function
+          F = 1.d0
+        elseif (falloff_type(i) == 1) then ! Troe falloff without T2
+          do j = 1,nz
+            F(j) = 10.0 ! A, T1, T3
+          enddo
+        elseif (falloff_type(i) == 2) then ! Troe falloff with T2
+          do j = 1,nz
+            F(j) = 10.0 ! A, T1, T3, T2
+          enddo
+        endif
+        
+        ! compute rate (effective density is included)
+        do j = 1,nz
+          reaction_rates(j,i) = kinf(j) * (Pr(j)/(1.d0 + Pr(j))) * F(j) &
+                                * eff_den(j) ! we multiply density here        
+        enddo
       endif
-    enddo
+    enddo ! end loop over reactions
     
     if (reverse) then ! if there are reverse reactions
       ! compute gibbs energy at all altitudes
@@ -53,10 +95,6 @@ contains
         n = reverse_info(i) ! Reaction number of the forward
         l = nreactants(n) ! number of reactants for the forward reaction
         m = nproducts(n) ! number of products for the forward reaction
-        if (rxtypes(n) /= "elementary") then
-          l = l - 1 ! "M" doesn't count as a reactant for three-body and fall-off
-          m = m - 1
-        endif
         do j = 1,nz
           gibbR_forward = 0.d0
           do k = 1,l
@@ -197,8 +235,7 @@ contains
     
     ! initialize
     prates = 0.d0
-    
-    call rayleigh_prep() ! Need to make this into input files
+
     !$omp parallel
     !$omp private(partial_prates, flx, S)
     partial_prates = 0.d0

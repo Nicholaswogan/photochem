@@ -8,7 +8,7 @@ program main
   type(PhotoRadTran) :: photorad
   character(len=1000) :: err
   ! character(len=:), allocatable :: rxstring
-  ! integer i
+  integer i
   
   call get_photomech("../zahnle_rx.yaml", photomech, err)
   if (len(trim(err)) > 0) then
@@ -31,8 +31,14 @@ program main
     stop
   endif
   
+  ! print*,photomech%rxtypes
+  
+  do i = 1,0
+    print*,i
+  enddo
+  
 
-
+  ! 
   ! do i=1,photomech%nrT
   !   call reaction_string(photomech,i,rxstring)
   !   print*,rxstring
