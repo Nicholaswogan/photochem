@@ -7,7 +7,7 @@ module radtran
 
 contains
   
-  subroutine two_stream(nz, tau, w0, u0, Rsfc, amean, surface_radiance, method)
+  subroutine two_stream(nz, tau, w0, u0, Rsfc, amean, surface_radiance, ierr, method)
     real(real_kind), parameter :: pi = 3.14159
     integer, intent(in) :: nz
     real(8), intent(in) :: tau(nz)
@@ -16,6 +16,7 @@ contains
     integer, intent(in), optional :: method
     real(8), intent(out) :: amean(nz+1)
     real(8), intent(out) :: surface_radiance
+    integer, intent(out) :: ierr 
     
     ! real(real_kind) :: intensity(nz)
     
@@ -32,7 +33,8 @@ contains
     integer :: i, l
     real(real_kind) :: wrk_real, facp, facm, et0, etb, denom, Ssfc, fs_pi
     integer ::  info
-
+    
+    ierr = 0
     gt = 0.0d0 ! asymetry factor. Zero for now
     
     i = 0
@@ -122,8 +124,7 @@ contains
     ! Solve tridiagonal system. e is solution
     call dgtsv(nz*2, 1, a(2:nz*2), b, d(1:nz*2-1), e, nz*2, info)
     if (info /= 0) then
-      print*,info
-      ! ierr = 1
+      ierr = 1
     endif
     
     ! unpack solution

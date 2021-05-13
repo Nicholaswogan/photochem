@@ -885,8 +885,8 @@ contains
   end subroutine
   
   subroutine get_reaction_sp_nums(reaction, max_num_react, max_num_prod, reacts, prods, &
-                                 species_names, species_composition, natoms, nsp, &
-                                 react_sp_nums, prod_sp_nums, err)
+                                  species_names, species_composition, natoms, nsp, &
+                                  react_sp_nums, prod_sp_nums, err)
     type(string), intent(in) :: reaction
     integer, intent(in) :: max_num_react, max_num_prod
     character(len=8), intent(in) :: reacts(max_num_react)
