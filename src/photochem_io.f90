@@ -180,9 +180,16 @@ contains
         call get_rateparams(element, infile, photomech%rxtypes(j), &
                           photomech%falloff_type(j), photomech%rateparams(:,j), err)
         if (len_trim(err) > 0) return
-        
         call parse_reaction(tmp, reverse, eqr, eqp, err)
         if (len_trim(err) > 0) return
+        call compare_rxtype_string(tmp, eqr, eqp, photomech%rxtypes(j),err)
+        if (len_trim(err) > 0) return
+        
+        if ((photomech%rxtypes(j) == 2) .or. (photomech%rxtypes(j) == 3)) then ! if threebody or falloff
+          eqr = eqr(1:size(eqr)-1) ! remove the M
+          eqp = eqp(1:size(eqp)-1)
+        endif
+        
         if (reverse) then
           if (.not.photomech%reverse) then
             err = 'IOError: reaction file '//trim(infile)//' contains reverse reaction '//tmp// &
@@ -201,8 +208,6 @@ contains
         if (photomech%rxtypes(j) == 0) then ! if photolysis reaction
           photomech%kj = photomech%kj + 1
         endif
-        call compare_rxtype_string(tmp, eqr, eqp, photomech%rxtypes(j),err)
-        if (len_trim(err) > 0) return
       class default
         err = "IOError: Problem with reaction number "//char(j)//" in the input file."
         return
@@ -211,7 +216,7 @@ contains
       j = j+1
     enddo
     photomech%nrT = photomech%nrR + photomech%nrF
-
+    
     ! allocate stuff and loop through reactions again
     allocate(photomech%nreactants(photomech%nrT))
     allocate(photomech%nproducts(photomech%nrT))
@@ -261,8 +266,12 @@ contains
           photomech%reverse_info(i) = j ! the reaction number of the forward reaction
           photomech%nreactants(i) = photomech%nproducts(j)
           photomech%nproducts(i) = photomech%nreactants(j)
-          photomech%reactants_sp_inds(:,i) = photomech%products_sp_inds(:,j)
-          photomech%products_sp_inds(:,i) = photomech%reactants_sp_inds(:,j)
+
+          kk = photomech%nreactants(i)
+          l = photomech%nreactants(j)
+          
+          photomech%reactants_sp_inds(1:kk,i) = photomech%products_sp_inds(1:kk,j)
+          photomech%products_sp_inds(1:l,i) = photomech%reactants_sp_inds(1:l,j)
           k = k + 1
         endif
       class default
@@ -431,14 +440,24 @@ contains
     type(PhotoMechanism), intent(in) :: photomech
     integer, intent(in) :: rxn
     character(len=:), allocatable, intent(out) :: rxstring
-    integer j, k
+    integer j, k, i
     rxstring = ''
+    if (rxn > photomech%nrF) then
+      i = photomech%reverse_info(rxn)
+    else
+      i = rxn
+    endif
     do j = 1,photomech%nreactants(rxn)-1
       k = photomech%reactants_sp_inds(j,rxn)
       rxstring = rxstring //(trim(photomech%species_names(k))//' + ')
     enddo
+    
     k = photomech%reactants_sp_inds(photomech%nreactants(rxn),rxn)
     rxstring = rxstring // trim(photomech%species_names(k))//' => '
+    
+    if ((photomech%rxtypes(i) == 2) .or.(photomech%rxtypes(i) == 3)) then
+      rxstring = rxstring(1:len(rxstring)-4) //(' + M'//' => ')
+    endif
     
     do j = 1,photomech%nproducts(rxn)-1
       k = photomech%products_sp_inds(j,rxn)
@@ -446,6 +465,10 @@ contains
     enddo
     k = photomech%products_sp_inds(photomech%nproducts(rxn),rxn)
     rxstring = rxstring // trim(photomech%species_names(k))
+    
+    if ((photomech%rxtypes(i) == 2) .or.(photomech%rxtypes(i) == 3)) then
+      rxstring = rxstring //' + M'
+    endif
   end subroutine
   
   subroutine compare_rxtype_string(tmp, eqr, eqp, rxtype_int, err)
@@ -842,6 +865,11 @@ contains
     
     call parse_reaction(instring, reverse, eqr, eqp, err)
     if (len_trim(err) > 0) return
+    
+    if (eqr(size(eqr)) == 'M') then
+      eqr = eqr(1:size(eqr)-1)
+      eqp = eqp(1:size(eqp)-1)
+    endif
     
     numr = size(eqr)
     nump = size(eqp)

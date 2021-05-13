@@ -7,8 +7,7 @@ module radtran
 
 contains
   
-  subroutine two_stream(nz, tau, w0, u0, Rsfc, amean, method)
-    ! use photochem_const, only: pi
+  subroutine two_stream(nz, tau, w0, u0, Rsfc, amean, surface_radiance, method)
     real(real_kind), parameter :: pi = 3.14159
     integer, intent(in) :: nz
     real(8), intent(in) :: tau(nz)
@@ -16,6 +15,7 @@ contains
     real(8), intent(in) :: u0, Rsfc
     integer, intent(in), optional :: method
     real(8), intent(out) :: amean(nz+1)
+    real(8), intent(out) :: surface_radiance
     
     ! real(real_kind) :: intensity(nz)
     
@@ -160,11 +160,10 @@ contains
     !    fdn(i+1) = (y1(i)*e3(i)+y2(i)*e4(i)+cmb(i)) + direct(i+1)
     ! enddo
     
+    ! surface radiance (Ranjan and Sasselov 2017). photons actually hitting the ground (i think)
     i = nz
-    print*, (y1(i)*e3(i)+y2(i)*e4(i)+cmb(i))/u1 + dexp(-tauc(i+1)/u0)
-    print*,dexp(-tauc(nz+1)/u0)
-    print*,direct(i+1)/u0
-    print*,amean(i+1)
+    surface_radiance = (y1(i)*e3(i)+y2(i)*e4(i)+cmb(i))/u1 + dexp(-tauc(i+1)/u0)
+
     
   end subroutine
   
@@ -177,16 +176,18 @@ program main
   integer,parameter :: real_kind = kind(1.0d0)
   integer, parameter :: nz = 1
   real(real_kind) :: tau(nz)
-  real(real_kind) :: w0(nz), u0, Rsfc, amean(nz+1)
+  real(real_kind) :: w0(nz), u0, Rsfc, amean(nz+1), surface_radiance
   
   ! u0 = dcos(3.14159d0/3.d0)
-  u0 = 1.0d0
-  tau = 1.0d0
-  w0  = 0.999d0
-  Rsfc = 0.00d0  
+  u0 = 0.7d0
+  tau = 0.1d0
+  w0  = 0.9999d0
+  Rsfc = 0.25d0  
   
-  call two_stream(nz, tau, w0, u0, Rsfc, amean)
+  call two_stream(nz, tau, w0, u0, Rsfc, amean, surface_radiance)
   
-  ! print*,amean
+  print*,amean
+  
+  print*,surface_radiance
 
 end program

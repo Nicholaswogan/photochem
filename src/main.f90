@@ -7,7 +7,7 @@ program main
   type(PhotoMechanism) :: photomech
   type(PhotoRadTran) :: photorad
   character(len=1000) :: err
-  ! character(len=:), allocatable :: rxstring
+  character(len=:), allocatable :: rxstring
   integer i
   
   call get_photomech("../zahnle_rx.yaml", photomech, err)
@@ -27,24 +27,21 @@ program main
   call get_photorad(photomech, photoset, photorad, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
-    print*,'error worked rayleigh'
+    print*,'error worked rad'
     stop
   endif
   
-  ! print*,photomech%rxtypes
-  
-  do i = 1,0
-    print*,i
-  enddo
-  
-
-  ! 
+  ! print*,photomech%reactants_sp_inds
+ 
   ! do i=1,photomech%nrT
   !   call reaction_string(photomech,i,rxstring)
   !   print*,rxstring
+  !   if (i <= photomech%nrF) then
+  !     print*,photomech%reactants_sp_inds(:,i)
+  !   endif
   ! enddo
   ! deallocate(rxstring)
-  ! 
+  
   ! do i=1,photomech%nsp
   !   print*,photomech%species_mass(i), photomech%species_names(i)
   ! enddo
