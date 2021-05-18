@@ -10,7 +10,7 @@ program main
   character(len=:), allocatable :: rxstring
   integer i
   
-  call get_photomech("../zahnle_rx.yaml", photomech, err)
+  call get_photomech("../zahnle.yaml", photomech, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     print*,'error worked'
