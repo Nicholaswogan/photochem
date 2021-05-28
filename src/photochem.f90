@@ -2,8 +2,17 @@
 
 module photochem
   implicit none
-  private
-  integer,parameter :: real_kind = kind(1.0d0)
+  
+  ! public :: photochem_equil_backrnd_gas, photorates
+  ! public :: rhs_backrnd_gas, jac_backrnd_gas
+  
+  private :: reaction_rates, compute_gibbs_energy
+  private :: gibbs_energy_shomate, chempl, molar_weight
+  private :: press_and_den, normal_rate, falloff_rate
+  private :: Troe_noT2, Troe_withT2
+  
+  integer, private, parameter :: real_kind = kind(1.0d0)
+  integer, private, parameter :: err_len = 1000
   
 contains
   
@@ -31,7 +40,7 @@ contains
       if (rxtypes(i) == 1) then ! elementary        
         do j = 1,nz 
           rx_rates(j,i) = normal_rate(rateparams(1,i), rateparams(2,i), &
-                                            rateparams(3,i), temperature(j))
+                                      rateparams(3,i), temperature(j))
         enddo
       elseif (rxtypes(i) == 2) then ! three-body
         n = num_efficient(i)
@@ -44,8 +53,8 @@ contains
                                     + efficiencies(k,i)*densities(l,j)
           enddo
           rx_rates(j,i) = normal_rate(rateparams(1,i), rateparams(2,i), &
-                                            rateparams(3,i), temperature(j)) &
-                                            * eff_den(j) ! we multiply density here!
+                                      rateparams(3,i), temperature(j)) &
+                                      * eff_den(j) ! we multiply density here!
         enddo
       elseif (rxtypes(i) == 3) then ! falloff
         ! compute eff_den, kinf, and Pr at all altitudes
@@ -83,7 +92,7 @@ contains
         ! compute rate (effective density is included)
         do j = 1,nz
           rx_rates(j,i) = falloff_rate(kinf(j), Pr(j), F(j)) &
-                                * eff_den(j) ! we multiply density here  
+                          * eff_den(j) ! we multiply density here  
         enddo
       endif
     enddo ! end loop over reactions
@@ -244,6 +253,7 @@ contains
     real(real_kind) :: amean_grd(nz)
     integer :: l, i, j, jj, k, n, ie, ierr, ierrs
     
+    ierrs = 0
     prates = 0.d0
     err = ''
     !$omp parallel
@@ -255,6 +265,7 @@ contains
     !$omp do
     do l = 1,nw
       
+      tausg = 0.d0
       do i = 1,nray
         j = raynums(i)
         do k = 1,nz
@@ -263,6 +274,7 @@ contains
         enddo
       enddo
       
+      taua = 0.d0
       do i = 1,kj
         jj = photonums(i)
         j = reactants_sp_inds(1,jj)
@@ -320,13 +332,26 @@ contains
     
     err = ''
     
-    call molar_weight_z()
+    do i = 1,nz
+      sum_usol(i) = sum(usol(i,:))
+      if (sum_usol(i) > 1.5d0) then
+        err = 'Mixing ratios sum to  >1.5 at some altitude (should be <=1).' //
+              ' The atmosphere is probably in a run-away state.'
+        return
+      endif
+    enddo
+    
+    do i = 1,nz
+      call molar_weight(nq, usol(:,i), sum_usol(i), masses, background_mu, mubar(i))
+    enddo
+
     call press_and_den()
     call diffusion_coeffs()
     
     do i = 1,nq
       densities(:,i) = usol(:,i)*density
     enddo
+    densities(:,nsp) = (1.d0-sum_usol)*density
     
     call reaction_rates(nsp, nz, nrT, temperature, density, &
                         densities, rx_rates, err)
@@ -353,7 +378,7 @@ contains
       call chempl(nz, nsp, nrT, densities, rx_rates, i, xp, xl)
       do j = 1,nz
         k = i + (j - 1) * nq
-        rhs(k) = sp(j)/den(j) - xl(j)/den(j)
+        rhs(k) = sp(j)/density(j) - xl(j)/density(j)
       enddo
     enddo
   
@@ -362,7 +387,12 @@ contains
   
   end subroutine
   
-  subroutine photochem_equilibrium
+  ! approximate jacobian when there is a background gas.
+  subroutine jac_backrnd_gas(neq, usol_flat, jac, err)
+    
+  end subroutine
+  
+  subroutine photochem_equil_backrnd_gas
     use photochem_vars, only: usol_init
     ! the stuff that DOES NOT depend on usol
     ! problem dimension CAN NOT change.
@@ -379,7 +409,7 @@ contains
     integer, intent(in) :: nq, nz
     real(real_kind), intent(in) :: usol(nq,nz)
     real(real_kind), intent(in) :: temperature(nz), gravity
-    real(real_kind), intent(in) :: Psurf, dz(nq), mubar(nq)
+    real(real_kind), intent(in) :: Psurf, dz(nz), mubar(nz)
     
     real(real_kind), intent(out) :: pressure(nz)
     real(real_kind), intent(out) :: density(nz)
@@ -413,10 +443,11 @@ contains
     
   end subroutine
   
-  subroutine molar_weight(nq, usol_layer, masses, background_mu, mubar_layer)
+  subroutine molar_weight(nq, usol_layer, sum_usol_layer, masses, background_mu, mubar_layer)
     implicit none
     integer, intent(in) :: nq
     real(real_kind), intent(in) :: usol_layer(nq)
+    real(real)kind), intent(in) :: sum_usol_layer
     real(real_kind), intent(in) :: masses(nq)
     real(real_kind), intent(in) :: background_mu
     real(real_kind), intent(out) :: mubar_layer
@@ -427,12 +458,10 @@ contains
     do j = 1, nq
       mubar_layer = mubar_layer + usol_layer(j) * masses(j)
     enddo
-    f_background = 1 - sum(usol_layer)
+    f_background = 1.d0 - sum_usol_layer
     mubar_layer = mubar_layer + f_background * background_mu
     
   end subroutine
-  
-  
   
   function normal_rate(A, b, Ea, T) result(k)
     real(real_kind), intent(in) :: A, b, Ea, T

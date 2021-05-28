@@ -69,12 +69,6 @@ boundary-conditions:
       
   - name: O1D
     type: short lived
-    lower-boundary:
-      vdep: 0.0
-      type: constant deposition velocity
-    upper-boundary:
-      veff: 0.0
-      type: constant effusion velocity
       
   - name: N2H3
     lower-boundary:

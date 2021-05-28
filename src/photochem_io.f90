@@ -7,16 +7,41 @@ module photochem_io
   implicit none
   private 
   integer,parameter :: real_kind = kind(1.0d0)
-  integer, parameter :: err_len = 1000
-  integer, parameter :: str_len = 1000
+  integer, parameter :: err_len = 1024
+  integer, parameter :: str_len = 1024
 
-  public get_photomech, get_photorad, get_photoset, reaction_string
+  public :: get_photomech, get_photorad, get_photoset, reaction_string, read_all_files
     
 contains
   
-  subroutine get_photomech(infile, photomech, err) 
+  subroutine read_all_files(mechanism_file, settings_file, photomech, photoset, photorad, err)
+    
+    character(len=*), intent(in) :: mechanism_file
+    character(len=*), intent(in) :: settings_file
+    type(PhotoMechanism), intent(out) :: photomech
+    type(PhotoSettings), intent(out) :: photoset
+    type(PhotoRadTran), intent(out) :: photorad
+    character(len=err_len), intent(out) :: err
+    
+    ! first get SL and background species from settings
+    call get_SL_and_background(settings_file, photoset, err)
+    if (len(trim(err)) /= 0) return
+    
+    call get_photomech(mechanism_file, photoset, photomech, err)
+    if (len(trim(err)) /= 0) return
+    
+    call get_photoset(settings_file, photomech, photoset, err)
+    if (len(trim(err)) /= 0) return
+    
+    call get_photorad(photomech, photoset, photorad, err)
+    if (len(trim(err)) /= 0) return
+    
+  end subroutine
+  
+  subroutine get_photomech(infile, photoset, photomech, err) 
     use yaml, only : parse, error_length
     character(len=*), intent(in) :: infile
+    type(PhotoSettings), intent(inout) :: photoset
     type(PhotoMechanism), intent(out) :: photomech
     character(len=err_len), intent(out) :: err
     
@@ -32,7 +57,7 @@ contains
     end if
     select type (root)
       class is (type_dictionary)
-        call get_rxmechanism(root, infile, photomech, err)
+        call get_rxmechanism(root, infile, photoset, photomech, err)
         if (len_trim(err) > 0) return
         call root%finalize()
         deallocate(root)
@@ -43,9 +68,10 @@ contains
      
   end subroutine
   
-  subroutine get_rxmechanism(mapping, infile, photomech, err)
+  subroutine get_rxmechanism(mapping, infile, photoset, photomech, err)
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
+    type(PhotoSettings), intent(inout) :: photoset
     type(PhotoMechanism), intent(out) :: photomech
     character(len=err_len), intent(out) :: err
     
@@ -57,6 +83,7 @@ contains
     class (type_key_value_pair), pointer :: key_value_pair
 
     ! temporary work variables
+    character(len=str_len) :: tmpchar
     type(string) :: tmp
     type(string), allocatable :: eqr(:), eqp(:)
     integer :: i, j, k, kk, l, ind(1)
@@ -73,7 +100,7 @@ contains
     ! should i reverse reactions?
     photomech%reverse = mapping%get_logical('reverse-reactions',.true.,error = io_err)
     
-    !!! atoms !!
+    !!! atoms !!!
     photomech%natoms = 0
     key_value_pair => atoms%first
     do while (associated(key_value_pair))
@@ -101,6 +128,14 @@ contains
       photomech%nsp = photomech%nsp + 1
     enddo
     
+    if (photoset%back_gas) then
+      photoset%nq = photomech%nsp - photoset%nsl - 1 ! minus 1 for background
+    else
+      photoset%nq = photomech%nsp - photoset%nsl
+    endif
+    photomech%nq = photoset%nq
+    photomech%nsl = photoset%nsl
+    
     allocate(photomech%species_mass(photomech%nsp))
     allocate(photomech%species_composition(photomech%natoms,photomech%nsp+2))
     photomech%species_composition = 0
@@ -111,11 +146,25 @@ contains
       allocate(photomech%thermo_data(7,2,photomech%nsp))
       allocate(photomech%thermo_temps(3,photomech%nsp))
     endif
-    j = 1
+    kk = 1
+    l = 1
     item => species%first
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
+        tmpchar = trim(element%get_string("name",error = io_err)) ! get name
+        ind = findloc(photoset%SL_names,tmpchar)
+        if (ind(1) /= 0) then
+          j = photoset%nq + l 
+          l = l + 1
+        elseif (tmpchar == photoset%back_gas_name) then
+          j = photomech%nsp
+        else
+          j = kk
+          kk = kk + 1
+        endif
+                
+        photomech%species_names(j) = tmpchar
         dict => element%get_dictionary("composition",.true.,error = io_err)  ! get composition
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         key_value_pair => dict%first ! dont allow unspecified atoms
@@ -133,7 +182,6 @@ contains
               dict%get_integer(photomech%atoms_names(i),0,error = io_err) ! no error possible.
         enddo
         photomech%species_mass(j) = sum(photomech%species_composition(:,j) * photomech%atoms_mass)
-        photomech%species_names(j) = trim(element%get_string("name",error = io_err)) ! get name
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
         if (photomech%reverse) then
@@ -146,8 +194,19 @@ contains
         return
       end select
       item => item%next
-      j = j + 1
     enddo
+    
+    if (l-1 /= photoset%nsl) then
+      err = 'IOError: One of the short lived species is not in the file '//trim(infile)
+      return
+    endif
+    if (photoset%back_gas) then
+      ind = findloc(photomech%species_names,photoset%back_gas_name)
+      if (ind(1) == 0) then
+        err = 'IOError: The specified background gas is not in '//trim(infile)
+        return
+      endif
+    endif
     !!! done with species !!!
     
     !!! reactions !!!
@@ -180,9 +239,11 @@ contains
         call get_rateparams(element, infile, photomech%rxtypes(j), &
                           photomech%falloff_type(j), photomech%rateparams(:,j), err)
         if (len_trim(err) > 0) return
+        
         call parse_reaction(tmp, reverse, eqr, eqp, err)
         if (len_trim(err) > 0) return
-        call compare_rxtype_string(tmp, eqr, eqp, photomech%rxtypes(j),err)
+        
+        call compare_rxtype_string(tmp, eqr, eqp, reverse, photomech%rxtypes(j),err)
         if (len_trim(err) > 0) return
         
         if ((photomech%rxtypes(j) == 2) .or. (photomech%rxtypes(j) == 3)) then ! if threebody or falloff
@@ -471,9 +532,10 @@ contains
     endif
   end subroutine
   
-  subroutine compare_rxtype_string(tmp, eqr, eqp, rxtype_int, err)
+  subroutine compare_rxtype_string(tmp, eqr, eqp, reverse, rxtype_int, err)
     type(string), allocatable, intent(in) :: eqr(:), eqp(:)
     type(string), intent(in) :: tmp
+    logical, intent(in) :: reverse
     integer, intent(in) :: rxtype_int
     character(len=err_len), intent(out) :: err
     character(len=15) :: rxtype
@@ -554,6 +616,10 @@ contains
         return
       endif
     elseif (trim(rxtype) == 'photolysis') then
+      if (reverse) then
+        err = 'IOError: Photolysis reaction '//tmp//' can not be reversed.'
+      endif
+      
       do i = 1,size(eqr)
         if (trim(eqr(i)%chars()) == 'M') j = .true.
         if ((trim(eqr(i)%chars()) == 'hv').and.(m)) jj = .true.
@@ -713,7 +779,7 @@ contains
     
     type (type_error), pointer :: io_err
     class(type_dictionary), pointer :: tmpdict
-    character(len=15) :: rxtype_str
+    character(len=str_len) :: rxtype_str
     err = ''
     rateparam = 0.d0
     ! no error possible
@@ -796,6 +862,54 @@ contains
     endif
     
   end subroutine
+  
+  
+  !!! version that is not done that does not depend on stringifor
+  subroutine parse_reaction_new(instring, reverse, err)
+    character(len=*), intent(in) :: instring
+    logical, intent(out) :: reverse
+    ! character(len=str_len), allocatable, intent(out) :: eqr(:), eqp(:)
+    character(len=err_len), intent(out) :: err
+    
+    character(len=:), allocatable :: string2, string3
+    character(len=:), allocatable :: eqr1, eqp1, eqr2, eqp2
+    integer i
+    
+    string2 = ''
+    string3 = ''
+    do i = 1,len_trim(instring)
+      if (instring(i:i) /= '(' .and. instring(i:i) /= ')') then
+        string2 = string2//instring(i:i)
+        if (instring(i:i) /= '+') then
+          string3 = string3//instring(i:i)
+        endif
+      endif
+    enddo
+    
+    if (index(instring, "<=>") /= 0) then
+      i = index(string2, "<=>")
+      eqr1 = string2(1:i-1)
+      eqp1 = string2(i+3:)
+      i = index(string3, "<=>")
+      eqr2 = string3(1:i-1)
+      eqp2 = string3(i+3:)
+    elseif (index(instring, " =>") /= 0) then
+      i = index(string2, " =>")
+      eqr1 = string2(1:i-1)
+      eqp1 = string2(i+3:)
+      i = index(string3, " =>")
+      eqr2 = string3(1:i-1)
+      eqp2 = string3(i+3:)
+    else
+      err = "IOError: Invalid reaction arrow in reaction "//instring// &
+            '. Note, forward reactions must have a space before the arrow, like " =>"'
+      return
+    endif
+    
+  end subroutine
+  
+  
+  
   
   subroutine parse_reaction(instring, reverse, eqr, eqp, err)
     type(string), intent(in) :: instring
@@ -945,11 +1059,119 @@ contains
     endif
   end subroutine
   
+  subroutine get_SL_and_background(infile, photoset, err)
+    use yaml, only : parse, error_length
+    character(len=*), intent(in) :: infile
+    type(PhotoSettings), intent(inout) :: photoset
+    character(len=err_len), intent(out) :: err
+  
+    character(error_length) :: error
+    class (type_node), pointer :: root
+    class (type_dictionary), pointer :: tmp1
+    type (type_error), pointer :: io_err
+    class (type_list), pointer :: bcs
+    class (type_list_item), pointer :: item
+    character(len=str_len) :: spec_type
+    integer :: i, j
+    err = ''
+    
+    root => parse(infile,unit=100,error=error)
+    if (error /= '') then
+      err = trim(error)
+      return
+    end if
+    select type (root)
+      class is (type_dictionary)
+        
+        ! get background species
+        tmp1 => root%get_dictionary('planet',.true.,error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        
+        photoset%back_gas = tmp1%get_logical('use-background-gas',error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        
+        if (photoset%back_gas) then
+          photoset%back_gas_name = tmp1%get_string('background-gas',error = io_err)
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        else
+          photoset%back_gas_ind = -1
+          err = "Currently, the model requires there to be a background gas."// &
+                " You must set 'use-background-gas: true'"
+          return
+        endif
+        
+        bcs => root%get_list('boundary-conditions',.true.,error = io_err)
+        
+        photoset%nsl = 0
+        item => bcs%first
+        do while (associated(item))
+          select type (element => item%node)
+          class is (type_dictionary)
+            spec_type = element%get_string('type','long lived',error = io_err)
+            if (spec_type == 'short lived') then
+              photoset%nsl = photoset%nsl + 1
+            elseif (spec_type == 'long lived') then
+              ! do nothing
+            else
+              err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
+              return
+            endif
+          class default
+            err = "IOError: Boundary conditions must be a list of dictionaries."
+            return
+          end select 
+          item => item%next
+        enddo
+        allocate(photoset%SL_names(photoset%nsl))
+        
+        photoset%nsl = 0
+        item => bcs%first
+        do while (associated(item))
+          select type (element => item%node)
+          class is (type_dictionary)
+            spec_type = element%get_string('type','long lived',error = io_err)
+            if (spec_type == 'short lived') then
+              photoset%nsl = photoset%nsl + 1
+              photoset%SL_names(photoset%nsl) = element%get_string('name',error = io_err)
+              if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+            elseif (spec_type == 'long lived') then
+              ! do nothing
+            else
+              err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
+              return
+            endif
+          class default
+            err = "IOError: Boundary conditions must be a list of dictionaries."
+            return
+          end select 
+          item => item%next
+        enddo
+
+        call root%finalize()
+        deallocate(root)
+      class default
+        err = trim(infile)//" file must have dictionaries at root level"
+        return
+    end select
+    
+    ! check for duplicates
+    do i = 1,photoset%nsl-1
+      do j = i+1,photoset%nsl
+        if (photoset%SL_names(i) == photoset%SL_names(j)) then
+          err = 'IOError: Short lived species '//trim(photoset%SL_names(i))// &
+                ' is a duplicate.'
+          return
+        endif
+      enddo
+    enddo
+  
+  end subroutine
+  
   subroutine get_photoset(infile, photomech, photoset, err)
     use yaml, only : parse, error_length
     character(len=*), intent(in) :: infile
     type(PhotoMechanism), intent(in) :: photomech
-    type(PhotoSettings), intent(out) :: photoset
+    type(PhotoSettings), intent(inout) :: photoset
     character(len=err_len), intent(out) :: err
   
     character(error_length) :: error
@@ -970,8 +1192,6 @@ contains
         err = trim(infile)//" file must have dictionaries at root level"
         return
     end select
-    ! tmpdict => photoset%get_dictionary("atmosphere-grid",.true.,error = io_err)
-    ! if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
 
   end subroutine
   
@@ -979,7 +1199,7 @@ contains
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
     type(PhotoMechanism), intent(in) :: photomech
-    type(PhotoSettings), intent(out) :: photoset
+    type(PhotoSettings), intent(inout) :: photoset
     character(len=err_len), intent(out) :: err
     
     class (type_dictionary), pointer :: tmp1, tmp2
@@ -987,10 +1207,9 @@ contains
     class (type_list_item), pointer :: item
     type (type_error), pointer :: io_err
     
-    character(len=str_len) :: background_gas, spec_type, spec_name
-    integer :: j, i, ind(1), ind1(1), ll, sl
-    character(len=20), allocatable :: dups(:)
-    real(real_kind) :: grav
+    character(len=str_len) :: spec_type
+    integer :: j, i, ind(1)
+    character(len=str_len), allocatable :: dups(:)
     
     err = ''
     
@@ -1005,7 +1224,7 @@ contains
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       photoset%upper_wavelength = tmp1%get_real('upper-wavelength',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      photoset%nw = tmp1%get_real('number-of-bins',error = io_err)
+      photoset%nw = tmp1%get_integer('number-of-bins',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       if (photoset%nw < 1) then 
         err = 'Number of photolysis bins must be >= 1 in '//trim(infile)
@@ -1027,35 +1246,13 @@ contains
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photoset%top_atmos = tmp1%get_real('top',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photoset%nz = tmp1%get_real('number-of-layers',error = io_err)
+    photoset%nz = tmp1%get_integer('number-of-layers',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     ! Planet
     tmp1 => mapping%get_dictionary('planet',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
-    photoset%back_gas = tmp1%get_logical('use-background-gas',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    
-    if (photoset%back_gas) then
-      background_gas = tmp1%get_string('background-gas',error = io_err)
-      ind = findloc(photomech%species_names,trim(background_gas))
-      if (ind(1) == 0) then
-        err = 'IOError: Background gas "'//trim(background_gas)// &
-              '" is not one of the species in the reaction mechanism.'
-        return
-      else
-        photoset%back_gas_ind = ind(1)
-      endif
-    else
-      photoset%back_gas_ind = -1
-      ! err = "Currently, the model requires there to be a background gas."// &
-      !       " You must set 'use-background-gas: true'"
-      ! return
-    endif
-    
-    
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photoset%surface_pressure = tmp1%get_real('surface-pressure',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     if (photoset%surface_pressure < 0.d0) then
@@ -1103,16 +1300,29 @@ contains
     bcs => mapping%get_list('boundary-conditions',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
-    allocate(photoset%species_type(photomech%nsp))
-    photoset%species_type = 1 ! long lived by default
     if (photoset%back_gas) then
-      photoset%species_type(photoset%back_gas_ind) = 0 ! background gas
+      ind = findloc(photomech%species_names,trim(photoset%back_gas_name))
+      photoset%back_gas_ind = ind(1)
     endif
+    
+    ! allocate boundary conditions
+    allocate(photoset%lowerboundcond(photoset%nq))
+    allocate(photoset%lower_vdep(photoset%nq))
+    allocate(photoset%lower_flux(photoset%nq))
+    allocate(photoset%lower_dist_height(photoset%nq))
+    allocate(photoset%lower_fix_mr(photoset%nq))
+    allocate(photoset%upperboundcond(photoset%nq))
+    allocate(photoset%upper_veff(photoset%nq))
+    allocate(photoset%upper_flux(photoset%nq))
+    ! default boundary conditions
+    photoset%lowerboundcond = 0
+    photoset%lower_vdep = 0.d0
+    photoset%upperboundcond = 0
+    photoset%upper_veff = 0.d0
       
     ! determine number of short lived species. 
     allocate(dups(photomech%nsp))
     j = 1
-    photoset%nsl = 0
     item => bcs%first
     do while (associated(item))
       select type (element => item%node)
@@ -1148,10 +1358,18 @@ contains
         
         spec_type = element%get_string('type','long lived',error = io_err)
         if (spec_type == 'short lived') then
-          photoset%nsl = photoset%nsl + 1
-          photoset%species_type(ind(1)) = 2
+          ! nothing
+          
         elseif (spec_type == 'long lived') then
-          ! do nothing
+          i = ind(1)
+          ! get boundary condition
+          call get_boundaryconds(element, dups(j), infile, &
+                                 photoset%lowerboundcond(i), photoset%lower_vdep(i), &
+                                 photoset%lower_flux(i), photoset%lower_dist_height(i), &
+                                 photoset%lower_fix_mr(i), &
+                                 photoset%upperboundcond(i), photoset%upper_veff(i), &
+                                 photoset%upper_flux(i), err)
+          if (len_trim(err) /= 0) return
         else
           err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
           return
@@ -1163,73 +1381,7 @@ contains
       item => item%next
       j = j + 1
     enddo
-    
-    ! allocate book keeping
-    if (photoset%back_gas) then
-      photoset%nq = photomech%nsp - photoset%nsl  - 1 ! minus one for background gas
-    else
-      photoset%nq = photomech%nsp - photoset%nsl 
-    endif
-    allocate(photoset%LL_inds(photoset%nq))
-    allocate(photoset%SL_inds(photoset%nsl))
-    sl = 0
-    ll = 0
-    do i = 1,photomech%nsp
-      if (photoset%species_type(i) == 0) then
-        ! nothing. background gas
-      elseif (photoset%species_type(i) == 1) then
-        ll = ll + 1
-        photoset%LL_inds(ll) = i
-      elseif (photoset%species_type(i) == 2) then
-        sl = sl + 1
-        photoset%SL_inds(sl) = i
-      else
-        err = "IOError: Problem reading in species types in settings file."
-        return
-      endif
-    enddo
-    
-    ! allocate boundary conditions
-    allocate(photoset%lowerboundcond(photoset%nq))
-    allocate(photoset%lower_vdep(photoset%nq))
-    allocate(photoset%lower_flux(photoset%nq))
-    allocate(photoset%lower_dist_height(photoset%nq))
-    allocate(photoset%lower_fix_mr(photoset%nq))
-    allocate(photoset%upperboundcond(photoset%nq))
-    allocate(photoset%upper_veff(photoset%nq))
-    allocate(photoset%upper_flux(photoset%nq))
-    ! default boundary conditions
-    photoset%lowerboundcond = 0
-    photoset%lower_vdep = 0.d0
-    photoset%upperboundcond = 0
-    photoset%upper_veff = 0.d0
-  
-    item => bcs%first
-    do while (associated(item))
-      select type (element => item%node)
-      class is (type_dictionary)
-        spec_name = element%get_string('name',error = io_err)
-        ind = findloc(photomech%species_names,spec_name)
-    
-        spec_type = element%get_string('type','long lived',error = io_err)
-        if (spec_type == 'long lived') then
-          ! find proper index
-          ind1 = findloc(photoset%LL_inds,ind(1))
-          i = ind1(1)
-          ! get boundary condition
-          call get_boundaryconds(element, spec_name, infile, &
-                                 photoset%lowerboundcond(i), photoset%lower_vdep(i), &
-                                 photoset%lower_flux(i), photoset%lower_dist_height(i), &
-                                 photoset%lower_fix_mr(i), &
-                                 photoset%upperboundcond(i), photoset%upper_veff(i), &
-                                 photoset%upper_flux(i), err)
-          if (len_trim(err) /= 0) return
-        endif
-      end select 
-      item => item%next
-    enddo    
-    
-    
+
     ! check for SL nonlinearities
     call check_sl(photomech, photoset, err)
     if (len_trim(err) /= 0) return
@@ -1255,12 +1407,12 @@ contains
     type(PhotoSettings), intent(in) :: photoset
     character(len=err_len), intent(out) :: err
     
-    integer :: i, j, l, k, kk, m, mm, n, ind(1), counter
+    integer :: i, j, l, k, kk, m, mm, n, nn, ind(1), counter
     character(len=:), allocatable :: reaction
     err = ''
     
     do i = 1, photoset%nsl
-      j = photoset%SL_inds(i)
+      j = photoset%nq + i
       ! can not be an efficiency.
       do k = 1,photomech%nrF
         if ((photomech%rxtypes(k) == 2) .or. (photomech%rxtypes(k) == 3)) then ! if three body or falloff
@@ -1274,7 +1426,6 @@ contains
         endif
       enddo
       
-      
       l = photomech%nump(j)
       do k = 1,l
         kk = photomech%iprod(k,j)
@@ -1282,12 +1433,13 @@ contains
         m = photomech%nreactants(kk)
         do mm = 1, m
           ! are SL species produced by other SL species?
-          ind = findloc(photoset%SL_inds,photomech%reactants_sp_inds(mm,kk))
-          if (ind(1) /= 0) then
-            err = 'IOError: Reaction "'//reaction//'" has short-lived species as reactants'// &
-            ' and products. This is not allowed. Change one or both of the species to long-lived.'
-            return
-          endif
+          do n = photoset%nq+1,photoset%nq + photoset%nsl
+            if (n == photomech%reactants_sp_inds(mm,kk)) then
+              err = 'IOError: Reaction "'//reaction//'" has short-lived species as reactants'// &
+              ' and products. This is not allowed. Change one or both of the species to long-lived.'
+              return
+            endif
+          enddo
         enddo
       enddo
 
@@ -1299,22 +1451,23 @@ contains
         counter = 0
         do mm = 1, m
           n = photomech%reactants_sp_inds(mm,kk)
-          ind = findloc(photoset%SL_inds,n)
-          if ((ind(1) /= 0) .and. (n == j)) then
-            counter = counter + 1
-            if (counter > 1) then
+          do nn = photoset%nq+1,photoset%nq + photoset%nsl
+            if ((nn == n) .and. (n == j)) then
+              counter = counter + 1
+              if (counter > 1) then
+                err = 'IOError: Reaction "'//reaction//'" short lived species react'// &
+                ' with themselves. This is not allowed. Change the species to long lived.'
+                return
+              endif
+            elseif ((nn == n) .and. (n /= j)) then
               err = 'IOError: Reaction "'//reaction//'" short lived species react'// &
-              ' with themselves. This is not allowed. Change the species to long lived.'
+              ' with other short lived species. This is not allowed.'
+              return
+            elseif (photomech%species_names(n) == 'hv') then
+              err = 'IOError: Photolysis reaction "'//reaction//'" can not have short lived species.'
               return
             endif
-          elseif ((ind(1) /= 0) .and. (n /= j)) then
-            err = 'IOError: Reaction "'//reaction//'" short lived species react'// &
-            ' with other short lived species. This is not allowed.'
-            return
-          elseif (photomech%species_names(n) == 'hv') then
-            err = 'IOError: Photolysis reaction "'//reaction//'" can not have short lived species.'
-            return
-          endif
+          enddo
         enddo
       enddo
     enddo

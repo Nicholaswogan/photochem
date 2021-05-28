@@ -165,7 +165,6 @@ contains
     i = nz
     surface_radiance = (y1(i)*e3(i)+y2(i)*e4(i)+cmb(i))/u1 + dexp(-tauc(i+1)/u0)
 
-    
   end subroutine
   
 end module

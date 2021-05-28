@@ -1,6 +1,5 @@
 #include <iostream>
 #include <vector>
-#include <map>
 #include "yaml-cpp/yaml.h"
 
 class PhotoMechanism
@@ -98,25 +97,106 @@ public:
   }
 };
 
+
+std::vector<std::string> SplitString(std::string& s, std::string& delim)
+{
+  std::vector<std::string> out(0);
+  int start = 0;
+  int end = s.find(delim);
+  while(end != std::string::npos)
+  {
+    out.push_back(s.substr(start, end - start));
+    start = end + delim.length();
+    end = s.find(delim,start);
+  }
+  out.push_back(s.substr(start, end));
+  return out;
+}
+
+void RemoveSubstrings(std::string& s, std::string& p) { 
+  std::string::size_type n = p.length();
+  for (int i = s.find(p); i != std::string::npos; i = s.find(p))
+      s.erase(i, n);
+}
+
+// trim from start (in place)
+void ltrim(std::string &s) {
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }));
+}
+
+// trim from end (in place)
+void rtrim(std::string &s) {
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }).base(), s.end());
+}
+
+// trim from both ends (in place)
+void trim(std::string &s) {
+    ltrim(s);
+    rtrim(s);
+}
+
+
+void parse_reaction(std::string& rx, 
+                    std::vector<std::string>& reacts, 
+                    std::vector<std::string>& prods)
+{
+  std::string leftp = "(";
+  std::string rightp = ")";
+  RemoveSubstrings(rx, leftp);
+  RemoveSubstrings(rx, rightp);
+  
+  std::string delim1 = "<=>";
+  std::string delim2 = " =>";
+  std::vector<std::string> out;
+  
+  if (rx.find(delim1) != std::string::npos)
+  {
+    out = SplitString(rx, delim1);
+    if (out.size() != 2)
+      std::cout << "Problem" << std::endl;
+  }
+  else if (rx.find(delim2) != std::string::npos)
+  {
+    out = SplitString(rx, delim2);
+    if (out.size() != 2)
+      std::cout << "Problem" << std::endl;
+  }
+  else
+  {
+    std::cout << "Problem" << std::endl;
+    // return;
+  }
+  
+  std::string plus = "+";
+  reacts = SplitString(out[0], plus);
+  prods = SplitString(out[1], plus);
+  
+  for(int i = 0; i < reacts.size(); i++)
+    trim(reacts[i]);
+  for(int i = 0; i < prods.size(); i++)
+    trim(prods[i]);
+}
+
+
 int main()
 {
 
-  // PhotoMechanism photomech("../zahnle.yaml");
-  // std::cout << photomech.atoms_names.size() << std::endl;
+  PhotoMechanism photomech("../zahnle.yaml");
+  std::cout << photomech.atoms_names.size() << std::endl;
+  
   
   std::string a = "HO2 + HO2 (+ M) <=> H2O2 + O2 (+ M)";
+  std::vector<std::string> reacts, prods;
   
-  if (a.find("<=>") != std::string::npos)
-  {
-      
-  }
-  else if (a.find(" =>") != std::string::npos)
-  {
-    
-  }
+  parse_reaction(a, reacts, prods);
   
-  
-  
-
-  
+  // std::cout << prods[0] << std::endl;
 }
+
+
+
+

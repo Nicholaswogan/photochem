@@ -1,6 +1,6 @@
 
 FC=gfortran
-FCFLAGS=-g -fbounds-check -std=f2008 -Wunused-variable
+FCFLAGS=-g -fbounds-check -std=f2018#-Wunused-variable
 SRC=photochem_const.f90 photochem_types.f90 photochem_io.f90 main.f90
 OBJ=$(SRC:.f90=.o)
 

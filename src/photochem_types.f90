@@ -3,7 +3,7 @@ module photochem_types ! make a giant IO object
   implicit none
   private
   integer,parameter :: real_kind = kind(1.0d0)
-  integer, parameter :: str_len = 1000
+  integer, parameter :: str_len = 1024
   
   public PhotoMechanism, PhotoSettings, PhotoRadTran
   
@@ -11,7 +11,6 @@ module photochem_types ! make a giant IO object
     real(real_kind) :: bottom_atmos
     real(real_kind) :: top_atmos 
     integer :: nz
-    real(real_kind), allocatable :: z(:), dz(:)
     
     logical :: regular_grid
     real(real_kind) :: lower_wavelength
@@ -20,21 +19,18 @@ module photochem_types ! make a giant IO object
     character(len=str_len) :: grid_file
 
     logical :: back_gas
+    character(len=str_len) :: back_gas_name
     integer :: back_gas_ind
     real(real_kind) :: surface_pressure
     real(real_kind) :: planet_mass
     real(real_kind) :: planet_radius
-    real(real_kind), allocatable :: grav(:) ! compute from planet mass and radius
     real(real_kind) :: surface_albedo
     logical :: water_sat_trop
     real(real_kind) :: trop_alt
     
-    ! species types/bookkeeping
-    integer, allocatable :: species_type(:)
     integer :: nq ! nubmer of long lived
     integer :: nsl ! number of short lived
-    integer, allocatable :: LL_inds(:)
-    integer, allocatable :: SL_inds(:)
+    character(len=20), allocatable :: SL_names(:)
     
     integer, allocatable :: lowerboundcond(:) ! 0, 1, 2 or 3
     real(real_kind), allocatable :: lower_vdep(:)
@@ -50,6 +46,8 @@ module photochem_types ! make a giant IO object
     
     ! molecules
     integer :: nsp
+    integer :: nq
+    integer :: nsl
     integer :: natoms
     character(len=8), allocatable :: atoms_names(:) 
     real(real_kind), allocatable :: atoms_mass(:) 
@@ -105,7 +103,7 @@ module photochem_types ! make a giant IO object
     integer, allocatable :: raynums(:) ! species number of rayleigh species
     
     ! need some photons
-    ! real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
+    real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
     ! real(real_kind), allocatable :: xs_x_qy(:,:,:) ! (kj,nz,nw) cross section * quantum yield
 
   end type
