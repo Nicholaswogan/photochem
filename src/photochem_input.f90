@@ -1,9 +1,9 @@
 
-module photochem_io
+module photochem_input
   use yaml_types, only : type_node, type_dictionary, type_list, type_error, &
                          type_list_item, type_scalar, type_key_value_pair
   use stringifor, only : string
-  use photochem_types, only : PhotoMechanism, PhotoSettings, PhotoRadTran
+  use photochem_types, only : PhotoMechanism, PhotoSettings, PhotoRadTran, PhotoInitAtm
   implicit none
   private 
   integer,parameter :: real_kind = kind(1.0d0)
@@ -14,13 +14,17 @@ module photochem_io
     
 contains
   
-  subroutine read_all_files(mechanism_file, settings_file, photomech, photoset, photorad, err)
+  subroutine read_all_files(mechanism_file, settings_file, flux_file, atmosphere_txt, &
+                            photomech, photoset, photorad, photoinit, err)
     
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
+    character(len=*), intent(in) :: flux_file
+    character(len=*), intent(in) :: atmosphere_txt
     type(PhotoMechanism), intent(out) :: photomech
     type(PhotoSettings), intent(out) :: photoset
     type(PhotoRadTran), intent(out) :: photorad
+    type(PhotoInitAtm), intent(out) :: photoinit
     character(len=err_len), intent(out) :: err
     
     ! first get SL and background species from settings
@@ -34,6 +38,15 @@ contains
     if (len(trim(err)) /= 0) return
     
     call get_photorad(photomech, photoset, photorad, err)
+    if (len(trim(err)) /= 0) return
+    
+    ! stelar flux
+    allocate(photorad%photon_flux(photorad%nw))
+    call read_stellar_flux(flux_file, photorad%nw, photorad%wavl, photorad%photon_flux, err)
+    if (len(trim(err)) /= 0) return
+    
+    ! initial atmosphere
+    call read_atmosphere_file(atmosphere_txt,photomech,photoinit,err)
     if (len(trim(err)) /= 0) return
     
   end subroutine
@@ -403,10 +416,9 @@ contains
       endif
     enddo
     
-    !!! end reactions !!!
-    
     call check_for_duplicates(photomech,err)
     if (len(trim(err)) > 0) return
+    !!! end reactions !!!
     
   end subroutine
   
@@ -1386,19 +1398,6 @@ contains
     call check_sl(photomech, photoset, err)
     if (len_trim(err) /= 0) return
 
-    ! ! set up the atmosphere grid
-    ! allocate(photoset%z(photoset%nz))
-    ! allocate(photoset%dz(photoset%nz))
-    ! call vertical_grid(photoset%bottom_atmos,photoset%top_atmos,photoset%nz, &
-    !                    photoset%z, photoset%dz)
-    ! 
-    ! ! compute the gravity
-    ! allocate(photoset%grav(photoset%nz))
-    ! do i =1,photoset%nz
-    !   call compute_gravity((photoset%planet_radius + photoset%z(i))/1.d2, &
-    !                         photoset%planet_mass/1.d3, grav)
-    !   photoset%grav(i) = grav*1.d2 ! convert to cgs
-    ! enddo
     
   end subroutine
   
@@ -1472,28 +1471,6 @@ contains
       enddo
     enddo
     
-  end subroutine
-  
-  
-  subroutine compute_gravity(radius, mass, grav)
-    use photochem_const, only: G_grav
-    real(real_kind), intent(in) :: radius, mass
-    real(real_kind), intent(out) :: grav
-    grav = G_grav * mass / radius**2.d0
-  end subroutine
-
-  subroutine vertical_grid(bottom, top, nz, z, dz)
-    real(real_kind), intent(in) :: bottom, top
-    integer, intent(in) :: nz
-    real(real_kind), intent(out) :: z(nz), dz(nz)
-    
-    integer :: i
-  
-    dz = (top - bottom)/nz
-    z(1) = dz(1)/2.d0
-    do i = 2,nz
-      z(i) = z(i-1) + dz(i)
-    enddo
   end subroutine
   
   subroutine get_boundaryconds(molecule, molecule_name, infile, &
@@ -1944,7 +1921,225 @@ contains
             (1.d0/(lambda*1.d-3)**4.d0)
 
   end subroutine
+  
+  subroutine read_stellar_flux(star_file, nw, wavl, photon_flux, err)
+    use photochem_const, only: c_light, plank
+    
+    character(len=*), intent(in) :: star_file
+    integer, intent(in) :: nw
+    real(real_kind), intent(in) :: wavl(nw+1)
+    real(real_kind), intent(out) :: photon_flux(nw)
+    character(len=err_len), intent(out) :: err
+    
+    real(real_kind), allocatable :: file_wav(:), file_flux(:)
+    real(real_kind) :: flux(nw)
+    real(real_kind) :: dum1, dum2
+    integer :: io, i, n, ierr
+    real(real_kind), parameter :: rdelta = 1.d-4
+    
+    open(1,file=star_file,status='old',iostat=io)
+    if (io /= 0) then
+      err = "The input file "//star_file//' does not exist.'
+      return
+    endif
+    
+    ! count lines
+    n = -1 
+    read(1,*)
+    do while (io == 0)
+      read(1,*,iostat=io) dum1, dum2
+      n = n + 1
+    enddo
+    
+    allocate(file_wav(n+4), file_flux(n+4))
+    
+    ! read data
+    rewind(1)
+    read(1,*)
+    do i = 1,n
+      read(1,*,iostat=io) file_wav(i), file_flux(i)
+      if (io /= 0) then
+        err = "Problem reading "//star_file
+        return
+      endif
+    enddo
+    close(1)
+    
+    i = n
+    ! interpolate 
+    call addpnt(file_wav, file_flux, n+4, i, file_wav(1)*(1.d0-rdelta), 0.d0, ierr)
+    call addpnt(file_wav, file_flux, n+4, i, 0.d0, 0.d0, ierr)
+    call addpnt(file_wav, file_flux, n+4, i, file_wav(i)*(1.d0+rdelta), 0.d0,ierr)
+    call addpnt(file_wav, file_flux, n+4, i, huge(rdelta), 0.d0,ierr)
+    if (ierr /= 0) then
+      err = "Problem interpolating "//trim(star_file)
+      return
+    endif
 
+    call inter2(nw+1, wavl, flux, n+4, file_wav, file_flux, ierr)
+    if (ierr /= 0) then
+      err = "Problem interpolating "//trim(star_file)
+      return
+    endif
+    
+    ! now convert to photons/cm2/s
+    do i = 1,nw
+      photon_flux(i) = (1/(plank*c_light*1.d16))*flux(i)*(wavl(i+1)-wavl(i))* &
+                       ((wavl(i+1)+wavl(i))/2.d0)
+    enddo
+    
+  end subroutine
+  
+  
+  subroutine read_atmosphere_file(atmosphere_txt, photomech, &
+                                  photoinit, err)
+    character(len=*), intent(in) :: atmosphere_txt
+    type(PhotoMechanism), intent(in) :: photomech
+    type(PhotoInitAtm), intent(out) :: photoinit
+    character(len=err_len), intent(out) :: err
+    
+    character(len=10000) :: line
+    character(len=8) :: arr1(1000)
+    character(len=24) :: arr11(1000)
+    character(len=24),allocatable, dimension(:) :: labels
+    integer :: ind(1)
+    real(real_kind), allocatable :: temp(:)
+    integer :: io, i, n, nn, iii, k, j, ii
+    
+    err = ''
+    open(4, file=trim(atmosphere_txt),status='old',iostat=io)
+    if (io /= 0) then
+      err = 'Can not open file '//trim(atmosphere_txt)
+      return
+    endif
+    read(4,'(A)') line
+    
+    photoinit%nzf = -1
+    io = 0
+    do while (io == 0)
+      read(4,*,iostat=io)
+      photoinit%nzf = photoinit%nzf + 1
+    enddo
+    
+    allocate(photoinit%z_file(photoinit%nzf))
+    allocate(photoinit%T_file(photoinit%nzf))
+    allocate(photoinit%edd_file(photoinit%nzf))
+    allocate(photoinit%usol_file(photomech%nq, photoinit%nzf))
+    photoinit%z_file = 0.d0
+    photoinit%T_file = 0.d0
+    photoinit%edd_file = 0.d0
+    photoinit%usol_file = 1.d-40
+    
+    rewind(4)
+    read(4,'(A)') line
+    n = 0
+    nn = 0
+    do i=1,1000
+      read(line,*,iostat=io) arr1(1:i)
+      if (io==-1) exit
+      n = n+1
+    enddo
+    read(4,'(A)') line
+    do i=1,1000
+      read(line,*,iostat=io) arr11(1:i)
+      if (io==-1) exit
+      nn = nn+1
+    enddo
+    if (n /= nn) then
+      err = 'There is a missing column label in the file '//trim(atmosphere_txt)
+      return
+    endif
+    
+    allocate(labels(n))
+    allocate(temp(n))
+    rewind(4)
+    read(4,'(A)') line
+    read(line,*) (labels(i),i=1,n)
+    
+    ! reads in mixing ratios
+    iii = 0
+    do i=1,photomech%nq
+      do j=1,n
+        if (labels(j).eq.photomech%species_names(i)) then
+          iii = iii+1
+          do k = 1,photoinit%nzf
+            read(4,*,iostat=io) (temp(ii),ii=1,n)
+            if (io /= 0) then
+              err = 'Problem reading in initial atmosphere in '//trim(atmosphere_txt)
+              return
+            endif
+            photoinit%usol_file(i,k) = temp(j)
+          enddo
+          rewind(4) ! rewind!
+          read(4,*) ! skip first line
+          exit
+        endif
+      enddo
+    enddo
+    
+    if (iii.ne.photomech%nq) then
+      print*,'Warning: Did not find initial data for some species in '// &
+              trim(atmosphere_txt)//' . The program will assume initial mixing ratios of 1.0e-40'
+    endif
+    
+    rewind(4)
+    read(4,*)
+    ! reads in temperature
+    ind = findloc(labels,'temp')
+    if (ind(1) /= 0) then
+      do k=1,photoinit%nzf
+        read(4,*,iostat = io) (temp(ii),ii=1,n)
+        if (io /= 0) then
+          err = 'Problem reading in temperature in '//trim(atmosphere_txt)
+          return
+        endif
+        photoinit%T_file(k) = temp(ind(1))
+      enddo
+    else
+      err = 'temp was not found in input file '//trim(atmosphere_txt)
+      return
+    endif
+    
+    rewind(4)
+    read(4,*)
+    ! reads in alt
+    ind = findloc(labels,'alt')
+    if (ind(1) /= 0) then
+      do k=1,photoinit%nzf
+        read(4,*,iostat = io) (temp(ii),ii=1,n)
+        if (io /= 0) then
+          err = 'Problem reading in altitude in '//trim(atmosphere_txt)
+          return
+        endif
+        photoinit%z_file(k) = temp(ind(1))*1.d5 ! conver to cm
+      enddo
+    else
+      err = '"alt" was not found in input file '//trim(atmosphere_txt)
+      return
+    endif
+
+    rewind(4)
+    read(4,*)
+    ! reads in eddy diffusion?
+    ind = findloc(labels,'eddy')
+    if (ind(1) /= 0) then
+      do k=1,photoinit%nzf
+        read(4,*,iostat = io) (temp(ii),ii=1,n)
+        if (io /= 0) then
+          err = 'Problem reading in eddy diffusion in '//trim(atmosphere_txt)
+          return
+        endif
+        photoinit%edd_file(k) = temp(ind(1))
+      enddo
+    else
+      err = 'eddy was not found in input file '//trim(atmosphere_txt)
+      return
+    endif
+    
+    close(4)
+
+  end subroutine
+  
 end module
 
 

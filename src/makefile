@@ -1,14 +1,20 @@
 
 FC=gfortran
 FCFLAGS=-g -fbounds-check -std=f2018#-Wunused-variable
-SRC=photochem_const.f90 photochem_types.f90 photochem_io.f90 main.f90
+SRC=photochem_const.f90 \
+		photochem_types.f90 \
+		photochem_input.f90 \
+		photochem_wrk.f90 \
+		photochem_vars.f90 \
+		photochem_data.f90 \
+		photochem_radtran.f90 \
+		main.f90
 OBJ=$(SRC:.f90=.o)
 
 IDIR=dependencies/modules
 LDIR=dependencies/lib
 FFLAGS=-I$(IDIR) -L$(LDIR)
-LIBS=-lyaml -lstringifor
-OBJLIBS=dependencies/lib/binning.o
+LIBS=-lyaml -lstringifor -lbinning
 
 %.o: %.f90
 	$(FC) $(FCFLAGS) -c $< $(FFLAGS) $(LIBS) 

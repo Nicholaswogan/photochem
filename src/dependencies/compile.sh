@@ -36,8 +36,12 @@ cp lib/libstringifor.a ../dependencies/lib
 cp lib/mod/* ../dependencies/modules
 
 # interpolation
-cd ../dependencies
-gfortran -c ../binning/binning.f -o lib/binning.o -O3
+cd ../binning
+gfortran -c binning.f -O3
+gfortran -c interp.f90 -O3
+ar rcs libbinning.a *.o
+rm *.o
+mv libbinning.a ../dependencies/lib
 
 
 

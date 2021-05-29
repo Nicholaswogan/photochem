@@ -5,7 +5,7 @@ module photochem_types ! make a giant IO object
   integer,parameter :: real_kind = kind(1.0d0)
   integer, parameter :: str_len = 1024
   
-  public PhotoMechanism, PhotoSettings, PhotoRadTran
+  public PhotoMechanism, PhotoSettings, PhotoRadTran, PhotoInitAtm
   
   type :: PhotoSettings
     real(real_kind) :: bottom_atmos
@@ -21,12 +21,12 @@ module photochem_types ! make a giant IO object
     logical :: back_gas
     character(len=str_len) :: back_gas_name
     integer :: back_gas_ind
-    real(real_kind) :: surface_pressure
+    real(real_kind) :: surface_pressure ! this can be changed
     real(real_kind) :: planet_mass
     real(real_kind) :: planet_radius
-    real(real_kind) :: surface_albedo
+    real(real_kind) :: surface_albedo ! this can be changed
     logical :: water_sat_trop
-    real(real_kind) :: trop_alt
+    real(real_kind) :: trop_alt ! this can be changed
     
     integer :: nq ! nubmer of long lived
     integer :: nsl ! number of short lived
@@ -104,8 +104,15 @@ module photochem_types ! make a giant IO object
     
     ! need some photons
     real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
-    ! real(real_kind), allocatable :: xs_x_qy(:,:,:) ! (kj,nz,nw) cross section * quantum yield
 
+  end type
+  
+  type :: PhotoInitAtm
+    integer :: nzf
+    real(real_kind), allocatable :: z_file(:)
+    real(real_kind), allocatable :: T_file(:)
+    real(real_kind), allocatable :: edd_file(:)
+    real(real_kind), allocatable :: usol_file(:,:)
   end type
   
 end module

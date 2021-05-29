@@ -1,14 +1,13 @@
 
-module radtran
+module photochem_radtran
   implicit none
   private
-  public two_stream
-  integer,parameter :: real_kind = kind(1.0d0)
+  public :: two_stream
+  integer, private ,parameter :: real_kind = kind(1.0d0)
 
 contains
   
   subroutine two_stream(nz, tau, w0, u0, Rsfc, amean, surface_radiance, ierr, method)
-    real(real_kind), parameter :: pi = 3.14159
     integer, intent(in) :: nz
     real(8), intent(in) :: tau(nz)
     real(8), intent(in) :: w0(nz)
@@ -122,11 +121,11 @@ contains
     E(l) = Ssfc - cpb(nz) + Rsfc*cmb(nz)
     
     ! Solve tridiagonal system. e is solution
-    ! call dgtsv(nz*2, 1, a(2:nz*2), b, d(1:nz*2-1), e, nz*2, info)
-    call tridiag(nz*2,a,b,d,e)
+    ! call dgtsv(nz*2, 1, a(2:nz*2), b, d(1:nz*2-1), e, nz*2, info) ! lapack
     ! if (info /= 0) then
       ! ierr = 1
     ! endif
+    call tridiag(nz*2,a,b,d,e) ! homebrewed version.  
     
     ! unpack solution
     do i = 1, nz
@@ -190,27 +189,3 @@ contains
   end subroutine
   
 end module
-
-
-program main
-  use radtran, only: two_stream
-  implicit none
-  integer,parameter :: real_kind = kind(1.0d0)
-  integer, parameter :: nz = 1
-  real(real_kind) :: tau(nz)
-  real(real_kind) :: w0(nz), u0, Rsfc, amean(nz+1), surface_radiance
-  integer :: ierr
-  
-  ! u0 = dcos(3.14159d0/3.d0)
-  u0 = 0.7d0
-  tau = 0.1d0
-  w0  = 0.9999d0
-  Rsfc = 0.25d0  
-  
-  call two_stream(nz, tau, w0, u0, Rsfc, amean, surface_radiance,ierr)
-  
-  print*,amean
-  
-  print*,surface_radiance
-
-end program

@@ -1,28 +1,42 @@
 
 program main
-  use photochem_io, only: read_all_files, reaction_string
-  use photochem_types, only: PhotoMechanism, PhotoRadTran, PhotoSettings
+  use photochem_input, only: read_all_files, reaction_string
+  use photochem_types, only: PhotoMechanism, PhotoRadTran, PhotoSettings, PhotoInitAtm
+  use photochem_data, only: read_input_files
   implicit none
   type(PhotoSettings) :: photoset
   type(PhotoMechanism) :: photomech
   type(PhotoRadTran) :: photorad
+  type(PhotoInitAtm) :: photoinit
   character(len=1024) :: err
   character(len=:), allocatable :: rxstring
   integer i
   
-  call read_all_files("../zahnle.yaml", "../settings.yaml", photomech, photoset, photorad, err)
+  ! read(*,*) i
+  
+  ! call read_all_files("../zahnle.yaml", "../settings.yaml", "../Sun_4.0Ga.txt", "../atmosphere.txt", &
+  !                     photomech, photoset, photorad, photoinit, err)
+  ! if (len(trim(err)) > 0) then
+  !   print*,trim(err)
+  !   print*,'error worked rad'
+  !   stop
+  ! endif
+  
+  call read_input_files("../zahnle.yaml", "../settings.yaml", "../Sun_4.0Ga.txt", "../atmosphere.txt", err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     print*,'error worked rad'
     stop
   endif
   
+  ! read(*,*) i
+  
   ! print*,photomech%reactants_sp_inds
  
-  do i=1,photomech%nrT
-    call reaction_string(photomech,i,rxstring)
-    print*,i,rxstring
-  enddo
+  ! do i=1,photomech%nrT
+  !   call reaction_string(photomech,i,rxstring)
+  !   print*,i,rxstring
+  ! enddo
   ! deallocate(rxstring)
   
   ! do i=1,photomech%nsp
@@ -37,7 +51,7 @@ end program
 
 
 subroutine test(filename,rxn,rxstring1,err)
-  use photochem_io, only: get_photomech, reaction_string
+  use photochem_input, only: get_photomech, reaction_string
   use photochem_types, only: PhotoMechanism
   implicit none
   character(len=*), intent(in) :: filename
