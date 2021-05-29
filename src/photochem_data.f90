@@ -56,6 +56,7 @@ module photochem_data
   ! All data for every reaction in single vector to save memory
   real(real_kind), allocatable, protected :: xs_data(:) ! (sum(num_temp_cols)*nw) 
   real(real_kind), allocatable, protected :: xs_data_temps(:,:) ! (maxval(num_temp_cols), kj)
+  integer, protected :: nray
   real(real_kind), allocatable, protected :: sigray(:,:) ! (len(raynums), nw)
   integer, allocatable, protected :: raynums(:) ! species number of rayleigh species
     
@@ -68,6 +69,7 @@ module photochem_data
   
   ! settings
   logical, protected :: back_gas
+  real(real_kind), protected :: back_gas_mu
   character(len=str_len), protected :: back_gas_name
   integer, protected :: back_gas_ind
   real(real_kind), protected :: planet_mass
@@ -76,7 +78,7 @@ module photochem_data
   
 contains
   
-  subroutine read_input_files(mechanism_file, settings_file, flux_file, atmosphere_txt, err)
+  subroutine setup_files(mechanism_file, settings_file, flux_file, atmosphere_txt, err)
     use photochem_types, only: PhotoMechanism, PhotoSettings, PhotoRadTran, PhotoInitAtm
     use photochem_input, only: read_all_files
     use photochem_vars
@@ -222,11 +224,12 @@ contains
     xs_data = photorad%xs_data
     allocate(xs_data_temps(maxval(num_temp_cols), kj))
     xs_data_temps = photorad%xs_data_temps
+    nray = photorad%nray
     allocate(sigray(size(photorad%sigray,1),nw))
     sigray = photorad%sigray
     allocate(raynums(size(photorad%raynums)))
     raynums = photorad%raynums
-
+    
     ! initial conditions  
     nzf = photoinit%nzf
     allocate(z_file(nzf))
@@ -240,6 +243,7 @@ contains
     
     ! settings
     back_gas = photoset%back_gas
+    back_gas_mu = photoset%back_gas_mu
     back_gas_name = photoset%back_gas_name
     planet_mass = photoset%planet_mass
     planet_radius = photoset%planet_radius
@@ -285,6 +289,8 @@ contains
     nz = photoset%nz
     surface_pressure = photoset%surface_pressure
     surface_albedo = photoset%surface_albedo 
+    solar_zenith = photoset%solar_zenith
+    diurnal_fac = photoset%diurnal_fac
     trop_alt = photoset%trop_alt
     
     allocate(photon_flux(nw))

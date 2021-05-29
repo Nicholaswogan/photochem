@@ -122,8 +122,8 @@ contains
     E(l) = Ssfc - cpb(nz) + Rsfc*cmb(nz)
     
     ! Solve tridiagonal system. e is solution
-    ! call dgtsv(nz*2, 1, a(2:nz*2), b, d(1:nz*2-1), e, nz*2, info)
-    call tridiag(nz*2,a,b,d,e)
+    call dgtsv(nz*2, 1, a(2:nz*2), b, d(1:nz*2-1), e, nz*2, info)
+    ! call tridiag(nz*2,a,b,d,e)
     ! if (info /= 0) then
       ! ierr = 1
     ! endif
@@ -184,7 +184,7 @@ contains
     
     d(n) = (d(n) - a(n)*d(n-1)) / (b(n) - a(n)*c(n-1))
     
-    do i = n,1,-1
+    do i = n-1,1,-1
       d(i) = d(i) - c(i)*d(i+1)
     enddo
   end subroutine

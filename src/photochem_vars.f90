@@ -6,6 +6,12 @@ module photochem_vars
   integer, private, parameter :: real_kind = kind(1.0d0)
   integer, private, parameter :: str_len = 1024
 
+  ! where the photochem data is
+  character(len=str_len) :: data_dir
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!! set DURING file read-in !!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! boundary conditions
   integer, allocatable :: lowerboundcond(:) ! 0, 1, 2 or 3
   real(real_kind), allocatable :: lower_vdep(:)
@@ -22,20 +28,26 @@ module photochem_vars
   integer :: nz
   real(real_kind) :: surface_pressure 
   real(real_kind) :: surface_albedo 
+  real(real_kind) :: diurnal_fac
+  real(real_kind) :: solar_zenith
   real(real_kind) :: trop_alt 
   
   ! Radiative tranfer
   real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
-  
-  
-  
-  
-  ! need to work where to allocate these below
-  ! T, z, edd, grav
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!! set AFTER file read-in !!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  integer :: neqs
   real(real_kind), allocatable :: temperature(:)
   real(real_kind), allocatable :: z(:)
+  real(real_kind), allocatable :: dz(:)
   real(real_kind), allocatable :: edd(:)
   real(real_kind), allocatable :: grav(:)
+  real(real_kind), allocatable, target :: usol_init(:,:)
+  
+  real(real_kind), allocatable :: xs_x_qy(:,:,:)
   
   
 end module

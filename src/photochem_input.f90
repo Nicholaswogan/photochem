@@ -251,7 +251,7 @@ contains
         
         call get_rateparams(element, infile, photomech%rxtypes(j), &
                           photomech%falloff_type(j), photomech%rateparams(:,j), err)
-        if (len_trim(err) > 0) return
+        if (len_trim(err) > 0) return        
         
         call parse_reaction(tmp, reverse, eqr, eqp, err)
         if (len_trim(err) > 0) return
@@ -795,11 +795,12 @@ contains
     err = ''
     rateparam = 0.d0
     ! no error possible
-    rxtype_str = reaction%get_string("type","",error = io_err) 
+    rxtype_str = reaction%get_string("type"," ",error = io_err) 
     if (rxtype_str == 'photolysis') then
       rxtype = 0
-    elseif ((rxtype_str == 'elementary') .or. (rxtype_str == '')) then
+    elseif ((rxtype_str == 'elementary') .or. (len_trim(rxtype_str) == 0)) then
       rxtype = 1
+      rxtype_str = 'elementary'
     elseif (rxtype_str == 'three-body') then
       rxtype = 2
     elseif (rxtype_str == 'falloff') then
@@ -1289,6 +1290,20 @@ contains
       err = 'IOError: Surface albedo must be greater than zero.'
       return
     endif
+    photoset%diurnal_fac = tmp1%get_real('diurnal-averaging-factor',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (photoset%diurnal_fac < 0.d0 .or. photoset%diurnal_fac > 1.d0) then
+      err = 'IOError: diurnal-averaging-factor must be between 0 and 1.'
+      return
+    endif
+    
+    photoset%solar_zenith = tmp1%get_real('solar-zenith-angle',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (photoset%solar_zenith < 0.d0 .or. photoset%solar_zenith > 90.d0) then
+      err = 'IOError: solar zenith must be between 0 and 90.'
+      return
+    endif
+    
     tmp2 => tmp1%get_dictionary('water',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photoset%water_sat_trop = tmp2%get_logical('water-saturated-troposphere',error = io_err)
@@ -1315,6 +1330,7 @@ contains
     if (photoset%back_gas) then
       ind = findloc(photomech%species_names,trim(photoset%back_gas_name))
       photoset%back_gas_ind = ind(1)
+      photoset%back_gas_mu = photomech%species_mass(ind(1))
     endif
     
     ! allocate boundary conditions
@@ -1606,6 +1622,7 @@ contains
   end subroutine
   
   subroutine get_photolysis_xs(photomech, photorad, err)
+    use photochem_vars, only: data_dir
     type(PhotoMechanism), intent(in) :: photomech
     type(PhotoRadTran), intent(inout) :: photorad ! inout!
     character(len=err_len), intent(out) :: err
@@ -1622,7 +1639,7 @@ contains
     integer :: i, j, k, l, m, mm, io, kk, ierr
     err = ''
     
-    xsroot = "../data/xsections/"
+    xsroot = trim(data_dir)//"/xsections/"
     
     ! count temperature columns
     allocate(photorad%num_temp_cols(photomech%kj))
@@ -1817,6 +1834,7 @@ contains
   
   
   subroutine get_rayleigh(photomech, photorad, err)
+    use photochem_vars, only: data_dir
     use yaml, only : parse, error_length
     type(PhotoMechanism), intent(in) :: photomech
     type(PhotoRadTran), intent(inout) :: photorad ! inout!
@@ -1830,7 +1848,7 @@ contains
     integer :: i, j
     err = ''
     
-    rayleigh_file = "../data/xsections/rayleigh.yaml"
+    rayleigh_file = trim(data_dir)//"/xsections/rayleigh.yaml"
     
     ! parse yaml file
     root => parse(rayleigh_file,unit=100,error=error)
@@ -1848,7 +1866,8 @@ contains
     end select
     
     ! compute cross sections
-    allocate(photorad%sigray(size(A),photorad%nw))
+    photorad%nray = size(A)
+    allocate(photorad%sigray(photorad%nray,photorad%nw))
     do i = 1,photorad%nw
       do j = 1,size(A)
         call rayleigh_vardavas(A(j), B(j), Delta(j), photorad%wavl(i), &

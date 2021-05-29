@@ -20,11 +20,14 @@ module photochem_types ! make a giant IO object
 
     logical :: back_gas
     character(len=str_len) :: back_gas_name
+    real(real_kind) :: back_gas_mu
     integer :: back_gas_ind
     real(real_kind) :: surface_pressure ! this can be changed
     real(real_kind) :: planet_mass
     real(real_kind) :: planet_radius
     real(real_kind) :: surface_albedo ! this can be changed
+    real(real_kind) :: diurnal_fac
+    real(real_kind) :: solar_zenith
     logical :: water_sat_trop
     real(real_kind) :: trop_alt ! this can be changed
     
@@ -99,8 +102,10 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: xs_data(:) ! (sum(num_temp_cols)*nw) 
     real(real_kind), allocatable :: xs_data_temps(:,:) ! (maxval(num_temp_cols), kj)
 
+    integer :: nray
     real(real_kind), allocatable :: sigray(:,:) ! (len(raynums), nw)
     integer, allocatable :: raynums(:) ! species number of rayleigh species
+    
     
     ! need some photons
     real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz

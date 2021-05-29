@@ -16,22 +16,66 @@ module photochem
   
 contains
   
+  subroutine print_reaction_string(rxn)
+    integer, intent(in) :: rxn
+    character(len=:), allocatable :: rxstring
+    call reaction_string(rxn,rxstring)
+    print*,rxstring
+  end subroutine
+  
+  subroutine reaction_string(rxn,rxstring)
+    use photochem_data, only: reverse_info, nrF, nreactants, species_names, &
+                              reactants_sp_inds, rxtypes, nproducts, products_sp_inds
+
+    integer, intent(in) :: rxn
+    character(len=:), allocatable, intent(out) :: rxstring
+    integer j, k, i
+    rxstring = ''
+    if (rxn > nrF) then
+      i = reverse_info(rxn)
+    else
+      i = rxn
+    endif
+    do j = 1,nreactants(rxn)-1
+      k = reactants_sp_inds(j,rxn)
+      rxstring = rxstring //(trim(species_names(k))//' + ')
+    enddo
+    
+    k = reactants_sp_inds(nreactants(rxn),rxn)
+    rxstring = rxstring // trim(species_names(k))//' => '
+    
+    if ((rxtypes(i) == 2) .or.(rxtypes(i) == 3)) then
+      rxstring = rxstring(1:len(rxstring)-4) //(' + M'//' => ')
+    endif
+    
+    do j = 1,nproducts(rxn)-1
+      k = products_sp_inds(j,rxn)
+      rxstring = rxstring // trim(species_names(k))//' + '
+    enddo
+    k = products_sp_inds(nproducts(rxn),rxn)
+    rxstring = rxstring // trim(species_names(k))
+    
+    if ((rxtypes(i) == 2) .or.(rxtypes(i) == 3)) then
+      rxstring = rxstring //' + M'
+    endif
+  end subroutine
+  
   subroutine reaction_rates(nsp, nz, nrT, temperature, density, densities, rx_rates, err)
     use photochem_data, only: rateparams, rxtypes, nreactants, &
                               nproducts, reactants_sp_inds, products_sp_inds, &
                               reverse_info, nrF, reverse, num_efficient, def_eff, &
                               eff_sp_inds, efficiencies, falloff_type
-    use photochem_const, only: Rgas, k_boltz ! constants
-    use photochem_wrk, only: real_nz_nsp ! pre-allocated work array
+    use photochem_const, only: Rgas, k_boltz, smallest_real ! constants
                               
     integer, intent(in) :: nsp, nz, nrT
     real(real_kind), intent(in) :: temperature(nz)
     real(real_kind), intent(in) :: density(nz)
-    real(real_kind), intent(in) :: densities(nsp,nz)
+    real(real_kind), intent(in) :: densities(nsp+1,nz)
     real(real_kind), intent(out) :: rx_rates(nz, nrT)
     character(len=err_len), intent(out) :: err
     
     integer :: i, j, k, n, l, m
+    real(real_kind) :: gibbs_energy(nz,nsp)
     real(real_kind) :: eff_den(nz), F(nz), k0, kinf(nz), Pr(nz)
     real(real_kind) :: gibbR_forward, gibbP_forward
     real(real_kind) :: Dg_forward
@@ -42,7 +86,8 @@ contains
         do j = 1,nz 
           rx_rates(j,i) = arrhenius_rate(rateparams(1,i), rateparams(2,i), &
                                          rateparams(3,i), temperature(j))
-        enddo
+          
+        enddo        
       elseif (rxtypes(i) == 2) then ! three-body
         n = num_efficient(i)
         do j = 1,nz
@@ -57,6 +102,8 @@ contains
                                          rateparams(3,i), temperature(j)) &
                                          * eff_den(j) ! we multiply density here!
         enddo
+        
+      
       elseif (rxtypes(i) == 3) then ! falloff
         ! compute eff_den, kinf, and Pr at all altitudes
         n = num_efficient(i)
@@ -72,6 +119,7 @@ contains
                                rateparams(3,i), temperature(j))
           kinf(j) = arrhenius_rate(rateparams(4,i), rateparams(5,i), &
                                    rateparams(6,i), temperature(j))
+          kinf(j) = max(kinf(j),smallest_real)
           Pr(j) = k0*eff_den(j)/kinf(j)                        
         enddo
         
@@ -95,29 +143,33 @@ contains
           rx_rates(j,i) = falloff_rate(kinf(j), Pr(j), F(j)) &
                           * eff_den(j) ! we multiply density here  
         enddo
+    
       endif
     enddo ! end loop over forward reactions
-    
+
     if (reverse) then ! if there are reverse reactions
       ! compute gibbs energy at all altitudes
-      call compute_gibbs_energy(nz, nsp, temperature, real_nz_nsp, err)
+      call compute_gibbs_energy(nz, nsp, temperature, gibbs_energy, err)
       if (len_trim(err) /= 0) return
       ! compute reverse rate
       do i = nrF+1,nrT
+        
         n = reverse_info(i) ! Reaction number of the forward
         l = nreactants(n) ! number of reactants for the forward reaction
         m = nproducts(n) ! number of products for the forward reaction
         do j = 1,nz
           gibbR_forward = 0.d0
           do k = 1,l
-            gibbR_forward = gibbR_forward + real_nz_nsp(reactants_sp_inds(k,n),j)
+            gibbR_forward = gibbR_forward + gibbs_energy(j,reactants_sp_inds(k,n))
           enddo
           gibbP_forward = 0.d0
           do k = 1,m
-            gibbP_forward = gibbP_forward + real_nz_nsp(products_sp_inds(k,n),j)
+            gibbP_forward = gibbP_forward + gibbs_energy(j,products_sp_inds(k,n))
           enddo
           Dg_forward = gibbP_forward - gibbR_forward ! DG of the forward reaction (J/mol)
           ! compute the reverse rate
+          ! print*,dexp(-Dg_forward/(Rgas * temperature(j)))
+          Dg_forward = max(-1000000.0d0,Dg_forward)
           rx_rates(j,i) = rx_rates(j,n) * &
                           (1.d0/dexp(-Dg_forward/(Rgas * temperature(j)))) * &
                           (k_boltz*temperature(j)/1.d6)**(m-l)
@@ -181,7 +233,7 @@ contains
     
     ! input
     integer, intent(in) :: nz, nsp, nrT
-    real(real_kind), intent(in) :: densities(nsp, nz) ! molecules/cm3 of each species
+    real(real_kind), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
     real(real_kind), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
     integer, intent(in) :: k ! species number
     
@@ -228,20 +280,17 @@ contains
   end subroutine
   
 
-  subroutine photorates(nz, nsp, kj, nw, nray, dz, densities, xs_x_qy, sigray, &
-                        raynums, wavl, flux, diurnal_fac, u0, Rsfc, &
+  subroutine photorates(nz, nsp, kj, nw, dz, densities, xs_x_qy, &
+                        flux, diurnal_fac, u0, Rsfc, &
                         prates, surf_radiance,err)
     use photochem_radtran, only: two_stream
-    use photochem_data, only: photonums, reactants_sp_inds
+    use photochem_data, only: photonums, reactants_sp_inds, nray, sigray, raynums, wavl
 
     ! input
-    integer, intent(in) :: nz, nsp, kj, nw, nray
+    integer, intent(in) :: nz, nsp, kj, nw
     real(real_kind), intent(in) :: dz(nz)
-    real(real_kind), intent(in) :: densities(nz, nsp)
+    real(real_kind), intent(in) :: densities(nsp+1, nz)
     real(real_kind), intent(in) :: xs_x_qy(nz,kj,nw)
-    real(real_kind), intent(in) :: sigray(nray,nw)
-    real(real_kind), intent(in) :: raynums(nray)
-    real(real_kind), intent(in) :: wavl(nw+1)
     real(real_kind), intent(in) :: flux(nw)
     real(real_kind), intent(in) :: diurnal_fac, u0, Rsfc
     
@@ -260,8 +309,7 @@ contains
     ierrs = 0
     prates = 0.d0
     err = ''
-    !$omp parallel
-    !$omp private(l, i, j, jj, k, n, ie, ierr, partial_prates &
+    !$omp parallel private(l, i, j, jj, k, n, ie, ierr, partial_prates, &
     !$omp       & tausg, taua, tau, w0, amean, surf_rad, &
     !$omp       & amean_grd, flx)
     ierr = 0
@@ -274,24 +322,29 @@ contains
         j = raynums(i)
         do k = 1,nz
           n = nz+1-k
-          tausg(n) = tausg(n) + sigray(i,l)*densities(k,j)*dz(k)
+          tausg(n) = tausg(n) + sigray(i,l)*densities(j,k)*dz(k)
         enddo
       enddo
-      
+
       taua = 0.d0
       do i = 1,kj
         jj = photonums(i)
         j = reactants_sp_inds(1,jj)
         do k = 1,nz
           n = nz+1-k
-          taua(n) = taua(n) + xs_x_qy(k,i,l)*densities(k,j)*dz(k)
+          taua(n) = taua(n) + xs_x_qy(k,i,l)*densities(j,k)*dz(k)
         enddo
       enddo
 
       tau = tausg + taua
-      w0 = tausg/tau
-
+      do i = 1,nz
+        w0 = min(0.99999d0,tausg(i)/tau(i))
+      enddo
+      
       call two_stream(nz, tau, w0, u0, Rsfc, amean, surf_rad, ie)
+
+      
+      
       surf_radiance(l) = surf_rad
       ierr = ierr + ie
       
@@ -305,9 +358,10 @@ contains
 
       do i=1,kj
         do j=1,nz
-          partial_prates(j,i) = partial_prates(j,i) + flx**amean_grd(j)*xs_x_qy(j,i,l)
+          partial_prates(j,i) = partial_prates(j,i) + flx*amean_grd(j)*xs_x_qy(j,i,l)
         enddo
       enddo
+      
     enddo
     !$omp enddo
     !$omp critical
@@ -315,119 +369,142 @@ contains
     ierrs = ierrs + ierr
     !$omp end critical
     !$omp end parallel
-    
+
     if (ierrs /= 0) then
       err = 'Tridagiagonal linear solve in two stream radiative transfer failed.'
       return
     endif
 
+
   end subroutine
   
   
-  subroutine rhs_background_gas(neq, usol_flat, rhs, err)
-    use photochem_data, only: 
-    use photochem_vars, only: temperature
-    use photochem_wrk, only:
+  subroutine rhs_background_gas(neqs, usol_flat, rhs, err)
+    use photochem_const, only: pi
+    
+    use photochem_data, only: nq, nsp, nsl, nrT, kj, nw, species_mass, back_gas_mu, &
+                              wavl, photonums, species_names
+    use photochem_vars, only: nz, temperature, grav, dz, surface_pressure, &
+                              xs_x_qy, photon_flux, diurnal_fac, solar_zenith, &
+                              surface_albedo
   
-    integer, intent(in) :: neq
-    real(real_kind), intent(in) :: usol_flat(neq)
-    real(real_kind), intent(out) :: rhs(neq)
+    integer, intent(in) :: neqs
+    real(real_kind), intent(in), target :: usol_flat(neqs)
+    real(real_kind), intent(out) :: rhs(neqs)
     character(len=err_len), intent(out) :: err
-  
+    
+    real(real_kind), pointer :: usol(:,:)
+    
+    real(real_kind) :: sum_usol(nz)
+    real(real_kind) :: mubar(nz), pressure(nz), density(nz)
+    real(real_kind) :: densities(nsp+1,nz)
+    real(real_kind) :: rx_rates(nz,nrT)
+    real(real_kind) :: prates(nz,kj), surf_radiance(nw)
+    real(real_kind) :: xp(nz), xl(nz)
+    
+    real(real_kind) :: u0
+    
+    integer :: i, k, j
+    
     err = ''
-  
+    ! reshape usol_flat with a pointer (no copying; same memory)
+    usol(1:nq,1:nz) => usol_flat
+    
+    
     do i = 1,nz
-      sum_usol(i) = sum(usol(i,:))
-      if (sum_usol(i) > 1.5d0) then
-        err = 'Mixing ratios sum to >1.5 at some altitude (should be <=1).' //
+      sum_usol(i) = sum(usol(:,i))
+      if (sum_usol(i) > 1.0d0) then
+        err = 'Mixing ratios sum to >1.0 at some altitude (should be <=1).' // &
               ' The atmosphere is probably in a run-away state.'
         return
       endif
     enddo
-  
+    
     do i = 1,nz
-      call molar_weight(nq, usol(:,i), sum_usol(i), masses, background_mu, mubar(i))
+      call molar_weight(nq, usol(:,i), sum_usol(i), species_mass, back_gas_mu, mubar(i))
     enddo
-  
-    call press_and_den(nz, temperature, grav, Psurf, dz, &
+    
+    
+    call press_and_den(nz, temperature, grav, surface_pressure*1.d6, dz, &
                        mubar, pressure, density)
-  
+    
     do i = 1,nq
-      densities(:,i) = usol(:,i)*density
+      densities(i,:) = usol(i,:)*density
     enddo
-    densities(:,nsp) = (1.d0-sum_usol)*density ! background gas
-  
+    densities(nsp,:) = (1.d0-sum_usol)*density ! background gas
+    densities(nsp+1,:) = 1.d0 ! for hv
+    
     call reaction_rates(nsp, nz, nrT, temperature, density, &
                         densities, rx_rates, err)
     if (len_trim(err) /= 0) return
-  
-    call photorates(nz, nsp, kj, nw, nray, densities, xs_x_qy, sigray, &
-                    raynums, wavl, flux, diurnal_fac, u0, Rsfc, &
+
+    u0 = dcos(solar_zenith*pi/180.d0)
+    call photorates(nz, nsp, kj, nw, dz, densities, xs_x_qy, &
+                    photon_flux, diurnal_fac, u0, surface_albedo, &
                     prates, surf_radiance, err)
-    if (len_trim(err) /= 0) return
-  
     do i = 1,kj
       k = photonums(i)
       rx_rates(:,k) = prates(:,i) 
     enddo 
-  
-    ! short lived
-    do i = nq+1,nsl
+
+    ! short lived (need to fix)
+    do i = nq+1,nq+nsl
       call chempl(nz, nsp, nrT, densities, rx_rates, i, xp, xl)
-      densities(:,i) = xp/(xl/density)
+      densities(i,:) = xp/(xl/density)
     enddo
-  
+
     ! long lived              
     do i = 1,nq
       call chempl(nz, nsp, nrT, densities, rx_rates, i, xp, xl)
       do j = 1,nz
         k = i + (j - 1) * nq
-        rhs(k) = sp(j)/density(j) - xl(j)/density(j)
+        rhs(k) = (xp(j) - xl(j))/density(j)
       enddo
     enddo
-  
+
     ! diffusion
-    call diffusion_coeffs()
+    ! call diffusion_coeffs()
   
   
   end subroutine
   
   ! approximate jacobian when there is a background gas.
-  subroutine jac_backrnd_gas(neq, usol_flat, jac, err)
+  ! subroutine jac_backrnd_gas(neq, usol_flat, jac, err)
+  ! 
+  ! end subroutine
   
-  end subroutine
+  ! subroutine photochem_equil_backrnd_gas
+  !   use photochem_vars, only: usol_init
+  !   ! the stuff that DOES NOT depend on usol
+  !   ! problem dimension CAN NOT change.
+  !   call stuff_before_integration(T) !etc.
+  !   ! Solve the initial value problem
+  !   call solve_ivp()
+  !   call stuff_after_integration() ! we set up the output.
+  ! end subroutine
   
-  subroutine photochem_equil_backrnd_gas
-    use photochem_vars, only: usol_init
-    ! the stuff that DOES NOT depend on usol
-    ! problem dimension CAN NOT change.
-    call stuff_before_integration(T) !etc.
-    ! Solve the initial value problem
-    call solve_ivp()
-    call stuff_after_integration() ! we set up the output.
-  end subroutine
-  
-  subroutine press_and_den(nz, temperature, grav, Psurf, dz, &
+  subroutine press_and_den(nz, T, grav, Psurf, dz, &
                            mubar, pressure, density)
     use photochem_const, only: k_boltz, N_avo
   
     integer, intent(in) :: nz
-    real(real_kind), intent(in) :: temperature(nz), grav(nz)
+    real(real_kind), intent(in) :: T(nz), grav(nz)
     real(real_kind), intent(in) :: Psurf, dz(nz), mubar(nz)
   
     real(real_kind), intent(out) :: pressure(nz)
     real(real_kind), intent(out) :: density(nz)
   
     real(real_kind) :: T_temp
+    integer :: i
   
     ! first layer
     T_temp = T(1)
-    P(1) = Psurf * dexp(((mubar(1) * gravity)/(N_avo * k_boltz * T_temp)) * 0.5d0 * dz(1))
-    density(1) = pressure(1)/(k_boltz * T(i))
+    pressure(1) = Psurf * dexp(-((mubar(1) * grav(1))/(N_avo * k_boltz * T_temp)) * 0.5d0 * dz(1))
+    density(1) = pressure(1)/(k_boltz * T(1))
     ! other layers
     do i = 2,nz
       T_temp = (T(i) + T(i-1))/2.d0
-      pressure(i) = pressure(i-1) * dexp(-((mubar(i) * gravity)/(N_avo * k_boltz * T_temp))* dz(i))
+      pressure(i) = pressure(i-1) * dexp(-((mubar(i) * grav(i))/(N_avo * k_boltz * T_temp))* dz(i))
       density(i) = pressure(i)/(k_boltz * T(i))
     enddo
   
@@ -437,7 +514,7 @@ contains
     implicit none
     integer, intent(in) :: nq
     real(real_kind), intent(in) :: usol_layer(nq)
-    real(real)kind), intent(in) :: sum_usol_layer
+    real(real_kind), intent(in) :: sum_usol_layer
     real(real_kind), intent(in) :: masses(nq)
     real(real_kind), intent(in) :: background_mu
     real(real_kind), intent(out) :: mubar_layer

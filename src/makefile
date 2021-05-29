@@ -3,11 +3,13 @@ FC=gfortran
 FCFLAGS=-g -fbounds-check -std=f2018#-Wunused-variable
 SRC=photochem_const.f90 \
 		photochem_types.f90 \
+		photochem_vars.f90 \
 		photochem_input.f90 \
 		photochem_wrk.f90 \
-		photochem_vars.f90 \
 		photochem_data.f90 \
+		photochem_setup.f90 \
 		photochem_radtran.f90 \
+		photochem.f90 \
 		main.f90
 OBJ=$(SRC:.f90=.o)
 

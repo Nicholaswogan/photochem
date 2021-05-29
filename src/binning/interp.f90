@@ -12,13 +12,13 @@ subroutine interp(ng, n, xg, x, y, yg, err)
   integer :: i, j, nn
   
   do i = 1,n-1
-    if (x(i+1) < x(i)) then
+    if (x(i+1) <= x(i)) then
       err = 'x must be sorted.'
       return
     endif
   enddo
   do i = 1,ng-1
-    if (xg(i+1) < xg(i)) then
+    if (xg(i+1) <= xg(i)) then
       err = 'xg must be sorted.'
       return
     endif

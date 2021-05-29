@@ -7,9 +7,9 @@ atmosphere-grid:
 
 photolysis-grid:
   regular-grid: true
-  lower-wavelength: 100.0 # nm
+  lower-wavelength: 50.0 # nm
   upper-wavelength: 800.0 # nm
-  number-of-bins: 10
+  number-of-bins: 100
   # input-file: my/input/file.txt
 
 planet:
@@ -19,6 +19,8 @@ planet:
   planet-mass: 5.972e27 # grams
   planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
   surface-albedo: 0.25 # cm
+  diurnal-averaging-factor: 0.5
+  solar-zenith-angle: 50.0
   water:
     water-saturated-troposphere: true
     tropopause-altitude: 1.1e6 # cm
@@ -67,8 +69,6 @@ boundary-conditions:
       veff: 0.0
       type: constant effusion velocity
       
-  - name: O1D
-    type: short lived
       
   - name: N2H3
     lower-boundary:

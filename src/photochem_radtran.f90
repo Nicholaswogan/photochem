@@ -8,6 +8,7 @@ module photochem_radtran
 contains
   
   subroutine two_stream(nz, tau, w0, u0, Rsfc, amean, surface_radiance, ierr, method)
+    use photochem_const, only: ln_small_real, small_real
     integer, intent(in) :: nz
     real(8), intent(in) :: tau(nz)
     real(8), intent(in) :: w0(nz)
@@ -60,7 +61,7 @@ contains
     
     ! e's (Equation 44)
     do i = 1,nz
-      wrk_real = dexp(-lambda(i)*tau(i))
+      wrk_real = dexp(max(-lambda(i)*tau(i),ln_small_real))
       e1(i) = 1.d0 + cap_gam(i)*wrk_real
       e2(i) = 1.d0 - cap_gam(i)*wrk_real
       e3(i) = cap_gam(i) + wrk_real
@@ -78,18 +79,20 @@ contains
     ! Note: Toon et al. 1989 defines Fs * pi = solar flux. So Fs = solar flux / pi
     direct(1) = u0*Fs_pi
     do i=1,nz
+      
       facp = w0(i)*Fs_pi*((gam1(i)-1.d0/u0)*gam3(i)+gam4(i)*gam2(i))
       facm = w0(i)*Fs_pi*((gam1(i)+1.d0/u0)*gam4(i)+gam2(i)*gam3(i)) 
       et0 = dexp(-tauc(i)/u0)
       etb = et0*dexp(-tau(i)/u0)!*pi
       denom = lambda(i)**2.d0 - 1.d0/u0**2.d0
-      
+
       direct(i+1) = u0*Fs_pi*etb
       cp0(i) = et0*facp/denom
       cpb(i) = etb*facp/denom
       cm0(i) = et0*facm/denom
       cmb(i) = etb*facm/denom
     enddo
+
     Ssfc = Rsfc*direct(nz+1)
       
     ! Coefficients of tridiagonal linear system (Equations 39 - 43)
@@ -182,8 +185,8 @@ contains
     enddo
     
     d(n) = (d(n) - a(n)*d(n-1)) / (b(n) - a(n)*c(n-1))
-    
-    do i = n,1,-1
+
+    do i = n-1,1,-1
       d(i) = d(i) - c(i)*d(i+1)
     enddo
   end subroutine

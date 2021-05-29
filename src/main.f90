@@ -1,33 +1,39 @@
 
 program main
-  use photochem_input, only: read_all_files, reaction_string
-  use photochem_types, only: PhotoMechanism, PhotoRadTran, PhotoSettings, PhotoInitAtm
-  use photochem_data, only: read_input_files
+  ! use photochem_input, only: read_all_files, reaction_string
+  use photochem_setup, only: setup
+  use photochem_vars, only: data_dir, neqs, usol_init
+  use photochem, only: rhs_background_gas
   implicit none
-  type(PhotoSettings) :: photoset
-  type(PhotoMechanism) :: photomech
-  type(PhotoRadTran) :: photorad
-  type(PhotoInitAtm) :: photoinit
+  ! type(PhotoSettings) :: photoset
+  ! type(PhotoMechanism) :: photomech
+  ! type(PhotoRadTran) :: photorad
+  ! type(PhotoInitAtm) :: photoinit
   character(len=1024) :: err
   character(len=:), allocatable :: rxstring
   integer i
+  real(8), pointer :: usol_flat(:)
+  real(8), allocatable :: rhs(:)
   
-  ! read(*,*) i
-  
-  ! call read_all_files("../zahnle.yaml", "../settings.yaml", "../Sun_4.0Ga.txt", "../atmosphere.txt", &
-  !                     photomech, photoset, photorad, photoinit, err)
-  ! if (len(trim(err)) > 0) then
-  !   print*,trim(err)
-  !   print*,'error worked rad'
-  !   stop
-  ! endif
-  
-  call read_input_files("../zahnle.yaml", "../settings.yaml", "../Sun_4.0Ga.txt", "../atmosphere.txt", err)
+  data_dir = "../data"
+
+  call setup("../zahnle.yaml", "../settings.yaml", "../Sun_4.0Ga.txt", "../atmosphere.txt", err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     print*,'error worked rad'
     stop
   endif
+  
+  usol_flat(1:neqs) => usol_init
+  allocate(rhs(neqs))
+  
+  call rhs_background_gas(neqs, usol_flat, rhs, err)
+  if (len(trim(err)) > 0) then
+    print*,trim(err)
+    print*,'error worked rad'
+    stop
+  endif
+  
   
   ! read(*,*) i
   

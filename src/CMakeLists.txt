@@ -3,8 +3,14 @@ cmake_minimum_required(VERSION "3.19.6")
 
 project(photochem LANGUAGES Fortran)
 
-add_library(photochem
-            photochem_const.f90 photochem_types.f90 photochem_input.f90
+add_library(photochem 
+            photochem_const.f90 
+        		photochem_types.f90 
+        		photochem_input.f90 
+        		photochem_wrk.f90 
+        		photochem_vars.f90 
+        		photochem_data.f90 
+        		photochem_radtran.f90 
 )
 
 set_property(TARGET photochem PROPERTY Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/modules")
