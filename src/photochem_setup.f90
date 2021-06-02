@@ -13,15 +13,13 @@ contains
                               planet_radius, planet_mass, nq, kj, nw
     use photochem_vars, only: bottom_atmos, top_atmos, nz, &
                               z, dz, grav, temperature, edd, usol_init, &
-                              xs_x_qy
+                              xs_x_qy, trop_ind, trop_alt
     
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
     character(len=*), intent(in) :: flux_file
     character(len=*), intent(in) :: atmosphere_txt
     character(len=err_len), intent(out) :: err
-    
-    integer :: i
     
     call setup_files(mechanism_file, settings_file, flux_file, atmosphere_txt, err)
     if (len_trim(err) /= 0) return
@@ -30,6 +28,7 @@ contains
     call allocate_nz_vars()
     ! set up the atmosphere grid
     call vertical_grid(bottom_atmos, top_atmos, nz, z, dz)
+    trop_ind = minloc(z,1, z .ge. trop_alt) - 1
     call gravity(planet_radius, planet_mass, nz, z, grav)
     call interp2atmosfile(nz, nq, z, temperature, edd, usol_init, err)
     if (len_trim(err) /= 0) return
@@ -50,30 +49,34 @@ contains
     real(real_kind), intent(out) :: xs_x_qy(nz,kj,nw)
     character(len=err_len), intent(out) :: err
     
-    integer :: i, j, k, l, m, mm, ncol
+    integer :: i, j, k, l, m, ncol
     real(real_kind) :: val(1), T_temp(1)
     real(real_kind) ,allocatable :: tmp(:)
     
     allocate(tmp(size(xs_data_temps,1)))
     err = ''
     
-    do j = 1,nz
-      T_temp(1) = temperature(j)
+    !$omp parallel private(k, i, l, j, m, ncol, T_temp, tmp, val, err)
+    !$omp do
+    do k = 1, nw
       do i = 1,kj
         ncol = num_temp_cols(i)
+        do l = 1, ncol
+          m = ((l-1)*nw + 1) + (sum_temp_cols(i)*nw)
+          tmp(l) = xs_data(m+k-1+(l-1)*nw)
+        enddo
     
-        do k = 1, nw
-          do l = 1, ncol
-            m = ((l-1)*nw + 1) + (sum_temp_cols(i)*nw)
-            tmp(l) = xs_data(m+k-1+(l-1)*nw)
-          enddo
-          ! print*,dlog10(tmp(1:ncol))
-          call interp(1, ncol, T_temp, xs_data_temps(1:ncol,i), dlog10(dabs(tmp(1:ncol)+small_real)), val, err)
-          if (len_trim(err) /= 0) return
+        do j = 1,nz
+          T_temp(1) = temperature(j)
+    
+          call interp(1, ncol, T_temp, xs_data_temps(1:ncol,i), log10(abs(tmp(1:ncol)+small_real)), val, err)
+          ! if (len_trim(err) /= 0) return
           xs_x_qy(j,i,k) = 10.d0**val(1)
         enddo
       enddo
     enddo
+    !$omp end do
+    !$omp end parallel
 
   end subroutine
   

@@ -2,7 +2,6 @@
 module photochem_input
   use yaml_types, only : type_node, type_dictionary, type_list, type_error, &
                          type_list_item, type_scalar, type_key_value_pair
-  use stringifor, only : string
   use photochem_types, only : PhotoMechanism, PhotoSettings, PhotoRadTran, PhotoInitAtm
   implicit none
   private 
@@ -97,9 +96,9 @@ contains
 
     ! temporary work variables
     character(len=str_len) :: tmpchar
-    type(string) :: tmp
-    type(string), allocatable :: eqr(:), eqp(:)
-    integer :: i, j, k, kk, l, ind(1)
+    character(len=str_len) :: tmp
+    character(len=20), allocatable :: eqr(:), eqp(:)
+    integer :: i, j, k, kk, l, ind(1), size_eqr, size_eqp
     logical :: reverse
     err = ''
 
@@ -250,7 +249,7 @@ contains
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
         call get_rateparams(element, infile, photomech%rxtypes(j), &
-                          photomech%falloff_type(j), photomech%rateparams(:,j), err)
+                            photomech%falloff_type(j), photomech%rateparams(:,j), err)
         if (len_trim(err) > 0) return        
         
         call parse_reaction(tmp, reverse, eqr, eqp, err)
@@ -259,9 +258,11 @@ contains
         call compare_rxtype_string(tmp, eqr, eqp, reverse, photomech%rxtypes(j),err)
         if (len_trim(err) > 0) return
         
+        size_eqp = size(eqp)
+        size_eqr = size(eqr)
         if ((photomech%rxtypes(j) == 2) .or. (photomech%rxtypes(j) == 3)) then ! if threebody or falloff
-          eqr = eqr(1:size(eqr)-1) ! remove the M
-          eqp = eqp(1:size(eqp)-1)
+          size_eqr = size_eqr - 1 ! remove the M
+          size_eqp = size_eqp - 1
         endif
         
         if (reverse) then
@@ -271,11 +272,11 @@ contains
             return
           endif
           photomech%nrR = photomech%nrR + 1
-          if (size(eqr) > photomech%max_num_products) photomech%max_num_products = size(eqr)
-          if (size(eqp) > photomech%max_num_reactants) photomech%max_num_reactants = size(eqp)
+          if (size_eqr > photomech%max_num_products) photomech%max_num_products = size_eqr
+          if (size_eqp > photomech%max_num_reactants) photomech%max_num_reactants = size_eqp
         endif
-        if (size(eqr) > photomech%max_num_reactants) photomech%max_num_reactants = size(eqr)
-        if (size(eqp) > photomech%max_num_products) photomech%max_num_products = size(eqp)
+        if (size_eqr > photomech%max_num_reactants) photomech%max_num_reactants = size_eqr
+        if (size_eqp > photomech%max_num_products) photomech%max_num_products = size_eqp
         
         call count_efficiencies(element, photomech%num_efficient(j))
         
@@ -326,7 +327,7 @@ contains
                             photomech%nreactants(j), photomech%nproducts(j), &
                             photomech%reactants_names(:,j), photomech%products_names(:,j), reverse, err)
         if (len_trim(err)>0) return
-                            
+        
         call get_reaction_sp_nums(tmp, photomech%max_num_reactants, photomech%max_num_products, &
                                  photomech%reactants_names(:,j), photomech%products_names(:,j), &
                                  photomech%species_names, photomech%species_composition, &
@@ -545,8 +546,8 @@ contains
   end subroutine
   
   subroutine compare_rxtype_string(tmp, eqr, eqp, reverse, rxtype_int, err)
-    type(string), allocatable, intent(in) :: eqr(:), eqp(:)
-    type(string), intent(in) :: tmp
+    character(len=*), intent(in) :: tmp
+    character(len=20), allocatable, intent(in) :: eqr(:), eqp(:)
     logical, intent(in) :: reverse
     integer, intent(in) :: rxtype_int
     character(len=err_len), intent(out) :: err
@@ -572,95 +573,94 @@ contains
   
     if ((trim(rxtype) == 'three-body') .or. (trim(rxtype) == 'falloff')) then
       do i = 1,size(eqr)
-        if ((trim(eqr(i)%chars()) == 'M').and.j) jj = .true.
-        if (trim(eqr(i)%chars()) == 'M') j = .true.
-        if (trim(eqr(i)%chars()) == 'hv') m = .true.
+        if ((trim(eqr(i)) == 'M').and.j) jj = .true.
+        if (trim(eqr(i)) == 'M') j = .true.
+        if (trim(eqr(i)) == 'hv') m = .true.
       enddo
       do i = 1,size(eqp)
-        if ((trim(eqp(i)%chars()) == 'M').and.k) kk = .true.
-        if (trim(eqp(i)%chars()) == 'M') k = .true.
-        if (trim(eqp(i)%chars()) == 'hv') l = .true.
+        if ((trim(eqp(i)) == 'M').and.k) kk = .true.
+        if (trim(eqp(i)) == 'M') k = .true.
+        if (trim(eqp(i)) == 'hv') l = .true.
       enddo
-      if (trim(eqr(size(eqr))%chars()) /= 'M') then
-        err = 'IOError: '//trim(rxtype)// ' reaction '//tmp// &
+      if (trim(eqr(size(eqr))) /= 'M') then
+        err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' must have "M" as the last reactant'
         return
       endif
-      if (trim(eqp(size(eqp))%chars()) /= 'M') then
-        err = 'IOError: '//trim(rxtype)// ' reaction '//tmp// &
+      if (trim(eqp(size(eqp))) /= 'M') then
+        err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' must have "M" as the last product'
         return
       endif
       if ((j).and.(k)) then
         ! good
       else
-        err = 'IOError: '//trim(rxtype)// ' reaction '//tmp// &
+        err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' must have "M" on both sides'
         return
       endif
       if ((jj).or.(kk)) then
-        err = 'IOError: '//trim(rxtype)// ' reaction '//tmp// &
+        err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' can only have one "M" on either side'
         return
       endif
       if ((m).or.(l)) then
-        err = 'IOError: '//trim(rxtype)// ' reaction '//tmp// &
+        err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' can not contain "hv". Only photolysis reactions can.'
         return
       endif
     elseif (trim(rxtype) == 'elementary') then
       do i = 1,size(eqr)
-        if (trim(eqr(i)%chars()) == 'M') j = .true.
-        if (trim(eqr(i)%chars()) == 'hv') m = .true.
+        if (trim(eqr(i)) == 'M') j = .true.
+        if (trim(eqr(i)) == 'hv') m = .true.
       enddo
       do i = 1,size(eqp)
-        if (trim(eqp(i)%chars()) == 'M') k = .true.
-        if (trim(eqp(i)%chars()) == 'hv') l = .true.
+        if (trim(eqp(i)) == 'M') k = .true.
+        if (trim(eqp(i)) == 'hv') l = .true.
       enddo
       if ((j).or.(k)) then
-        err = 'IOError: '//trim(rxtype)// ' reaction '//tmp// &
+        err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' can not contain "M".'
         return
       endif
       if ((m).or.(l)) then
-        err = 'IOError: '//trim(rxtype)// ' reaction '//tmp// &
+        err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' can not contain "hv". Only photolysis reactions can.'
         return
       endif
     elseif (trim(rxtype) == 'photolysis') then
       if (reverse) then
-        err = 'IOError: Photolysis reaction '//tmp//' can not be reversed.'
+        err = 'IOError: Photolysis reaction '//trim(tmp)//' can not be reversed.'
       endif
       
       do i = 1,size(eqr)
-        if (trim(eqr(i)%chars()) == 'M') j = .true.
-        if ((trim(eqr(i)%chars()) == 'hv').and.(m)) jj = .true.
-        if (trim(eqr(i)%chars()) == 'hv') m = .true.
+        if (trim(eqr(i)) == 'M') j = .true.
+        if ((trim(eqr(i)) == 'hv').and.(m)) jj = .true.
+        if (trim(eqr(i)) == 'hv') m = .true.
       enddo
       do i = 1,size(eqp)
-        if (trim(eqp(i)%chars()) == 'M') k = .true.
-        if (trim(eqp(i)%chars()) == 'hv') l = .true.
+        if (trim(eqp(i)) == 'M') k = .true.
+        if (trim(eqp(i)) == 'hv') l = .true.
       enddo
       if ((j).or.(k)) then
-        err = 'IOError: '//trim(rxtype)// ' reaction '//tmp// &
+        err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' can not contain "M".'
         return
       endif
       if (jj) then
-        err = 'IOError: '//trim(rxtype)// ' reaction '//tmp// &
+        err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' can only have one "hv" on the left side.'
         return
       endif
       if ((m).and..not.(l)) then
         ! good
       else
-        err = 'IOError: '//trim(rxtype)// ' reaction '//tmp// &
+        err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' must have "hv" on the left and no "hv" on the right.'
         return
       endif
     endif
   end subroutine
-    
   
   subroutine get_thermodata(molecule, molecule_name, infile, &
                             thermo_temps_entry, thermo_data_entry, err)
@@ -875,25 +875,26 @@ contains
     endif
     
   end subroutine
-  
-  
-  !!! version that is not done that does not depend on stringifor
-  subroutine parse_reaction_new(instring, reverse, err)
+
+  subroutine parse_reaction(instring, reverse, eqr, eqp, err)
     character(len=*), intent(in) :: instring
     logical, intent(out) :: reverse
-    ! character(len=str_len), allocatable, intent(out) :: eqr(:), eqp(:)
+    character(len=20), allocatable, intent(out) :: eqr(:), eqp(:)
     character(len=err_len), intent(out) :: err
     
     character(len=:), allocatable :: string2, string3
     character(len=:), allocatable :: eqr1, eqp1, eqr2, eqp2
-    integer i
+    integer :: i, nreac1, nprod1, nreac2, nprod2, start
+    logical :: switch
     
     string2 = ''
     string3 = ''
     do i = 1,len_trim(instring)
       if (instring(i:i) /= '(' .and. instring(i:i) /= ')') then
         string2 = string2//instring(i:i)
-        if (instring(i:i) /= '+') then
+        if (instring(i:i) == '+') then
+          string3 = string3//' '
+        else
           string3 = string3//instring(i:i)
         endif
       endif
@@ -906,6 +907,7 @@ contains
       i = index(string3, "<=>")
       eqr2 = string3(1:i-1)
       eqp2 = string3(i+3:)
+      reverse = .true.
     elseif (index(instring, " =>") /= 0) then
       i = index(string2, " =>")
       eqr1 = string2(1:i-1)
@@ -913,37 +915,6 @@ contains
       i = index(string3, " =>")
       eqr2 = string3(1:i-1)
       eqp2 = string3(i+3:)
-    else
-      err = "IOError: Invalid reaction arrow in reaction "//instring// &
-            '. Note, forward reactions must have a space before the arrow, like " =>"'
-      return
-    endif
-    
-  end subroutine
-  
-  
-  
-  
-  subroutine parse_reaction(instring, reverse, eqr, eqp, err)
-    type(string), intent(in) :: instring
-    logical, intent(out) :: reverse
-    type(string), allocatable, intent(out) :: eqr(:), eqp(:)
-    character(len=err_len), intent(out) :: err
-    
-    type(string) :: string1, string2, string3
-    type(string), allocatable :: eq1(:), eq2(:)
-    type(string), allocatable :: eqr1(:), eqp1(:)
-    integer i
-    string1 = instring%replace(old='(', new=' ')
-    string2 = string1%replace(old=')', new=' ')
-    string3 = string2%replace(old='+', new=' ')
-    if (index(instring%chars(), "<=>") /= 0) then
-      call string2%split(eq1, sep="<=>")
-      call string3%split(eq2, sep="<=>")
-      reverse = .true.
-    elseif (index(instring%chars(), " =>") /= 0) then
-      call string2%split(eq1, sep="=>")
-      call string3%split(eq2, sep="=>")
       reverse = .false.
     else
       err = "IOError: Invalid reaction arrow in reaction "//instring// &
@@ -951,35 +922,105 @@ contains
       return
     endif
     
-    call eq1(1)%split(eqr1, sep="+")
-    call eq1(2)%split(eqp1, sep="+")
-    ! remove white space
-    allocate(eqr(size(eqr1)))
-    allocate(eqp(size(eqp1)))
-    do i=1,size(eqr1)
-      eqr(i) = eqr1(i)%replace(old=' ', new='')
+    ! trim whitespace
+    call trim_whitespace(eqr1)
+    call trim_whitespace(eqp1)
+    call trim_whitespace(eqp2)
+    call trim_whitespace(eqr2)
+    
+    ! count number of + signs
+    nreac1 = 1
+    do i = 1,len(eqr1)
+      if (eqr1(i:i) == '+') nreac1 = nreac1 + 1
     enddo
-    do i=1,size(eqp1)
-      eqp(i) = eqp1(i)%replace(old=' ', new='')
+    nprod1 = 1
+    do i = 1,len(eqp1)
+      if (eqp1(i:i) == '+') nprod1 = nprod1 + 1
     enddo
     
-    call eq2(1)%split(eqr1, sep=" ")
-    call eq2(2)%split(eqp1, sep=" ")
+    ! count number of gaps
+    nreac2 = 1
+    switch = .true.
+    do i = 1,len(eqr2)
+      if (eqr2(i:i) == ' ' .and. switch) then
+        nreac2 = nreac2 + 1
+        switch = .false.
+      endif
+      if (eqr2(i:i) /= ' ' .and. .not.switch) switch = .true.
+    enddo
+    nprod2 = 1
+    switch = .true.
+    do i = 1,len(eqp2)
+      if (eqp2(i:i) == ' ' .and. switch) then
+        nprod2 = nprod2 + 1
+        switch = .false.
+      endif
+      if (eqp2(i:i) /= ' ' .and. .not.switch) switch = .true.
+    enddo
     
-    if ((size(eqr1) /= size(eqr)) .or. (size(eqp1) /= size(eqp))) then
-      err = 'IOError: Missing "+" sign(s) in reaction '//instring
+    if (nreac1 /= nreac2 .or. nprod1 /= nprod2) then
+      err = 'IOError: Missing or too many "+" sign(s) in reaction '//instring
       return
     endif
     
-    if (size(eqr) + size(eqp) /= instring%count('+') + 2) then
-      err = 'IOError: Too many "+" signs in reaction '//instring
-      return
+    if (allocated(eqr)) then
+      deallocate(eqr, eqp)
     endif
+    allocate(eqr(nreac1), eqp(nprod1))
+    eqr = ''
+    eqp = ''
+    
+    nreac2 = 1
+    start = 1
+    switch = .true.
+    do i = 1,len(eqr2)
+      if (eqr2(i:i) == ' ' .and. switch) then
+        eqr(nreac2) = eqr2(start:i-1)
+        nreac2 = nreac2 + 1
+        switch = .false.
+      endif
+      if (eqr2(i:i) /= ' ' .and. .not.switch) then
+        start = i
+        switch = .true.
+      endif
+    enddo
+    eqr(nreac2) = eqr2(start:)
+    
+    nprod2 = 1
+    start = 1
+    switch = .true.
+    do i = 1,len(eqp2)
+      if (eqp2(i:i) == ' ' .and. switch) then
+        eqp(nprod2) = eqp2(start:i-1)
+        nprod2 = nprod2 + 1
+        switch = .false.
+      endif
+      if (eqp2(i:i) /= ' ' .and. .not.switch) then
+        start = i
+        switch = .true.
+      endif
+    enddo
+    eqp(nprod2) = eqp2(start:)
+    
   end subroutine
   
+  subroutine trim_whitespace(str)
+    character(len=:), allocatable, intent(inout) :: str
+    
+    integer :: i
+    do i = 1,len(str)
+      if (str(i:i) /= ' ') exit
+    enddo
+    str= str(i:)
+    do i = len(str),1,-1
+      if (str(i:i) /= ' ') exit
+    enddo
+    str = str(1:i)
+  end subroutine
+    
   subroutine get_reaction_chars(instring, max_num_react, max_num_prod, numr, nump, &
-                                outreact, outprod, reverse, err)
-    type(string), intent(in) :: instring
+                                    outreact, outprod, reverse, err)
+    character(len=*), intent(in) :: instring
     integer, intent(in) :: max_num_react, max_num_prod
     
     integer, intent(out) :: numr, nump
@@ -987,34 +1028,34 @@ contains
     logical, intent(out) :: reverse
     character(len=err_len), intent(out) :: err
     
-    type(string), allocatable :: eqr(:), eqp(:)
+    character(len=20), allocatable :: eqr(:), eqp(:)
     integer :: i
     
     call parse_reaction(instring, reverse, eqr, eqp, err)
     if (len_trim(err) > 0) return
     
-    if (eqr(size(eqr)) == 'M') then
-      eqr = eqr(1:size(eqr)-1)
-      eqp = eqp(1:size(eqp)-1)
-    endif
-    
     numr = size(eqr)
     nump = size(eqp)
+
+    if (eqr(size(eqr)) == 'M') then
+      numr = numr - 1
+      nump = nump - 1
+    endif
     
     outreact = ''
     outprod = ''
     do i=1,numr
-      outreact(i) = eqr(i)%chars()
+      outreact(i) = eqr(i)
     enddo
     do i=1,nump
-      outprod(i) = eqp(i)%chars()
+      outprod(i) = eqp(i)
     enddo
   end subroutine
-  
+    
   subroutine get_reaction_sp_nums(reaction, max_num_react, max_num_prod, reacts, prods, &
                                   species_names, species_composition, natoms, nsp, &
                                   react_sp_nums, prod_sp_nums, err)
-    type(string), intent(in) :: reaction
+    character(len=*), intent(in) :: reaction
     integer, intent(in) :: max_num_react, max_num_prod
     character(len=8), intent(in) :: reacts(max_num_react)
     character(len=8), intent(in) :: prods(max_num_prod)
@@ -1037,8 +1078,8 @@ contains
       react_sp_nums(i) = ind(1)
       if ((reacts(i) /= '') .and. (ind(1) == 0)) then
         err = "IOError: "// & 
-               "Species "//trim(reacts(i))//" in reaction "//reaction// &
-               "is not in the list of species."
+               "Species "//trim(reacts(i))//" in reaction "//trim(reaction)// &
+               " is not in the list of species."
         return
       endif
     enddo
@@ -1048,7 +1089,7 @@ contains
       prod_sp_nums(i) = ind(1)
       if ((prods(i) /= '') .and. (ind(1) == 0)) then
         err = "IOError: "// & 
-               "Species "//trim(prods(i))//" in reaction "//reaction// &
+               "Species "//trim(prods(i))//" in reaction "//trim(reaction)// &
                "is not in the list of species."
         return
       endif
@@ -1066,7 +1107,7 @@ contains
     enddo
     if (.not. all(reactant_atoms == product_atoms)) then
       err = "IOError: "//& 
-             'Bad mass balance in reaction "'//reaction// &
+             'Bad mass balance in reaction "'//trim(reaction)// &
              '". You could have messed up how many atoms one of the species has.'
       return
     endif
@@ -1463,6 +1504,14 @@ contains
         kk = photomech%iloss(k,j)
         call reaction_string(photomech,kk,reaction)
         m = photomech%nreactants(kk)
+        
+        ! check that sl species is the first reactant
+        if (photomech%reactants_sp_inds(1,kk) /= j) then
+          err = 'IOError: Reaction "'//reaction//'" short lived species is not'// &
+          ' is not the first reactant. Short lived species must always be the first reactant.'
+          return
+        endif
+        
         counter = 0
         do mm = 1, m
           n = photomech%reactants_sp_inds(mm,kk)

@@ -8,7 +8,6 @@ module photochem_radtran
 contains
   
   subroutine two_stream(nz, tau, w0, u0, Rsfc, amean, surface_radiance, ierr, method)
-    use photochem_const, only: ln_small_real, small_real
     integer, intent(in) :: nz
     real(8), intent(in) :: tau(nz)
     real(8), intent(in) :: w0(nz)
@@ -32,7 +31,7 @@ contains
     
     integer :: i, l
     real(real_kind) :: wrk_real, facp, facm, et0, etb, denom, Ssfc, fs_pi
-    integer ::  info
+    ! integer ::  info
     
     ierr = 0
     gt = 0.0d0 ! asymetry factor. Zero for now
@@ -61,7 +60,7 @@ contains
     
     ! e's (Equation 44)
     do i = 1,nz
-      wrk_real = dexp(max(-lambda(i)*tau(i),ln_small_real))
+      wrk_real = dexp(-lambda(i)*tau(i))
       e1(i) = 1.d0 + cap_gam(i)*wrk_real
       e2(i) = 1.d0 - cap_gam(i)*wrk_real
       e3(i) = cap_gam(i) + wrk_real

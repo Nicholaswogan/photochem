@@ -30,6 +30,7 @@ contains
     integer, intent(in) :: rxn
     character(len=:), allocatable, intent(out) :: rxstring
     integer j, k, i
+
     rxstring = ''
     if (rxn > nrF) then
       i = reverse_info(rxn)
@@ -100,7 +101,7 @@ contains
           enddo
           rx_rates(j,i) = arrhenius_rate(rateparams(1,i), rateparams(2,i), &
                                          rateparams(3,i), temperature(j)) &
-                                         * eff_den(j) ! we multiply density here!
+                                         * eff_den(j) ! we multiply density here
         enddo
         
       
@@ -138,10 +139,9 @@ contains
           enddo
         endif
         
-        ! compute rate (effective density is included)
+        ! compute rate
         do j = 1,nz
-          rx_rates(j,i) = falloff_rate(kinf(j), Pr(j), F(j)) &
-                          * eff_den(j) ! we multiply density here  
+          rx_rates(j,i) = falloff_rate(kinf(j), Pr(j), F(j))
         enddo
     
       endif
@@ -168,10 +168,8 @@ contains
           enddo
           Dg_forward = gibbP_forward - gibbR_forward ! DG of the forward reaction (J/mol)
           ! compute the reverse rate
-          ! print*,dexp(-Dg_forward/(Rgas * temperature(j)))
-          Dg_forward = max(-1000000.0d0,Dg_forward)
           rx_rates(j,i) = rx_rates(j,n) * &
-                          (1.d0/dexp(-Dg_forward/(Rgas * temperature(j)))) * &
+                          (1.d0/exp(-Dg_forward/(Rgas * temperature(j)))) * &
                           (k_boltz*temperature(j)/1.d6)**(m-l)
         enddo
       enddo
@@ -188,7 +186,7 @@ contains
     character(len=err_len), intent(out) :: err
     
     integer :: i, j, k
-    real(real_kind) :: enthalpy, entropy, TT
+
     err = ''
     
     do i = 1,nsp
@@ -221,13 +219,13 @@ contains
     enthalpy = coeffs(1)*TT + (coeffs(2)*TT**2)/2.d0 &
              + (coeffs(3)*TT**3)/3.d0  + (coeffs(4)*TT**4)/4.d0 &
              - coeffs(5)/TT + coeffs(6)
-    entropy = coeffs(1)*dlog(TT) + coeffs(2)*TT &
+    entropy = coeffs(1)*log(TT) + coeffs(2)*TT &
             + (coeffs(3)*TT**2)/2.d0 + (coeffs(4)*TT**3)/3.d0 &
             - coeffs(5)/(2.d0 * TT**2) + coeffs(7)
     gibbs = enthalpy*1000.d0 - T*entropy
   end subroutine
   
-  subroutine chempl(nz, nsp, nrT, densities, rx_rates, k, xp, xl)
+  subroutine chempl(nz, nsp, nrT, densities, rx_rates, k, loss_start_ind, xp, xl)
     use photochem_data, only: nump, numl, iprod, iloss, &
                               reactants_sp_inds, nreactants
     
@@ -236,9 +234,10 @@ contains
     real(real_kind), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
     real(real_kind), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
     integer, intent(in) :: k ! species number
+    integer, intent(in) :: loss_start_ind ! = 1 if LL, and = 2 for short-lived
     
     ! output
-    real(real_kind), intent(out) :: xp(nz), xl(nz) ! molecules/cm3/s
+    real(real_kind), intent(out) :: xp(nz), xl(nz) ! molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
     
     ! local
     real(real_kind) :: DD
@@ -269,7 +268,7 @@ contains
       l = nreactants(m) ! number of reactants
       do j = 1,nz
         DD = 1.d0
-        do ii = 1,l
+        do ii = loss_start_ind,l
           iii = reactants_sp_inds(ii,m)
           DD = DD * densities(iii,j)
         enddo
@@ -278,13 +277,12 @@ contains
     enddo
     
   end subroutine
-  
 
   subroutine photorates(nz, nsp, kj, nw, dz, densities, xs_x_qy, &
                         flux, diurnal_fac, u0, Rsfc, &
                         prates, surf_radiance,err)
     use photochem_radtran, only: two_stream
-    use photochem_data, only: photonums, reactants_sp_inds, nray, sigray, raynums, wavl
+    use photochem_data, only: photonums, reactants_sp_inds, nray, sigray, raynums
 
     ! input
     integer, intent(in) :: nz, nsp, kj, nw
@@ -338,20 +336,20 @@ contains
 
       tau = tausg + taua
       do i = 1,nz
-        w0 = min(0.99999d0,tausg(i)/tau(i))
+        w0(i) = min(0.99999d0,tausg(i)/tau(i))
       enddo
       
       call two_stream(nz, tau, w0, u0, Rsfc, amean, surf_rad, ie)
-
-      
-      
       surf_radiance(l) = surf_rad
       ierr = ierr + ie
+      do i = 1, nz+1
+        amean(i) = abs(amean(i))
+      enddo
       
       ! convert amean to photolysis grid
       do i = 1,nz
         n = nz+1-i
-        amean_grd(i) = dsqrt(amean(n)*amean(n+1))
+        amean_grd(i) = sqrt(amean(n)*amean(n+1))        
       enddo
       
       flx = flux(l)*diurnal_fac ! photons/cm2/s
@@ -375,7 +373,6 @@ contains
       return
     endif
 
-
   end subroutine
   
   
@@ -383,10 +380,12 @@ contains
     use photochem_const, only: pi
     
     use photochem_data, only: nq, nsp, nsl, nrT, kj, nw, species_mass, back_gas_mu, &
-                              wavl, photonums, species_names
-    use photochem_vars, only: nz, temperature, grav, dz, surface_pressure, &
+                              photonums, water_sat_trop
+    use photochem_vars, only: nz, temperature, grav, z, dz, edd, surface_pressure, &
                               xs_x_qy, photon_flux, diurnal_fac, solar_zenith, &
-                              surface_albedo
+                              surface_albedo, trop_ind, &
+                              lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
+                              lower_dist_height, lower_fix_mr, upper_veff, upper_flux
   
     integer, intent(in) :: neqs
     real(real_kind), intent(in), target :: usol_flat(neqs)
@@ -401,15 +400,14 @@ contains
     real(real_kind) :: rx_rates(nz,nrT)
     real(real_kind) :: prates(nz,kj), surf_radiance(nw)
     real(real_kind) :: xp(nz), xl(nz)
+    real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz), ADU(nq,nz), ADL(nq,nz)
     
-    real(real_kind) :: u0
-    
-    integer :: i, k, j
+    real(real_kind) :: u0, disth, ztop, ztop1    
+    integer :: i, k, j, jdisth
     
     err = ''
     ! reshape usol_flat with a pointer (no copying; same memory)
     usol(1:nq,1:nz) => usol_flat
-    
     
     do i = 1,nz
       sum_usol(i) = sum(usol(:,i))
@@ -424,64 +422,340 @@ contains
       call molar_weight(nq, usol(:,i), sum_usol(i), species_mass, back_gas_mu, mubar(i))
     enddo
     
-    
     call press_and_den(nz, temperature, grav, surface_pressure*1.d6, dz, &
                        mubar, pressure, density)
+                       
+    ! diffusion coefficients
+    call diffusion_coefficients(nq, nz, dz, edd, temperature, density, grav, mubar, &
+                                DU, DD, DL, ADU, ADL)
     
-    do i = 1,nq
-      densities(i,:) = usol(i,:)*density
+    do j = 1,nz
+      do i = 1,nq
+        densities(i,j) = usol(i,j)*density(j)
+      enddo
+      densities(nsp,j) = (1.d0-sum_usol(j))*density(j) ! background gas
+      densities(nsp+1,j) = 1.d0 ! for hv
     enddo
-    densities(nsp,:) = (1.d0-sum_usol)*density ! background gas
-    densities(nsp+1,:) = 1.d0 ! for hv
-    
+
     call reaction_rates(nsp, nz, nrT, temperature, density, &
                         densities, rx_rates, err)
     if (len_trim(err) /= 0) return
-
-    u0 = dcos(solar_zenith*pi/180.d0)
+    
+    u0 = cos(solar_zenith*pi/180.d0)
     call photorates(nz, nsp, kj, nw, dz, densities, xs_x_qy, &
                     photon_flux, diurnal_fac, u0, surface_albedo, &
                     prates, surf_radiance, err)
+    if (len_trim(err) /= 0) return
+    
     do i = 1,kj
       k = photonums(i)
       rx_rates(:,k) = prates(:,i) 
     enddo 
-
-    ! short lived (need to fix)
+    
+    ! short lived
     do i = nq+1,nq+nsl
-      call chempl(nz, nsp, nrT, densities, rx_rates, i, xp, xl)
-      densities(i,:) = xp/(xl/density)
+      call chempl(nz, nsp, nrT, densities, rx_rates, i, 2, xp, xl) 
+      densities(i,:) = xp/xl
     enddo
-
+    
     ! long lived              
     do i = 1,nq
-      call chempl(nz, nsp, nrT, densities, rx_rates, i, xp, xl)
+      call chempl(nz, nsp, nrT, densities, rx_rates, i, 1, xp, xl)
       do j = 1,nz
         k = i + (j - 1) * nq
         rhs(k) = (xp(j) - xl(j))/density(j)
       enddo
     enddo
+    
+    ! diffusion (interior grid points)
+    do j = 2,nz-1
+      do i = 1,nq
+        k = i + (j-1)*nq
+        rhs(k) = rhs(k) + DU(i,j)*usol(i,j+1) + ADU(i,j)*usol(i,j+1) &
+                        + DD(i,j)*usol(i,j) &
+                        + DL(i,j)*usol(i,j-1) + ADL(i,j)*usol(i,j-1)
+      enddo
+    enddo
+    
+    ! Lower boundary
+    do i = 1,nq
+      if (lowerboundcond(i) == 0 .or. lowerboundcond(i) == 3) then
+        rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
+                        + DD(i,1)*usol(i,1) &
+                        - lower_vdep(i)*usol(i,1)/dz(1)
+      elseif (lowerboundcond(i) == 1) then
+        rhs(i) = 0.d0
+      else ! (lowerboundcond(i) == 2) then
+        rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
+                        + DD(i,1)*usol(i,1) &
+                        + lower_flux(i)/(density(1)*dz(1))
+      endif
+    enddo
 
-    ! diffusion
-    ! call diffusion_coeffs()
-  
-  
+    ! Upper boundary
+    do i = 1,nq
+      k = i + (nz-1)*nq
+      if (upperboundcond(i) == 0) then
+        rhs(k) = rhs(k) + DD(i,nz)*usol(i,nz) &
+                        + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
+                        - upper_veff(i)*usol(i,nz)/dz(nz)    
+      elseif (upperboundcond(i) == 2) then
+        rhs(k) = rhs(k) + DD(i,nz)*usol(i,nz) &
+                        + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
+                        - upper_flux(i)/(density(nz)*dz(nz))
+      endif
+    enddo
+    
+    ! Distributed (volcanic) sources
+    do i = 1,nq
+      if (lowerboundcond(i) == 3) then
+        disth = lower_dist_height(i)*1.d5        
+        jdisth = minloc(Z,1, Z >= disth) - 1
+        jdisth = max(jdisth,2)
+        ztop = z(jdisth)-z(1)
+        ztop1 = z(jdisth) + 0.5d0*dz(jdisth)
+        do j=2,jdisth
+          k = i + (j-1)*nq
+          rhs(k) = rhs(k) + 2.d0*lower_flux(i)*(ztop1-z(j))/(density(j)*ztop**2.d0)
+        enddo
+      endif
+    enddo  
+    
+    ! if (water_sat_trop) then ! compute it...
+    !   do j=1,trop_ind
+    ! 
+    !   enddo
+    ! endif
+    
   end subroutine
   
-  ! approximate jacobian when there is a background gas.
-  ! subroutine jac_backrnd_gas(neq, usol_flat, jac, err)
-  ! 
-  ! end subroutine
+  integer(c_int) function RhsFn(tn, sunvec_y, sunvec_f, user_data) &
+                                result(ierr) bind(c, name='RhsFn')
+    use, intrinsic :: iso_c_binding
+    use fsundials_nvector_mod
+    use photochem_vars, only: neqs
+    
+    ! calling variables
+    real(c_double), value :: tn        ! current time
+    type(N_Vector)        :: sunvec_y  ! solution N_Vector
+    type(N_Vector)        :: sunvec_f  ! rhs N_Vector
+    type(c_ptr), value    :: user_data ! user-defined dat
+    
+    ! pointers to data in SUNDIALS vectors
+    real(c_double), pointer :: yvec(:)
+    real(c_double), pointer :: fvec(:)
+    character(len=err_len) :: err
+    
+    ierr = 0
+    
+    ! get data arrays from SUNDIALS vectors
+    yvec => FN_VGetArrayPointer(sunvec_y)
+    fvec => FN_VGetArrayPointer(sunvec_f)
+    
+    ! fill RHS vector
+    call rhs_background_gas(neqs, yvec, fvec, err)
+    print*, tn
+    if (len_trim(err) /= 0) then
+      ierr = -1
+    endif
+    return
+  end function
   
-  ! subroutine photochem_equil_backrnd_gas
-  !   use photochem_vars, only: usol_init
-  !   ! the stuff that DOES NOT depend on usol
-  !   ! problem dimension CAN NOT change.
-  !   call stuff_before_integration(T) !etc.
-  !   ! Solve the initial value problem
-  !   call solve_ivp()
-  !   call stuff_after_integration() ! we set up the output.
-  ! end subroutine
+  subroutine photo_equilibrium(err)
+    use photochem_data, only: nq
+    use photochem_vars, only: nz, neqs, usol_init
+    
+    use, intrinsic :: iso_c_binding
+    use fcvode_mod, only: CV_BDF, CV_NORMAL, FCVodeInit, FCVodeSStolerances, &
+                          FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree
+    use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
+    use fnvector_serial_mod, only: FN_VMake_Serial   
+    use fsunmatrix_band_mod, only: FSUNBandMatrix
+    use fsundials_matrix_mod, only: SUNMatrix, FSUNMatDestroy
+    use fsundials_linearsolver_mod, only: SUNLinearSolver, FSUNLinSolFree
+    use fsunlinsol_band_mod, only: FSUNLinSol_Band
+    
+    ! in/out
+    character(len=err_len), intent(out) :: err
+    
+    ! local variables
+    real(c_double) :: tstart     ! initial time
+    real(c_double) :: tend       ! final time
+    real(c_double) :: rtol, atol ! relative and absolute tolerance
+    real(c_double) :: dtout      ! output time interval
+    real(c_double) :: tout       ! output time
+    real(c_double) :: tcur(1)    ! current time
+    integer(c_int) :: ierr       ! error flag from C functions
+    integer(c_int) :: nout       ! number of outputs
+    integer(c_int) :: outstep    ! output loop counter
+    type(c_ptr)    :: cvode_mem  ! CVODE memory
+    type(N_Vector), pointer :: sunvec_y ! sundials vector
+    
+    ! solution vector, neq is set in the ode_mod module
+    real(c_double) :: yvec(neqs)
+    integer(c_long) :: neqs_long
+    integer(c_long) :: mu, ml
+    type(SUNMatrix), pointer :: sunmat
+    type(SUNLinearSolver), pointer :: sunlin
+    integer :: i, j, k
+    
+    ! settings
+    neqs_long = neqs
+    tstart = 0.0d0
+    tcur   = tstart
+    tout   = 1.d0
+    rtol = 1.d-3
+    atol = 1.d-27
+    mu = nq
+    ml = nq
+    
+    ! initialize solution vector
+    DO i=1,nq
+      DO j=1,nz
+        k = i + (j-1)*nq
+        yvec(k) = usol_init(i,j)
+      enddo
+    enddo
+    
+    ! create SUNDIALS N_Vector
+    sunvec_y => FN_VMake_Serial(neqs_long, yvec)
+    if (.not. associated(sunvec_y)) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ! create CVode memory
+    cvode_mem = FCVodeCreate(CV_BDF)
+    if (.not. c_associated(cvode_mem)) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeInit(cvode_mem, c_funloc(RhsFn), tstart, sunvec_y)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSStolerances(cvode_mem, rtol, atol)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    sunmat => FSUNBandMatrix(neqs_long, mu, ml)
+    sunlin => FSUNLinSol_Band(sunvec_y,sunmat)
+    
+    ierr = FCVodeSetLinearSolver(cvode_mem, sunlin, sunmat)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVode(cvode_mem, tout, sunvec_y, tcur, CV_NORMAL)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    endif
+    
+    ! free memory
+    call FN_VDestroy(sunvec_y)
+    call FCVodeFree(cvode_mem)
+    ierr = FSUNLinSolFree(sunlin)
+    if (ierr /= 0) then
+      err = "CVODE deallocation error"
+      return
+    end if
+    call FSUNMatDestroy(sunmat)
+    
+  end subroutine
+  
+  
+  subroutine diffusion_coefficients(nq, nz, dz, edd, T, den, grav, mubar, &
+                                    DU, DD, DL, ADU, ADL)
+    use photochem_const, only: k_boltz, N_avo
+    use photochem_data, only: species_mass
+    
+    integer, intent(in) :: nq, nz
+    real(real_kind), intent(in) :: dz(nz), edd(nz), T(nz), den(nz)
+    real(real_kind), intent(in) :: grav(nz), mubar(nz)
+    real(real_kind), intent(out) :: DU(nq,nz), DL(nq,nz), DD(nq,nz)
+    real(real_kind), intent(out) :: ADU(nq,nz), ADL(nq,nz)
+    
+    real(real_kind) :: eddav_p, eddav_m, denav_p, denav_m, tav_p, tav_m
+    real(real_kind) :: bx1x2_p, bx1x2_m, bx1x2_pp, bx1x2_mm, zeta_pp, zeta_mm
+    
+    integer :: i,j
+  
+    do i = 2,nz-1
+      eddav_p = sqrt(edd(i)*edd(i+1))
+      eddav_m = sqrt(edd(i)*edd(i-1))
+      denav_p = sqrt(den(i)*den(i+1))
+      denav_m = sqrt(den(i)*den(i-1))
+      tav_p = sqrt(T(i)*T(i+1))
+      tav_m = sqrt(T(i)*T(i-1))
+      
+      do j = 1,nq
+        ! Equation B.4 in Catling and Kasting (2017)
+        bx1x2_p = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(i))**0.5d0*(tav_p**0.5)
+        bx1x2_m = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(i))**0.5d0*(tav_m**0.5)
+  
+        DU(j,i) = (eddav_p*denav_p + bx1x2_p)/(dz(i)**2.d0*den(i))
+        DL(j,i) = (eddav_m*denav_m + bx1x2_m)/(dz(i)**2.d0*den(i))
+        DD(j,i) = - DU(j,i) - DU(j,i)
+        
+        bx1x2_pp = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(i+1))**0.5d0*(T(i+1)**0.5)
+        bx1x2_mm = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(i-1))**0.5d0*(T(i-1)**0.5)
+        
+        zeta_pp =  bx1x2_pp*((species_mass(j)*grav(i+1))/(k_boltz*T(i+1)*N_avo) &
+                           - (mubar(i+1)*grav(i+1))/(k_boltz*T(i+1)*N_avo) &
+                           + 0.d0) ! zeroed out thermal diffusion    
+        zeta_mm =  bx1x2_mm*((species_mass(j)*grav(i-1))/(k_boltz*T(i-1)*N_avo) &
+                           - (mubar(i-1)*grav(i-1))/(k_boltz*T(i-1)*N_avo) &
+                           + 0.d0) ! zeroed out thermal diffusion
+      
+        ADU(j,i) = zeta_pp/(2.d0*dz(i)*den(i)) 
+        ADL(j,i) = - zeta_mm/(2.d0*dz(i)*den(i))
+      enddo      
+    enddo
+
+    ! surface layer
+    eddav_p = sqrt(edd(1)*edd(2))
+    denav_p = sqrt(den(1)*den(2))
+    tav_p = sqrt(T(1)*T(2))
+    do j = 1,nq
+      bx1x2_p = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(1))**0.5d0*(tav_p**0.5)
+      DU(j,1) = (eddav_p*denav_p + bx1x2_p)/(dz(1)**2.d0*den(1))
+      DD(j,1) = - DU(j,1)
+      ! DL(j,1) = 0.d0
+      
+      bx1x2_pp = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(2))**0.5d0*(T(2)**0.5)
+      zeta_pp =  bx1x2_pp*((species_mass(j)*grav(2))/(k_boltz*T(2)*N_avo) &
+                         - (mubar(2)*grav(2))/(k_boltz*T(2)*N_avo) &
+                         + 0.d0) ! zeroed out thermal diffusion    
+      ADU(j,1) = zeta_pp/(2.d0*dz(1)*den(1)) 
+      ! ADL(j,1) = 0.d0
+    enddo
+
+    ! top layer
+    eddav_m = sqrt(edd(nz)*edd(nz-1))
+    denav_m = sqrt(den(nz)*den(nz-1))
+    tav_m = sqrt(T(nz)*T(nz-1))
+    do j = 1,nq
+      bx1x2_m = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(nz))**0.5d0*(tav_m**0.5)
+      ! DU(j,nz) = 0.d0
+      DL(j,nz) = (eddav_m*denav_m + bx1x2_m)/(dz(nz)**2.d0*den(nz))
+      DD(j,nz) = - DL(j,nz)
+      
+      bx1x2_mm = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(nz-1))**0.5d0*(T(nz-1)**0.5)
+      zeta_mm =  bx1x2_mm*((species_mass(j)*grav(nz-1))/(k_boltz*T(nz-1)*N_avo) &
+                         - (mubar(nz-1)*grav(nz-1))/(k_boltz*T(nz-1)*N_avo) &
+                         + 0.d0) ! zeroed out thermal diffusion    
+      ADL(j,nz) = - zeta_mm/(2.d0*dz(i)*den(i))
+      ! ADU(j,nz) = 0.d0
+    enddo
+      
+  end subroutine
   
   subroutine press_and_den(nz, T, grav, Psurf, dz, &
                            mubar, pressure, density)
@@ -499,12 +773,12 @@ contains
   
     ! first layer
     T_temp = T(1)
-    pressure(1) = Psurf * dexp(-((mubar(1) * grav(1))/(N_avo * k_boltz * T_temp)) * 0.5d0 * dz(1))
+    pressure(1) = Psurf * exp(-((mubar(1) * grav(1))/(N_avo * k_boltz * T_temp)) * 0.5d0 * dz(1))
     density(1) = pressure(1)/(k_boltz * T(1))
     ! other layers
     do i = 2,nz
       T_temp = (T(i) + T(i-1))/2.d0
-      pressure(i) = pressure(i-1) * dexp(-((mubar(i) * grav(i))/(N_avo * k_boltz * T_temp))* dz(i))
+      pressure(i) = pressure(i-1) * exp(-((mubar(i) * grav(i))/(N_avo * k_boltz * T_temp))* dz(i))
       density(i) = pressure(i)/(k_boltz * T(i))
     enddo
   
@@ -533,7 +807,7 @@ contains
   function arrhenius_rate(A, b, Ea, T) result(k)
     real(real_kind), intent(in) :: A, b, Ea, T
     real(real_kind) :: k
-    k = A * T**b * dexp(-Ea/T)
+    k = A * T**b * exp(-Ea/T)
   end function
 
   function falloff_rate(kinf, Pr, F) result(k)
@@ -549,10 +823,10 @@ contains
     
     real(real_kind) :: log10Fcent, f1, C, N
     
-    log10Fcent = dlog10((1.d0-A)*dexp(-T/T3) + A*dexp(-T/T1))
+    log10Fcent = log10((1.d0-A)*exp(-T/T3) + A*exp(-T/T1))
     C = -0.4d0 - 0.67d0*log10Fcent
     N = 0.75d0 - 1.27d0*log10Fcent
-    f1 = (dlog10(Pr) + C)/(N - 0.14d0*(dlog10(Pr + C)))
+    f1 = (log10(Pr) + C)/(N - 0.14d0*(log10(Pr + C)))
     F = 10.d0**((log10Fcent)/(1.d0 + f1**2.d0))
   end function
 
@@ -562,13 +836,11 @@ contains
     
     real(real_kind) :: log10Fcent, f1, C, N
     
-    log10Fcent = dlog10((1.d0-A)*dexp(-T/T3) + A*dexp(-T/T1) + dexp(-T2/T))
+    log10Fcent = log10((1.d0-A)*exp(-T/T3) + A*exp(-T/T1) + exp(-T2/T))
     C = -0.4d0 - 0.67d0*log10Fcent
     N = 0.75d0 - 1.27d0*log10Fcent
-    f1 = (dlog10(Pr) + C)/(N - 0.14d0*(dlog10(Pr + C)))
+    f1 = (log10(Pr) + C)/(N - 0.14d0*(log10(Pr + C)))
     F = 10.d0**((log10Fcent)/(1.d0 + f1**2.d0))
   end function
-  
-  
-    
+
 end module

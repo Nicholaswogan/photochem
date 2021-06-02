@@ -31,6 +31,7 @@ module photochem_vars
   real(real_kind) :: diurnal_fac
   real(real_kind) :: solar_zenith
   real(real_kind) :: trop_alt 
+  integer :: trop_ind
   
   ! Radiative tranfer
   real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz

@@ -68,7 +68,17 @@ boundary-conditions:
     upper-boundary:
       veff: 0.0
       type: constant effusion velocity
-      
+  
+  - name: O1D
+    type: short lived
+    
+  - name: CO2
+    lower-boundary:
+      mixing-ratio: 3e-3
+      type: constant mixing-ratio
+    upper-boundary:
+      veff: 0.0
+      type: constant effusion velocity
       
   - name: N2H3
     lower-boundary:

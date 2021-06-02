@@ -4,10 +4,13 @@ cd ../cvode-5.7.0
 mkdir build_dir
 cd build_dir
 cmake \
--DBUILD_EXAMPLES=OFF \
 -DCMAKE_INSTALL_PREFIX=../../dependencies \
--DEXAMPLES_ENABLE_F77=ON \
--DBUILD_FORTRAN77_INTERFACE=ON \
+-DEXAMPLES_ENABLE_C=OFF \
+-DEXAMPLES_ENABLE_F77=OFF \
+-DEXAMPLES_ENABLE_F90=OFF \
+-DEXAMPLES_ENABLE_F2003=OFF \
+-DBUILD_FORTRAN77_INTERFACE=OFF \
+-DBUILD_FORTRAN_MODULE_INTERFACE=ON \
 -DBUILD_SHARED_LIBS=OFF \
 -DCMAKE_Fortran_COMPILER=gfortran \
 ../
@@ -23,20 +26,10 @@ cmake \
 make install
 
 cp -r modules ../../dependencies
-
-# Download and build Stringifor
-cd ../../
-python -m pip install FoBiS.py
-git clone https://github.com/szaghi/StringiFor
-cd StringiFor
-git submodule update --init
-FoBiS.py build -mode stringifor-static-gnu
-
-cp lib/libstringifor.a ../dependencies/lib
-cp lib/mod/* ../dependencies/modules
+mv ../../dependencies/fortran/* ../../dependencies/modules
 
 # interpolation
-cd ../binning
+cd ../../binning
 gfortran -c binning.f -O3
 gfortran -c interp.f90 -O3
 ar rcs libbinning.a *.o
