@@ -10,6 +10,8 @@ module photochem_data
   ! molecules
   integer, protected :: nsp
   integer, protected :: nq
+  integer, protected :: kd, kl, ku ! not read in. It is nq + nq + 1 (diagonal width of jacobian)
+  integer, protected :: lda ! not read in 
   integer, protected :: nsl
   integer, protected :: natoms
   character(len=8), allocatable, protected :: atoms_names(:) 
@@ -148,6 +150,10 @@ contains
     ! species
     nsp = photomech%nsp
     nq = photomech%nq
+    kd = 2*nq + 1
+    kl = kd + nq
+    ku = kd - nq
+    lda = 3*nq + 1
     nsl = photomech%nsl
     natoms = photomech%natoms
     allocate(atoms_names(natoms))

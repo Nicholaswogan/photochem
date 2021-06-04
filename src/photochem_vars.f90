@@ -7,7 +7,7 @@ module photochem_vars
   integer, private, parameter :: str_len = 1024
 
   ! where the photochem data is
-  character(len=str_len) :: data_dir
+  character(len=str_len) :: data_dir = "data"
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! set DURING file read-in !!!
@@ -50,5 +50,7 @@ module photochem_vars
   
   real(real_kind), allocatable :: xs_x_qy(:,:,:)
   
+  ! other
+  real(real_kind) :: epsj = 1.d-9
   
 end module

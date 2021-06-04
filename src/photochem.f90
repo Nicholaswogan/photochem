@@ -16,51 +16,6 @@ module photochem
   
 contains
   
-  subroutine print_reaction_string(rxn)
-    integer, intent(in) :: rxn
-    character(len=:), allocatable :: rxstring
-    call reaction_string(rxn,rxstring)
-    print*,rxstring
-  end subroutine
-  
-  subroutine reaction_string(rxn,rxstring)
-    use photochem_data, only: reverse_info, nrF, nreactants, species_names, &
-                              reactants_sp_inds, rxtypes, nproducts, products_sp_inds
-
-    integer, intent(in) :: rxn
-    character(len=:), allocatable, intent(out) :: rxstring
-    integer j, k, i
-
-    rxstring = ''
-    if (rxn > nrF) then
-      i = reverse_info(rxn)
-    else
-      i = rxn
-    endif
-    do j = 1,nreactants(rxn)-1
-      k = reactants_sp_inds(j,rxn)
-      rxstring = rxstring //(trim(species_names(k))//' + ')
-    enddo
-    
-    k = reactants_sp_inds(nreactants(rxn),rxn)
-    rxstring = rxstring // trim(species_names(k))//' => '
-    
-    if ((rxtypes(i) == 2) .or.(rxtypes(i) == 3)) then
-      rxstring = rxstring(1:len(rxstring)-4) //(' + M'//' => ')
-    endif
-    
-    do j = 1,nproducts(rxn)-1
-      k = products_sp_inds(j,rxn)
-      rxstring = rxstring // trim(species_names(k))//' + '
-    enddo
-    k = products_sp_inds(nproducts(rxn),rxn)
-    rxstring = rxstring // trim(species_names(k))
-    
-    if ((rxtypes(i) == 2) .or.(rxtypes(i) == 3)) then
-      rxstring = rxstring //' + M'
-    endif
-  end subroutine
-  
   subroutine reaction_rates(nsp, nz, nrT, temperature, density, densities, rx_rates, err)
     use photochem_data, only: rateparams, rxtypes, nreactants, &
                               nproducts, reactants_sp_inds, products_sp_inds, &
@@ -277,6 +232,42 @@ contains
     enddo
     
   end subroutine
+  
+  subroutine dochem(neqs, nsp, nsl, nq, nz, nrT, usol, density, rx_rates, &
+                    densities, xp, xl, rhs)                    
+    integer, intent(in) :: neqs, nsp, nsl, nq, nz, nrT
+    real(real_kind), intent(in) :: usol(nq,nz), density(nz)
+    real(real_kind), intent(in) :: rx_rates(nz,nrT)
+    real(real_kind), intent(inout) :: densities(nsp+1,nz), xp(nz), xl(nz)
+    real(real_kind), intent(out) :: rhs(neqs)
+    
+    integer :: i, j, k
+    
+    do j = 1,nz
+      do k = 1,nq
+        densities(k,j) = usol(k,j)*density(j)
+      enddo
+      densities(nsp,j) = (1.d0-sum(usol(:,j)))*density(j) ! background gas
+      densities(nsp+1,j) = 1.d0 ! for hv
+    enddo
+    
+    ! short lived
+    do k = nq+1,nq+nsl
+      call chempl(nz, nsp, nrT, densities, rx_rates, k, 2, xp, xl) 
+      densities(k,:) = xp/xl
+    enddo
+    
+    ! long lived              
+    do i = 1,nq
+      call chempl(nz, nsp, nrT, densities, rx_rates, i, 1, xp, xl)
+      do j = 1,nz
+        k = i + (j - 1) * nq
+        rhs(k) = xp(j)/density(j) - xl(j)/density(j)
+      enddo
+    enddo
+    
+  end subroutine
+  
 
   subroutine photorates(nz, nsp, kj, nw, dz, densities, xs_x_qy, &
                         flux, diurnal_fac, u0, Rsfc, &
@@ -308,8 +299,8 @@ contains
     prates = 0.d0
     err = ''
     !$omp parallel private(l, i, j, jj, k, n, ie, ierr, partial_prates, &
-    !$omp       & tausg, taua, tau, w0, amean, surf_rad, &
-    !$omp       & amean_grd, flx)
+    !$omp& tausg, taua, tau, w0, amean, surf_rad, &
+    !$omp& amean_grd, flx)
     ierr = 0
     partial_prates = 0.d0
     !$omp do
@@ -372,8 +363,28 @@ contains
       err = 'Tridagiagonal linear solve in two stream radiative transfer failed.'
       return
     endif
+    
+    ! do i=1,kj
+    !   do j=1,nz
+    !     call round(prates(j,i),-8)
+    !   enddo
+    ! enddo
+    ! 
+    ! do i=1,kj
+    !   print*,prates(nz,i)
+    ! enddo
+    ! stop
 
   end subroutine
+  
+  ! subroutine round(in,precision)
+  !   implicit none
+  !   real(real_kind), intent(inout) :: in
+  !   integer, intent(in) :: precision
+  !   integer :: order
+  !   order = nint(log10(abs(in)))
+  !   in = nint(in * 10.d0**(-precision-order),8)*10.d0**(precision+order)
+  ! end subroutine
   
   
   subroutine rhs_background_gas(neqs, usol_flat, rhs, err)
@@ -408,6 +419,155 @@ contains
     err = ''
     ! reshape usol_flat with a pointer (no copying; same memory)
     usol(1:nq,1:nz) => usol_flat
+    
+    do i = 1,nz
+      sum_usol(i) = sum(usol(:,i))
+      if (sum_usol(i) > 1.0d0) then
+        err = 'Mixing ratios sum to >1.0 at some altitude (should be <=1).' // &
+              ' The atmosphere is probably in a run-away state.'
+        print*,err
+        stop
+        return
+      endif
+    enddo
+    
+    do i = 1,nz
+      call molar_weight(nq, usol(:,i), sum_usol(i), species_mass, back_gas_mu, mubar(i))
+    enddo
+    
+    call press_and_den(nz, temperature, grav, surface_pressure*1.d6, dz, &
+                       mubar, pressure, density)
+                       
+    ! diffusion coefficients
+    call diffusion_coefficients(nq, nz, dz, edd, temperature, density, grav, mubar, &
+                                DU, DD, DL, ADU, ADL)
+    
+    do j = 1,nz
+      do i = 1,nq
+        densities(i,j) = usol(i,j)*density(j)
+      enddo
+      densities(nsp,j) = (1.d0-sum_usol(j))*density(j) ! background gas
+      densities(nsp+1,j) = 1.d0 ! for hv
+    enddo
+
+    call reaction_rates(nsp, nz, nrT, temperature, density, &
+                        densities, rx_rates, err)
+    if (len_trim(err) /= 0) return
+    
+    u0 = cos(solar_zenith*pi/180.d0)
+    call photorates(nz, nsp, kj, nw, dz, densities, xs_x_qy, &
+                    photon_flux, diurnal_fac, u0, surface_albedo, &
+                    prates, surf_radiance, err)
+    if (len_trim(err) /= 0) return
+    
+    do i = 1,kj
+      k = photonums(i)
+      rx_rates(:,k) = prates(:,i) 
+    enddo 
+    
+    call dochem(neqs, nsp, nsl, nq, nz, nrT, usol, density, rx_rates, &
+                densities, xp, xl, rhs) 
+    
+    ! diffusion (interior grid points)
+    do j = 2,nz-1
+      do i = 1,nq
+        k = i + (j-1)*nq
+        rhs(k) = rhs(k) + DU(i,j)*usol(i,j+1) + ADU(i,j)*usol(i,j+1) &
+                        + DD(i,j)*usol(i,j) &
+                        + DL(i,j)*usol(i,j-1) + ADL(i,j)*usol(i,j-1)
+      enddo
+    enddo
+    
+    ! Lower boundary
+    do i = 1,nq
+      if (lowerboundcond(i) == 0 .or. lowerboundcond(i) == 3) then
+        rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
+                        - DU(i,1)*usol(i,1) &
+                        - lower_vdep(i)*usol(i,1)/dz(1)
+      elseif (lowerboundcond(i) == 1) then
+        rhs(i) = 0.d0
+      else ! (lowerboundcond(i) == 2) then
+        rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
+                        - DU(i,1)*usol(i,1) &
+                        + lower_flux(i)/(density(1)*dz(1))
+      endif
+    enddo
+
+    ! Upper boundary
+    do i = 1,nq
+      k = i + (nz-1)*nq
+      if (upperboundcond(i) == 0) then
+        rhs(k) = rhs(k) - DL(i,nz)*usol(i,nz) &
+                        + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
+                        - upper_veff(i)*usol(i,nz)/dz(nz)    
+      elseif (upperboundcond(i) == 2) then
+        rhs(k) = rhs(k) - DL(i,nz)*usol(i,nz) &
+                        + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
+                        - upper_flux(i)/(density(nz)*dz(nz))
+      endif
+    enddo
+    
+    ! Distributed (volcanic) sources
+    do i = 1,nq
+      if (lowerboundcond(i) == 3) then
+        disth = lower_dist_height(i)*1.d5        
+        jdisth = minloc(Z,1, Z >= disth) - 1
+        jdisth = max(jdisth,2)
+        ztop = z(jdisth)-z(1)
+        ztop1 = z(jdisth) + 0.5d0*dz(jdisth)
+        do j = 2,jdisth
+          k = i + (j-1)*nq
+          rhs(k) = rhs(k) + 2.d0*lower_flux(i)*(ztop1-z(j))/(density(j)*ztop**2.d0)
+        enddo
+      endif
+    enddo  
+    
+    ! if (water_sat_trop) then ! compute it...
+    !   do j=1,trop_ind
+    ! 
+    !   enddo
+    ! endif
+    
+  end subroutine
+  
+  subroutine jac_background_gas(lda_neqs, neqs, usol_flat, jac, err)
+    use photochem_const, only: pi
+    
+    use photochem_data, only: lda, kd, ku, kl, nq, nsp, nsl, nrT, kj, nw, species_mass, back_gas_mu, &
+                              photonums, water_sat_trop
+    use photochem_vars, only: nz, temperature, grav, z, dz, edd, surface_pressure, &
+                              xs_x_qy, photon_flux, diurnal_fac, solar_zenith, &
+                              surface_albedo, trop_ind, epsj, &
+                              lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
+                              lower_dist_height, lower_fix_mr, upper_veff, upper_flux
+  
+    integer, intent(in) :: lda_neqs, neqs
+    real(real_kind), intent(in), target :: usol_flat(neqs)
+    real(real_kind), intent(out), target :: jac(lda_neqs)
+    character(len=err_len), intent(out) :: err
+    
+    real(real_kind), pointer :: usol(:,:)
+    real(real_kind), pointer :: djac(:,:)
+    real(real_kind) :: usol_perturb(nq,nz)
+    real(real_kind) :: R(nz)
+    real(real_kind) :: rhs(neqs)
+    real(real_kind) :: rhs_perturb(neqs)
+    
+    real(real_kind) :: sum_usol(nz)
+    real(real_kind) :: mubar(nz), pressure(nz), density(nz)
+    real(real_kind) :: densities(nsp+1,nz)
+    real(real_kind) :: rx_rates(nz,nrT)
+    real(real_kind) :: prates(nz,kj), surf_radiance(nw)
+    real(real_kind) :: xp(nz), xl(nz)
+    real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz), ADU(nq,nz), ADL(nq,nz)
+    
+    real(real_kind) :: u0, disth, ztop, ztop1    
+    integer :: i, k, j, m, mm, jdisth
+    
+    err = ''
+    ! reshape usol_flat with a pointer (no copying; same memory)
+    usol(1:nq,1:nz) => usol_flat
+    djac(1:lda,1:neqs) => jac
     
     do i = 1,nz
       sum_usol(i) = sum(usol(:,i))
@@ -452,43 +612,66 @@ contains
       rx_rates(:,k) = prates(:,i) 
     enddo 
     
-    ! short lived
-    do i = nq+1,nq+nsl
-      call chempl(nz, nsp, nrT, densities, rx_rates, i, 2, xp, xl) 
-      densities(i,:) = xp/xl
-    enddo
-    
-    ! long lived              
+    ! compute chemistry contribution to jacobian using forward differences
+    jac = 0.d0
+    call dochem(neqs, nsp, nsl, nq, nz, nrT, usol, density, rx_rates, &
+                densities, xp, xl, rhs) 
+    !$omp parallel private(i,j,k,m,mm,usol_perturb, R, densities, xp, xl, rhs_perturb)
+    usol_perturb = usol
+    !$omp do
     do i = 1,nq
-      call chempl(nz, nsp, nrT, densities, rx_rates, i, 1, xp, xl)
       do j = 1,nz
-        k = i + (j - 1) * nq
-        rhs(k) = (xp(j) - xl(j))/density(j)
+        R(j) = epsj*usol(i,j)
+        usol_perturb(i,j) = usol(i,j) + R(j)
+      enddo
+
+      call dochem(neqs, nsp, nsl, nq, nz, nrT, usol_perturb, density, rx_rates, &
+                  densities, xp, xl, rhs_perturb) 
+
+      do m = 1,nq
+        mm = m - i + kd
+        do j = 1,nz
+          k = i + (j-1)*nq
+          djac(mm,k) = (rhs_perturb(m + (j-1)*nq) - rhs(m + (j-1)*nq))/R(j)
+        enddo
+      enddo
+      
+      do j= 1,nz
+        usol_perturb(i,j) = usol(i,j)
       enddo
     enddo
+    !$omp enddo
+    !$omp end parallel
     
     ! diffusion (interior grid points)
     do j = 2,nz-1
       do i = 1,nq
-        k = i + (j-1)*nq
-        rhs(k) = rhs(k) + DU(i,j)*usol(i,j+1) + ADU(i,j)*usol(i,j+1) &
-                        + DD(i,j)*usol(i,j) &
-                        + DL(i,j)*usol(i,j-1) + ADL(i,j)*usol(i,j-1)
+        k = i + (j-1)*nq      
+        djac(ku,k+nq) = djac(ku,k+nq) + DU(i,j) + ADU(i,j)
+        djac(kd,k)    = djac(kd,k)    + DD(i,j)        
+        djac(kl,k-nq) = djac(kl,k-nq) + DL(i,j) + ADL(i,j)
       enddo
     enddo
     
     ! Lower boundary
     do i = 1,nq
       if (lowerboundcond(i) == 0 .or. lowerboundcond(i) == 3) then
-        rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
-                        + DD(i,1)*usol(i,1) &
-                        - lower_vdep(i)*usol(i,1)/dz(1)
+        ! rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
+        !                 - DU(i,1)*usol(i,1) &
+        !                 - lower_vdep(i)*usol(i,1)/dz(1)
+                        
+        djac(ku,i+nq) = djac(ku,i+nq) + DU(i,1) + ADU(i,1)
+        djac(kd,i)    = djac(kd,i)    - DU(i,1) - lower_vdep(i)/dz(1)
       elseif (lowerboundcond(i) == 1) then
         rhs(i) = 0.d0
+
       else ! (lowerboundcond(i) == 2) then
-        rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
-                        + DD(i,1)*usol(i,1) &
-                        + lower_flux(i)/(density(1)*dz(1))
+        ! rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
+        !                 - DU(i,1)*usol(i,1) &
+        !                 + lower_flux(i)/(density(1)*dz(1))
+                                              
+        djac(ku,i+nq) = djac(ku,i+nq) + DU(i,1) + ADU(i,1)
+        djac(kd,i)    = djac(kd,i)    - DU(i,1)         
       endif
     enddo
 
@@ -496,16 +679,23 @@ contains
     do i = 1,nq
       k = i + (nz-1)*nq
       if (upperboundcond(i) == 0) then
-        rhs(k) = rhs(k) + DD(i,nz)*usol(i,nz) &
-                        + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
-                        - upper_veff(i)*usol(i,nz)/dz(nz)    
+        ! rhs(k) = rhs(k) - DL(i,nz)*usol(i,nz) &
+        !                 + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
+        !                 - upper_veff(i)*usol(i,nz)/dz(nz)    
+        
+        djac(kd,k) = djac(kd,k) - DL(i,nz) - upper_veff(i)/dz(nz) 
+        djac(kl,k-nq) = djac(kl,k-nq) + DL(i,nz) + ADL(i,nz)
+        
       elseif (upperboundcond(i) == 2) then
-        rhs(k) = rhs(k) + DD(i,nz)*usol(i,nz) &
-                        + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
-                        - upper_flux(i)/(density(nz)*dz(nz))
+        ! rhs(k) = rhs(k) - DL(i,nz)*usol(i,nz) &
+        !                 + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
+        !                 - upper_flux(i)/(density(nz)*dz(nz))
+
+        djac(kd,k) = djac(kd,k) - DL(i,nz)
+        djac(kl,k-nq) = djac(kl,k-nq) + DL(i,nz) + ADL(i,nz)
       endif
     enddo
-    
+
     ! Distributed (volcanic) sources
     do i = 1,nq
       if (lowerboundcond(i) == 3) then
@@ -514,18 +704,12 @@ contains
         jdisth = max(jdisth,2)
         ztop = z(jdisth)-z(1)
         ztop1 = z(jdisth) + 0.5d0*dz(jdisth)
-        do j=2,jdisth
+        do j = 2,jdisth
           k = i + (j-1)*nq
           rhs(k) = rhs(k) + 2.d0*lower_flux(i)*(ztop1-z(j))/(density(j)*ztop**2.d0)
         enddo
       endif
     enddo  
-    
-    ! if (water_sat_trop) then ! compute it...
-    !   do j=1,trop_ind
-    ! 
-    !   enddo
-    ! endif
     
   end subroutine
   
@@ -533,7 +717,9 @@ contains
                                 result(ierr) bind(c, name='RhsFn')
     use, intrinsic :: iso_c_binding
     use fsundials_nvector_mod
-    use photochem_vars, only: neqs
+    use photochem_data, only: nq, species_names
+    use photochem_vars, only: neqs, nz
+    use photochem_wrk, only: time_previous, step_counter
     
     ! calling variables
     real(c_double), value :: tn        ! current time
@@ -545,20 +731,64 @@ contains
     real(c_double), pointer :: yvec(:)
     real(c_double), pointer :: fvec(:)
     character(len=err_len) :: err
+    integer :: ind(1), k
     
     ierr = 0
     
     ! get data arrays from SUNDIALS vectors
-    yvec => FN_VGetArrayPointer(sunvec_y)
-    fvec => FN_VGetArrayPointer(sunvec_f)
+    yvec(1:neqs) => FN_VGetArrayPointer(sunvec_y)
+    fvec(1:neqs) => FN_VGetArrayPointer(sunvec_f)
     
     ! fill RHS vector
     call rhs_background_gas(neqs, yvec, fvec, err)
-    print*, tn
+
+    if (tn /= time_previous) then
+      ind = findloc(species_names, 'N')
+      k = ind(1) + (nz-1)*nq
+      print"(1x,'N =',i6,3x,'Time = ',es20.14,3x,es20.14,3x,es20.14)", step_counter,tn, yvec(k), yvec(ind(1))
+      ! print*, tn, yvec(k), yvec(ind(1))
+      step_counter = step_counter + 1
+      time_previous = tn
+    endif
     if (len_trim(err) /= 0) then
+      print*,trim(err)
       ierr = -1
     endif
     return
+  end function
+  
+  integer(c_int) function JacFn(tn, sunvec_y, sunvec_f, sunmat_J, user_data, &
+                                tmp1, tmp2, tmp3) &
+                                result(ierr) bind(C,name='JacFn')
+    !======= Inclusions ===========
+    use, intrinsic :: iso_c_binding
+    use fsundials_nvector_mod
+    use fsunmatrix_band_mod
+    use fsundials_matrix_mod
+    
+    use photochem_data, only: lda
+    use photochem_vars, only: neqs
+
+    ! calling variables
+    real(c_double), value :: tn        ! current time
+    type(N_Vector)        :: sunvec_y  ! solution N_Vector
+    type(N_Vector)        :: sunvec_f
+    type(SUNMatrix)        :: sunmat_J  ! rhs N_Vector
+    type(c_ptr), value    :: user_data ! user-defined data
+    type(N_Vector)        :: tmp1, tmp2, tmp3
+
+    ! pointers to data in SUNDIALS vectors
+    real(c_double), pointer :: yvec(:)
+    real(c_double), pointer :: Jmat(:)
+    character(len=err_len) :: err
+    yvec(1:neqs) => FN_VGetArrayPointer(sunvec_y)
+    Jmat(1:neqs*lda) => FSUNBandMatrix_Data(sunmat_J)
+    
+    call jac_background_gas(lda*neqs, neqs, yvec, Jmat, err)
+
+    ierr = 0
+    return
+
   end function
   
   subroutine photo_equilibrium(err)
@@ -567,7 +797,8 @@ contains
     
     use, intrinsic :: iso_c_binding
     use fcvode_mod, only: CV_BDF, CV_NORMAL, FCVodeInit, FCVodeSStolerances, &
-                          FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree
+                          FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
+                          FCVodeSetMaxNumSteps, FCVodeSetJacFn
     use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
     use fnvector_serial_mod, only: FN_VMake_Serial   
     use fsunmatrix_band_mod, only: FSUNBandMatrix
@@ -580,14 +811,10 @@ contains
     
     ! local variables
     real(c_double) :: tstart     ! initial time
-    real(c_double) :: tend       ! final time
     real(c_double) :: rtol, atol ! relative and absolute tolerance
-    real(c_double) :: dtout      ! output time interval
     real(c_double) :: tout       ! output time
     real(c_double) :: tcur(1)    ! current time
     integer(c_int) :: ierr       ! error flag from C functions
-    integer(c_int) :: nout       ! number of outputs
-    integer(c_int) :: outstep    ! output loop counter
     type(c_ptr)    :: cvode_mem  ! CVODE memory
     type(N_Vector), pointer :: sunvec_y ! sundials vector
     
@@ -595,6 +822,7 @@ contains
     real(c_double) :: yvec(neqs)
     integer(c_long) :: neqs_long
     integer(c_long) :: mu, ml
+    integer(c_long) :: mxsteps
     type(SUNMatrix), pointer :: sunmat
     type(SUNLinearSolver), pointer :: sunlin
     integer :: i, j, k
@@ -603,11 +831,12 @@ contains
     neqs_long = neqs
     tstart = 0.0d0
     tcur   = tstart
-    tout   = 1.d0
+    tout   = 1.d17
     rtol = 1.d-3
     atol = 1.d-27
     mu = nq
     ml = nq
+    mxsteps = 100000000
     
     ! initialize solution vector
     DO i=1,nq
@@ -647,6 +876,18 @@ contains
     sunlin => FSUNLinSol_Band(sunvec_y,sunmat)
     
     ierr = FCVodeSetLinearSolver(cvode_mem, sunlin, sunmat)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSetJacFn(cvode_mem, c_funloc(JacFn))
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSetMaxNumSteps(cvode_mem, mxsteps)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
@@ -697,15 +938,15 @@ contains
       
       do j = 1,nq
         ! Equation B.4 in Catling and Kasting (2017)
-        bx1x2_p = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(i))**0.5d0*(tav_p**0.5)
-        bx1x2_m = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(i))**0.5d0*(tav_m**0.5)
+        bx1x2_p = binary_diffusion_param(species_mass(j), mubar(i), tav_p)
+        bx1x2_m = binary_diffusion_param(species_mass(j), mubar(i), tav_m)
   
         DU(j,i) = (eddav_p*denav_p + bx1x2_p)/(dz(i)**2.d0*den(i))
         DL(j,i) = (eddav_m*denav_m + bx1x2_m)/(dz(i)**2.d0*den(i))
-        DD(j,i) = - DU(j,i) - DU(j,i)
+        DD(j,i) = - DU(j,i) - DL(j,i)
         
-        bx1x2_pp = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(i+1))**0.5d0*(T(i+1)**0.5)
-        bx1x2_mm = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(i-1))**0.5d0*(T(i-1)**0.5)
+        bx1x2_pp = binary_diffusion_param(species_mass(j), mubar(i+1), T(i+1))
+        bx1x2_mm = binary_diffusion_param(species_mass(j), mubar(i-1), T(i-1))
         
         zeta_pp =  bx1x2_pp*((species_mass(j)*grav(i+1))/(k_boltz*T(i+1)*N_avo) &
                            - (mubar(i+1)*grav(i+1))/(k_boltz*T(i+1)*N_avo) &
@@ -724,12 +965,12 @@ contains
     denav_p = sqrt(den(1)*den(2))
     tav_p = sqrt(T(1)*T(2))
     do j = 1,nq
-      bx1x2_p = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(1))**0.5d0*(tav_p**0.5)
+      bx1x2_p = binary_diffusion_param(species_mass(j), mubar(1), tav_p)
       DU(j,1) = (eddav_p*denav_p + bx1x2_p)/(dz(1)**2.d0*den(1))
       DD(j,1) = - DU(j,1)
       ! DL(j,1) = 0.d0
-      
-      bx1x2_pp = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(2))**0.5d0*(T(2)**0.5)
+            
+      bx1x2_pp = binary_diffusion_param(species_mass(j), mubar(2), T(2))
       zeta_pp =  bx1x2_pp*((species_mass(j)*grav(2))/(k_boltz*T(2)*N_avo) &
                          - (mubar(2)*grav(2))/(k_boltz*T(2)*N_avo) &
                          + 0.d0) ! zeroed out thermal diffusion    
@@ -741,13 +982,14 @@ contains
     eddav_m = sqrt(edd(nz)*edd(nz-1))
     denav_m = sqrt(den(nz)*den(nz-1))
     tav_m = sqrt(T(nz)*T(nz-1))
-    do j = 1,nq
-      bx1x2_m = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(nz))**0.5d0*(tav_m**0.5)
+    do j = 1,nq      
+      bx1x2_m = binary_diffusion_param(species_mass(j), mubar(nz), tav_m)
+      
       ! DU(j,nz) = 0.d0
       DL(j,nz) = (eddav_m*denav_m + bx1x2_m)/(dz(nz)**2.d0*den(nz))
       DD(j,nz) = - DL(j,nz)
-      
-      bx1x2_mm = 1.52d18*(1.d0/species_mass(j)+1.d0/mubar(nz-1))**0.5d0*(T(nz-1)**0.5)
+            
+      bx1x2_mm = binary_diffusion_param(species_mass(j), mubar(nz-1), T(nz-1))
       zeta_mm =  bx1x2_mm*((species_mass(j)*grav(nz-1))/(k_boltz*T(nz-1)*N_avo) &
                          - (mubar(nz-1)*grav(nz-1))/(k_boltz*T(nz-1)*N_avo) &
                          + 0.d0) ! zeroed out thermal diffusion    
@@ -804,6 +1046,15 @@ contains
   
   end subroutine
   
+  function binary_diffusion_param(mu_i, mubar, T) result(b)
+    real(real_kind), intent(in) :: mu_i, mubar, T
+    real(real_kind) :: b
+    ! Banks and Kockarts 1973, Eq 15.29
+    ! also Catling and Kasting 2017, Eq B.4 (although Catling has a typo,
+    ! and is missing a power of 0.5)
+    b = 1.52d18*((1.d0/mu_i+1.d0/mubar)**0.5d0)*(T**0.5d0)
+  end function
+  
   function arrhenius_rate(A, b, Ea, T) result(k)
     real(real_kind), intent(in) :: A, b, Ea, T
     real(real_kind) :: k
@@ -842,5 +1093,61 @@ contains
     f1 = (log10(Pr) + C)/(N - 0.14d0*(log10(Pr + C)))
     F = 10.d0**((log10Fcent)/(1.d0 + f1**2.d0))
   end function
+  
+  subroutine print_reaction_string(rxn)
+    integer, intent(in) :: rxn
+    character(len=:), allocatable :: rxstring
+    call reaction_string(rxn,rxstring)
+    print*,rxstring
+  end subroutine
+  
+  subroutine reaction_string(rxn,rxstring)
+    use photochem_data, only: reverse_info, nrF, nreactants, species_names, &
+                              reactants_sp_inds, rxtypes, nproducts, products_sp_inds
+
+    integer, intent(in) :: rxn
+    character(len=:), allocatable, intent(out) :: rxstring
+    integer j, k, i
+
+    rxstring = ''
+    if (rxn > nrF) then
+      i = reverse_info(rxn)
+    else
+      i = rxn
+    endif
+    do j = 1,nreactants(rxn)-1
+      k = reactants_sp_inds(j,rxn)
+      rxstring = rxstring //(trim(species_names(k))//' + ')
+    enddo
+    
+    k = reactants_sp_inds(nreactants(rxn),rxn)
+    rxstring = rxstring // trim(species_names(k))//' => '
+    
+    if ((rxtypes(i) == 2) .or.(rxtypes(i) == 3)) then
+      rxstring = rxstring(1:len(rxstring)-4) //(' + M'//' => ')
+    endif
+    
+    do j = 1,nproducts(rxn)-1
+      k = products_sp_inds(j,rxn)
+      rxstring = rxstring // trim(species_names(k))//' + '
+    enddo
+    k = products_sp_inds(nproducts(rxn),rxn)
+    rxstring = rxstring // trim(species_names(k))
+    
+    if ((rxtypes(i) == 2) .or.(rxtypes(i) == 3)) then
+      rxstring = rxstring //' + M'
+    endif
+  end subroutine
+  
+  subroutine get_usol_init(usol)
+    use photochem_vars, only: usol_init, nz
+    use photochem_data, only: nq
+    
+    real(real_kind), intent(out) :: usol(nq,nz)
+    usol = usol_init
+    
+    
+    
+  end subroutine
 
 end module

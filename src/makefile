@@ -1,6 +1,6 @@
 
 FC=gfortran
-FCFLAGS= -g -fbounds-check -std=f2018 -fopenmp -O3#-Wunused-variable
+FCFLAGS= -g -std=f2018 -O3# -Wunused-variable#  -fcheck=all -fopenmp -O3
 SRC=photochem_const.f90 \
 		photochem_types.f90 \
 		photochem_vars.f90 \

@@ -297,6 +297,8 @@ contains
     allocate(photomech%nproducts(photomech%nrT))
     allocate(photomech%reactants_sp_inds(photomech%max_num_reactants,photomech%nrT))
     allocate(photomech%products_sp_inds(photomech%max_num_products,photomech%nrT))
+    photomech%reactants_sp_inds = huge(1)
+    photomech%products_sp_inds = huge(1)
     if (photomech%reverse) then
       allocate(photomech%reverse_info(photomech%nrT))
     endif
