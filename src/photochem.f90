@@ -386,47 +386,40 @@ contains
   !   in = nint(in * 10.d0**(-precision-order),8)*10.d0**(precision+order)
   ! end subroutine
   
-  
-  subroutine rhs_background_gas(neqs, usol_flat, rhs, err)
+  subroutine prep_background_gas(nsp, nq, nz, nrT, kj, nw, usol, densities, &
+                                 density, rx_rates, mubar, pressure, prates, surf_radiance, &
+                                 DU, DD, DL, ADU, ADL, err)
     use photochem_const, only: pi
-    
-    use photochem_data, only: nq, nsp, nsl, nrT, kj, nw, species_mass, back_gas_mu, &
-                              photonums, water_sat_trop
-    use photochem_vars, only: nz, temperature, grav, z, dz, edd, surface_pressure, &
+    use photochem_data, only: species_mass, back_gas_mu, &
+                              photonums                      
+    use photochem_vars, only: temperature, grav, dz, edd, surface_pressure, &
                               xs_x_qy, photon_flux, diurnal_fac, solar_zenith, &
-                              surface_albedo, trop_ind, &
-                              lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
-                              lower_dist_height, lower_fix_mr, upper_veff, upper_flux
-  
-    integer, intent(in) :: neqs
-    real(real_kind), intent(in), target :: usol_flat(neqs)
-    real(real_kind), intent(out) :: rhs(neqs)
+                              surface_albedo
+    
+    integer, intent(in) :: nsp, nq, nz, nrT, kj, nw
+    real(real_kind), intent(in), target :: usol(nq,nz)
+    
+    real(real_kind), intent(inout) :: densities(nsp+1,nz)
+    
+    real(real_kind), intent(out) :: density(nz), rx_rates(nz,nrT)
+    real(real_kind), intent(out) :: mubar(nz), pressure(nz)
+    real(real_kind), intent(out) :: prates(nz,kj), surf_radiance(nw)
+    real(real_kind), intent(out) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
+    real(real_kind), intent(out) :: ADU(nq,nz), ADL(nq,nz)
+    
     character(len=err_len), intent(out) :: err
     
-    real(real_kind), pointer :: usol(:,:)
-    
     real(real_kind) :: sum_usol(nz)
-    real(real_kind) :: mubar(nz), pressure(nz), density(nz)
-    real(real_kind) :: densities(nsp+1,nz)
-    real(real_kind) :: rx_rates(nz,nrT)
-    real(real_kind) :: prates(nz,kj), surf_radiance(nw)
-    real(real_kind) :: xp(nz), xl(nz)
-    real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz), ADU(nq,nz), ADL(nq,nz)
-    
-    real(real_kind) :: u0, disth, ztop, ztop1    
-    integer :: i, k, j, jdisth
-    
+    real(real_kind) :: u0
+    integer :: i, j, k
+
     err = ''
-    ! reshape usol_flat with a pointer (no copying; same memory)
-    usol(1:nq,1:nz) => usol_flat
     
     do i = 1,nz
       sum_usol(i) = sum(usol(:,i))
       if (sum_usol(i) > 1.0d0) then
         err = 'Mixing ratios sum to >1.0 at some altitude (should be <=1).' // &
               ' The atmosphere is probably in a run-away state.'
-        print*,err
-        stop
         return
       endif
     enddo
@@ -464,6 +457,45 @@ contains
       k = photonums(i)
       rx_rates(:,k) = prates(:,i) 
     enddo 
+    
+  end subroutine
+  
+  
+  subroutine rhs_background_gas(neqs, usol_flat, rhs, err)
+    use photochem_const, only: pi
+    
+    use photochem_data, only: nq, nsp, nsl, nrT, kj, nw
+    use photochem_vars, only: nz, z, dz, &
+                              lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
+                              lower_dist_height, upper_veff, upper_flux
+  
+    integer, intent(in) :: neqs
+    real(real_kind), intent(in), target :: usol_flat(neqs)
+    real(real_kind), intent(out) :: rhs(neqs)
+    character(len=err_len), intent(out) :: err
+    
+    real(real_kind), pointer :: usol(:,:)
+    
+    real(real_kind) :: mubar(nz), pressure(nz)
+    real(real_kind) :: density(nz)
+    real(real_kind) :: densities(nsp+1,nz)
+    real(real_kind) :: rx_rates(nz,nrT)
+    real(real_kind) :: prates(nz,kj), surf_radiance(nw)
+    real(real_kind) :: xp(nz), xl(nz)
+    real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz), ADU(nq,nz), ADL(nq,nz)
+    
+    real(real_kind) :: disth, ztop, ztop1    
+    integer :: i, k, j, jdisth
+    
+    err = ''
+    ! reshape usol_flat with a pointer (no copying; same memory)
+    usol(1:nq,1:nz) => usol_flat
+    
+    call prep_background_gas(nsp, nq, nz, nrT, kj, nw, usol, densities, &
+                             density, rx_rates, mubar, pressure, &
+                             prates, surf_radiance, &
+                             DU, DD, DL, ADU, ADL, err)
+    if (len_trim(err) /= 0) return
     
     call dochem(neqs, nsp, nsl, nq, nz, nrT, usol, density, rx_rates, &
                 densities, xp, xl, rhs) 
@@ -533,13 +565,10 @@ contains
   subroutine jac_background_gas(lda_neqs, neqs, usol_flat, jac, err)
     use photochem_const, only: pi
     
-    use photochem_data, only: lda, kd, ku, kl, nq, nsp, nsl, nrT, kj, nw, species_mass, back_gas_mu, &
-                              photonums, water_sat_trop
-    use photochem_vars, only: nz, temperature, grav, z, dz, edd, surface_pressure, &
-                              xs_x_qy, photon_flux, diurnal_fac, solar_zenith, &
-                              surface_albedo, trop_ind, epsj, &
-                              lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
-                              lower_dist_height, lower_fix_mr, upper_veff, upper_flux
+    use photochem_data, only: lda, kd, ku, kl, nq, nsp, nsl, nrT, kj, nw
+    use photochem_vars, only: nz, dz, epsj, &
+                              lowerboundcond, upperboundcond, lower_vdep, &
+                              upper_veff
   
     integer, intent(in) :: lda_neqs, neqs
     real(real_kind), intent(in), target :: usol_flat(neqs)
@@ -553,7 +582,6 @@ contains
     real(real_kind) :: rhs(neqs)
     real(real_kind) :: rhs_perturb(neqs)
     
-    real(real_kind) :: sum_usol(nz)
     real(real_kind) :: mubar(nz), pressure(nz), density(nz)
     real(real_kind) :: densities(nsp+1,nz)
     real(real_kind) :: rx_rates(nz,nrT)
@@ -561,56 +589,18 @@ contains
     real(real_kind) :: xp(nz), xl(nz)
     real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz), ADU(nq,nz), ADL(nq,nz)
     
-    real(real_kind) :: u0, disth, ztop, ztop1    
-    integer :: i, k, j, m, mm, jdisth
+    integer :: i, k, j, m, mm
     
     err = ''
     ! reshape usol_flat with a pointer (no copying; same memory)
     usol(1:nq,1:nz) => usol_flat
     djac(1:lda,1:neqs) => jac
     
-    do i = 1,nz
-      sum_usol(i) = sum(usol(:,i))
-      if (sum_usol(i) > 1.0d0) then
-        err = 'Mixing ratios sum to >1.0 at some altitude (should be <=1).' // &
-              ' The atmosphere is probably in a run-away state.'
-        return
-      endif
-    enddo
-    
-    do i = 1,nz
-      call molar_weight(nq, usol(:,i), sum_usol(i), species_mass, back_gas_mu, mubar(i))
-    enddo
-    
-    call press_and_den(nz, temperature, grav, surface_pressure*1.d6, dz, &
-                       mubar, pressure, density)
-                       
-    ! diffusion coefficients
-    call diffusion_coefficients(nq, nz, dz, edd, temperature, density, grav, mubar, &
-                                DU, DD, DL, ADU, ADL)
-    
-    do j = 1,nz
-      do i = 1,nq
-        densities(i,j) = usol(i,j)*density(j)
-      enddo
-      densities(nsp,j) = (1.d0-sum_usol(j))*density(j) ! background gas
-      densities(nsp+1,j) = 1.d0 ! for hv
-    enddo
-
-    call reaction_rates(nsp, nz, nrT, temperature, density, &
-                        densities, rx_rates, err)
+    call prep_background_gas(nsp, nq, nz, nrT, kj, nw, usol, densities, &
+                             density, rx_rates, mubar, pressure, &
+                             prates, surf_radiance, &
+                             DU, DD, DL, ADU, ADL, err)
     if (len_trim(err) /= 0) return
-    
-    u0 = cos(solar_zenith*pi/180.d0)
-    call photorates(nz, nsp, kj, nw, dz, densities, xs_x_qy, &
-                    photon_flux, diurnal_fac, u0, surface_albedo, &
-                    prates, surf_radiance, err)
-    if (len_trim(err) /= 0) return
-    
-    do i = 1,kj
-      k = photonums(i)
-      rx_rates(:,k) = prates(:,i) 
-    enddo 
     
     ! compute chemistry contribution to jacobian using forward differences
     jac = 0.d0
@@ -621,7 +611,7 @@ contains
     !$omp do
     do i = 1,nq
       do j = 1,nz
-        R(j) = epsj*usol(i,j)
+        R(j) = epsj*abs(usol(i,j))
         usol_perturb(i,j) = usol(i,j) + R(j)
       enddo
 
@@ -663,7 +653,7 @@ contains
         djac(ku,i+nq) = djac(ku,i+nq) + DU(i,1) + ADU(i,1)
         djac(kd,i)    = djac(kd,i)    - DU(i,1) - lower_vdep(i)/dz(1)
       elseif (lowerboundcond(i) == 1) then
-        rhs(i) = 0.d0
+        ! rhs(i) = 0.d0
 
       else ! (lowerboundcond(i) == 2) then
         ! rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
@@ -685,41 +675,22 @@ contains
         
         djac(kd,k) = djac(kd,k) - DL(i,nz) - upper_veff(i)/dz(nz) 
         djac(kl,k-nq) = djac(kl,k-nq) + DL(i,nz) + ADL(i,nz)
-        
       elseif (upperboundcond(i) == 2) then
-        ! rhs(k) = rhs(k) - DL(i,nz)*usol(i,nz) &
-        !                 + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
-        !                 - upper_flux(i)/(density(nz)*dz(nz))
-
         djac(kd,k) = djac(kd,k) - DL(i,nz)
         djac(kl,k-nq) = djac(kl,k-nq) + DL(i,nz) + ADL(i,nz)
       endif
     enddo
-
-    ! Distributed (volcanic) sources
-    do i = 1,nq
-      if (lowerboundcond(i) == 3) then
-        disth = lower_dist_height(i)*1.d5        
-        jdisth = minloc(Z,1, Z >= disth) - 1
-        jdisth = max(jdisth,2)
-        ztop = z(jdisth)-z(1)
-        ztop1 = z(jdisth) + 0.5d0*dz(jdisth)
-        do j = 2,jdisth
-          k = i + (j-1)*nq
-          rhs(k) = rhs(k) + 2.d0*lower_flux(i)*(ztop1-z(j))/(density(j)*ztop**2.d0)
-        enddo
-      endif
-    enddo  
     
   end subroutine
   
   integer(c_int) function RhsFn(tn, sunvec_y, sunvec_f, user_data) &
                                 result(ierr) bind(c, name='RhsFn')
     use, intrinsic :: iso_c_binding
+    use fcvode_mod
     use fsundials_nvector_mod
     use photochem_data, only: nq, species_names
-    use photochem_vars, only: neqs, nz
-    use photochem_wrk, only: time_previous, step_counter
+    use photochem_vars, only: neqs, nz, verbose, z
+    use photochem_wrk, only: nsteps_previous, cvode_mem
     
     ! calling variables
     real(c_double), value :: tn        ! current time
@@ -731,6 +702,9 @@ contains
     real(c_double), pointer :: yvec(:)
     real(c_double), pointer :: fvec(:)
     character(len=err_len) :: err
+    integer(c_long) :: nsteps(1)
+    integer(c_int) :: loc_ierr
+    real(c_double) :: hcur(1)
     integer :: ind(1), k
     
     ierr = 0
@@ -741,18 +715,22 @@ contains
     
     ! fill RHS vector
     call rhs_background_gas(neqs, yvec, fvec, err)
-
-    if (tn /= time_previous) then
+    
+    loc_ierr = FCVodeGetNumSteps(cvode_mem, nsteps)
+    
+    if (nsteps(1) /= nsteps_previous .and. verbose) then
       ind = findloc(species_names, 'N')
       k = ind(1) + (nz-1)*nq
-      print"(1x,'N =',i6,3x,'Time = ',es20.14,3x,es20.14,3x,es20.14)", step_counter,tn, yvec(k), yvec(ind(1))
-      ! print*, tn, yvec(k), yvec(ind(1))
-      step_counter = step_counter + 1
-      time_previous = tn
+      loc_ierr = FCVodeGetCurrentStep(cvode_mem, hcur)
+      
+      print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5)", nsteps, tn, hcur(1)
+      ind = maxloc(yvec)
+      ! print*, yvec(ind(1)),species_names(ind(1)-(ind(1)/nq)*nq),z(ind(1)/nq+1)/1.d5
+      nsteps_previous = nsteps(1)
     endif
     if (len_trim(err) /= 0) then
-      print*,trim(err)
-      ierr = -1
+      ! print*,trim(err)
+      ierr = 1
     endif
     return
   end function
@@ -762,12 +740,15 @@ contains
                                 result(ierr) bind(C,name='JacFn')
     !======= Inclusions ===========
     use, intrinsic :: iso_c_binding
+    use fcvode_mod
     use fsundials_nvector_mod
+    use fnvector_serial_mod
     use fsunmatrix_band_mod
     use fsundials_matrix_mod
     
     use photochem_data, only: lda
     use photochem_vars, only: neqs
+    ! use photochem_wrk, only: cvode_mem
 
     ! calling variables
     real(c_double), value :: tn        ! current time
@@ -781,9 +762,24 @@ contains
     real(c_double), pointer :: yvec(:)
     real(c_double), pointer :: Jmat(:)
     character(len=err_len) :: err
+    
+    ! type(N_Vector)        :: sunvec_errwts
+    ! real(c_double), pointer :: errwts(:)
+    ! real(c_double) :: fnorm, hcur(1), sig0
+    ! integer(c_int) :: ierr1
+    ! integer(c_long) :: neqs_cint
+    ! 
+    ! neqs_cint = neqs
+    ! sunvec_errwts = FN_VNew_Serial(neqs_cint)
+    ! ierr1 = FCVodeGetErrWeights(cvode_mem,sunvec_errwts)
+    ! errwts(1:neqs) => FN_VGetArrayPointer(sunvec_errwts)
+    ! fnorm = FN_VWrmsNorm(sunvec_f,sunvec_errwts)
+    ! ierr1 = FCVodeGetCurrentStep(cvode_mem, hcur)
+    ! sig0 = 2.2204460493d-16*1000.d0*neqs*fnorm*abs(hcur(1))
+    ! print*,yvec(15552)*sqrt(2.2204460493d-16),sig0/errwts(15552)
+
     yvec(1:neqs) => FN_VGetArrayPointer(sunvec_y)
     Jmat(1:neqs*lda) => FSUNBandMatrix_Data(sunmat_J)
-    
     call jac_background_gas(lda*neqs, neqs, yvec, Jmat, err)
 
     ierr = 0
@@ -791,9 +787,10 @@ contains
 
   end function
   
-  subroutine photo_equilibrium(err)
-    use photochem_data, only: nq
-    use photochem_vars, only: nz, neqs, usol_init
+  subroutine photo_equilibrium(nq, nz, usol_out, err)
+    ! use photochem_data, only: nq
+    use photochem_vars, only: neqs, usol_init
+    use photochem_wrk, only: cvode_mem
     
     use, intrinsic :: iso_c_binding
     use fcvode_mod, only: CV_BDF, CV_NORMAL, FCVodeInit, FCVodeSStolerances, &
@@ -807,6 +804,8 @@ contains
     use fsunlinsol_band_mod, only: FSUNLinSol_Band
     
     ! in/out
+    integer, intent(in) :: nq, nz
+    real(real_kind), intent(out) :: usol_out(nq,nz)
     character(len=err_len), intent(out) :: err
     
     ! local variables
@@ -815,7 +814,7 @@ contains
     real(c_double) :: tout       ! output time
     real(c_double) :: tcur(1)    ! current time
     integer(c_int) :: ierr       ! error flag from C functions
-    type(c_ptr)    :: cvode_mem  ! CVODE memory
+    ! type(c_ptr)    :: cvode_mem  ! CVODE memory
     type(N_Vector), pointer :: sunvec_y ! sundials vector
     
     ! solution vector, neq is set in the ode_mod module
@@ -831,7 +830,7 @@ contains
     neqs_long = neqs
     tstart = 0.0d0
     tcur   = tstart
-    tout   = 1.d17
+    tout   = 1.d1
     rtol = 1.d-3
     atol = 1.d-27
     mu = nq
@@ -839,8 +838,8 @@ contains
     mxsteps = 100000000
     
     ! initialize solution vector
-    DO i=1,nq
-      DO j=1,nz
+    do j=1,nz
+      do i=1,nq
         k = i + (j-1)*nq
         yvec(k) = usol_init(i,j)
       enddo
@@ -908,6 +907,13 @@ contains
       return
     end if
     call FSUNMatDestroy(sunmat)
+    
+    do j=1,nz
+      do i=1,nq  
+        k = i + (j-1)*nq
+        usol_out(i,j) = yvec(k)
+      enddo
+    enddo
     
   end subroutine
   
@@ -1145,9 +1151,7 @@ contains
     
     real(real_kind), intent(out) :: usol(nq,nz)
     usol = usol_init
-    
-    
-    
+
   end subroutine
 
 end module

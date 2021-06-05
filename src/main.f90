@@ -2,7 +2,7 @@
 program main
   ! use photochem_input, only: read_all_files, reaction_string
   use photochem_setup, only: setup
-  use photochem_vars, only: data_dir, neqs, usol_init
+  use photochem_vars, only: data_dir, neqs, usol_init, nz
   use photochem, only: rhs_background_gas, jac_background_gas, print_reaction_string, photo_equilibrium
   use photochem_data, only: nrT, nq, lda
   implicit none
@@ -11,6 +11,7 @@ program main
   integer i, lda_neqs
   real(8), pointer :: usol_flat(:)
   real(8), allocatable :: rhs(:), jac(:)
+  real(8), allocatable :: usol_out(:,:)
   integer cr, cm, c1, c2
   
   data_dir = "../data"
@@ -30,6 +31,7 @@ program main
   lda_neqs = lda*neqs
   allocate(jac(lda_neqs))
   
+  
   call jac_background_gas(lda_neqs, neqs, usol_flat, jac, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
@@ -48,15 +50,16 @@ program main
     stop
   endif
   
-  call photo_equilibrium(err)
+  allocate(usol_out(nq,nz))
+  
+  call photo_equilibrium(nq,nz,usol_out,err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop
   endif
+  do i = 1,nq
+    print*,i,usol_out(i,200)
+  enddo
   
-  ! do i=1,nrT
-  !   call print_reaction_string(i)
-  ! enddo
-  ! deallocate(rxstring)
-  
+
 end program

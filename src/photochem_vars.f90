@@ -52,5 +52,6 @@ module photochem_vars
   
   ! other
   real(real_kind) :: epsj = 1.d-9
+  logical :: verbose = .true.
   
 end module

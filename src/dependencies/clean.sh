@@ -7,9 +7,6 @@ cd ../fortran-yaml
 rm -r build_dir
 
 cd ../
-chmod -R +w StringiFor
-rm -r StringiFor
-
 cd dependencies
 find . -type f ! -name '*.sh' -delete
 rm -r -- ./*/

@@ -35,31 +35,53 @@ boundary-conditions:
     upper-boundary:
       veff: 0.0
       type: constant effusion velocity
-  # - name: CH4
-  #   lower-boundary:
-  #     flux: 1.0e9
-  #     type: constant flux
-  #   upper-boundary:
-  #     veff: 0.0
-  #     type: constant effusion velocity  
-  # - name: C
-  #   lower-boundary:
-  #     vdep: 1.0
-  #     type: constant deposition velocity
-  #   upper-boundary:
-  #     veff: 1.0
-  #     type: constant effusion velocity
-  # - name: H2
-  #   lower-boundary:
-  #     vdep: 0.0
-  #     type: constant deposition velocity
-  #   upper-boundary:
-  #     veff: 1.0
-  #     type: constant effusion velocity
-  # - name: H
-  #   lower-boundary:
-  #     vdep: 0.0
-  #     type: constant deposition velocity
-  #   upper-boundary:
-  #     veff: 1.0
-  #     type: constant effusion velocity
+  - name: CH4
+    lower-boundary:
+      flux: 1.0e9
+      type: constant flux
+    upper-boundary:
+      veff: 0.0
+      type: constant effusion velocity  
+  - name: O
+    lower-boundary:
+      vdep: 1.0
+      type: constant deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: constant effusion velocity
+  - name: CO2
+    lower-boundary:
+      flux: 0.0
+      type: constant flux
+    upper-boundary:
+      veff: 0.0
+      type: constant effusion velocity  
+  - name: C
+    lower-boundary:
+      vdep: 1.0
+      type: constant deposition velocity
+    upper-boundary:
+      veff: 1.0
+      type: constant effusion velocity
+  - name: H2
+    lower-boundary:
+      vdep: 0.0
+      type: constant deposition velocity
+    upper-boundary:
+      veff: 1.0
+      type: constant effusion velocity
+  - name: H
+    lower-boundary:
+      vdep: 0.0
+      type: constant deposition velocity
+    upper-boundary:
+      veff: 1.0
+      type: constant effusion velocity
+  - name: CO
+    lower-boundary:
+      vdep: 1.0e-4
+      type: constant deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: constant effusion velocity
+

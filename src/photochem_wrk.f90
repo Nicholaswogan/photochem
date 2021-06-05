@@ -1,5 +1,6 @@
 
 module photochem_wrk
+  use, intrinsic :: iso_c_binding
   implicit none
 
   integer, parameter :: real_kind = kind(1.0d0)
@@ -13,7 +14,7 @@ module photochem_wrk
   real(real_kind), allocatable :: real_nz_nsp(:,:)
   real(real_kind), allocatable :: real_nz(:)
   integer, allocatable :: int_nz(:)
-  real(real_kind) :: time_previous = -tiny(1.d0)
-  integer :: step_counter = 1
+  integer(c_long) :: nsteps_previous = -10
+  type(c_ptr)    :: cvode_mem  ! CVODE memory
   
 end module
