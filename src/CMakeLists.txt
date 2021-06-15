@@ -40,6 +40,9 @@ add_library(photochem
 
 # set_property(TARGET photochem PROPERTY Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
 target_link_libraries(photochem PUBLIC yaml)
+target_link_libraries(photochem PUBLIC sundials_fcvode_mod)
+target_link_libraries(photochem PUBLIC sundials_cvode)
+target_link_libraries(photochem PUBLIC lapack)
 target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules"
                           )

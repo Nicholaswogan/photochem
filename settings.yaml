@@ -7,9 +7,9 @@ atmosphere-grid:
 
 photolysis-grid:
   regular-grid: true
-  lower-wavelength: 50.0 # nm
+  lower-wavelength: 120.0 # nm
   upper-wavelength: 800.0 # nm
-  number-of-bins: 100
+  number-of-bins: 300
   # input-file: my/input/file.txt
 
 planet:
@@ -22,66 +22,210 @@ planet:
   diurnal-averaging-factor: 0.5
   solar-zenith-angle: 50.0
   water:
-    water-saturated-troposphere: true
+    water-saturated-troposphere: false
     tropopause-altitude: 1.1e6 # cm
 
 # Assumes veff = vdep = 0 boundary condition for species not specified.
 # Assumes species is long-lived unless specified
 boundary-conditions:
-  - name: N
-    lower-boundary:
-      vdep: 1.0
-      type: constant deposition velocity
-    upper-boundary:
-      veff: 0.0
-      type: constant effusion velocity
-  - name: CH4
-    lower-boundary:
-      flux: 1.0e9
-      type: constant flux
-    upper-boundary:
-      veff: 0.0
-      type: constant effusion velocity  
-  - name: O
-    lower-boundary:
-      vdep: 1.0
-      type: constant deposition velocity
-    upper-boundary:
-      veff: 0.0
-      type: constant effusion velocity
-  - name: CO2
-    lower-boundary:
-      flux: 0.0
-      type: constant flux
-    upper-boundary:
-      veff: 0.0
-      type: constant effusion velocity  
-  - name: C
-    lower-boundary:
-      vdep: 1.0
-      type: constant deposition velocity
-    upper-boundary:
-      veff: 1.0
-      type: constant effusion velocity
   - name: H2
     lower-boundary:
-      vdep: 0.0
-      type: constant deposition velocity
+      flux: 1e5
+      type: flux
     upper-boundary:
-      veff: 1.0
-      type: constant effusion velocity
-  - name: H
+      veff: 4.0
+      type: effusion velocity
+  - name: CO2
     lower-boundary:
-      vdep: 0.0
-      type: constant deposition velocity
+      flux: 1e4
+      type: flux
     upper-boundary:
-      veff: 1.0
-      type: constant effusion velocity
+      veff: 0.0
+      type: effusion velocity
   - name: CO
     lower-boundary:
       vdep: 1.0e-4
-      type: constant deposition velocity
+      type: deposition velocity
     upper-boundary:
       veff: 0.0
-      type: constant effusion velocity
+      type: effusion velocity
+  - name: O1D
+    type: short lived
+    
+# to get rid of S and H in the model
+  - name: S8
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 1.0
+      type: effusion velocity
+  - name: S
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 1.0
+      type: effusion velocity
+  - name: NNH
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 1.0
+      type: effusion velocity
+  - name: NH
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 1.0
+      type: effusion velocity
 
+# standard stuff
+  - name: O
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: H
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 3.0
+      type: effusion velocity
+  - name: OH
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HO2
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: H2O2
+    lower-boundary:
+      vdep: 2.0e-1
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HCO
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: H2CO
+    lower-boundary:
+      vdep: 2e-1
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: CH3
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: NO
+    lower-boundary:
+      vdep: 3.0e-4
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: NO2
+    lower-boundary:
+      vdep: 3.0e-3
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: O3
+    lower-boundary:
+      vdep: 7.0e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HNO3
+    lower-boundary:
+      vdep: 2.0e-1
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: H2S
+    lower-boundary:
+      flux: 0.0e8
+      vdep: 2.0e-2
+      distributed-height: 10.0
+      type: deposition velocity + distributed flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HSO
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: H2SO4
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: SO2
+    lower-boundary:
+      flux: 0.0e9
+      vdep: 1.0
+      distributed-height: 10.0
+      type: deposition velocity + distributed flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HNCO
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HCN
+    lower-boundary:
+      vdep: 7.0e-3
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: NCO
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: CN
+    lower-boundary:
+      vdep: 1.0
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+
+      

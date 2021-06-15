@@ -1352,6 +1352,7 @@ contains
     photoset%water_sat_trop = tmp2%get_logical('water-saturated-troposphere',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     ind = findloc(photomech%species_names,'H2O')
+    photoset%LH2O = ind(1)
     if (ind(1) == 0) then
       err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
       return
@@ -1413,6 +1414,12 @@ contains
               return
             endif
           enddo
+        endif
+        ! make sure it isn't water
+        if (photoset%water_sat_trop .and. dups(j) == "H2O") then
+          err = "IOError: H2O can not have a specified boundary condition"// &
+                " if water-saturated-troposphere = true in the settings file."
+          return
         endif
         ! check if in rxmech
         ind = findloc(photomech%species_names,dups(j))
@@ -1565,11 +1572,11 @@ contains
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     
-    ! constant deposition velocity = vdep
-    ! constant mixing-ratio = mixing-ratio
-    ! constant flux = flux
+    ! deposition velocity = vdep
+    ! mixing-ratio = mixing-ratio
+    ! flux = flux
     ! deposition velocity + distributed flux = vdep + flux + distributed-height
-    if (bctype == "constant deposition velocity") then
+    if (bctype == "deposition velocity") then
       lowercond = 0
       Lvdep = tmpdict%get_real("vdep",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -1577,7 +1584,7 @@ contains
       Lflux = 0.d0
       LdistH = 0.d0
       Lmr = 0.d0 
-    elseif (bctype == "constant mixing-ratio") then
+    elseif (bctype == "mixing-ratio") then
       lowercond = 1
       Lvdep = 0.d0
       Lflux = 0.d0
@@ -1585,7 +1592,7 @@ contains
       Lmr = tmpdict%get_real("mixing-ratio",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-    elseif (bctype == "constant flux") then
+    elseif (bctype == "flux") then
       lowercond = 2
       Lvdep = 0.d0
       Lflux = tmpdict%get_real("flux",error = io_err)
@@ -1617,15 +1624,15 @@ contains
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     
-    ! constant effusion velocity = veff
-    ! constant flux = flux
-    if (bctype == "constant effusion velocity") then
+    ! effusion velocity = veff
+    ! flux = flux
+    if (bctype == "effusion velocity") then
       uppercond = 0
       Uveff = tmpdict%get_real("veff",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       Uflux = 0.d0
-    elseif (bctype == "constant flux") then
+    elseif (bctype == "flux") then
       uppercond = 2
       Uveff = 0.d0
       Uflux = tmpdict%get_real("flux",error = io_err)

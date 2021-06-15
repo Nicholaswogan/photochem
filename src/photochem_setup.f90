@@ -4,7 +4,7 @@ module photochem_setup
   integer, private, parameter :: real_kind = kind(1.0d0)
   integer, private, parameter :: err_len = 1024
   
-  public :: setup
+  public :: setup, out2atmosphere_txt
   
 contains
   
@@ -112,16 +112,15 @@ contains
     if (z(nz) > z_file(nzf)) then
       print*,'Warning: vertical grid is being extrapolated above where there is input data.'
     endif
-    
-    
+
   end subroutine
-  
-  
   
   subroutine allocate_nz_vars()
     use photochem_data, only: nq, kj, nw
     use photochem_vars
     use photochem_wrk
+    ! nqL = count(lowerboundcond /= 1)
+    ! neqs = nqL + nq*(nz-1) 
     neqs = nq*nz
     
     if (allocated(temperature)) then
@@ -132,6 +131,7 @@ contains
       deallocate(grav)
       deallocate(usol_init)
       deallocate(xs_x_qy)
+      deallocate(usol_out)
     endif
     
     allocate(temperature(nz))
@@ -141,10 +141,65 @@ contains
     allocate(grav(nz))
     allocate(usol_init(nq,nz))
     allocate(xs_x_qy(nz,kj,nw))
+    allocate(usol_out(nq,nz))
 
   end subroutine
   
-
+  subroutine out2atmosphere_txt(filename, overwrite, clip, err)
+    use photochem_data, only: nq, species_names
+    use photochem_vars, only: nz, usol_out, temperature, z, edd, at_photo_equilibrium
+    
+    character(len=*), intent(in) :: filename
+    logical, intent(in) :: overwrite, clip
+    character(len=err_len), intent(out) :: err
+    
+    integer :: io, i, j
+    
+    if (.not.at_photo_equilibrium) then
+      err = "Can not write an output atmosphere until photochemical equilibrium is achieved."
+      return
+    endif
+    
+    if (overwrite) then
+      open(1, file=filename, form='formatted', status='replace', iostat=io)
+      if (io /= 0) then
+        err = "Unable to overwrite file "//trim(filename)
+        return
+      endif
+    else
+      open(1, file=filename, form='formatted', status='new', iostat=io)
+      if (io /= 0) then
+        err = "Unable to create file "//trim(filename)//" because it already exists"
+        return
+      endif
+    endif
+    
+    write(unit=1,fmt="(a6,1x)",advance='no') "alt"
+    write(unit=1,fmt="(a25)",advance='no') "temp"
+    write(unit=1,fmt="(a25,4x)",advance='no') "eddy"
+    write(unit=1,fmt="(a25)",advance='no') species_names(1)
+    do j = 2,nq
+      write(unit=1,fmt="(a25)",advance='no') species_names(j)
+    enddo
+    
+    do i = 1,nz
+      write(1,*)
+      write(unit=1,fmt="(es25.15e3)",advance='no') z(i)/1.d5
+      write(unit=1,fmt="(es25.15e3)",advance='no') temperature(i)
+      write(unit=1,fmt="(es25.15e3)",advance='no') edd(i)
+      do j = 1,nq
+        if (clip) then
+          write(unit=1,fmt="(es25.15e3)",advance='no') max(usol_out(j,i),1.d-40)
+        else
+          write(unit=1,fmt="(es25.15e3)",advance='no') usol_out(j,i)
+        endif
+      enddo
+    enddo
+    
+    close(1)
+    
+  end subroutine
+  
   subroutine gravity(radius, mass, nz, z, grav)
     use photochem_const, only: G_grav
     real(real_kind), intent(in) :: radius, mass ! radius in cm, mass in grams
@@ -174,6 +229,5 @@ contains
       z(i) = z(i-1) + dz(i)
     enddo
   end subroutine
-  
   
 end module

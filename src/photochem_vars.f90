@@ -1,6 +1,7 @@
 
 
 module photochem_vars
+  use, intrinsic :: iso_c_binding
   implicit none
   public
   integer, private, parameter :: real_kind = kind(1.0d0)
@@ -36,21 +37,28 @@ module photochem_vars
   ! Radiative tranfer
   real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
 
-
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! set AFTER file read-in !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   integer :: neqs
+  ! integer :: nqL
   real(real_kind), allocatable :: temperature(:)
   real(real_kind), allocatable :: z(:)
   real(real_kind), allocatable :: dz(:)
   real(real_kind), allocatable :: edd(:)
   real(real_kind), allocatable :: grav(:)
   real(real_kind), allocatable, target :: usol_init(:,:)
-  
   real(real_kind), allocatable :: xs_x_qy(:,:,:)
   
+  ! output
+  logical :: at_photo_equilibrium = .false.
+  real(real_kind), allocatable, target :: usol_out(:,:)
+  
   ! other
+  real(c_double) :: initial_dt = 1.d-15
+  integer(c_int) :: max_err_test_failures = 15
+  integer(c_int) :: max_order = 5
+  logical :: use_fast_jacobian = .true.
   real(real_kind) :: epsj = 1.d-9
   logical :: verbose = .true.
   

@@ -1,0 +1,116 @@
+- equation: H2O + hv => OH + H
+  type: photolysis
+- equation: CO2 + hv => CO + O
+  type: photolysis
+- equation: CO2 + hv => CO + O1D
+  type: photolysis
+- equation: O2 + hv => O + O
+  type: photolysis
+- equation: O2 + hv => O + O1D
+  type: photolysis
+- equation: NO + hv => N + O
+  type: photolysis
+- equation: H2S + hv => HS + H
+  type: photolysis
+- equation: NH3 + hv => NH2 + H
+  type: photolysis
+- equation: NH3 + hv => NH + H2
+  type: photolysis
+- equation: CH4 + hv => 1CH2 + H2
+  type: photolysis
+- equation: CH4 + hv => CH3 + H
+  type: photolysis
+- equation: SO2 + hv => SO + O
+  type: photolysis
+- equation: SO2 + hv => S + O2
+  type: photolysis
+- equation: SO2 + hv => S + O + O
+  type: photolysis
+- equation: SO + hv => S + O
+  type: photolysis
+- equation: CS2 + hv => CS + S
+  type: photolysis
+- equation: OCS + hv => CO + S
+  type: photolysis
+- equation: S2 + hv => S + S
+  type: photolysis
+- equation: S3 + hv => S2 + S
+  type: photolysis
+- equation: S4 + hv => S3 + S
+  type: photolysis
+- equation: C2H2 + hv => C2H + H
+  type: photolysis
+- equation: C2H4 + hv => C2H3 + H
+  type: photolysis
+- equation: C2H6 + hv => C2H5 + H
+  type: photolysis
+- equation: C4H2 + hv => C4H + H
+  type: photolysis
+- equation: H2CO + hv => CO + H2
+  type: photolysis
+- equation: H2CO + hv => HCO + H
+  type: photolysis
+- equation: H2CO + hv => CO + H + H
+  type: photolysis
+- equation: HCN + hv => H + CN
+  type: photolysis
+- equation: HSO + hv => HS + O
+  type: photolysis
+- equation: HS + hv => H + S
+  type: photolysis
+- equation: CH4 + hv => CH + H2 + H
+  type: photolysis
+- equation: O3 + hv => O1D + O2
+  type: photolysis
+- equation: O3 + hv => O + O2
+  type: photolysis
+- equation: H2O2 + hv => OH + OH
+  type: photolysis
+- equation: HO2 + hv => OH + O
+  type: photolysis
+- equation: HNO + hv => NO + H
+  type: photolysis
+- equation: HNO2 + hv => NO + OH
+  type: photolysis
+- equation: HNO3 + hv => OH + NO2
+  type: photolysis
+- equation: NO2 + hv => NO + O
+  type: photolysis
+- equation: SO3 + hv => SO2 + O
+  type: photolysis
+- equation: S8 + hv => S8L
+  type: photolysis
+- equation: S8L + hv => S4 + S4
+  type: photolysis
+- equation: HCl + hv => H + Cl
+  type: photolysis
+- equation: HOCl + hv => OH + Cl
+  type: photolysis
+- equation: Cl2 + hv => Cl + Cl
+  type: photolysis
+- equation: N2H4 + hv => N2H3 + H
+  type: photolysis
+- equation: N2 + hv => N + N2D
+  type: photolysis
+- equation: CO + hv => C + O
+  type: photolysis
+- equation: N2O + hv => N2 + O1D
+  type: photolysis
+- equation: CH2N2 + hv => 1CH2 + N2
+  type: photolysis
+- equation: CH2CO + hv => 1CH2 + CO
+  type: photolysis
+- equation: CH3OH + hv => CH3O + H
+  type: photolysis
+- equation: CH3OH + hv => CH3 + OH
+  type: photolysis
+- equation: CH3OH + hv => H2CO + H2
+  type: photolysis
+- equation: CH3CN + hv => CH3 + CN
+  type: photolysis
+- equation: CH3CHO + hv => CH3 + HCO
+  type: photolysis
+- equation: CH3CHO + hv => CH4 + CO
+  type: photolysis
+- equation: CH3CHO + hv => CH3CO + H
+  type: photolysis

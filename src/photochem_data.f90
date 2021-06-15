@@ -77,6 +77,8 @@ module photochem_data
   real(real_kind), protected :: planet_mass
   real(real_kind), protected :: planet_radius
   logical, protected :: water_sat_trop
+  integer, protected :: LH2O
+  
   
 contains
   
@@ -254,6 +256,7 @@ contains
     planet_mass = photoset%planet_mass
     planet_radius = photoset%planet_radius
     water_sat_trop = photoset%water_sat_trop
+    LH2O = photoset%LH2O
     
     !!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_vars !!!

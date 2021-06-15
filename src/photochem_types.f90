@@ -29,6 +29,7 @@ module photochem_types ! make a giant IO object
     real(real_kind) :: diurnal_fac
     real(real_kind) :: solar_zenith
     logical :: water_sat_trop
+    integer :: LH2O
     real(real_kind) :: trop_alt ! this can be changed
     
     integer :: nq ! nubmer of long lived

@@ -240,13 +240,13 @@ CH:
   reactions:
     CH + hv => C + H:
       citations:
-      - nm-range: 0.0 - 358.99
+      - nm-range: 1.2 - 358.99
         citation: Huebner and Mukherjee (2015)
         DOI: 10.1016/j.pss.2014.11.022
       notes:
   xsections:
     citations:
-    - nm-range: 0.0 - 358.99
+    - nm-range: 1.2 - 358.99
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
     notes:
