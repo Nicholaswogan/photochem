@@ -2,19 +2,19 @@ description: Settings for the photochemical model.
 
 atmosphere-grid:
   bottom: 0.0 # cm
-  top: 1.0e7 # cm
+  top: 1.0e8 # cm
   number-of-layers: 200
 
 photolysis-grid:
   regular-grid: true
   lower-wavelength: 120.0 # nm
   upper-wavelength: 800.0 # nm
-  number-of-bins: 300
+  number-of-bins: 100
   # input-file: my/input/file.txt
 
 planet:
   use-background-gas: true
-  background-gas: N2
+  background-gas: H2
   surface-pressure: 1.0 # bar
   planet-mass: 5.972e27 # grams
   planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
@@ -28,13 +28,13 @@ planet:
 # Assumes veff = vdep = 0 boundary condition for species not specified.
 # Assumes species is long-lived unless specified
 boundary-conditions:
-  - name: H2
-    lower-boundary:
-      flux: 1e5
-      type: flux
-    upper-boundary:
-      veff: 4.0
-      type: effusion velocity
+  # - name: H2
+  #   lower-boundary:
+  #     flux: 1e5
+  #     type: flux
+  #   upper-boundary:
+  #     veff: 4.0
+  #     type: effusion velocity
   - name: CO2
     lower-boundary:
       flux: 1e4

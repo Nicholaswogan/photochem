@@ -43,7 +43,33 @@ CH2N2 + hv => 1CH2 + N2
 CH2CO + hv => 1CH2 + CO
 CH3OH + hv => CH3O + H
 
-Reactions
+---
+
+Missing from data Kevin gave me
+CS2 + hv => CS + S
+C4H2 + hv => C4H + H
+HSO + hv => HS + O
+HS + hv => H + S
+H2O2 + hv => OH + OH
+HNO + hv => NO + H
+HNO2 + hv => NO + OH
+HNO3 + hv => OH + NO2
+S8 + hv => S8L
+S8L + hv => S4 + S4
+N2 + hv => N + N2D
+CO + hv => C + O
+CH2CO + hv => 1CH2 + CO
+
+missing qy
+CO2
+O2
+NH3
+CH4
+H2CO
+O3
+CH3OH
+CH3CHO
+
 
 
 

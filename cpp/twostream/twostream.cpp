@@ -1,12 +1,9 @@
-#include <iostream>
 #include <vector>
 #include <cmath>
-#include "linalg.h"
-#include <chrono>
-
+#include "twostream.h"
 
 // just a function
-void two_tream(std::vector<double>& tau, std::vector<double>& w0, 
+void two_stream(std::vector<double>& tau, std::vector<double>& w0, 
                double& u0, double& Rsfc, double& surface_radiance, 
                std::vector<double>& amean)
 {
@@ -122,7 +119,7 @@ void two_tream(std::vector<double>& tau, std::vector<double>& w0,
   
   // amean = integral(J_n d_Omega) = J_n*4*pi
   // Above is an integration of J_n over a complete sphere, 
-  // and is thus has units of flux density, or irradiance.
+  // and has units of flux density, or irradiance.
   // amean(i) is for at top of layer i. amean(nz + 1) is the ground.
   
   // very top edge of atmosphere (Not in paper. Derive from Equation 17 and 31. bit confusing)
@@ -137,24 +134,22 @@ void two_tream(std::vector<double>& tau, std::vector<double>& w0,
   int i = nz-1;
   surface_radiance = (y1[i]*e3[i]+y2[i]*e4[i]+cmb[i])/u1 + std::exp(-tauc[i+1]/u0);
 }
-               
-              
-int main()
-{
-  int nz = 200;
-  std::vector<double> tau(nz,0.1);
-  std::vector<double> w0(nz,0.9999);
-  double u0 = 0.7;
-  double Rsfc = 0.25; 
-  std::vector<double> amean(nz);
-  double surface_radiance;
-  
-  auto t1 = std::chrono::high_resolution_clock::now();
-  for (int i = 0; i<10000; i++)
-    two_tream(tau, w0, u0, Rsfc,surface_radiance, amean);
-  auto t2 = std::chrono::high_resolution_clock::now();
-  
-  std::chrono::duration<double, std::milli> ms_double = t2 - t1;
-  std::cout << ms_double.count()/1000.0 << " s\n";
 
+void solve_tridiag(std::vector<double>& a, std::vector<double>& b, 
+                   std::vector<double>& c, std::vector<double>& d, int n) {
+  n--;
+  c[0] /= b[0];
+  d[0] /= b[0];
+
+  for (int i = 1; i < n; i++) {
+    c[i] /= b[i] - a[i]*c[i-1];
+    d[i] = (d[i] - a[i]*d[i-1]) / (b[i] - a[i]*c[i-1]);
+  }
+
+  d[n] = (d[n] - a[n]*d[n-1]) / (b[n] - a[n]*c[n-1]);
+
+  for (int i = n; i-- > 0;) {
+    d[i] -= c[i]*d[i+1];
+  }
 }
+

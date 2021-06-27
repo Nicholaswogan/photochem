@@ -1,0 +1,132 @@
+Email from Kevin!
+
+CO2
+C  427)  CO2 + HV -> CO + O(3P)
+      AR(nrx+2,I) = PCO2(I)
+C  428)  CO2 + HV -> CO + O(1D)
+      AR(nrx+3,I) = PCO2D(I)
+comment: this could be rebuilt with introduction of excited CO + O3P branch.  but I don't know what excited CO does.
+
+O2
+C  429)  O2 + HV -> O(3P) + O(3P)
+      AR(nrx+4,I) = PO2(I)
+C  430)  O2 + HV -> O(3P) + O(1D)
+      AR(nrx+5,I) = PO2D(I)
+
+NH3
+C  433)  NH3 + HV -> NH2 + H
+      AR(nrx+8,I) = 2./3.*PNH3(I)
+C  434)  NH3 + HV -> NH + H2
+      AR(nrx+9,I) = 1./3.*PNH3(I)
+
+CH4
+C  435)  CH4 + HV  ->  1CH2 + H2
+      AR(nrx+10,I) = 0.4*PCH4(I)
+C  436)  CH4 + HV  ->  CH3 + H
+      AR(nrx+11,I) = 0.4*PCH4(I)
+C  457)  CH4 + HV  -> CH + H2 + H
+      AR(nrx+31,I) = 0.2*PCH4(I)
+comment: I haven't looked at this in a long time, I suspect.  These things change
+
+H2CO
+C  452)  H2CO + HV -> H2 + CO
+      AR(nrx+25,I) = PH2CO_H2(I)
+C  453)  H2CO + HV -> HCO + H
+      AR(nrx+26,I) = PH2CO_HCO(I)
+C  454)  H2CO + HV -> H + H + CO
+      AR(nrx+27,I) = 0.0
+
+O3
+C  26)  O3 + HV -> O2 + O(1D)
+      AR(nrx+32,I) = PO3D(I)
+C  27)  O3 + HV -> O2 + O(3P)
+      AR(nrx+33,I) = PO3(I)
+
+CH3OH
+c  CH3OH + HV  -> CH3O +  H     ! this branch is reported 86±10%   The other processes are undetected
+      AR(nrx+52,I) = 0.86*PCH3OH(I)
+c  CH3OH + HV  -> CH3 +  OH     ! The other processes are undetected
+      AR(nrx+53,I) = 0.07*PCH3OH(I)
+c  CH3OH + HV  -> H2CO +  H2     ! The other processes are undetected
+      AR(nrx+54,I) = 0.07*PCH3OH(I)
+
+
+Also you earth_125.rx has the following photolysis reactions, which I don't see data for in these files. Do you use analogous species?
+
+CS2 + hv => CS + S
+c rough not a good approx because band has structure.
+c  30% go to S(1D), 70% to S(3P)
+      DATA SCS2/7*0., 7.e-17,9.0e-17,1.2e-16,2.0e-16,4.0e-16, ! 1-12
+     2  3*4.5E-16, 2.5E-16, 1.5E-16, 1.0e-16, 5.0e-17, 3.0e-17, !13-20
+     2  15*0.0/
+c this is an absorption band between 300 and 340 nm.
+      DATA SCS2a/45*0.,1.e-20, 1.5e-20, 2.5e-20, 4.e-20, 7.e-20,
+     1 8.e-20, 7.5e-20, 5.e-20, 2.5e-20, 2.e-20, 1.e-20, 12*0.0/
+
+C4H2 + hv => C4H + H
+C  451)  C4H2 + HV  ->  C4H + H    
+      AR(nrx+24,I) = 2.*PC2H2(I)
+comment: this is pretty lame.  It's probably known.
+
+HSO + hv => HS + O
+C  456)  HSO + HV -> HS + O
+      AR(nrx+29,I) = PHO2(I)
+comment: HSO is more stable than HO2, but, you know, photolysis never really matters for these short-lived species
+
+HS + hv => H + S
+c 1000 K
+      data shs/45*0,3.e-18, 5.e-19, 1.e-17, 1.6e-17, 1.5e-18, 6.e-19,!1-45, 46-51
+     1  7.e-17, 3.e-17, 2.e-18, 2.e-19, 3.e-20,                      !52-56
+     2  1.e-20,2.e-19,1.e-20,4.e-22, 2.e-21, 5.e-22, 5.e-23,        ! 57-63
+     3  8.e-24, 8.e-24, 4.e-24, 1.e-24, 0. /      !  64-68
+comment: its more transparent when colder
+
+H2O2 + hv => OH + OH    in file
+
+HNO + hv => NO + H
+HNO2 + hv => NO + OH
+c       HNO + hv -> H + NO
+      AR(nrx+36,I) = 1.7E-3HNO2 + hv => NO + OH
+C  54)  HNO2 + HV  -> NO + OH
+      AR(nrx+37,I) = 1.7E-3
+comment: these are pretty lame.  I will need to look into these for David Summers
+
+HNO3 + hv => OH + NO2       in file
+
+S8 + hv => S8L   in file
+
+S8L + hv => S4 + S4
+      DATA SS8L/108*1.E-18/
+C    (ESTIMATE FOR CROSS SECTION OF LINEAR S8 CHAINS IN VISIBLE.  SET
+C     EQUAL TO SS8R IN UV)
+
+N2 + hv => N + N2D
+CO + hv => C + O
+c July 2020
+      DATA SN2/14*0.,1.e-17,2.5e-16,1.e-17/
+      DATA SCO/14*0.,3*1.e-17/
+
+CH2CO + hv => 1CH2 + CO
+c  CH2CO + HV  -> 1CH2 + CO
+      AR(nrx+51,I) = POCS(I)    ! there is no information, so this seems the best analog
+                                ! the energy required is similar and the electrons are similar 
+
+
+A few more you didn't ask about:
+
+c  CH3CN + HV  -> CH3 +  CN     ! the H + CH2CN is in fact somewhat more important
+      AR(nrx+55,I) = 0.5*PCH3CN(I)   ! I therefore multiply by 0.5 to reduce CH3CN destruction
+
+c  CH3CHO + HV  -> CH3 +  HCO    ! dominant channel especially at shorter wavelengths
+      AR(nrx+56,I) = 0.85*PCH3CHO(I)
+c  CH3CHO + HV  -> CH4 +  CO     ! dominant channel especially at shorter wavelengths
+      AR(nrx+57,I) = 0.1*PCH3CHO(I)   ! becomes less unimportant at >325 nm
+c  CH3CHO + HV  -> CH3CO +  H    ! minor channel, goes to zero at longer wavelengths
+      AR(nrx+58,I) = 0.05*PCH3CHO(I)
+c acetaldehyde photolysis is well-studied because the CH4 channel is interesting
+
+c cyanoacetylene photolysis mostly promotes polymerization  
+c  I think it best to omit it
+c  HCCNN + HV  -> CCCN +  H    ! 30%
+c  HCCNN + HV  -> HCCCN*       ! 70%
+c     AR(nrx+57,I) = 0.05*PHCCCN(I)

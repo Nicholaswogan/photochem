@@ -9,27 +9,27 @@ program main
   real(8) :: rtol, atol
   logical :: success
   integer i
-  
+
   data_dir = "../data"
-  
+
   call setup("../zahnle_earth.yaml", "../settings.yaml", "../Sun_4.0Ga.txt", "../atmosphere_nothing.txt", err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop
   endif
-  
-  use_fast_jacobian = .true. 
+
+  use_fast_jacobian = .true.
   max_order = 5
-  rtol = 1.d-4
-  atol = 1.d-35
+  rtol = 1.d-3
+  atol = 1.d-30
   initial_dt = 1.d-15
-  call photo_equilibrium(1000000000,rtol, atol, success, err)
+  call photo_equilibrium(100000,rtol, atol, success, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop
   endif
-  
-  call out2atmosphere_txt("../myatmosphere.txt",.true.,.true.,err)
+
+  call out2atmosphere_txt("../myatmosphere.txt",.true.,.false.,err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop

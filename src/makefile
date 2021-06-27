@@ -16,13 +16,13 @@ OBJ=$(SRC:.f90=.o)
 IDIR=dependencies/modules
 LDIR=dependencies/lib
 FFLAGS=-I$(IDIR) -L$(LDIR)
-LIBS=-lyaml -lbinning -lsundials_fcvode_mod -lsundials_cvode -llapack
+LIBS=-lyaml -lbinning -lsundials_fcvode_mod -lsundials_cvode
 
 %.o: %.f90
-	$(FC) $(FCFLAGS) -c $< $(FFLAGS) $(LIBS) 
+	$(FC) $(FCFLAGS) -c $< $(FFLAGS) $(LIBS)
 
 photo.run: $(OBJ)
-	$(FC) $(FCFLAGS) -o $@ $(OBJ) $(OBJLIBS) $(FFLAGS) $(LIBS) 
-	
+	$(FC) $(FCFLAGS) -o $@ $(OBJ) $(OBJLIBS) $(FFLAGS) $(LIBS)
+
 clean:
 	@rm -f *.mod *.o photo.run

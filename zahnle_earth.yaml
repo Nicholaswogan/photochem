@@ -2453,7 +2453,6 @@ species:
       - 299.25
       - 368.1
   note: Estimated from thermodynamic data at 298 K and species C4H2
-  
 
 reactions:
 - equation: H + H (+ M) <=> H2 (+ M)
@@ -5940,6 +5939,11 @@ reactions:
     A: 9.2e-12
     b: 0.0
     Ea: -530.0
+- equation: C2H4 + CH3 <=> C3H6 + H
+  rate-constant:
+    A: 6.9e-12
+    b: 0.0
+    Ea: 5600.0
 - equation: C3H6 + O <=> HCO + C2H5
   rate-constant:
     A: 2.840686e-18
@@ -5960,11 +5964,6 @@ reactions:
     A: 1.420343e-17
     b: 2.2
     Ea: -450.0
-- equation: C3H6 + H <=> C2H4 + CH3
-  rate-constant:
-    A: 4.233902e-16
-    b: 1.5
-    Ea: 1010.0
 - equation: CH2N2 + C2H4 <=> C3H6 + N2
   rate-constant:
     A: 2.0e-11
@@ -6110,4 +6109,3 @@ reactions:
   type: photolysis
 - equation: N2O + hv => N2 + O1D
   type: photolysis
-
