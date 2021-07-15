@@ -92,7 +92,7 @@ contains
       cmb(i) = etb*facm/denom
     enddo
     Ssfc = Rsfc*direct(nz+1)
-
+    
     ! Coefficients of tridiagonal linear system (Equations 39 - 43)
     ! Odd coeficients (Equation 41)
     A(1) = 0.d0
@@ -120,7 +120,7 @@ contains
     B(l) = e2(nz) - Rsfc*e4(nz)
     D(l) = 0.d0
     E(l) = Ssfc - cpb(nz) + Rsfc*cmb(nz)
-  
+    
     ! Solve tridiagonal system. e is solution
     call dgtsv(nz*2, 1, a(2:nz*2), b, d(1:nz*2-1), e, nz*2, info)
     ! call tridiag(nz*2,a,b,d,e)
