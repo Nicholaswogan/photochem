@@ -365,11 +365,11 @@ contains
       return
     endif
     
-    do i=1,kj
-      do j=1,nz
-        call round(prates(j,i),-8)
-      enddo
-    enddo
+    ! do i=1,kj
+    !   do j=1,nz
+    !     call round(prates(j,i),-8)
+    !   enddo
+    ! enddo
     ! 
     ! do i=1,kj
     !   print*,prates(nz,i)
@@ -501,7 +501,7 @@ contains
   
   
   subroutine rhs_background_gas(neqs, usol_flat, rhs, err)
-    use photochem_const, only: pi
+    use photochem_const, only: pi, small_real
     
     use photochem_data, only: nq, nsp, nsl, nrT, kj, nw, LH2O, water_sat_trop
     use photochem_vars, only: nz, z, dz, trop_ind, &
@@ -509,7 +509,7 @@ contains
                               lower_dist_height, upper_veff, upper_flux, lower_fix_mr
   
     integer, intent(in) :: neqs
-    real(real_kind), intent(in), target :: usol_flat(neqs)
+    real(real_kind), intent(inout), target :: usol_flat(neqs)
     real(real_kind), intent(out) :: rhs(neqs)
     character(len=err_len), intent(out) :: err
     
@@ -529,6 +529,22 @@ contains
     integer :: i, k, j, jdisth
     
     err = ''
+    
+    do i = 1,nq
+      do j = 1,nz
+        if (usol_flat(k) < 0.d0) then
+          usol_flat(k) = min(usol_flat(k),-small_real)
+        else
+          usol_flat(k) = max(usol_flat(k),small_real)
+        endif
+      enddo
+    enddo
+    if (any(usol_flat /= usol_flat)) then
+      err = 'Input mixing ratios to the rhs contains NaNs. This is typically '//&
+            'related to some mixing ratios getting too negative.'
+      return 
+    endif
+    
     ! reshape usol_flat with a pointer (no copying; same memory)
     usol(1:nq,1:nz) => usol_flat
     
@@ -621,7 +637,7 @@ contains
   end subroutine
   
   subroutine jac_background_gas(lda_neqs, neqs, usol_flat, jac, err)
-    use photochem_const, only: pi
+    use photochem_const, only: pi, small_real
     
     use photochem_data, only: lda, kd, ku, kl, nq, nsp, nsl, nrT, kj, nw,  &
                               water_sat_trop, LH2O
@@ -630,7 +646,7 @@ contains
                               upper_veff, lower_fix_mr
   
     integer, intent(in) :: lda_neqs, neqs
-    real(real_kind), intent(in), target :: usol_flat(neqs)
+    real(real_kind), intent(inout), target :: usol_flat(neqs)
     real(real_kind), intent(out), target :: jac(lda_neqs)
     character(len=err_len), intent(out) :: err
     
@@ -652,6 +668,22 @@ contains
     integer :: i, k, j, m, mm
     
     err = ''
+    
+    do i = 1,nq
+      do j = 1,nz
+        if (usol_flat(k) < 0.d0) then
+          usol_flat(k) = min(usol_flat(k),-small_real)
+        else
+          usol_flat(k) = max(usol_flat(k),small_real)
+        endif
+      enddo
+    enddo
+    if (any(usol_flat /= usol_flat)) then
+      err = 'Input mixing ratios to the rhs contains NaNs. This is typically '//&
+            'related to some mixing ratios getting too negative.'
+      return 
+    endif
+    
     ! reshape usol_flat with a pointer (no copying; same memory)
     usol(1:nq,1:nz) => usol_flat
     djac(1:lda,1:neqs) => jac
@@ -716,7 +748,7 @@ contains
         !                 - DU(i,1)*usol(i,1) &
         !                 - lower_vdep(i)*usol(i,1)/dz(1)
                         
-        djac(ku,i+nq) = djac(ku,i+nq) + DU(i,1) + ADU(i,1)
+        djac(ku,i+nq) = DU(i,1) + ADU(i,1)
         djac(kd,i)    = djac(kd,i)    - DU(i,1) - lower_vdep(i)/dz(1)
       elseif (lowerboundcond(i) == 1) then
         ! rhs(i) = - atan((usol(i,1) - lower_fix_mr(i)))
@@ -734,7 +766,7 @@ contains
         !                 - DU(i,1)*usol(i,1) &
         !                 + lower_flux(i)/(density(1)*dz(1))
                                               
-        djac(ku,i+nq) = djac(ku,i+nq) + DU(i,1) + ADU(i,1)
+        djac(ku,i+nq) = DU(i,1) + ADU(i,1)
         djac(kd,i)    = djac(kd,i)    - DU(i,1)         
       endif
     enddo
@@ -748,10 +780,10 @@ contains
         !                 - upper_veff(i)*usol(i,nz)/dz(nz)    
         
         djac(kd,k) = djac(kd,k) - DL(i,nz) - upper_veff(i)/dz(nz) 
-        djac(kl,k-nq) = djac(kl,k-nq) + DL(i,nz) + ADL(i,nz)
+        djac(kl,k-nq) = DL(i,nz) + ADL(i,nz)
       elseif (upperboundcond(i) == 2) then
         djac(kd,k) = djac(kd,k) - DL(i,nz)
-        djac(kl,k-nq) = djac(kl,k-nq) + DL(i,nz) + ADL(i,nz)
+        djac(kl,k-nq) = DL(i,nz) + ADL(i,nz)
       endif
     enddo
     
@@ -905,9 +937,9 @@ contains
   
   subroutine evolve_background_atm(tstart, nq, nz, usol_start, num_t_eval, t_eval, rtol, atol, &
                                    mxsteps, solution, success, err)
-    use photochem_data, only: water_sat_trop, LH2O
+    use photochem_data, only: water_sat_trop, LH2O, species_names, nsp, nrT, kj, nw
     use photochem_vars, only: neqs, lowerboundcond, lower_fix_mr, trop_ind, &
-                              initial_dt, use_fast_jacobian, max_err_test_failures, max_order
+                              initial_dt, use_fast_jacobian, max_err_test_failures, max_order, trop_ind, xs_x_qy
     use photochem_wrk, only: cvode_mem
     
     use, intrinsic :: iso_c_binding
@@ -953,6 +985,19 @@ contains
     
     real(real_kind) :: fH2O(trop_ind)
     integer :: i, j, k, ii
+    
+
+
+    
+    real(real_kind) :: densities(nsp+1,nz)
+    
+    real(real_kind):: density(nz), rx_rates(nz,nrT)
+    real(real_kind):: mubar(nz), pressure(nz)
+    real(real_kind) :: fH2O_save(trop_ind)
+    real(real_kind) :: prates(nz,kj), surf_radiance(nw)
+    real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
+    real(real_kind) :: ADU(nq,nz), ADL(nq,nz)
+  
     
     ! settings
     mxsteps_ = mxsteps
@@ -1050,6 +1095,14 @@ contains
       return
     end if
     
+    open(2,file="outfile.dat",status='replace',form="unformatted")
+    write(2) nq
+    write(2) nz
+    write(2) species_names(1:nq)
+    write(2) xs_x_qy
+    
+    
+    
     do ii = 1, num_t_eval
       ierr = FCVode(cvode_mem, t_eval(ii), sunvec_y, tcur, CV_NORMAL)
       if (ierr /= 0) then
@@ -1067,8 +1120,18 @@ contains
             solution(i,j,ii) = yvec(k)
           enddo
         enddo
+        write(2) solution(:,:,ii)
+        
+        call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, solution(:,:,ii), densities, &
+                                     density, rx_rates, mubar, pressure, fH2O, fH2O_save, &
+                                     prates, surf_radiance, &
+                                     DU, DD, DL, ADU, ADL, err)
+        
+        write(2) prates
+        
       endif
     enddo
+    close(2)
         
     ! free memory
     call FN_VDestroy(sunvec_y)
@@ -1204,7 +1267,7 @@ contains
       zeta_mm =  bx1x2_mm*((species_mass(j)*grav(nz-1))/(k_boltz*T(nz-1)*N_avo) &
                          - (mubar(nz-1)*grav(nz-1))/(k_boltz*T(nz-1)*N_avo) &
                          + 0.d0) ! zeroed out thermal diffusion    
-      ADL(j,nz) = - zeta_mm/(2.d0*dz(i)*den(i))
+      ADL(j,nz) = - zeta_mm/(2.d0*dz(nz)*den(nz))
       ! ADU(j,nz) = 0.d0
     enddo
       
