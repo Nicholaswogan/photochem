@@ -1,0 +1,89 @@
+
+
+N2:
+  formalism: vardavas
+  data:
+    Delta: 0.0305
+    A: 29.06e-5
+    B: 7.7e-3
+  citations:
+    - citation: Keady and Kilcrease (2002)
+      DOI: 10.1007/978-1-4612-1186-0_5
+      notes: for A and B
+    - citation: Pendorf (1957)
+      DOI: 10.1364/JOSA.47.000176
+      notes: for Delta
+    
+CO2:
+  formalism: vardavas
+  data:
+    Delta: 0.0774
+    A: 43.9e-5
+    B: 6.4e-3
+  citations:
+    - citation: Keady and Kilcrease (2002)
+      DOI: 10.1007/978-1-4612-1186-0_5
+      notes: for A and B
+    - citation: Shemansky (1972)
+      DOI: 10.1063/1.1677408
+      notes: for Delta
+    
+O2:
+  formalism: vardavas
+  data:
+    Delta: 0.054
+    A: 26.63e-5
+    B: 5.07e-3
+  citations:
+    - citation: Keady and Kilcrease (2002)
+      DOI: 10.1007/978-1-4612-1186-0_5
+      notes: for A and B
+    - citation: Pendorf (1957)
+      DOI: 10.1364/JOSA.47.000176
+      notes: for Delta
+    
+AR:
+  formalism: vardavas
+  data:
+    Delta: 0.054
+    A: 27.92e-5
+    B: 5.6e-3
+  citations:
+    - citation: Keady and Kilcrease (2002)
+      DOI: 10.1007/978-1-4612-1186-0_5
+      notes: for A and B
+    - citation: Pendorf (1957)
+      DOI: 10.1364/JOSA.47.000176
+      notes: for Delta
+
+H2O:
+  formalism: vardavas 
+  data:
+    Delta: 0.000299
+    A: 24.4e-5
+    B: 5.67e-3
+  citations:
+    - citation: Keady and Kilcrease (2002)
+      DOI: 10.1007/978-1-4612-1186-0_5
+      notes: Used A = A_air*0.85, and B = B_air.
+    - citation: Ranjan and Sasselov (2017)
+      DOI: 10.1089/ast.2016.1519
+      notes: Justification for A = A_air*0.85.
+    - citation: Murphy (1977)
+      DOI: 10.1063/1.434794
+      notes: for Delta
+
+H2:
+  formalism: vardavas
+  data:
+    Delta: 0.0
+    A: 13.58e-4
+    B: 7.52e-3
+  citations:
+    - citation: Keady and Kilcrease (2002)
+      DOI: 10.1007/978-1-4612-1186-0_5
+      notes: for A and B
+    - citation: Atmos photochemical model, Rayleigh.f
+      DOI: None
+      notes: 
+
