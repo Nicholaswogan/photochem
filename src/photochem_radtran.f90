@@ -31,7 +31,7 @@ contains
     
     integer :: i, l
     real(real_kind) :: wrk_real, facp, facm, et0, etb, denom, Ssfc, fs_pi
-    ! integer ::  info
+    integer ::  info
     
     ierr = 0
     gt = 0.0d0 ! asymetry factor. Zero for now
@@ -57,6 +57,7 @@ contains
     ! lambda, and capital Gamma (Equations 21, 22)
     lambda = (gam1**2.d0 - gam2**2.d0)**(0.5d0)
     cap_gam = gam2 / (gam1 + lambda)
+    ! cap_gam = (gam1-lambda)/gam2 ! this is the same as above
     
     ! e's (Equation 44)
     do i = 1,nz
@@ -83,7 +84,7 @@ contains
       facm = w0(i)*Fs_pi*((gam1(i)+1.d0/u0)*gam4(i)+gam2(i)*gam3(i)) 
       et0 = dexp(-tauc(i)/u0)
       etb = et0*dexp(-tau(i)/u0)!*pi
-      denom = lambda(i)**2.d0 - 1.d0/u0**2.d0
+      denom = lambda(i)**2.d0 - 1.d0/(u0**2.d0)
 
       direct(i+1) = u0*Fs_pi*etb
       cp0(i) = et0*facp/denom
@@ -114,7 +115,7 @@ contains
       A(l) = e2(i+1)*e1(i) - e3(i)*e4(i+1)
       B(l) = e2(i)*e2(i+1) - e4(i)*e4(i+1)
       D(l) = e1(i+1)*e4(i+1) - e2(i+1)*e3(i+1)
-      E(l) = e2(i+1)*(cp0(i+1) - cpb(i)) + e4(i+1)*(cm0(i+1) - cmb(i))
+      E(l) = e2(i+1)*(cp0(i+1) - cpb(i)) - e4(i+1)*(cm0(i+1) - cmb(i))
     enddo
     l = 2*nz
     A(l) = e1(nz) - Rsfc*e3(nz)
@@ -123,11 +124,11 @@ contains
     E(l) = Ssfc - cpb(nz) + Rsfc*cmb(nz)
     
     ! Solve tridiagonal system. e is solution
-    ! call dgtsv(nz*2, 1, a(2:nz*2), b, d(1:nz*2-1), e, nz*2, info) ! lapack
-    ! if (info /= 0) then
-      ! ierr = 1
-    ! endif
-    call tridiag(nz*2,a,b,d,e) ! homebrewed version.  
+    call dgtsv(nz*2, 1, a(2:nz*2), b, d(1:nz*2-1), e, nz*2, info) ! lapack
+    if (info /= 0) then
+      ierr = 1
+    endif
+    ! call tridiag(nz*2,a,b,d,e) ! homebrewed version.  
     
     ! unpack solution
     do i = 1, nz
