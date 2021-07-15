@@ -12,7 +12,7 @@ program main
 
   data_dir = "../data"
 
-  call setup("../zahnle_earth.yaml", "../settings.yaml", "../Sun_4.0Ga.txt", "../atmosphere_nothing.txt", err)
+  call setup("../zahnle_titan.yaml", "../settings_titan.yaml", "../Sun_4.0Ga.txt", "../myatmosphere2.txt", err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop
@@ -22,14 +22,14 @@ program main
   max_order = 5
   rtol = 1.d-3
   atol = 1.d-30
-  initial_dt = 1.d-15
-  call photo_equilibrium(100000,rtol, atol, success, err)
+  initial_dt = 1.d-6
+  call photo_equilibrium(100000, rtol, atol, success, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop
   endif
 
-  call out2atmosphere_txt("../myatmosphere.txt",.true.,.false.,err)
+  call out2atmosphere_txt("../myatmosphere3.txt",.true.,.false.,err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop

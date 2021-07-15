@@ -168,10 +168,12 @@ contains
     species_composition = photomech%species_composition
     allocate(species_mass(nsp))
     species_mass = photomech%species_mass
-    allocate(thermo_data(7,2,nsp))
-    thermo_data = photomech%thermo_data
-    allocate(thermo_temps(3,nsp))
-    thermo_temps = photomech%thermo_temps
+    if (photomech%reverse) then
+      allocate(thermo_data(7,2,nsp))
+      thermo_data = photomech%thermo_data
+      allocate(thermo_temps(3,nsp))
+      thermo_temps = photomech%thermo_temps
+    endif
     
     ! reactions
     reverse = photomech%reverse
@@ -192,8 +194,10 @@ contains
     nreactants = photomech%nreactants
     allocate(nproducts(nrT))
     nproducts = photomech%nproducts
-    allocate(reverse_info(nrT))
-    reverse_info = photomech%reverse_info
+    if (reverse) then
+      allocate(reverse_info(nrT))
+      reverse_info = photomech%reverse_info
+    endif
     allocate(rxtypes(nrF))
     rxtypes = photomech%rxtypes
     allocate(rateparams(10,nrF))
@@ -300,7 +304,11 @@ contains
     surface_albedo = photoset%surface_albedo 
     solar_zenith = photoset%solar_zenith
     diurnal_fac = photoset%diurnal_fac
-    trop_alt = photoset%trop_alt
+    if (water_sat_trop) then
+      trop_alt = photoset%trop_alt
+    else
+      trop_alt = -1.d0
+    endif
     
     allocate(photon_flux(nw))
     photon_flux = photorad%photon_flux    

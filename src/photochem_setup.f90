@@ -10,7 +10,8 @@ contains
   
   subroutine setup(mechanism_file, settings_file, flux_file, atmosphere_txt, err)
     use photochem_data, only: setup_files, &
-                              planet_radius, planet_mass, nq, kj, nw
+                              planet_radius, planet_mass, nq, kj, nw, &
+                              water_sat_trop
     use photochem_vars, only: bottom_atmos, top_atmos, nz, &
                               z, dz, grav, temperature, edd, usol_init, &
                               xs_x_qy, trop_ind, trop_alt
@@ -28,7 +29,9 @@ contains
     call allocate_nz_vars()
     ! set up the atmosphere grid
     call vertical_grid(bottom_atmos, top_atmos, nz, z, dz)
-    trop_ind = minloc(z,1, z .ge. trop_alt) - 1
+    if (water_sat_trop) then
+      trop_ind = minloc(z,1, z .ge. trop_alt) - 1
+    endif
     call gravity(planet_radius, planet_mass, nz, z, grav)
     call interp2atmosfile(nz, nq, z, temperature, edd, usol_init, err)
     if (len_trim(err) /= 0) return

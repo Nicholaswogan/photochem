@@ -13,6 +13,7 @@ module photochem_const
   real(real_kind), parameter :: pi = 3.14159265358979323846d0
 
   real(real_kind), parameter :: smallest_real = tiny(1.d0)
-  real(real_kind), parameter :: small_real = tiny(1.d0)**0.5d0
+  real(real_kind), parameter :: smaller_real = tiny(1.d0)**0.5d0
+  real(real_kind), parameter :: small_real = tiny(1.d0)**0.25d0
   real(real_kind), parameter :: ln_small_real = dlog(small_real)
 end module

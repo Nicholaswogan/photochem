@@ -301,8 +301,8 @@ contains
     photomech%products_sp_inds = huge(1)
     if (photomech%reverse) then
       allocate(photomech%reverse_info(photomech%nrT))
+      photomech%reverse_info = 0 ! initialize
     endif
-    photomech%reverse_info = 0 ! initialize
     allocate(photomech%reactants_names(photomech%max_num_reactants,photomech%nrF))
     allocate(photomech%products_names(photomech%max_num_products,photomech%nrF))
     ! efficiency stuff
