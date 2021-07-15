@@ -1,4 +1,4 @@
-SUBROUTINE TWOSTR(nz, tau, w0, u0, alb)
+SUBROUTINE TWOSTR(nz, tau, w0, u0, alb, amean)
 
 !note i haven't yet done the work to fully abstract particles in this subroutine.
 !hydrocarbons are using optical properties files, while sulfate and sulfur are hardcoded.
@@ -22,15 +22,17 @@ IMPLICIT NONE
 
 ! local varaibles
 integer, intent(in) :: nz
-real(8), intent(inout) :: tau(nz)
-real(8), intent(inout) :: w0(nz)
+real(8), intent(in) :: tau(nz)
+real(8), intent(in) :: w0(nz)
 real(8), intent(in) :: u0, alb
+
+real(8), intent(out) :: amean(nz + 1)
 
 real*8 tauctstr(nz+1) , gt(NZ) , gam1(NZ) , gam2(NZ) &
         & , gam3(NZ) , gam4(NZ) , alam(NZ) , cgam(NZ) , e1(NZ) ,  &
         & e2(NZ) , e3(NZ) , e4(NZ) , cp0(NZ) , cpb(NZ) , cm0(NZ) ,&
         & cmb(NZ) , y1(NZ) , y2(NZ) , tausg(NZ) ,        &
-        & tausp(NZ) , direct(nz + 1) , amean(nz + 1) , taug(NZ) ,     &
+        & tausp(NZ) , direct(nz + 1) , taug(NZ) ,     &
         & fmt(NZ)
 real*8 a(nz*2) , b(nz*2) , d(nz*2) , e(nz*2) , fup(nz + 1) ,         &
         & fdn(nz + 1)
@@ -183,8 +185,15 @@ DO n = 1 , nzm1
 ENDDO
 e(nz*2) = ssfc - cpb(NZ) + alb*cmb(NZ)
 
+n = 1
+print*,(cp0(n+1)-cpb(n)),e2(n+1) , (cm0(n+1)-cmb(n)),e4(n+1)
+
 !   Call the tridiagonal solver (from LINPACK).  E is the RHS of the matrix
 !   equation on input and is the solution vector Y on output
+
+! do i =1,nz
+!   print*,i,cp0(i)
+! enddo
 
 CALL SGTSL(mz2,a,b,d,e,nflag)
 IF ( nflag.NE.0 ) PRINT 99005 , nflag

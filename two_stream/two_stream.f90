@@ -1,8 +1,8 @@
 
 module radtran
   implicit none
-  private
-  public two_stream
+  ! private
+  ! public two_stream
   integer,parameter :: real_kind = kind(1.0d0)
 
 contains
@@ -92,7 +92,7 @@ contains
       cmb(i) = etb*facm/denom
     enddo
     Ssfc = Rsfc*direct(nz+1)
-      
+
     ! Coefficients of tridiagonal linear system (Equations 39 - 43)
     ! Odd coeficients (Equation 41)
     A(1) = 0.d0
@@ -113,14 +113,14 @@ contains
       A(l) = e2(i+1)*e1(i) - e3(i)*e4(i+1)
       B(l) = e2(i)*e2(i+1) - e4(i)*e4(i+1)
       D(l) = e1(i+1)*e4(i+1) - e2(i+1)*e3(i+1)
-      E(l) = e2(i+1)*(cp0(i+1) - cpb(i)) + e4(i+1)*(cm0(i+1) - cmb(i))
+      E(l) = e2(i+1)*(cp0(i+1) - cpb(i)) - e4(i+1)*(cm0(i+1) - cmb(i))
     enddo
     l = 2*nz
     A(l) = e1(nz) - Rsfc*e3(nz)
     B(l) = e2(nz) - Rsfc*e4(nz)
     D(l) = 0.d0
     E(l) = Ssfc - cpb(nz) + Rsfc*cmb(nz)
-    
+  
     ! Solve tridiagonal system. e is solution
     call dgtsv(nz*2, 1, a(2:nz*2), b, d(1:nz*2-1), e, nz*2, info)
     ! call tridiag(nz*2,a,b,d,e)
@@ -170,7 +170,7 @@ contains
   
   subroutine tridiag(n,a,b,c,d)
     integer,intent(in) :: n
-    real(real_kind), intent(inout) :: a(n), b(n), c(n), d(n)
+    real(8), intent(inout) :: a(n), b(n), c(n), d(n)
 
     integer :: i
     
@@ -192,25 +192,31 @@ contains
 end module
 
 
-program main
-  use radtran, only: two_stream
-  implicit none
-  integer,parameter :: real_kind = kind(1.0d0)
-  integer, parameter :: nz = 1
-  real(real_kind) :: tau(nz)
-  real(real_kind) :: w0(nz), u0, Rsfc, amean(nz+1), surface_radiance
-  integer :: ierr
-  
-  ! u0 = dcos(3.14159d0/3.d0)
-  u0 = 0.7d0
-  tau = 0.1d0
-  w0  = 0.9999d0
-  Rsfc = 0.25d0  
-  
-  call two_stream(nz, tau, w0, u0, Rsfc, amean, surface_radiance,ierr)
-  
-  print*,amean
-  
-  print*,surface_radiance
-
-end program
+! program main
+!   use radtran, only: two_stream
+!   implicit none
+!   integer,parameter :: real_kind = kind(1.0d0)
+!   integer, parameter :: nz = 1
+!   real(real_kind) :: tau(nz)
+!   real(real_kind) :: w0(nz), u0, Rsfc, amean(nz+1), surface_radiance
+!   integer :: ierr
+! 
+!   ! u0 = dcos(3.14159d0/3.d0)
+!   u0 = 0.7d0
+!   tau = 0.1d0
+!   w0  = 0.5d0
+!   Rsfc = 0.25d0  
+! 
+!   call two_stream(nz, tau, w0, u0, Rsfc, amean, surface_radiance,ierr)
+!   print*,amean
+! 
+!   print*,surface_radiance
+! 
+! 
+!   call TWOSTR(nz, tau, w0, u0, Rsfc, amean)
+! 
+!   print*,amean
+! 
+!   print*,surface_radiance
+! 
+! end program

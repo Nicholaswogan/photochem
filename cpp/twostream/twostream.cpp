@@ -100,7 +100,7 @@ void two_stream(std::vector<double>& tau, std::vector<double>& w0,
     A[l] = e2[i+1]*e1[i] - e3[i]*e4[i+1];
     B[l] = e2[i]*e2[i+1] - e4[i]*e4[i+1];
     D[l] = e1[i+1]*e4[i+1] - e2[i+1]*e3[i+1];
-    E[l] = e2[i+1]*(cp0[i+1] - cpb[i]) + e4[i+1]*(cm0[i+1] - cmb[i]);
+    E[l] = e2[i+1]*(cp0[i+1] - cpb[i]) - e4[i+1]*(cm0[i+1] - cmb[i]);
   }
   int l = 2*nz - 1;
   A[l] = e1[nz-1] - Rsfc*e3[nz-1];
