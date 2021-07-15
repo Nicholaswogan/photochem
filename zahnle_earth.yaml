@@ -3372,7 +3372,7 @@ reactions:
     A: 2.549665e-20
     b: 2.8
     Ea: 3124.0
-- equation: CH2CO + 1CH2 <=> CO + C2H4
+- equation: 1CH2 + CH2CO <=> CO + C2H4
   rate-constant:
     A: 2.0e-10
     b: 0.0
@@ -4368,7 +4368,7 @@ reactions:
     A: 1.05e-10
     b: 0.0
     Ea: 0.0
-- equation: OH + CH3 <=> H2O + 1CH2
+- equation: OH + CH3 <=> 1CH2 + H2O
   rate-constant:
     A: 1.2e-10
     b: 0.0
@@ -5839,7 +5839,7 @@ reactions:
     A: 2.3e-10
     b: 0.0
     Ea: 0.0
-- equation: C2H2 + 1CH2 (+ M) <=> C3H4 (+ M)
+- equation: 1CH2 + C2H2 (+ M) <=> C3H4 (+ M)
   type: falloff
   low-P-rate-constant:
     A: 9.430054e-34
@@ -5894,7 +5894,7 @@ reactions:
     A: 2.549665e-20
     b: 2.8
     Ea: 1200.0
-- equation: CH2N2 + 1CH2 <=> N2 + C2H4
+- equation: 1CH2 + CH2N2 <=> N2 + C2H4
   rate-constant:
     A: 2.0e-10
     b: 0.0
@@ -5929,7 +5929,7 @@ reactions:
     A: 1.2e-10
     b: 0.0
     Ea: 0.0
-- equation: C2H4 + 1CH2 (+ M) <=> C3H6 (+ M)
+- equation: 1CH2 + C2H4 (+ M) <=> C3H6 (+ M)
   type: falloff
   low-P-rate-constant:
     A: 9.2e-31
@@ -5999,7 +5999,7 @@ reactions:
     A: 8.4e-11
     b: 0.0
     Ea: 3600.0
-- equation: HCN + 1CH2 (+ M) <=> CH3CN (+ M)
+- equation: 1CH2 + HCN (+ M) <=> CH3CN (+ M)
   type: falloff
   low-P-rate-constant:
     A: 9.430054e-34
@@ -6049,7 +6049,7 @@ reactions:
     A: 2.308411e-10
     b: 0.04
     Ea: 0.0
-- equation: H2O + hv => H + OH
+- equation: H2O + hv => OH + H
   type: photolysis
 - equation: CO2 + hv => CO + O
   type: photolysis
@@ -6075,15 +6075,27 @@ reactions:
   type: photolysis
 - equation: SO2 + hv => S + O2
   type: photolysis
+# - equation: SO2 + hv => S + O + O
+#   type: photolysis
 - equation: SO + hv => S + O
   type: photolysis
 - equation: CS2 + hv => CS + S
   type: photolysis
 - equation: OCS + hv => CO + S
   type: photolysis
+- equation: S2 + hv => S + S
+  type: photolysis
+- equation: S3 + hv => S2 + S
+  type: photolysis
+- equation: S4 + hv => S3 + S
+  type: photolysis
 - equation: C2H2 + hv => C2H + H
   type: photolysis
+- equation: C2H4 + hv => C2H3 + H
+  type: photolysis
 - equation: C2H6 + hv => C2H5 + H
+  type: photolysis
+- equation: C4H2 + hv => C4H + H
   type: photolysis
 - equation: H2CO + hv => CO + H2
   type: photolysis
@@ -6092,6 +6104,10 @@ reactions:
 - equation: H2CO + hv => CO + H + H
   type: photolysis
 - equation: HCN + hv => H + CN
+  type: photolysis
+- equation: HSO + hv => HS + O
+  type: photolysis
+- equation: HS + hv => H + S
   type: photolysis
 - equation: CH4 + hv => CH + H2 + H
   type: photolysis
@@ -6103,9 +6119,49 @@ reactions:
   type: photolysis
 - equation: HO2 + hv => OH + O
   type: photolysis
+# - equation: HNO + hv => NO + H
+#   type: photolysis
+# - equation: HNO2 + hv => NO + OH
+#   type: photolysis
 - equation: HNO3 + hv => OH + NO2
   type: photolysis
 - equation: NO2 + hv => NO + O
   type: photolysis
+- equation: SO3 + hv => SO2 + O
+  type: photolysis
+- equation: S8 + hv => S8L
+  type: photolysis
+- equation: S8L + hv => S4 + S4
+  type: photolysis
+- equation: HCl + hv => H + Cl
+  type: photolysis
+- equation: HOCl + hv => OH + Cl
+  type: photolysis
+- equation: Cl2 + hv => Cl + Cl
+  type: photolysis
+- equation: N2H4 + hv => N2H3 + H
+  type: photolysis
+- equation: N2 + hv => N + N2D
+  type: photolysis
+- equation: CO + hv => C + O
+  type: photolysis
 - equation: N2O + hv => N2 + O1D
+  type: photolysis
+- equation: CH2N2 + hv => 1CH2 + N2
+  type: photolysis
+- equation: CH2CO + hv => 1CH2 + CO
+  type: photolysis
+- equation: CH3OH + hv => CH3O + H
+  type: photolysis
+- equation: CH3OH + hv => CH3 + OH
+  type: photolysis
+- equation: CH3OH + hv => H2CO + H2
+  type: photolysis
+- equation: CH3CN + hv => CH3 + CN
+  type: photolysis
+- equation: CH3CHO + hv => CH3 + HCO
+  type: photolysis
+- equation: CH3CHO + hv => CH4 + CO
+  type: photolysis
+- equation: CH3CHO + hv => CH3CO + H
   type: photolysis

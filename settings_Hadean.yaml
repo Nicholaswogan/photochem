@@ -15,14 +15,14 @@ photolysis-grid:
 planet:
   use-background-gas: true
   background-gas: N2
-  surface-pressure: 1.0 # bar
+  surface-pressure: 1.013 # bar
   planet-mass: 5.972e27 # grams
   planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
   surface-albedo: 0.25 # cm
   diurnal-averaging-factor: 0.5
   solar-zenith-angle: 50.0
   water:
-    water-saturated-troposphere: false
+    water-saturated-troposphere: true
     tropopause-altitude: 1.1e6 # cm
 
 # Assumes veff = vdep = 0 boundary condition for species not specified.
@@ -30,18 +30,25 @@ planet:
 boundary-conditions:
   - name: H2
     lower-boundary:
-      vdep: 0.0
-      type: deposition velocity
+      flux: 1e10
+      type: flux
     upper-boundary:
       veff: 26.0
       type: effusion velocity
-  # - name: CO2
-  #   lower-boundary:
-  #     mixing-ratio: 1e-8
-  #     type: mixing-ratio
-  #   upper-boundary:
-  #     veff: 0.0
-  #     type: effusion velocity
+  - name: CO2
+    lower-boundary:
+      mixing-ratio: 3e-3
+      type: mixing-ratio
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: CH4
+    lower-boundary:
+      flux: 2.04e10
+      type: flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
   - name: CO
     lower-boundary:
       vdep: 1.0e-8
@@ -49,13 +56,6 @@ boundary-conditions:
     upper-boundary:
       veff: 0.0
       type: effusion velocity
-  # - name: H2O
-  #   lower-boundary:
-  #     flux: 1.0e5
-  #     type: flux
-  #   upper-boundary:
-  #     veff: 0.0
-  #     type: effusion velocity
   - name: O1D
     type: short lived
   - name: 1CH2
@@ -71,7 +71,7 @@ boundary-conditions:
       type: effusion velocity
   - name: S8L
     lower-boundary:
-      vdep: 10.0
+      vdep: 1.0
       type: deposition velocity
     upper-boundary:
       veff: 0.0
@@ -108,10 +108,10 @@ boundary-conditions:
       type: effusion velocity
   - name: H
     lower-boundary:
-      vdep: 1.0
+      vdep: 37.0
       type: deposition velocity
     upper-boundary:
-      veff: 37.54
+      veff: 3.0
       type: effusion velocity
   - name: OH
     lower-boundary:
@@ -183,15 +183,15 @@ boundary-conditions:
     upper-boundary:
       veff: 0.0
       type: effusion velocity
-  # - name: H2S
-  #   lower-boundary:
-  #     flux: 0.0e8
-  #     vdep: 2.0e-2
-  #     distributed-height: 10.0
-  #     type: deposition velocity + distributed flux
-  #   upper-boundary:
-  #     veff: 0.0
-  #     type: effusion velocity
+  - name: H2S
+    lower-boundary:
+      flux: 3.5e8
+      vdep: 2.0e-2
+      distributed-height: 10.0
+      type: deposition velocity + distributed flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
   - name: HSO
     lower-boundary:
       vdep: 1.0
@@ -206,15 +206,15 @@ boundary-conditions:
     upper-boundary:
       veff: 0.0
       type: effusion velocity
-  # - name: SO2
-  #   lower-boundary:
-  #     flux: 0.0e9
-  #     vdep: 1.0
-  #     distributed-height: 10.0
-  #     type: deposition velocity + distributed flux
-  #   upper-boundary:
-  #     veff: 0.0
-  #     type: effusion velocity
+  - name: SO2
+    lower-boundary:
+      flux: 3.5e9
+      vdep: 1.0
+      distributed-height: 10.0
+      type: deposition velocity + distributed flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
   - name: HNCO
     lower-boundary:
       vdep: 1.0

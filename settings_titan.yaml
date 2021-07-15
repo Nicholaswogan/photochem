@@ -35,13 +35,13 @@ boundary-conditions:
     upper-boundary:
       veff: 26.0
       type: effusion velocity
-  # - name: CO2
-  #   lower-boundary:
-  #     mixing-ratio: 1e-8
-  #     type: mixing-ratio
-  #   upper-boundary:
-  #     veff: 0.0
-  #     type: effusion velocity
+  - name: CO2
+    lower-boundary:
+      mixing-ratio: 1e-4
+      type: mixing-ratio
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
   - name: CO
     lower-boundary:
       vdep: 1.0e-8
@@ -49,40 +49,26 @@ boundary-conditions:
     upper-boundary:
       veff: 0.0
       type: effusion velocity
-  # - name: H2O
-  #   lower-boundary:
-  #     flux: 1.0e5
-  #     type: flux
-  #   upper-boundary:
-  #     veff: 0.0
-  #     type: effusion velocity
+  - name: H2O
+    lower-boundary:
+      flux: 1.0e9
+      type: flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: CH4
+    lower-boundary:
+      flux: 0.0
+      type: flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
   - name: O1D
     type: short lived
   - name: 1CH2
     type: short lived
     
 # to get rid of S and H in the model
-  - name: S8
-    lower-boundary:
-      vdep: 1.0
-      type: deposition velocity
-    upper-boundary:
-      veff: 0.0
-      type: effusion velocity
-  - name: S8L
-    lower-boundary:
-      vdep: 10.0
-      type: deposition velocity
-    upper-boundary:
-      veff: 0.0
-      type: effusion velocity
-  - name: S
-    lower-boundary:
-      vdep: 1.0
-      type: deposition velocity
-    upper-boundary:
-      veff: 1.0
-      type: effusion velocity
   - name: NNH
     lower-boundary:
       vdep: 1.0
