@@ -287,7 +287,6 @@ contains
     ! boundary conditions
     allocate(lowerboundcond(nq))
     lowerboundcond = photoset%lowerboundcond
-    ! lowerboundcond(3) = 1
     allocate(lower_vdep(nq))
     lower_vdep = photoset%lower_vdep
     allocate(lower_flux(nq))
@@ -296,7 +295,6 @@ contains
     lower_dist_height = photoset%lower_dist_height
     allocate(lower_fix_mr(nq))
     lower_fix_mr = photoset%lower_fix_mr
-    ! lower_fix_mr(3) = 8.2956222562308220d-003
     allocate(upperboundcond(nq))
     upperboundcond = photoset%upperboundcond
     allocate(upper_veff(nq))
@@ -320,6 +318,10 @@ contains
     
     allocate(photon_flux(nw))
     photon_flux = photorad%photon_flux    
+    
+    ! settings
+    use_manabe = photoset%use_manabe ! use manabe formula
+    relative_humidity = photoset%relative_humidity ! relative humidity if no manabe
 
   end subroutine
 

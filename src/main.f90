@@ -10,7 +10,10 @@ program main
 
   data_dir = "../data"
 
-  call setup("../zahnle_earth.yaml", "../settings_Hadean.yaml", "../Sun_4.0Ga.txt", "../atmosphere10_12.txt", err)
+  call setup("../data/reaction_mechanisms/zahnle_earth.yaml", &
+             "../templates/ModernEarth/settings_ModernEarth.yaml", &
+             "../templates/ModernEarth/Sun_now.txt", &
+             "../templates/ModernEarth/atmosphere_ModernEarth.txt", err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop
@@ -19,7 +22,7 @@ program main
   equilibrium_time = 1.d17
   max_order = 5
   rtol = 1.d-3
-  atol = 1.d-27
+  atol = 1.d-30
   initial_dt = 1.d-9
   call photo_equilibrium(100000, rtol, atol, success, err)
   if (len(trim(err)) > 0) then
@@ -27,7 +30,7 @@ program main
     stop
   endif
   
-  call out2atmosphere_txt("../atmosphere10_13.txt",.true.,.false.,err)
+  call out2atmosphere_txt("../atmosphere_ModernEarth_6.txt",.true.,.false.,err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop

@@ -1264,8 +1264,9 @@ contains
     type (type_error), pointer :: io_err
     
     character(len=str_len) :: spec_type
-    integer :: j, i, ind(1)
+    integer :: j, i, ind(1), io
     character(len=str_len), allocatable :: dups(:)
+    character(len=30) :: temp_char
     
     err = ''
     
@@ -1380,6 +1381,23 @@ contains
           (photoset%trop_alt > photoset%top_atmos)) then
           err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
           return
+      endif
+      
+      temp_char = tmp2%get_string('relative-humidity',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        
+      read(temp_char,*,iostat = io) photoset%relative_humidity
+      
+      if (io /= 0) then
+        ! it isn't a float
+        if (trim(temp_char) == "manabe") then
+          photoset%use_manabe = .true.
+        else
+          err = '"relative-humidity" can only be a number between 0 and 1, or "manabe". See '//trim(infile)
+          return 
+        endif
+      else
+        photoset%use_manabe = .false.
       endif
     endif
     

@@ -33,6 +33,8 @@ module photochem_vars
   real(real_kind) :: solar_zenith
   real(real_kind) :: trop_alt 
   integer :: trop_ind
+  logical :: use_manabe ! use manabe formula
+  real(real_kind) :: relative_humidity ! relative humidity if no manabe
   
   ! Radiative tranfer
   real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz

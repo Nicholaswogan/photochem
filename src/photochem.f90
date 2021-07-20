@@ -394,8 +394,8 @@ contains
                                      density, mubar, pressure, fH2O, err)
     
     use photochem_data, only: species_mass, back_gas_mu, water_sat_trop             
-    use photochem_vars, only: temperature, grav, dz, surface_pressure
-    
+    use photochem_vars, only: temperature, grav, dz, surface_pressure, &
+                              use_manabe, relative_humidity, z
     integer, intent(in) :: nq, nz, trop_ind
     real(real_kind), intent(in), target :: usol(nq,nz)
     real(real_kind), intent(out) :: sum_usol(nz)
@@ -403,6 +403,7 @@ contains
     real(real_kind), intent(out) :: mubar(nz), pressure(nz), fH2O(trop_ind)
     character(len=err_len), intent(out) :: err
     
+    real(real_kind) :: rel
     integer :: i
     
     err = ''
@@ -425,9 +426,16 @@ contains
                        
     if (water_sat_trop) then
       do i = 1,trop_ind
-        fH2O(i) = sat_pressure_H2O(temperature(i))/pressure(i)
+        if (use_manabe) then
+          ! manabe formula ()
+          rel = 0.77d0*(pressure(i)/pressure(1)-0.02d0)/0.98d0
+        else
+          rel = relative_humidity 
+        endif
+        
+        fH2O(i) = rel*sat_pressure_H2O(temperature(i))/pressure(i)
       enddo
-    endif
+    endif    
     
   end subroutine
   
@@ -1106,14 +1114,6 @@ contains
       return
     end if
     
-    open(2,file="outfile.dat",status='replace',form="unformatted")
-    write(2) nq
-    write(2) nz
-    write(2) species_names(1:nq)
-    write(2) xs_x_qy
-    
-    
-    
     do ii = 1, num_t_eval
       ierr = FCVode(cvode_mem, t_eval(ii), sunvec_y, tcur, CV_NORMAL)
       if (ierr /= 0) then
@@ -1131,18 +1131,14 @@ contains
             solution(i,j,ii) = yvec(k)
           enddo
         enddo
-        write(2) solution(:,:,ii)
         
         call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, solution(:,:,ii), densities, &
                                      density, rx_rates, mubar, pressure, fH2O, &
                                      prates, surf_radiance, &
                                      DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
-        
-        write(2) prates
-        
+                                     
       endif
     enddo
-    close(2)
         
     ! free memory
     call FN_VDestroy(sunvec_y)

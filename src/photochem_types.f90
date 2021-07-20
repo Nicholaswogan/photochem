@@ -30,6 +30,8 @@ module photochem_types ! make a giant IO object
     real(real_kind) :: solar_zenith
     logical :: water_sat_trop
     integer :: LH2O
+    logical :: use_manabe ! use manabe formula
+    real(real_kind) :: relative_humidity ! relative humidity if no manabe
     logical :: diff_H_escape
     integer :: LH2
     integer :: LH

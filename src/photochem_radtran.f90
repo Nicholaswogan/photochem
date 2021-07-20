@@ -31,7 +31,7 @@ contains
     
     integer :: i, l
     real(real_kind) :: wrk_real, facp, facm, et0, etb, denom, Ssfc, fs_pi
-    integer ::  info
+    ! integer ::  info
     
     ierr = 0
     gt = 0.0d0 ! asymetry factor. Zero for now
@@ -124,11 +124,11 @@ contains
     E(l) = Ssfc - cpb(nz) + Rsfc*cmb(nz)
     
     ! Solve tridiagonal system. e is solution
-    call dgtsv(nz*2, 1, a(2:nz*2), b, d(1:nz*2-1), e, nz*2, info) ! lapack
-    if (info /= 0) then
-      ierr = 1
-    endif
-    ! call tridiag(nz*2,a,b,d,e) ! homebrewed version.  
+    ! call dgtsv(nz*2, 1, a(2:nz*2), b, d(1:nz*2-1), e, nz*2, info) ! lapack
+    ! if (info /= 0) then
+    !   ierr = 1
+    ! endif
+    call tridiag(nz*2,a,b,d,e) ! homebrewed version.  
     
     ! unpack solution
     do i = 1, nz

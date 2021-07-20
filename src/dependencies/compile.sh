@@ -5,6 +5,7 @@ mkdir build_dir
 cd build_dir
 cmake \
 -DCMAKE_INSTALL_PREFIX=../../dependencies \
+-DCMAKE_BUILD_TYPE=Release \
 -DEXAMPLES_ENABLE_C=OFF \
 -DEXAMPLES_ENABLE_F77=OFF \
 -DEXAMPLES_ENABLE_F90=OFF \
@@ -21,6 +22,7 @@ mkdir build_dir
 cd build_dir
 cmake \
 -DCMAKE_Fortran_COMPILER=gfortran \
+-DCMAKE_BUILD_TYPE=Release \
 -DCMAKE_INSTALL_PREFIX=../../dependencies \
 ../
 make install

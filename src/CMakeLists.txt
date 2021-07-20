@@ -1,9 +1,3 @@
-cmake_minimum_required(VERSION "3.19.1")
-
-
-project(photochem LANGUAGES Fortran)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
-set(CMAKE_Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
 
 # fortran yaml
 add_subdirectory(fortran-yaml)
@@ -47,6 +41,3 @@ target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules"
                           )
 
-add_executable(photo.run main.f90)
-target_link_libraries(photo.run PUBLIC photochem binning yaml)
-target_include_directories(photo.run PRIVATE ${CMAKE_BINARY_DIR}/modules)
