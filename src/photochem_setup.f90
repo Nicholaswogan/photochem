@@ -178,23 +178,23 @@ contains
     endif
     
     write(unit=1,fmt="(a6,1x)",advance='no') "alt"
-    write(unit=1,fmt="(a25)",advance='no') "temp"
-    write(unit=1,fmt="(a25,4x)",advance='no') "eddy"
-    write(unit=1,fmt="(a25)",advance='no') species_names(1)
+    write(unit=1,fmt="(a27)",advance='no') "temp"
+    write(unit=1,fmt="(a27,4x)",advance='no') "eddy"
+    write(unit=1,fmt="(a27)",advance='no') species_names(1)
     do j = 2,nq
-      write(unit=1,fmt="(a25)",advance='no') species_names(j)
+      write(unit=1,fmt="(a27)",advance='no') species_names(j)
     enddo
     
     do i = 1,nz
       write(1,*)
-      write(unit=1,fmt="(es25.15e3)",advance='no') z(i)/1.d5
-      write(unit=1,fmt="(es25.15e3)",advance='no') temperature(i)
-      write(unit=1,fmt="(es25.15e3)",advance='no') edd(i)
+      write(unit=1,fmt="(es27.17e3)",advance='no') z(i)/1.d5
+      write(unit=1,fmt="(es27.17e3)",advance='no') temperature(i)
+      write(unit=1,fmt="(es27.17e3)",advance='no') edd(i)
       do j = 1,nq
         if (clip) then
-          write(unit=1,fmt="(es25.15e3)",advance='no') max(usol_out(j,i),1.d-40)
+          write(unit=1,fmt="(es27.17e3)",advance='no') max(usol_out(j,i),1.d-40)
         else
-          write(unit=1,fmt="(es25.15e3)",advance='no') usol_out(j,i)
+          write(unit=1,fmt="(es27.17e3)",advance='no') usol_out(j,i)
         endif
       enddo
     enddo

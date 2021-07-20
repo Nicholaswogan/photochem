@@ -21,37 +21,52 @@ planet:
   surface-albedo: 0.25 # cm
   diurnal-averaging-factor: 0.5
   solar-zenith-angle: 50.0
+  diff-lim-hydrogen-escape: true
   water:
-    water-saturated-troposphere: false
+    water-saturated-troposphere: true
     tropopause-altitude: 1.1e6 # cm
 
 # Assumes veff = vdep = 0 boundary condition for species not specified.
 # Assumes species is long-lived unless specified
 boundary-conditions:
-  - name: H2
-    lower-boundary:
-      vdep: 0.0
-      type: deposition velocity
-    upper-boundary:
-      veff: 26.0
-      type: effusion velocity
+  # - name: H2
+  #   lower-boundary:
+  #     flux: 1.0e8
+  #     type: flux
+  #   upper-boundary:
+  #     veff: 0.0
+  #     type: effusion velocity
   # - name: CO2
   #   lower-boundary:
-  #     mixing-ratio: 1e-8
+  #     mixing-ratio: 1e-4
   #     type: mixing-ratio
   #   upper-boundary:
   #     veff: 0.0
   #     type: effusion velocity
   - name: CO
     lower-boundary:
-      vdep: 1.0e-8
+      vdep: 1.0e-4
       type: deposition velocity
     upper-boundary:
       veff: 0.0
       type: effusion velocity
   # - name: H2O
   #   lower-boundary:
-  #     flux: 1.0e5
+  #     mixing-ratio: 8.2956222562308220d-003
+  #     type: mixing-ratio
+  #   upper-boundary:
+  #     veff: 0.0
+  #     type: effusion velocity
+  # - name: CH4
+  #   lower-boundary:
+  #     flux: 1.0e8
+  #     type: flux
+  #   upper-boundary:
+  #     veff: 0.0
+  #     type: effusion velocity
+  # - name: O2
+  #   lower-boundary:
+  #     flux: 1.0e8
   #     type: flux
   #   upper-boundary:
   #     veff: 0.0
@@ -60,43 +75,13 @@ boundary-conditions:
     type: short lived
   - name: 1CH2
     type: short lived
-    
-# to get rid of S and H in the model
-  - name: S8
-    lower-boundary:
-      vdep: 1.0
-      type: deposition velocity
-    upper-boundary:
-      veff: 0.0
-      type: effusion velocity
-  - name: S8L
-    lower-boundary:
-      vdep: 10.0
-      type: deposition velocity
-    upper-boundary:
-      veff: 0.0
-      type: effusion velocity
-  - name: S
-    lower-boundary:
-      vdep: 1.0
-      type: deposition velocity
-    upper-boundary:
-      veff: 1.0
-      type: effusion velocity
   - name: NNH
-    lower-boundary:
-      vdep: 1.0
-      type: deposition velocity
-    upper-boundary:
-      veff: 1.0
-      type: effusion velocity
-  - name: NH
-    lower-boundary:
-      vdep: 1.0
-      type: deposition velocity
-    upper-boundary:
-      veff: 1.0
-      type: effusion velocity
+    type: short lived
+  - name: N2D
+    type: short lived
+  # - name: NH
+  #   type: short lived
+    
 
 # standard stuff
   - name: O
@@ -111,7 +96,7 @@ boundary-conditions:
       vdep: 1.0
       type: deposition velocity
     upper-boundary:
-      veff: 37.54
+      veff: 0.0
       type: effusion velocity
   - name: OH
     lower-boundary:

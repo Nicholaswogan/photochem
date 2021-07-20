@@ -55,11 +55,12 @@ module photochem_vars
   real(real_kind), allocatable, target :: usol_out(:,:)
   
   ! other
+  real(real_kind) :: equilibrium_time = 1.d17
   real(c_double) :: initial_dt = 1.d-15
   integer(c_int) :: max_err_test_failures = 15
   integer(c_int) :: max_order = 5
   logical :: use_fast_jacobian = .true.
   real(real_kind) :: epsj = 1.d-9
-  logical :: verbose = .true.
+  integer :: verbose = 1
   
 end module

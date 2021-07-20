@@ -17,4 +17,8 @@ module photochem_wrk
   integer(c_long) :: nsteps_previous = -10
   type(c_ptr)    :: cvode_mem  ! CVODE memory
   
+  real(real_kind) :: wrk_real
+  real(real_kind) :: atol_global
+  
+  
 end module

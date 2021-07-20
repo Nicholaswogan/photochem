@@ -51,7 +51,7 @@ boundary-conditions:
       type: effusion velocity
   - name: H2O
     lower-boundary:
-      flux: 1.0e9
+      flux: 0.0
       type: flux
     upper-boundary:
       veff: 0.0

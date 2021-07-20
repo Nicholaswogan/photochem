@@ -1347,13 +1347,29 @@ contains
       return
     endif
     
+    ! H2 escape
+    photoset%diff_H_escape = tmp1%get_logical('diff-lim-hydrogen-escape',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    ind = findloc(photomech%species_names,'H2')
+    photoset%LH2 = ind(1)
+    if (ind(1) == 0 .and. photoset%diff_H_escape) then
+      err = 'IOError: H2 must be a species if diff-lim-hydrogen-escape = True.'
+      return
+    endif
+    ind = findloc(photomech%species_names,'H')
+    photoset%LH = ind(1)
+    if (ind(1) == 0 .and. photoset%diff_H_escape) then
+      err = 'IOError: H must be a species if diff-lim-hydrogen-escape = True.'
+      return
+    endif
+    
     tmp2 => tmp1%get_dictionary('water',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photoset%water_sat_trop = tmp2%get_logical('water-saturated-troposphere',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     ind = findloc(photomech%species_names,'H2O')
     photoset%LH2O = ind(1)
-    if (ind(1) == 0) then
+    if (ind(1) == 0 .and. photoset%water_sat_trop) then
       err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
       return
     endif

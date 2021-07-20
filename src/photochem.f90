@@ -334,6 +334,9 @@ contains
       surf_radiance(l) = surf_rad
       ierr = ierr + ie
       do i = 1, nz+1
+        if (amean(i) < -1.d-5) then
+          ierr = ierr + 1
+        endif
         amean(i) = abs(amean(i))
         ! amean(i) = max(amean(i),0.d0)
       enddo
@@ -395,7 +398,7 @@ contains
     
     integer, intent(in) :: nq, nz, trop_ind
     real(real_kind), intent(in), target :: usol(nq,nz)
-    real(real_kind), intent(inout) :: sum_usol(nz)
+    real(real_kind), intent(out) :: sum_usol(nz)
     real(real_kind), intent(out) :: density(nz)
     real(real_kind), intent(out) :: mubar(nz), pressure(nz), fH2O(trop_ind)
     character(len=err_len), intent(out) :: err
@@ -429,9 +432,9 @@ contains
   end subroutine
   
   subroutine prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol, densities, &
-                                     density, rx_rates, mubar, pressure, fH2O, fH2O_save, &
+                                     density, rx_rates, mubar, pressure, fH2O, &
                                      prates, surf_radiance, &
-                                     DU, DD, DL, ADU, ADL, err)
+                                     DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
     use photochem_const, only: pi
     use photochem_data, only: photonums, water_sat_trop, LH2O
     use photochem_vars, only: temperature, grav, dz, edd, &
@@ -445,10 +448,10 @@ contains
     
     real(real_kind), intent(out) :: density(nz), rx_rates(nz,nrT)
     real(real_kind), intent(out) :: mubar(nz), pressure(nz)
-    real(real_kind), intent(out) :: fH2O(trop_ind), fH2O_save(trop_ind)
+    real(real_kind), intent(out) :: fH2O(trop_ind)
     real(real_kind), intent(out) :: prates(nz,kj), surf_radiance(nw)
     real(real_kind), intent(out) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
-    real(real_kind), intent(out) :: ADU(nq,nz), ADL(nq,nz)
+    real(real_kind), intent(out) :: ADU(nq,nz), ADL(nq,nz), VH2_esc, VH_esc
     
     character(len=err_len), intent(out) :: err
     
@@ -465,14 +468,13 @@ contains
     
     if (water_sat_trop) then
       do i = 1,trop_ind
-        fH2O_save(i) = usol(LH2O,i)
         usol(LH2O,i) = fH2O(i)
       enddo
     endif 
         
     ! diffusion coefficients
     call diffusion_coefficients(nq, nz, dz, edd, temperature, density, grav, mubar, &
-                                DU, DD, DL, ADU, ADL)
+                                DU, DD, DL, ADU, ADL, VH2_esc, VH_esc)
     
     do j = 1,nz
       do i = 1,nq
@@ -503,17 +505,18 @@ contains
   subroutine rhs_background_gas(neqs, usol_flat, rhs, err)
     use photochem_const, only: pi, small_real
     
-    use photochem_data, only: nq, nsp, nsl, nrT, kj, nw, LH2O, water_sat_trop
+    use photochem_data, only: nq, nsp, nsl, nrT, kj, nw, LH2O, water_sat_trop, &
+                              diff_H_escape, back_gas_name, LH, LH2
     use photochem_vars, only: nz, z, dz, trop_ind, &
                               lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
                               lower_dist_height, upper_veff, upper_flux, lower_fix_mr
   
     integer, intent(in) :: neqs
-    real(real_kind), intent(inout), target :: usol_flat(neqs)
+    real(real_kind), intent(in) :: usol_flat(neqs)
     real(real_kind), intent(out) :: rhs(neqs)
     character(len=err_len), intent(out) :: err
     
-    real(real_kind), pointer :: usol(:,:)
+    real(real_kind):: usol(nq,nz)
     
     real(real_kind) :: mubar(nz), pressure(nz)
     real(real_kind) :: density(nz), fH2O(nz)
@@ -522,43 +525,42 @@ contains
     real(real_kind) :: prates(nz,kj), surf_radiance(nw)
     real(real_kind) :: xp(nz), xl(nz)
     real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz), ADU(nq,nz), ADL(nq,nz)
-    
-    real(real_kind) :: fH2O_save(trop_ind), lower_fix_mr_save(nz)
+    real(real_kind) :: VH2_esc, VH_esc
     
     real(real_kind) :: disth, ztop, ztop1    
     integer :: i, k, j, jdisth
     
     err = ''
     
-    do i = 1,nq
-      do j = 1,nz
-        if (usol_flat(k) < 0.d0) then
-          usol_flat(k) = min(usol_flat(k),-small_real)
-        else
-          usol_flat(k) = max(usol_flat(k),small_real)
-        endif
-      enddo
-    enddo
     if (any(usol_flat /= usol_flat)) then
       err = 'Input mixing ratios to the rhs contains NaNs. This is typically '//&
             'related to some mixing ratios getting too negative.'
       return 
     endif
     
-    ! reshape usol_flat with a pointer (no copying; same memory)
-    usol(1:nq,1:nz) => usol_flat
+    ! make a copy of the mixing ratios. You can not alter the input mixing ratios
+    ! this will make CVODE unstable. Guard against division by zero
+    do j = 1,nz
+      do i = 1,nq
+        k = i + (j-1)*nq
+        if (usol_flat(k) < 0.d0) then
+          usol(i,j) = min(usol_flat(k),-small_real)
+        else
+          usol(i,j) = max(usol_flat(k),small_real)
+        endif
+      enddo
+    enddo
     
     do i = 1,nq
       if (lowerboundcond(i) == 1) then
-        lower_fix_mr_save(i) = usol(i,1)
         usol(i,1) = lower_fix_mr(i)
       endif
     enddo
     
     call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol, densities, &
-                             density, rx_rates, mubar, pressure, fH2O, fH2O_save, &
+                             density, rx_rates, mubar, pressure, fH2O, &
                              prates, surf_radiance, &
-                             DU, DD, DL, ADU, ADL, err)
+                             DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
     if (len_trim(err) /= 0) return
     
     call dochem(neqs, nsp, nsl, nq, nz, nrT, usol, density, rx_rates, &
@@ -590,6 +592,14 @@ contains
                         + lower_flux(i)/(density(1)*dz(1))
       endif
     enddo
+    
+    ! H and H2 escape
+    if (diff_H_escape) then
+      if (back_gas_name /= "H2") then
+        upper_veff(LH2) = VH2_esc                     
+      endif
+      upper_veff(LH) = VH_esc 
+    endif
 
     ! Upper boundary
     do i = 1,nq
@@ -624,15 +634,8 @@ contains
       do j = 1,trop_ind
         k = LH2O + (j-1)*nq
         rhs(k) = 0.d0
-        usol(LH2O,j) = fH2O_save(j)
       enddo
     endif
-    
-    do i = 1,nq
-      if (lowerboundcond(i) == 1) then
-        usol(i,1) = lower_fix_mr_save(i)
-      endif
-    enddo
     
   end subroutine
   
@@ -640,17 +643,17 @@ contains
     use photochem_const, only: pi, small_real
     
     use photochem_data, only: lda, kd, ku, kl, nq, nsp, nsl, nrT, kj, nw,  &
-                              water_sat_trop, LH2O
+                              water_sat_trop, LH2O, diff_H_escape, back_gas_name, LH, LH2
     use photochem_vars, only: nz, dz, epsj, trop_ind, &
                               lowerboundcond, upperboundcond, lower_vdep, &
                               upper_veff, lower_fix_mr
   
     integer, intent(in) :: lda_neqs, neqs
-    real(real_kind), intent(inout), target :: usol_flat(neqs)
+    real(real_kind), intent(in) :: usol_flat(neqs)
     real(real_kind), intent(out), target :: jac(lda_neqs)
     character(len=err_len), intent(out) :: err
     
-    real(real_kind), pointer :: usol(:,:)
+    real(real_kind) :: usol(nq,nz)
     real(real_kind), pointer :: djac(:,:)
     real(real_kind) :: usol_perturb(nq,nz)
     real(real_kind) :: R(nz)
@@ -663,29 +666,32 @@ contains
     real(real_kind) :: prates(nz,kj), surf_radiance(nw)
     real(real_kind) :: xp(nz), xl(nz)
     real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz), ADU(nq,nz), ADL(nq,nz)
-    real(real_kind) :: fH2O_save(trop_ind)
+    real(real_kind) :: VH2_esc, VH_esc
     
     integer :: i, k, j, m, mm
     
     err = ''
     
-    do i = 1,nq
-      do j = 1,nz
-        if (usol_flat(k) < 0.d0) then
-          usol_flat(k) = min(usol_flat(k),-small_real)
-        else
-          usol_flat(k) = max(usol_flat(k),small_real)
-        endif
-      enddo
-    enddo
     if (any(usol_flat /= usol_flat)) then
       err = 'Input mixing ratios to the rhs contains NaNs. This is typically '//&
             'related to some mixing ratios getting too negative.'
       return 
     endif
     
-    ! reshape usol_flat with a pointer (no copying; same memory)
-    usol(1:nq,1:nz) => usol_flat
+    ! make a copy of the mixing ratios. You can not alter the input mixing ratios
+    ! this will make CVODE unstable. Guard against division by zero
+    do j = 1,nz
+      do i = 1,nq
+        k = i + (j-1)*nq
+        if (usol_flat(k) < 0.d0) then
+          usol(i,j) = min(usol_flat(k),-small_real)
+        else
+          usol(i,j) = max(usol_flat(k),small_real)
+        endif
+      enddo
+    enddo
+    
+    ! pointer to jac. We reshape to make accessing more intuitive.
     djac(1:lda,1:neqs) => jac
     
     do i = 1,nq
@@ -695,9 +701,9 @@ contains
     enddo
     
     call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol, densities, &
-                             density, rx_rates, mubar, pressure, fH2O, fH2O_save, &
+                             density, rx_rates, mubar, pressure, fH2O, &
                              prates, surf_radiance, &
-                             DU, DD, DL, ADU, ADL, err)
+                             DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
     if (len_trim(err) /= 0) return
     
     ! compute chemistry contribution to jacobian using forward differences
@@ -735,9 +741,9 @@ contains
     do j = 2,nz-1
       do i = 1,nq
         k = i + (j-1)*nq      
-        djac(ku,k+nq) = djac(ku,k+nq) + DU(i,j) + ADU(i,j)
+        djac(ku,k+nq) = DU(i,j) + ADU(i,j)
         djac(kd,k)    = djac(kd,k)    + DD(i,j)        
-        djac(kl,k-nq) = djac(kl,k-nq) + DL(i,j) + ADL(i,j)
+        djac(kl,k-nq) = DL(i,j) + ADL(i,j)
       enddo
     enddo
     
@@ -770,6 +776,14 @@ contains
         djac(kd,i)    = djac(kd,i)    - DU(i,1)         
       endif
     enddo
+    
+    ! H and H2 escape
+    if (diff_H_escape) then
+      if (back_gas_name /= "H2") then
+        upper_veff(LH2) = VH2_esc                     
+      endif
+      upper_veff(LH) = VH_esc 
+    endif
 
     ! Upper boundary
     do i = 1,nq
@@ -794,13 +808,11 @@ contains
           mm = m - LH2O + kd
           djac(mm,k) = 0.d0
         enddo
-        djac(kd,k) = 0.d0
+        djac(kd,k) = - DU(LH2O,j)
         djac(ku,k+nq) = 0.d0
-        usol(LH2O,j) = fH2O_save(j)
-      enddo
-      do j = 2,trop_ind
-        k = LH2O + (j-1)*nq
-        djac(kl,k-nq) = 0.d0
+        if (j /= 1) then
+          djac(kl,k-nq) = 0.d0
+        endif
       enddo
     endif
     
@@ -814,7 +826,7 @@ contains
     use photochem_data, only: nq, species_names
     use photochem_vars, only: neqs, verbose, z
     use photochem_wrk, only: nsteps_previous, cvode_mem
-    
+    use photochem_wrk, only: atol_global
     ! calling variables
     real(c_double), value :: tn        ! current time
     type(N_Vector)        :: sunvec_y  ! solution N_Vector
@@ -829,7 +841,7 @@ contains
     integer(c_int) :: loc_ierr
     real(c_double) :: hcur(1)
     real(real_kind) :: tmp, mx
-    integer :: k(1),i,j,ii
+    integer :: k,i,j,ii
     
     ierr = 0
     
@@ -841,32 +853,32 @@ contains
     call rhs_background_gas(neqs, yvec, fvec, err)
     loc_ierr = FCVodeGetNumSteps(cvode_mem, nsteps)
     
-    if (nsteps(1) /= nsteps_previous .and. verbose) then
+    if (nsteps(1) /= nsteps_previous .and. verbose > 0) then
       loc_ierr = FCVodeGetCurrentStep(cvode_mem, hcur)
       
-      tmp = 0.d0
-      mx = tmp
-      k(1) = 1
-      do ii = 1,neqs
-        tmp = abs(fvec(ii)/yvec(ii))
-        if (tmp > mx .and. yvec(ii) > 1.d-30) then
-          mx = tmp
-          k(1) = ii
-        endif
-      enddo
-      
-      ! k = maxloc(fvec)
-      j = k(1)/nq
-      i = k(1)-j*nq
-
-      ! print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5)", nsteps, tn, hcur(1)
-      
-      print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,a10,3x,es12.5,3x,es12.5,3x,es12.5)", &
-              nsteps, tn, hcur(1),trim(species_names(i)),fvec(k(1)),yvec(k(1)),z(j+1)/1.d5
-      ! print*,nsteps, tn, hcur(1), maxval(fvec),yvec(k),species_names(i),z(j+1)/1.d5
-      ! k = 3 + (trop_ind)*nq
-      
-      ! print*,yvec(3),yvec(3 + (trop_ind-1)*nq),yvec(k)
+      if (verbose == 1) then
+        print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,'max(dy/dt) = ',es11.5)", &
+             nsteps, tn, hcur(1),maxval(abs(fvec))
+             
+      elseif (verbose == 2) then
+        ! Find the fastest changing variable
+        tmp = 0.d0
+        mx = tmp
+        k = 1
+        do ii = 1,neqs
+          tmp = abs(fvec(ii)/yvec(ii))
+          if (tmp > mx .and. abs(yvec(ii)) > atol_global) then
+            mx = tmp
+            k = ii
+          endif
+        enddo
+        j = k/nq
+        i = k-j*nq
+        
+        print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,"// &
+             "'max(dydt/y) = ',es12.5,' for ',a8,' at z = ',f6.2,' km')", &
+             nsteps, tn, hcur(1),abs(fvec(k)/yvec(k)),trim(species_names(i)),z(j+1)/1.d5
+      endif
       
       nsteps_previous = nsteps(1)
     endif
@@ -993,10 +1005,9 @@ contains
     
     real(real_kind):: density(nz), rx_rates(nz,nrT)
     real(real_kind):: mubar(nz), pressure(nz)
-    real(real_kind) :: fH2O_save(trop_ind)
     real(real_kind) :: prates(nz,kj), surf_radiance(nw)
     real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
-    real(real_kind) :: ADU(nq,nz), ADL(nq,nz)
+    real(real_kind) :: ADU(nq,nz), ADL(nq,nz), VH2_esc, VH_esc
   
     
     ! settings
@@ -1123,9 +1134,9 @@ contains
         write(2) solution(:,:,ii)
         
         call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, solution(:,:,ii), densities, &
-                                     density, rx_rates, mubar, pressure, fH2O, fH2O_save, &
+                                     density, rx_rates, mubar, pressure, fH2O, &
                                      prates, surf_radiance, &
-                                     DU, DD, DL, ADU, ADL, err)
+                                     DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
         
         write(2) prates
         
@@ -1147,8 +1158,9 @@ contains
   
   subroutine photo_equilibrium(mxsteps, rtol, atol, success, err)
     use photochem_data, only: nq
-    use photochem_vars, only: nz, usol_init, usol_out, at_photo_equilibrium
-    
+    use photochem_vars, only: nz, usol_init, usol_out, at_photo_equilibrium, &
+                              equilibrium_time
+    use photochem_wrk, only: atol_global
     integer, intent(in) :: mxsteps
     real(real_kind), intent(in) :: rtol 
     real(real_kind), intent(in) :: atol 
@@ -1159,8 +1171,9 @@ contains
     
     err = ""
     
+    atol_global = atol
     solution(1:nq,1:nz,1:1) => usol_out
-    call evolve_background_atm(0.d0, nq, nz, usol_init, 1, [1.d16],  &
+    call evolve_background_atm(0.d0, nq, nz, usol_init, 1, [equilibrium_time],  &
                                rtol, atol, mxsteps, solution, success, err)
     if (len_trim(err) /= 0) return
     at_photo_equilibrium = success 
@@ -1187,18 +1200,20 @@ contains
   end subroutine
   
   subroutine diffusion_coefficients(nq, nz, dz, edd, T, den, grav, mubar, &
-                                    DU, DD, DL, ADU, ADL)
+                                    DU, DD, DL, ADU, ADL, VH2_esc, VH_esc)
     use photochem_const, only: k_boltz, N_avo
-    use photochem_data, only: species_mass
+    use photochem_data, only: species_mass, LH2, LH, back_gas_name, diff_H_escape
     
     integer, intent(in) :: nq, nz
     real(real_kind), intent(in) :: dz(nz), edd(nz), T(nz), den(nz)
     real(real_kind), intent(in) :: grav(nz), mubar(nz)
     real(real_kind), intent(out) :: DU(nq,nz), DL(nq,nz), DD(nq,nz)
     real(real_kind), intent(out) :: ADU(nq,nz), ADL(nq,nz)
+    real(real_kind), intent(out) :: VH2_esc, VH_esc
     
     real(real_kind) :: eddav_p, eddav_m, denav_p, denav_m, tav_p, tav_m
     real(real_kind) :: bx1x2_p, bx1x2_m, bx1x2_pp, bx1x2_mm, zeta_pp, zeta_mm
+    real(real_kind) :: bx1x2
     
     integer :: i,j
   
@@ -1270,6 +1285,18 @@ contains
       ADL(j,nz) = - zeta_mm/(2.d0*dz(nz)*den(nz))
       ! ADU(j,nz) = 0.d0
     enddo
+
+    ! H2 escape
+    if (diff_H_escape) then
+      if (back_gas_name /= "H2") then
+        bx1x2 = binary_diffusion_param(species_mass(LH2), mubar(nz), T(nz))
+        VH2_esc = bx1x2/den(nz)*(-(species_mass(LH2)*grav(nz))/(k_boltz*T(nz)*N_avo) &
+                                 + (mubar(nz)*grav(nz))/(k_boltz*T(nz)*N_avo))                     
+      endif
+      bx1x2 = binary_diffusion_param(species_mass(LH), mubar(nz), T(nz))
+      VH_esc = bx1x2/den(nz)*(-(species_mass(LH)*grav(nz))/(k_boltz*T(nz)*N_avo) &
+                              + (mubar(nz)*grav(nz))/(k_boltz*T(nz)*N_avo))
+    endif
       
   end subroutine
   

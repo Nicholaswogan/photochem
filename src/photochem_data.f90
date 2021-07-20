@@ -78,6 +78,9 @@ module photochem_data
   real(real_kind), protected :: planet_radius
   logical, protected :: water_sat_trop
   integer, protected :: LH2O
+  logical, protected :: diff_H_escape
+  integer, protected :: LH2
+  integer, protected :: LH
   
   
 contains
@@ -261,6 +264,9 @@ contains
     planet_radius = photoset%planet_radius
     water_sat_trop = photoset%water_sat_trop
     LH2O = photoset%LH2O
+    diff_H_escape = photoset%diff_H_escape
+    LH2 = photoset%LH2
+    LH = photoset%LH
     
     !!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_vars !!!
@@ -281,6 +287,7 @@ contains
     ! boundary conditions
     allocate(lowerboundcond(nq))
     lowerboundcond = photoset%lowerboundcond
+    ! lowerboundcond(3) = 1
     allocate(lower_vdep(nq))
     lower_vdep = photoset%lower_vdep
     allocate(lower_flux(nq))
@@ -289,6 +296,7 @@ contains
     lower_dist_height = photoset%lower_dist_height
     allocate(lower_fix_mr(nq))
     lower_fix_mr = photoset%lower_fix_mr
+    ! lower_fix_mr(3) = 8.2956222562308220d-003
     allocate(upperboundcond(nq))
     upperboundcond = photoset%upperboundcond
     allocate(upper_veff(nq))

@@ -30,6 +30,9 @@ module photochem_types ! make a giant IO object
     real(real_kind) :: solar_zenith
     logical :: water_sat_trop
     integer :: LH2O
+    logical :: diff_H_escape
+    integer :: LH2
+    integer :: LH
     real(real_kind) :: trop_alt ! this can be changed
     
     integer :: nq ! nubmer of long lived
