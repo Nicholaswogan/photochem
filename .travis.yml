@@ -1,0 +1,17 @@
+sudo: required
+dist: focal
+
+before_install:
+  - sudo apt-get update
+  - sudo apt-get install build-essential
+  - sudo apt-get install gfortran
+  - sudo apt-get install gcc
+
+install:
+  - mkdir build
+  - cd build
+  - cmake ../
+  - make
+
+script:
+  - ctest
