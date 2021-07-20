@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION "3.19.1")
+cmake_minimum_required(VERSION "3.12")
 project(photochem LANGUAGES Fortran)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
