@@ -19,6 +19,7 @@ set(BUILD_IDA OFF)
 set(BUILD_KINSOL OFF)
 add_subdirectory(cvode-5.7.0)
 
+add_subdirectory(minpack)
 
 add_library(photochem 
             photochem_const.f90 
@@ -36,6 +37,7 @@ add_library(photochem
 target_link_libraries(photochem PUBLIC yaml)
 target_link_libraries(photochem PUBLIC sundials_fcvode_mod)
 target_link_libraries(photochem PUBLIC sundials_cvode)
+target_link_libraries(photochem PUBLIC minpack)
 target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules"
                           )

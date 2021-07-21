@@ -38,5 +38,11 @@ ar rcs libbinning.a *.o
 rm *.o
 mv libbinning.a ../dependencies/lib
 
+cd ../minpack
+gfortran -c *.f -O3
+ar rcs libminpack.a *.o
+rm *.o
+mv libminpack.a ../dependencies/lib
+
 
 

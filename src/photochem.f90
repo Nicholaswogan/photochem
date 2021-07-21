@@ -393,11 +393,12 @@ contains
   subroutine prep_atm_background_gas(nq, nz, trop_ind, sum_usol, usol, &
                                      density, mubar, pressure, fH2O, err)
     
-    use photochem_data, only: species_mass, back_gas_mu, water_sat_trop             
+    use photochem_data, only: species_mass, back_gas_mu, water_sat_trop, LH2O          
     use photochem_vars, only: temperature, grav, dz, surface_pressure, &
                               use_manabe, relative_humidity, z
+    use photochem_wrk, only: usol_wrk
     integer, intent(in) :: nq, nz, trop_ind
-    real(real_kind), intent(in), target :: usol(nq,nz)
+    real(real_kind), intent(inout) :: usol(nq,nz)
     real(real_kind), intent(out) :: sum_usol(nz)
     real(real_kind), intent(out) :: density(nz)
     real(real_kind), intent(out) :: mubar(nz), pressure(nz), fH2O(trop_ind)
@@ -406,7 +407,23 @@ contains
     real(real_kind) :: rel
     integer :: i
     
+    ! hybrd varibles
+    integer :: info
+    real(real_kind), parameter :: tol = 1.d-8
+    integer :: lwa
+    real(real_kind), allocatable :: fvec(:)
+    real(real_kind), allocatable :: wa(:)
+    ! end hybrd varibles
+    
     err = ''
+    
+    ! If water is fixed in the troposhere, lets set it to zero.
+    ! This will be to get an initial guess for the non-linear solve.
+    if (water_sat_trop) then
+      do i = 1,trop_ind
+        usol(LH2O,i) = 0.d0
+      enddo
+    endif 
     
     do i = 1,nz
       sum_usol(i) = sum(usol(:,i))
@@ -425,6 +442,7 @@ contains
                        mubar, pressure, density)
                        
     if (water_sat_trop) then
+      ! Compute initial guess for fH2O
       do i = 1,trop_ind
         if (use_manabe) then
           ! manabe formula ()
@@ -435,9 +453,75 @@ contains
         
         fH2O(i) = rel*sat_pressure_H2O(temperature(i))/pressure(i)
       enddo
-    endif    
+      ! Here we compute self-consistent water profile.
+      ! hybrd1 is nonlinear solver from minpack. Takes negligable time.
+      usol_wrk = usol ! make usol global
+      lwa = (trop_ind*(3*trop_ind+13))/2 + 2
+      allocate(fvec(trop_ind))
+      allocate(wa(lwa))
+      call hybrd1(fcn_fH2O, trop_ind, fH2O, fvec, tol, info, wa, lwa)
+      if (info /= 1) then
+        err = "Non-linear solve for water profile failed."
+        return
+      endif
+      deallocate(fvec, wa)
+    endif 
     
   end subroutine
+
+  ! For computing self-consistent water profile. Called by minpack.
+  subroutine fcn_fH2O(n, x, fvec, iflag)
+    use photochem_data, only: species_mass, back_gas_mu, LH2O, nq
+    use photochem_vars, only: temperature, grav, dz, surface_pressure, &
+                              nz, use_manabe, relative_humidity
+    
+    ! we need to use global data here. Its possible to remove this global
+    ! data with cminpack: http://devernay.free.fr/hacks/cminpack/
+    ! but we must write an interface between the C and Fortran.
+    use photochem_wrk, only: usol_wrk 
+  
+    integer, intent(in) :: n, iflag ! n == trop_ind
+    real(real_kind), intent(in), target :: x(n) ! x == fH2O
+    real(real_kind), intent(out) :: fvec(n) ! fvec == residual
+    
+    real(real_kind) :: sum_usol(nz) 
+    real(real_kind) :: fH2O(n)
+    real(real_kind) :: mubar(nz)
+    real(real_kind) :: density(nz)
+    real(real_kind) :: pressure(nz)
+    
+    integer :: i
+    real(real_kind) :: rel
+  
+    do i = 1,n
+      usol_wrk(LH2O,i) = x(i)
+    enddo
+  
+    do i = 1,nz
+      sum_usol(i) = sum(usol_wrk(:,i))
+    enddo
+  
+    do i = 1,nz
+      call molar_weight(nq, usol_wrk(:,i), sum_usol(i), species_mass, back_gas_mu, mubar(i))
+    enddo
+  
+    call press_and_den(nz, temperature, grav, surface_pressure*1.d6, dz, &
+                       mubar, pressure, density)
+  
+    do i = 1,n
+      if (use_manabe) then
+        ! manabe formula ()
+        rel = 0.77d0*(pressure(i)/pressure(1)-0.02d0)/0.98d0
+      else
+        rel = relative_humidity 
+      endif
+      fH2O(i) = rel*sat_pressure_H2O(temperature(i))/pressure(i)
+    enddo  
+    
+    fvec = x - fH2O
+  
+  end subroutine
+  
   
   subroutine prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol, densities, &
                                      density, rx_rates, mubar, pressure, fH2O, &
@@ -524,7 +608,7 @@ contains
     real(real_kind), intent(out) :: rhs(neqs)
     character(len=err_len), intent(out) :: err
     
-    real(real_kind):: usol(nq,nz)
+    real(real_kind) :: usol(nq,nz)
     
     real(real_kind) :: mubar(nz), pressure(nz)
     real(real_kind) :: density(nz), fH2O(nz)
@@ -1182,6 +1266,8 @@ contains
     real(real_kind), intent(in) :: usol(nq,nz)
     real(real_kind), intent(out) :: fH2O(trop_ind)
     character(len=err_len), intent(out) :: err
+    
+    real(real_kind) :: usol_copy(nq,nz)
 
     real(real_kind) :: sum_usol(nz)
     real(real_kind) :: density(nz)
@@ -1189,11 +1275,56 @@ contains
     
     err = ""
     
-    call prep_atm_background_gas(nq, nz, trop_ind, sum_usol, usol, &
+    usol_copy = usol
+    
+    call prep_atm_background_gas(nq, nz, trop_ind, sum_usol, usol_copy, &
                                  density, mubar, pressure, fH2O, err)
     if (len_trim(err) /= 0) return
     
   end subroutine
+  
+  ! subroutine compute_surface_fluxes(nq, nz, usol, err)
+  !   use photochem_data, only: nsp, nrT, kj, nw
+  !   use photochem_vars, only: trop_ind, lower_fix_mr, neqs
+  ! 
+  !   integer, intent(in) :: nq, nz
+  !   real(real_kind), intent(in) :: usol(nq,nz)
+  !   character(len=err_len), intent(out) :: err
+  ! 
+  !   real(real_kind) :: densities(nsp+1,nz)
+  !   real(real_kind) :: density(nz), rx_rates(nz,nrT)
+  !   real(real_kind) :: mubar(nz), pressure(nz)
+  !   real(real_kind) :: fH2O(trop_ind)
+  !   real(real_kind) :: prates(nz,kj), surf_radiance(nw)
+  !   real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
+  !   real(real_kind) :: ADU(nq,nz), ADL(nq,nz), VH2_esc, VH_esc
+  !   real(real_kind) :: usol_copy(nq,nz)
+  !   real(real_kind) :: xp(nz), xl(nz), rhs(neqs)
+  ! 
+  !   integer :: i
+  ! 
+  !   err = ''
+  ! 
+  !   usol_copy = usol
+  !   do i = 1,nq
+  !     if (lowerboundcond(i) == 1) then
+  !       usol_copy(i,1) = lower_fix_mr(i)
+  !     endif
+  !   enddo
+  ! 
+  !   call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol_copy, densities, &
+  !                            density, rx_rates, mubar, pressure, fH2O, &
+  !                            prates, surf_radiance, &
+  !                            DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
+  !   if (len_trim(err) /= 0) return
+  ! 
+  !   call dochem(neqs, nsp, nsl, nq, nz, nrT, usol_copy, density, rx_rates, &
+  !               densities, xp, xl, rhs) 
+  ! 
+  ! 
+  ! 
+  ! 
+  ! end subroutine
   
   subroutine diffusion_coefficients(nq, nz, dz, edd, T, den, grav, mubar, &
                                     DU, DD, DL, ADU, ADL, VH2_esc, VH_esc)

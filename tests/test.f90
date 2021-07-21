@@ -25,7 +25,7 @@ program main
   equilibrium_time = 1.d17
   max_order = 5
   rtol = 1.d-3
-  atol = 1.d-30
+  atol = 1.d-25
   initial_dt = 1.d-9
   call photo_equilibrium(100000, rtol, atol, success, err)
   if (len(trim(err)) > 0) then
