@@ -20,4 +20,7 @@ src/dependencies/examples
 src/dependencies/cmake
 src/dependencies/modules
 
+julia_wrap_photochem.ipynb
+random.ipynb
+
 
