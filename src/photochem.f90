@@ -3,14 +3,6 @@
 module photochem
   implicit none
   
-  ! public :: photochem_equil_backrnd_gas, photorates
-  ! public :: rhs_backrnd_gas, jac_backrnd_gas
-  
-  ! private :: reaction_rates, compute_gibbs_energy
-  ! private :: gibbs_energy_shomate, chempl, molar_weight
-  ! private :: press_and_den, arrhenius_rate, falloff_rate
-  ! private :: Troe_noT2, Troe_withT2
-  
   integer, private, parameter :: real_kind = kind(1.0d0)
   integer, private, parameter :: err_len = 1000
   
@@ -373,12 +365,7 @@ contains
     !     call round(prates(j,i),-8)
     !   enddo
     ! enddo
-    ! 
-    ! do i=1,kj
-    !   print*,prates(nz,i)
-    ! enddo
-    ! stop
-
+    
   end subroutine
   
   subroutine round(in,precision)
@@ -392,13 +379,14 @@ contains
   
   subroutine prep_atm_background_gas(nq, nz, trop_ind, sum_usol, usol, &
                                      density, mubar, pressure, fH2O, err)
-    
+    use, intrinsic :: iso_c_binding, only : c_loc, c_ptr
+    use cminpack2fort, only: hybrd1 ! interface to hybrd1 from cminpack
     use photochem_data, only: species_mass, back_gas_mu, water_sat_trop, LH2O          
     use photochem_vars, only: temperature, grav, dz, surface_pressure, &
-                              use_manabe, relative_humidity, z
+                              use_manabe, relative_humidity
     use photochem_wrk, only: usol_wrk
     integer, intent(in) :: nq, nz, trop_ind
-    real(real_kind), intent(inout) :: usol(nq,nz)
+    real(real_kind), intent(inout), target :: usol(nq,nz)
     real(real_kind), intent(out) :: sum_usol(nz)
     real(real_kind), intent(out) :: density(nz)
     real(real_kind), intent(out) :: mubar(nz), pressure(nz), fH2O(trop_ind)
@@ -407,13 +395,14 @@ contains
     real(real_kind) :: rel
     integer :: i
     
-    ! hybrd varibles
+    ! hybrd1 varibles for cminpack
     integer :: info
     real(real_kind), parameter :: tol = 1.d-8
     integer :: lwa
     real(real_kind), allocatable :: fvec(:)
     real(real_kind), allocatable :: wa(:)
-    ! end hybrd varibles
+    type(c_ptr) :: ptr ! void c pointer for cminpack
+    ! end hybrd1 varibles
     
     err = ''
     
@@ -445,7 +434,7 @@ contains
       ! Compute initial guess for fH2O
       do i = 1,trop_ind
         if (use_manabe) then
-          ! manabe formula ()
+          ! manabe formula
           rel = 0.77d0*(pressure(i)/pressure(1)-0.02d0)/0.98d0
         else
           rel = relative_humidity 
@@ -454,12 +443,14 @@ contains
         fH2O(i) = rel*sat_pressure_H2O(temperature(i))/pressure(i)
       enddo
       ! Here we compute self-consistent water profile.
-      ! hybrd1 is nonlinear solver from minpack. Takes negligable time.
-      usol_wrk = usol ! make usol global
+      ! hybrd1 is nonlinear solver from cminpack. Takes negligable time.
+      ptr = c_loc(usol) ! void pointer to usol. Be careful!!!
       lwa = (trop_ind*(3*trop_ind+13))/2 + 2
       allocate(fvec(trop_ind))
       allocate(wa(lwa))
-      call hybrd1(fcn_fH2O, trop_ind, fH2O, fvec, tol, info, wa, lwa)
+      ! Call hybrd1 from cminpack (c re-write of minpack). I wrote a fortran
+      ! interface to cminpack. We pass usol, the atmosphere, via a pointer.
+      call hybrd1(fcn_fH2O, ptr, trop_ind, fH2O, fvec, tol, info, wa, lwa)
       if (info /= 1) then
         err = "Non-linear solve for water profile failed."
         return
@@ -470,20 +461,18 @@ contains
   end subroutine
 
   ! For computing self-consistent water profile. Called by minpack.
-  subroutine fcn_fH2O(n, x, fvec, iflag)
+  integer function fcn_fH2O(ptr, n, x, fvec, iflag) result(res)
+    use, intrinsic :: iso_c_binding, only : c_f_pointer, c_ptr
     use photochem_data, only: species_mass, back_gas_mu, LH2O, nq
     use photochem_vars, only: temperature, grav, dz, surface_pressure, &
-                              nz, use_manabe, relative_humidity
+                              nz, use_manabe, relative_humidity    
     
-    ! we need to use global data here. Its possible to remove this global
-    ! data with cminpack: http://devernay.free.fr/hacks/cminpack/
-    ! but we must write an interface between the C and Fortran.
-    use photochem_wrk, only: usol_wrk 
-  
-    integer, intent(in) :: n, iflag ! n == trop_ind
-    real(real_kind), intent(in), target :: x(n) ! x == fH2O
+    type(c_ptr) :: ptr ! void pointer. Be careful!
+    integer, value :: n, iflag ! n == trop_ind
+    real(real_kind), intent(in) :: x(n) ! x == fH2O
     real(real_kind), intent(out) :: fvec(n) ! fvec == residual
     
+    real(real_kind), pointer :: usol(:,:)
     real(real_kind) :: sum_usol(nz) 
     real(real_kind) :: fH2O(n)
     real(real_kind) :: mubar(nz)
@@ -492,17 +481,21 @@ contains
     
     integer :: i
     real(real_kind) :: rel
+    
+    ! dereferences the pointer. Takes the void ptr, then
+    ! declares it to be pointing to a usol shaped array of doubles.
+    call c_f_pointer(ptr, usol, [nq,nz])
   
     do i = 1,n
-      usol_wrk(LH2O,i) = x(i)
+      usol(LH2O,i) = x(i)
     enddo
   
     do i = 1,nz
-      sum_usol(i) = sum(usol_wrk(:,i))
+      sum_usol(i) = sum(usol(:,i))
     enddo
   
     do i = 1,nz
-      call molar_weight(nq, usol_wrk(:,i), sum_usol(i), species_mass, back_gas_mu, mubar(i))
+      call molar_weight(nq, usol(:,i), sum_usol(i), species_mass, back_gas_mu, mubar(i))
     enddo
   
     call press_and_den(nz, temperature, grav, surface_pressure*1.d6, dz, &
@@ -519,20 +512,20 @@ contains
     enddo  
     
     fvec = x - fH2O
-  
-  end subroutine
-  
+    res = 0
+  end function
   
   subroutine prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol, densities, &
                                      density, rx_rates, mubar, pressure, fH2O, &
-                                     prates, surf_radiance, &
+                                     prates, surf_radiance, upper_veff_copy, &
                                      DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
     use photochem_const, only: pi
-    use photochem_data, only: photonums, water_sat_trop, LH2O
+    use photochem_data, only: photonums, water_sat_trop, LH2O, LH, LH2, &
+                              back_gas_name, diff_H_escape
     use photochem_vars, only: temperature, grav, dz, edd, &
                               xs_x_qy, photon_flux, diurnal_fac, solar_zenith, &
-                              surface_albedo
-    
+                              surface_albedo, lowerboundcond, lower_fix_mr
+                                  
     integer, intent(in) :: nsp, nq, nz, nrT, kj, nw, trop_ind
     real(real_kind), intent(inout) :: usol(nq,nz)
     
@@ -542,6 +535,7 @@ contains
     real(real_kind), intent(out) :: mubar(nz), pressure(nz)
     real(real_kind), intent(out) :: fH2O(trop_ind)
     real(real_kind), intent(out) :: prates(nz,kj), surf_radiance(nw)
+    real(real_kind), intent(out) :: upper_veff_copy(nq)
     real(real_kind), intent(out) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
     real(real_kind), intent(out) :: ADU(nq,nz), ADL(nq,nz), VH2_esc, VH_esc
     
@@ -551,8 +545,13 @@ contains
     real(real_kind) :: u0
     integer :: i, j, k
     
-
     err = ''
+    
+    do i = 1,nq
+      if (lowerboundcond(i) == 1) then
+        usol(i,1) = lower_fix_mr(i)
+      endif
+    enddo
     
     call prep_atm_background_gas(nq, nz, trop_ind, sum_usol, usol, &
                                  density, mubar, pressure, fH2O, err)  
@@ -567,6 +566,14 @@ contains
     ! diffusion coefficients
     call diffusion_coefficients(nq, nz, dz, edd, temperature, density, grav, mubar, &
                                 DU, DD, DL, ADU, ADL, VH2_esc, VH_esc)
+    
+    ! H and H2 escape
+    if (diff_H_escape) then
+      if (back_gas_name /= "H2") then
+        upper_veff_copy(LH2) = VH2_esc                     
+      endif
+      upper_veff_copy(LH) = VH_esc 
+    endif
     
     do j = 1,nz
       do i = 1,nq
@@ -597,11 +604,10 @@ contains
   subroutine rhs_background_gas(neqs, usol_flat, rhs, err)
     use photochem_const, only: pi, small_real
     
-    use photochem_data, only: nq, nsp, nsl, nrT, kj, nw, LH2O, water_sat_trop, &
-                              diff_H_escape, back_gas_name, LH, LH2
+    use photochem_data, only: nq, nsp, nsl, nrT, kj, nw, LH2O, water_sat_trop
     use photochem_vars, only: nz, z, dz, trop_ind, &
                               lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
-                              lower_dist_height, upper_veff, upper_flux, lower_fix_mr
+                              lower_dist_height, upper_veff, upper_flux
   
     integer, intent(in) :: neqs
     real(real_kind), intent(in) :: usol_flat(neqs)
@@ -617,7 +623,7 @@ contains
     real(real_kind) :: prates(nz,kj), surf_radiance(nw)
     real(real_kind) :: xp(nz), xl(nz)
     real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz), ADU(nq,nz), ADL(nq,nz)
-    real(real_kind) :: VH2_esc, VH_esc
+    real(real_kind) :: VH2_esc, VH_esc, upper_veff_copy(nq)
     
     real(real_kind) :: disth, ztop, ztop1    
     integer :: i, k, j, jdisth
@@ -642,16 +648,12 @@ contains
         endif
       enddo
     enddo
+    upper_veff_copy = upper_veff
     
-    do i = 1,nq
-      if (lowerboundcond(i) == 1) then
-        usol(i,1) = lower_fix_mr(i)
-      endif
-    enddo
-    
+    ! alters usol to deal with fixing mixing ratios, and H2O in troposphere.
     call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol, densities, &
                              density, rx_rates, mubar, pressure, fH2O, &
-                             prates, surf_radiance, &
+                             prates, surf_radiance, upper_veff_copy, &
                              DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
     if (len_trim(err) /= 0) return
     
@@ -684,14 +686,6 @@ contains
                         + lower_flux(i)/(density(1)*dz(1))
       endif
     enddo
-    
-    ! H and H2 escape
-    if (diff_H_escape) then
-      if (back_gas_name /= "H2") then
-        upper_veff(LH2) = VH2_esc                     
-      endif
-      upper_veff(LH) = VH_esc 
-    endif
 
     ! Upper boundary
     do i = 1,nq
@@ -699,7 +693,7 @@ contains
       if (upperboundcond(i) == 0) then
         rhs(k) = rhs(k) - DL(i,nz)*usol(i,nz) &
                         + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
-                        - upper_veff(i)*usol(i,nz)/dz(nz)    
+                        - upper_veff_copy(i)*usol(i,nz)/dz(nz)    
       elseif (upperboundcond(i) == 2) then
         rhs(k) = rhs(k) - DL(i,nz)*usol(i,nz) &
                         + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
@@ -735,10 +729,10 @@ contains
     use photochem_const, only: pi, small_real
     
     use photochem_data, only: lda, kd, ku, kl, nq, nsp, nsl, nrT, kj, nw,  &
-                              water_sat_trop, LH2O, diff_H_escape, back_gas_name, LH, LH2
+                              water_sat_trop, LH2O
     use photochem_vars, only: nz, dz, epsj, trop_ind, &
                               lowerboundcond, upperboundcond, lower_vdep, &
-                              upper_veff, lower_fix_mr
+                              upper_veff
   
     integer, intent(in) :: lda_neqs, neqs
     real(real_kind), intent(in) :: usol_flat(neqs)
@@ -756,6 +750,7 @@ contains
     real(real_kind) :: densities(nsp+1,nz)
     real(real_kind) :: rx_rates(nz,nrT)
     real(real_kind) :: prates(nz,kj), surf_radiance(nw)
+    real(real_kind) :: upper_veff_copy(nq)
     real(real_kind) :: xp(nz), xl(nz)
     real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz), ADU(nq,nz), ADL(nq,nz)
     real(real_kind) :: VH2_esc, VH_esc
@@ -782,19 +777,15 @@ contains
         endif
       enddo
     enddo
+    upper_veff_copy = upper_veff
     
     ! pointer to jac. We reshape to make accessing more intuitive.
     djac(1:lda,1:neqs) => jac
     
-    do i = 1,nq
-      if (lowerboundcond(i) == 1) then
-        usol(i,1) = lower_fix_mr(i)
-      endif
-    enddo
-    
+    ! alters usol.
     call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol, densities, &
                              density, rx_rates, mubar, pressure, fH2O, &
-                             prates, surf_radiance, &
+                             prates, surf_radiance, upper_veff_copy, &
                              DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
     if (len_trim(err) /= 0) return
     
@@ -855,6 +846,8 @@ contains
           djac(mm,m) = 0.d0
         enddo
         djac(ku,i+nq) = 0.d0
+        ! For some reason this term makes the integration
+        ! much happier. I will keep it. Jacobians don't need to be perfect.
         djac(kd,i) = - DU(i,1)
 
         ! djac(kd,i) = 1.d0/((lower_fix_mr(i) - usol(i,1))**2.d0 + 1.d0)
@@ -868,14 +861,6 @@ contains
         djac(kd,i)    = djac(kd,i)    - DU(i,1)         
       endif
     enddo
-    
-    ! H and H2 escape
-    if (diff_H_escape) then
-      if (back_gas_name /= "H2") then
-        upper_veff(LH2) = VH2_esc                     
-      endif
-      upper_veff(LH) = VH_esc 
-    endif
 
     ! Upper boundary
     do i = 1,nq
@@ -885,7 +870,7 @@ contains
         !                 + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
         !                 - upper_veff(i)*usol(i,nz)/dz(nz)    
         
-        djac(kd,k) = djac(kd,k) - DL(i,nz) - upper_veff(i)/dz(nz) 
+        djac(kd,k) = djac(kd,k) - DL(i,nz) - upper_veff_copy(i)/dz(nz) 
         djac(kl,k-nq) = DL(i,nz) + ADL(i,nz)
       elseif (upperboundcond(i) == 2) then
         djac(kd,k) = djac(kd,k) - DL(i,nz)
@@ -900,6 +885,8 @@ contains
           mm = m - LH2O + kd
           djac(mm,k) = 0.d0
         enddo
+        ! For some reason this term makes the integration
+        ! much happier. I will keep it. Jacobians don't need to be perfect.
         djac(kd,k) = - DU(LH2O,j)
         djac(ku,k+nq) = 0.d0
         if (j /= 1) then
@@ -1041,9 +1028,9 @@ contains
   
   subroutine evolve_background_atm(tstart, nq, nz, usol_start, num_t_eval, t_eval, rtol, atol, &
                                    mxsteps, solution, success, err)
-    use photochem_data, only: water_sat_trop, LH2O, species_names, nsp, nrT, kj, nw
+    use photochem_data, only: water_sat_trop, LH2O, nsp, nrT, kj, nw
     use photochem_vars, only: neqs, lowerboundcond, lower_fix_mr, trop_ind, &
-                              initial_dt, use_fast_jacobian, max_err_test_failures, max_order, trop_ind, xs_x_qy
+                              initial_dt, use_fast_jacobian, max_err_test_failures, max_order, trop_ind
     use photochem_wrk, only: cvode_mem
     
     use, intrinsic :: iso_c_binding
@@ -1071,9 +1058,6 @@ contains
     character(len=err_len), intent(out) :: err
     
     ! local variables
-    ! real(c_double) :: tstart     ! initial time
-    ! real(c_double) :: rtol, atol ! relative and absolute tolerance
-    ! real(c_double) :: tout       ! output time
     real(c_double) :: tcur(1)    ! current time
     integer(c_int) :: ierr       ! error flag from C functions
     ! type(c_ptr)    :: cvode_mem  ! CVODE memory
@@ -1089,26 +1073,20 @@ contains
     
     real(real_kind) :: fH2O(trop_ind)
     integer :: i, j, k, ii
-    
 
-
-    
-    real(real_kind) :: densities(nsp+1,nz)
-    
+    real(real_kind) :: densities(nsp+1,nz)    
     real(real_kind):: density(nz), rx_rates(nz,nrT)
     real(real_kind):: mubar(nz), pressure(nz)
-    real(real_kind) :: prates(nz,kj), surf_radiance(nw)
+    real(real_kind) :: prates(nz,kj), surf_radiance(nw), upper_veff_copy(nq)
     real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
     real(real_kind) :: ADU(nq,nz), ADL(nq,nz), VH2_esc, VH_esc
   
-    
     ! settings
     mxsteps_ = mxsteps
     neqs_long = neqs
     tcur   = tstart
     mu = nq
     ml = nq
-    
     
     ! initialize solution vector
     do j=1,nz
@@ -1204,11 +1182,6 @@ contains
         success = .false.
       else
         success = .true.
-        do i = 1,nq
-          if (lowerboundcond(i) == 1) then
-            yvec(i) = lower_fix_mr(i)
-          endif
-        enddo
         do j=1,nz
           do i=1,nq  
             k = i + (j-1)*nq
@@ -1216,9 +1189,10 @@ contains
           enddo
         enddo
         
+        ! this will alter solution(:,:,ii) with proper fixed mixing ratios and H2O
         call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, solution(:,:,ii), densities, &
                                      density, rx_rates, mubar, pressure, fH2O, &
-                                     prates, surf_radiance, &
+                                     prates, surf_radiance, upper_veff_copy, &
                                      DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
                                      
       endif
@@ -1283,48 +1257,61 @@ contains
     
   end subroutine
   
-  ! subroutine compute_surface_fluxes(nq, nz, usol, err)
-  !   use photochem_data, only: nsp, nrT, kj, nw
-  !   use photochem_vars, only: trop_ind, lower_fix_mr, neqs
-  ! 
-  !   integer, intent(in) :: nq, nz
-  !   real(real_kind), intent(in) :: usol(nq,nz)
-  !   character(len=err_len), intent(out) :: err
-  ! 
-  !   real(real_kind) :: densities(nsp+1,nz)
-  !   real(real_kind) :: density(nz), rx_rates(nz,nrT)
-  !   real(real_kind) :: mubar(nz), pressure(nz)
-  !   real(real_kind) :: fH2O(trop_ind)
-  !   real(real_kind) :: prates(nz,kj), surf_radiance(nw)
-  !   real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
-  !   real(real_kind) :: ADU(nq,nz), ADL(nq,nz), VH2_esc, VH_esc
-  !   real(real_kind) :: usol_copy(nq,nz)
-  !   real(real_kind) :: xp(nz), xl(nz), rhs(neqs)
-  ! 
-  !   integer :: i
-  ! 
-  !   err = ''
-  ! 
-  !   usol_copy = usol
-  !   do i = 1,nq
-  !     if (lowerboundcond(i) == 1) then
-  !       usol_copy(i,1) = lower_fix_mr(i)
-  !     endif
-  !   enddo
-  ! 
-  !   call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol_copy, densities, &
-  !                            density, rx_rates, mubar, pressure, fH2O, &
-  !                            prates, surf_radiance, &
-  !                            DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
-  !   if (len_trim(err) /= 0) return
-  ! 
-  !   call dochem(neqs, nsp, nsl, nq, nz, nrT, usol_copy, density, rx_rates, &
-  !               densities, xp, xl, rhs) 
-  ! 
-  ! 
-  ! 
-  ! 
-  ! end subroutine
+  subroutine compute_surface_fluxes(nq, nz, usol, surface_flux, err)
+    use photochem_data, only: nsp, nrT, kj, nw, nsl, water_sat_trop, LH2O
+    use photochem_vars, only: trop_ind, lower_fix_mr, neqs, upper_veff, dz
+                              
+  
+    integer, intent(in) :: nq, nz
+    real(real_kind), intent(in) :: usol(nq,nz)
+    real(real_kind), intent(out) :: surface_flux(nq)
+    character(len=err_len), intent(out) :: err
+  
+    real(real_kind) :: densities(nsp+1,nz)
+    real(real_kind) :: density(nz), rx_rates(nz,nrT)
+    real(real_kind) :: mubar(nz), pressure(nz)
+    real(real_kind) :: fH2O(trop_ind)
+    real(real_kind) :: prates(nz,kj), surf_radiance(nw), upper_veff_copy(nq)
+    real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
+    real(real_kind) :: ADU(nq,nz), ADL(nq,nz), VH2_esc, VH_esc
+    real(real_kind) :: usol_copy(nq,nz)
+    real(real_kind) :: xp(nz), xl(nz), rhs(neqs)
+    
+    real(real_kind) :: diffusive_production
+    real(real_kind) :: chemical_production
+  
+    integer :: i
+  
+    err = ''
+  
+    usol_copy = usol
+    upper_veff_copy = upper_veff
+    call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol_copy, densities, &
+                             density, rx_rates, mubar, pressure, fH2O, &
+                             prates, surf_radiance, upper_veff_copy, &
+                             DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
+    if (len_trim(err) /= 0) return
+  
+    call dochem(neqs, nsp, nsl, nq, nz, nrT, usol, density, rx_rates, &
+                densities, xp, xl, rhs) 
+                          
+    ! surface flux is molecules required to sustain the lower boundary
+    ! chemical production + diffusion production = total change in lower cell    
+    do i = 1,nq
+      diffusive_production =   (DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
+                                - DU(i,1)*usol(i,1)) &
+                                *density(1)*dz(1)
+      chemical_production = rhs(i)*density(1)*dz(1)
+      surface_flux(i) = -(diffusive_production + chemical_production)
+      ! We don't count chemical production for water
+      if (water_sat_trop) then
+        if (i == LH2O) then
+          surface_flux(i) = - diffusive_production
+        endif
+      endif
+    enddo
+    
+  end subroutine
   
   subroutine diffusion_coefficients(nq, nz, dz, edd, T, den, grav, mubar, &
                                     DU, DD, DL, ADU, ADL, VH2_esc, VH_esc)

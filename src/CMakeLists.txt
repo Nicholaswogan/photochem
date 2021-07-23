@@ -19,7 +19,8 @@ set(BUILD_IDA OFF)
 set(BUILD_KINSOL OFF)
 add_subdirectory(cvode-5.7.0)
 
-add_subdirectory(minpack)
+option(BUILD_MODERN_FORTRAN_EXAMPLES OFF)
+add_subdirectory(cminpack)
 
 add_library(photochem 
             photochem_const.f90 
@@ -33,11 +34,11 @@ add_library(photochem
             photochem.f90 
 )
 
-# set_property(TARGET photochem PROPERTY Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
 target_link_libraries(photochem PUBLIC yaml)
 target_link_libraries(photochem PUBLIC sundials_fcvode_mod)
 target_link_libraries(photochem PUBLIC sundials_cvode)
-target_link_libraries(photochem PUBLIC minpack)
+target_link_libraries(photochem PUBLIC cminpack)
+target_link_libraries(photochem PUBLIC binning)
 target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules"
                           )

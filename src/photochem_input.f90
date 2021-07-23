@@ -1493,6 +1493,23 @@ contains
       item => item%next
       j = j + 1
     enddo
+    
+    ! Make sure that upper boundary condition for H and H2 are
+    ! effusion velocities, if diffusion limited escape
+    if (photoset%diff_H_escape) then
+      if (photoset%back_gas_name /= "H2") then
+        if (photoset%upperboundcond(photoset%LH2) /= 0) then
+          err = "IOError: H2 must have a have a effusion velocity upper boundary"// &
+                " if diff-lim-hydrogen-escape = True"
+          return
+        endif
+      endif
+      if (photoset%upperboundcond(photoset%LH) /= 0) then
+        err = "IOError: H must have a have a effusion velocity upper boundary"// &
+              " if diff-lim-hydrogen-escape = True"
+        return
+      endif
+    endif
 
     ! check for SL nonlinearities
     call check_sl(photomech, photoset, err)

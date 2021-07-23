@@ -1,19 +1,23 @@
 
 program main
   use photochem_setup, only: setup, out2atmosphere_txt
-  use photochem_vars, only: data_dir, max_order, initial_dt, equilibrium_time, verbose
-  use photochem, only: photo_equilibrium
+  use photochem_data, only: nq, species_names
+  use photochem_vars, only: data_dir, max_order, initial_dt, equilibrium_time, &
+                            verbose, usol_init, nz, usol_out
+  use photochem, only: photo_equilibrium, compute_surface_fluxes
   implicit none
   character(len=1024) :: err
   real(8) :: rtol, atol
   logical :: success
+  integer :: i
+  real(8), allocatable :: surface_flux(:)
 
   data_dir = "../data"
 
   call setup("../data/reaction_mechanisms/zahnle_earth.yaml", &
-             "../templates/ModernEarth/settings_ModernEarth.yaml", &
-             "../templates/ModernEarth/Sun_now.txt", &
-             "../templates/ModernEarth/atmosphere_ModernEarth.txt", err)
+             "../templates/Hadean/settings_Hadean.yaml", &
+             "../templates/Hadean/Sun_4.0Ga.txt", &
+             "../templates/Hadean/atmosphere_Hadean.txt", err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop
@@ -28,13 +32,26 @@ program main
   call photo_equilibrium(100000, rtol, atol, success, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
+    stop 1
+  endif
+  
+  print*,usol_out(2,1), usol_init(2,1)
+  allocate(surface_flux(nq))
+  call compute_surface_fluxes(nq, nz, usol_out, surface_flux, err)
+  if (len(trim(err)) > 0) then
+    print*,trim(err)
+    stop 1
+  endif
+  do i = 1,nq
+    print"(A10,' = ',es10.2)",species_names(i),surface_flux(i)
+  enddo
+  
+  
+  call out2atmosphere_txt("../atmosphere_Hadean.txt",.true.,.true.,err)
+  if (len(trim(err)) > 0) then
+    print*,trim(err)
     stop
   endif
   
-  ! call out2atmosphere_txt("../atmosphere_ModernEarth_8.txt",.true.,.false.,err)
-  ! if (len(trim(err)) > 0) then
-  !   print*,trim(err)
-  !   stop
-  ! endif
 
 end program

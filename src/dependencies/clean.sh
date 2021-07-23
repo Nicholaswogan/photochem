@@ -6,6 +6,9 @@ rm -r build_dir
 cd ../fortran-yaml
 rm -r build_dir
 
+cd ../cminpack
+rm -r build_dir
+
 cd ../
 cd dependencies
 find . -type f ! -name '*.sh' -delete
