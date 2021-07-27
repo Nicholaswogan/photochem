@@ -317,7 +317,8 @@ contains
     endif
     
     allocate(photon_flux(nw))
-    photon_flux = photorad%photon_flux    
+    photon_flux = photorad%photon_flux
+    photon_scale_factor = photoset%photon_scale_factor  
     
     ! settings
     use_manabe = photoset%use_manabe ! use manabe formula

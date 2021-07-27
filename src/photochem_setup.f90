@@ -135,7 +135,6 @@ contains
       deallocate(usol_init)
       deallocate(xs_x_qy)
       deallocate(usol_out)
-      deallocate(usol_wrk)
     endif
     
     allocate(temperature(nz))
@@ -146,7 +145,6 @@ contains
     allocate(usol_init(nq,nz))
     allocate(xs_x_qy(nz,kj,nw))
     allocate(usol_out(nq,nz))
-    allocate(usol_wrk(nq,nz))
 
   end subroutine
   

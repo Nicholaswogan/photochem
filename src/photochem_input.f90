@@ -1295,6 +1295,8 @@ contains
       photoset%grid_file = tmp1%get_string('input-file',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     endif
+    ! scale factor for photon flux. Its optional
+    photoset%photon_scale_factor = tmp1%get_real('photon-scale-factor', 1.d0,error = io_err)
     
     ! atmosphere grid
     tmp1 => mapping%get_dictionary('atmosphere-grid',.true.,error = io_err)

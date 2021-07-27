@@ -262,17 +262,17 @@ contains
   
 
   subroutine photorates(nz, nsp, kj, nw, dz, densities, xs_x_qy, &
-                        flux, diurnal_fac, u0, Rsfc, &
+                        flux, photon_scale_factor, diurnal_fac, u0, Rsfc, &
                         prates, surf_radiance,err)
     use photochem_radtran, only: two_stream
     use photochem_data, only: photonums, reactants_sp_inds, nray, sigray, raynums
-
     ! input
     integer, intent(in) :: nz, nsp, kj, nw
     real(real_kind), intent(in) :: dz(nz)
     real(real_kind), intent(in) :: densities(nsp+1, nz)
     real(real_kind), intent(in) :: xs_x_qy(nz,kj,nw)
     real(real_kind), intent(in) :: flux(nw)
+    real(real_kind), intent(in) :: photon_scale_factor
     real(real_kind), intent(in) :: diurnal_fac, u0, Rsfc
     
     ! output
@@ -339,7 +339,7 @@ contains
         amean_grd(i) = sqrt(amean(n)*amean(n+1))        
       enddo
       
-      flx = flux(l)*diurnal_fac ! photons/cm2/s
+      flx = flux(l)*diurnal_fac*photon_scale_factor ! photons/cm2/s
 
       do i=1,kj
         do j=1,nz
@@ -384,7 +384,6 @@ contains
     use photochem_data, only: species_mass, back_gas_mu, water_sat_trop, LH2O          
     use photochem_vars, only: temperature, grav, dz, surface_pressure, &
                               use_manabe, relative_humidity
-    use photochem_wrk, only: usol_wrk
     integer, intent(in) :: nq, nz, trop_ind
     real(real_kind), intent(inout), target :: usol(nq,nz)
     real(real_kind), intent(out) :: sum_usol(nz)
@@ -524,7 +523,8 @@ contains
                               back_gas_name, diff_H_escape
     use photochem_vars, only: temperature, grav, dz, edd, &
                               xs_x_qy, photon_flux, diurnal_fac, solar_zenith, &
-                              surface_albedo, lowerboundcond, lower_fix_mr
+                              surface_albedo, lowerboundcond, lower_fix_mr, &
+                              photon_scale_factor
                                   
     integer, intent(in) :: nsp, nq, nz, nrT, kj, nw, trop_ind
     real(real_kind), intent(inout) :: usol(nq,nz)
@@ -589,7 +589,7 @@ contains
     
     u0 = cos(solar_zenith*pi/180.d0)
     call photorates(nz, nsp, kj, nw, dz, densities, xs_x_qy, &
-                    photon_flux, diurnal_fac, u0, surface_albedo, &
+                    photon_flux, photon_scale_factor, diurnal_fac, u0, surface_albedo, &
                     prates, surf_radiance, err)
     if (len_trim(err) /= 0) return
     
@@ -955,8 +955,8 @@ contains
         i = k-j*nq
         
         print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,"// &
-             "'max(dydt/y) = ',es12.5,' for ',a8,' at z = ',f6.2,' km')", &
-             nsteps, tn, hcur(1),abs(fvec(k)/yvec(k)),trim(species_names(i)),z(j+1)/1.d5
+             "'dy/dt =',es12.5,3x,' y =',es12.5,3x,a8,3x,' z =',f6.2,' km')", &
+             nsteps, tn, hcur(1),fvec(k),yvec(k),trim(species_names(i)),z(j+1)/1.d5
       endif
       
       nsteps_previous = nsteps(1)

@@ -17,6 +17,7 @@ module photochem_types ! make a giant IO object
     real(real_kind) :: upper_wavelength
     integer :: nw
     character(len=str_len) :: grid_file
+    real(real_kind) :: photon_scale_factor
 
     logical :: back_gas
     character(len=str_len) :: back_gas_name

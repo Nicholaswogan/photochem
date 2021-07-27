@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION "3.12")
-project(photochem LANGUAGES Fortran)
+project(photochem Fortran)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
@@ -20,6 +20,10 @@ message (STATUS "Building with OpenMP multi-threading = ${BUILD_WITH_OPENMP}")
 add_subdirectory(src)
 file(COPY "${CMAKE_SOURCE_DIR}/data" DESTINATION "${CMAKE_BINARY_DIR}")
 file(COPY "${CMAKE_SOURCE_DIR}/templates" DESTINATION "${CMAKE_BINARY_DIR}")
+
+add_executable(photo.run ${CMAKE_SOURCE_DIR}/src/main.f90)
+target_link_libraries(photo.run PUBLIC photochem)
+target_include_directories(photo.run PRIVATE ${CMAKE_BINARY_DIR}/modules)
 
 #  tests
 add_executable(test.run ${CMAKE_SOURCE_DIR}/tests/test.f90)

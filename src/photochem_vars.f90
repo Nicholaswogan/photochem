@@ -38,6 +38,7 @@ module photochem_vars
   
   ! Radiative tranfer
   real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
+  real(real_kind) :: photon_scale_factor
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! set AFTER file read-in !!!
