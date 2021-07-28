@@ -1,7 +1,7 @@
 
 module photochem_data
   implicit none  
-  public ! public but protected
+  ! public ! public but protected
   integer, private, parameter :: real_kind = kind(1.0d0)
   integer, private, parameter :: str_len = 1024
   integer, private, parameter :: err_len = 1024

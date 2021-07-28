@@ -4,7 +4,7 @@ module photochem
   implicit none
   
   integer, private, parameter :: real_kind = kind(1.0d0)
-  integer, private, parameter :: err_len = 1000
+  integer, private, parameter :: err_len = 1024
   
 contains
   
@@ -1219,7 +1219,7 @@ contains
     real(real_kind), intent(in) :: rtol 
     real(real_kind), intent(in) :: atol 
     logical, intent(out) :: success
-    character(len=err_len), intent(out) :: err
+    character(len=1024), intent(out) :: err ! err_len (f2py needs explicit length)
     
     real(real_kind), pointer :: solution(:,:,:)
     
@@ -1265,7 +1265,7 @@ contains
     integer, intent(in) :: nq, nz
     real(real_kind), intent(in) :: usol(nq,nz)
     real(real_kind), intent(out) :: surface_flux(nq)
-    character(len=err_len), intent(out) :: err
+    character(len=1024), intent(out) :: err
   
     real(real_kind) :: densities(nsp+1,nz)
     real(real_kind) :: density(nz), rx_rates(nz,nrT)

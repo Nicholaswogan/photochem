@@ -1,10 +1,10 @@
 module photochem_setup
   implicit none
-  private
+  ! private
   integer, private, parameter :: real_kind = kind(1.0d0)
   integer, private, parameter :: err_len = 1024
   
-  public :: setup, out2atmosphere_txt
+  ! public :: setup, out2atmosphere_txt
   
 contains
   
@@ -20,7 +20,7 @@ contains
     character(len=*), intent(in) :: settings_file
     character(len=*), intent(in) :: flux_file
     character(len=*), intent(in) :: atmosphere_txt
-    character(len=err_len), intent(out) :: err
+    character(len=1024), intent(out) :: err
     
     call setup_files(mechanism_file, settings_file, flux_file, atmosphere_txt, err)
     if (len_trim(err) /= 0) return
@@ -154,7 +154,7 @@ contains
     
     character(len=*), intent(in) :: filename
     logical, intent(in) :: overwrite, clip
-    character(len=err_len), intent(out) :: err
+    character(len=1024), intent(out) :: err
     
     integer :: io, i, j
     

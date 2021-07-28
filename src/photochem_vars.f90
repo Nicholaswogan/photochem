@@ -3,7 +3,7 @@
 module photochem_vars
   use, intrinsic :: iso_c_binding
   implicit none
-  public
+  ! public
   integer, private, parameter :: real_kind = kind(1.0d0)
   integer, private, parameter :: str_len = 1024
 
