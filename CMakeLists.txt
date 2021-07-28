@@ -1,5 +1,14 @@
 cmake_minimum_required(VERSION "3.12")
-project(photochem Fortran)
+project(photochem Fortran C)
+
+option(SKBUILD "Should be ON of being build by skbuild, 
+and OFF of being build by regular cmake" OFF)
+
+option(BUILD_STATIC_PHOTOCHEM "if ON, then will build the
+static library libphotochem.a" ON)
+
+option(BUILD_F2PY_PHOTOCHEM "if ON, then will build a python
+version with f2py" OFF)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
@@ -17,18 +26,116 @@ if (BUILD_WITH_OPENMP)
 endif()
 message (STATUS "Building with OpenMP multi-threading = ${BUILD_WITH_OPENMP}")
 
+# adding src build dependencies
 add_subdirectory(src)
-file(COPY "${CMAKE_SOURCE_DIR}/data" DESTINATION "${CMAKE_BINARY_DIR}")
-file(COPY "${CMAKE_SOURCE_DIR}/templates" DESTINATION "${CMAKE_BINARY_DIR}")
 
-add_executable(photo.run ${CMAKE_SOURCE_DIR}/src/main.f90)
-target_link_libraries(photo.run PUBLIC photochem)
-target_include_directories(photo.run PRIVATE ${CMAKE_BINARY_DIR}/modules)
+set(PHOTOCHEM_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90 
+                      ${CMAKE_SOURCE_DIR}/src/photochem_types.f90 
+                      ${CMAKE_SOURCE_DIR}/src/photochem_input.f90 
+                      ${CMAKE_SOURCE_DIR}/src/photochem_wrk.f90 
+                      ${CMAKE_SOURCE_DIR}/src/photochem_vars.f90 
+                      ${CMAKE_SOURCE_DIR}/src/photochem_data.f90 
+                      ${CMAKE_SOURCE_DIR}/src/photochem_setup.f90
+                      ${CMAKE_SOURCE_DIR}/src/photochem_radtran.f90
+                      ${CMAKE_SOURCE_DIR}/src/photochem.f90)
+                      
+set(F2PY_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90 
+                  ${CMAKE_SOURCE_DIR}/src/photochem_vars.f90 
+                  ${CMAKE_SOURCE_DIR}/src/photochem_setup.f90
+                  ${CMAKE_SOURCE_DIR}/src/photochem.f90)
 
-#  tests
-add_executable(test.run ${CMAKE_SOURCE_DIR}/tests/test.f90)
-target_link_libraries(test.run PUBLIC photochem)
-target_include_directories(test.run PRIVATE ${CMAKE_BINARY_DIR}/modules)
+if (BUILD_STATIC_PHOTOCHEM)
+  file(COPY "${CMAKE_SOURCE_DIR}/data" DESTINATION "${CMAKE_BINARY_DIR}")
+  file(COPY "${CMAKE_SOURCE_DIR}/templates" DESTINATION "${CMAKE_BINARY_DIR}")
+  
+  # libphotochem.a
+  add_library(photochem 
+              ${PHOTOCHEM_SOURCES})
+  target_link_libraries(photochem yaml sundials_fcvode_mod sundials_cvode cminpack binning)
+  target_include_directories(photochem PUBLIC
+                            "${CMAKE_BINARY_DIR}/modules"
+                            )
 
-enable_testing()
-add_test(test_photochem test.run)
+  # the main executable
+  add_executable(photo.run ${CMAKE_SOURCE_DIR}/src/main.f90)
+  target_link_libraries(photo.run photochem)
+  target_include_directories(photo.run PRIVATE ${CMAKE_BINARY_DIR}/modules)
+
+  #  tests
+  add_executable(test.run ${CMAKE_SOURCE_DIR}/tests/test.f90)
+  target_link_libraries(test.run photochem)
+  target_include_directories(test.run PRIVATE ${CMAKE_BINARY_DIR}/modules)
+
+  enable_testing()
+  add_test(test_photochem test.run)
+endif()
+
+if (BUILD_F2PY_PHOTOCHEM)
+  if (NOT SKBUILD)
+    set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/")
+  endif()
+  
+  find_package(PythonExtensions REQUIRED)
+  find_package(NumPy)
+  find_package(F2PY REQUIRED)
+  
+  message(STATUS "F2PY included from: ${F2PY_INCLUDE_DIR}")
+  
+  set(f2py_module_name "_photochem")
+  set(generated_module_file ${f2py_module_name}${PYTHON_EXTENSION_MODULE_SUFFIX})
+  
+  # f2py -m photochem photochem_setup.f90 photochem_vars.f90 
+  # photochem_data.f90 photochem_const.f90 photochem.f90 
+  # only: setup photo_equilibrium compute_surface_fluxes out2atmosphere_txt :
+  
+  add_custom_target(${f2py_module_name} ALL
+  DEPENDS ${F2PY_SOURCES}
+  )
+  
+  add_custom_command(
+  OUTPUT "${f2py_module_name}module.c" "${f2py_module_name}-f2pywrappers2.f90"
+  COMMAND ${F2PY_EXECUTABLE}
+    -m ${f2py_module_name}
+    ${F2PY_SOURCES}
+    only: setup photo_equilibrium compute_surface_fluxes out2atmosphere_txt :
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${F2PY_SOURCES}
+  )
+  
+  add_library(${generated_module_file} MODULE
+              "${f2py_module_name}module.c"
+              "${F2PY_INCLUDE_DIR}/fortranobject.c"
+              "${f2py_module_name}-f2pywrappers2.f90"
+               ${PHOTOCHEM_SOURCES})
+    
+  target_link_libraries(${generated_module_file} yaml sundials_fcvode_mod sundials_cvode cminpack binning)
+  target_include_directories(${generated_module_file} PUBLIC
+                            "${CMAKE_BINARY_DIR}/modules"
+                            ${F2PY_INCLUDE_DIRS}
+                            ${PYTHON_INCLUDE_DIRS})
+                            
+  set_target_properties(${generated_module_file} PROPERTIES SUFFIX "")
+  set_target_properties(${generated_module_file} PROPERTIES PREFIX "")    
+  
+  if (UNIX)
+    if (APPLE)
+      set_target_properties(${generated_module_file} PROPERTIES
+      LINK_FLAGS  '-Wl,-dylib,-undefined,dynamic_lookup')
+    else()
+      set_target_properties(${generated_module_file} PROPERTIES
+    LINK_FLAGS  '-Wl,--allow-shlib-undefined')
+    endif()
+  endif()
+  
+  
+  if (SKBUILD)
+    install(TARGETS ${generated_module_file} DESTINATION Photochem)
+  else()
+    install(TARGETS ${generated_module_file} DESTINATION ${CMAKE_SOURCE_DIR}/Photochem)
+  endif()
+
+                    
+endif()
+
+
+
