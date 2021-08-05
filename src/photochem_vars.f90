@@ -9,6 +9,8 @@ module photochem_vars
 
   ! where the photochem data is
   character(len=str_len) :: data_dir = "data"
+  ! the name of the xsections folder
+  character(len=str_len) :: xs_folder_name = "xsections"
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! set DURING file read-in !!!
@@ -39,6 +41,9 @@ module photochem_vars
   ! Radiative tranfer
   real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
   real(real_kind) :: photon_scale_factor
+  
+  ! switch for dealing with H2O if not read in.
+  logical :: no_water_profile
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! set AFTER file read-in !!!

@@ -43,6 +43,7 @@ contains
   end subroutine
   
   subroutine interp2xsdata(nz,kj,nw,temperature,xs_x_qy, err)
+    use interp_tools, only: interp
     use photochem_const, only: small_real
     use photochem_data, only: num_temp_cols, sum_temp_cols, &
                               xs_data, xs_data_temps
@@ -84,6 +85,7 @@ contains
   end subroutine
   
   subroutine interp2atmosfile(nz, nq, z, T, edd, usol, err)
+    use interp_tools, only: interp
     use photochem_data, only: nzf, z_file, &
                               T_file, edd_file, usol_file
     integer, intent(in) :: nz, nq
@@ -146,6 +148,19 @@ contains
     allocate(xs_x_qy(nz,kj,nw))
     allocate(usol_out(nq,nz))
 
+  end subroutine
+  
+  subroutine out2in(err)
+    use photochem_vars, only: at_photo_equilibrium, usol_init, usol_out, no_water_profile
+    character(len=1024), intent(out) :: err
+    err = ''
+    
+    if (at_photo_equilibrium) then
+      usol_init = usol_out
+      no_water_profile = .false.
+    else
+      err = "Can not set output to input without first converging to photochemical equilibrium."
+    endif
   end subroutine
   
   subroutine out2atmosphere_txt(filename, overwrite, clip, err)

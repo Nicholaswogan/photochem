@@ -997,26 +997,9 @@ contains
     real(c_double), pointer :: Jmat(:)
     character(len=err_len) :: err
     
-    ! type(N_Vector)        :: sunvec_errwts
-    ! real(c_double), pointer :: errwts(:)
-    ! real(c_double) :: fnorm, hcur(1), sig0
-    ! integer(c_int) :: ierr1
-    ! integer(c_long) :: neqs_cint
-    ! 
-    ! neqs_cint = neqs
-    ! sunvec_errwts = FN_VNew_Serial(neqs_cint)
-    ! ierr1 = FCVodeGetErrWeights(cvode_mem,sunvec_errwts)
-    ! errwts(1:neqs) => FN_VGetArrayPointer(sunvec_errwts)
-    ! fnorm = FN_VWrmsNorm(sunvec_f,sunvec_errwts)
-    ! ierr1 = FCVodeGetCurrentStep(cvode_mem, hcur)
-    ! sig0 = 2.2204460493d-16*1000.d0*neqs*fnorm*abs(hcur(1))
-    ! print*,yvec(15552)*sqrt(2.2204460493d-16),sig0/errwts(15552)
-    
-    ierr = 0
-    
+    ierr = 0    
     yvec(1:neqs) => FN_VGetArrayPointer(sunvec_y)
     Jmat(1:neqs*lda) => FSUNBandMatrix_Data(sunmat_J)
-    
     call jac_background_gas(lda*neqs, neqs, yvec, Jmat, err)
     if (len_trim(err) /= 0) then
       print*,trim(err)//". CVODE will attempt to correct the error."
@@ -1029,7 +1012,7 @@ contains
   subroutine evolve_background_atm(tstart, nq, nz, usol_start, num_t_eval, t_eval, rtol, atol, &
                                    mxsteps, solution, success, err)
     use photochem_data, only: water_sat_trop, LH2O, nsp, nrT, kj, nw
-    use photochem_vars, only: neqs, lowerboundcond, lower_fix_mr, trop_ind, &
+    use photochem_vars, only: no_water_profile, neqs, lowerboundcond, lower_fix_mr, trop_ind, &
                               initial_dt, use_fast_jacobian, max_err_test_failures, max_order, trop_ind
     use photochem_wrk, only: cvode_mem
     
@@ -1107,6 +1090,14 @@ contains
         k = LH2O + (j-1)*nq
         yvec(k) = fH2O(j)
       enddo
+      ! if there is no water profile, then we should extrapolate H2O
+      ! above the tropopause
+      if (no_water_profile) then
+        do j = trop_ind+1,nz
+          k = LH2O + (j-1)*nq
+          yvec(k) = fH2O(trop_ind)
+        enddo
+      endif
     endif
 
     ! create SUNDIALS N_Vector

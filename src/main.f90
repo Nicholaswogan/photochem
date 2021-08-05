@@ -3,7 +3,7 @@ program main
   use photochem_setup, only: setup, out2atmosphere_txt
   use photochem_data, only: nq, species_names
   use photochem_vars, only: data_dir, max_order, initial_dt, equilibrium_time, &
-                            verbose, usol_init, nz, usol_out
+                            verbose, usol_init, nz, usol_out, xs_folder_name
   use photochem, only: photo_equilibrium, compute_surface_fluxes
   implicit none
   character(len=1024) :: err
@@ -13,6 +13,7 @@ program main
   real(8), allocatable :: surface_flux(:)
 
   data_dir = "../data"
+  xs_folder_name = "xsections"
 
   call setup("../data/reaction_mechanisms/zahnle_earth.yaml", &
              "../templates/Hadean/settings_Hadean.yaml", &
@@ -35,16 +36,15 @@ program main
     stop 1
   endif
   
-  print*,usol_out(2,1), usol_init(2,1)
   allocate(surface_flux(nq))
   call compute_surface_fluxes(nq, nz, usol_out, surface_flux, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop 1
   endif
-  do i = 1,nq
-    print"(A10,' = ',es10.2)",species_names(i),surface_flux(i)
-  enddo
+  ! do i = 1,nq
+  !   print"(A10,' = ',es10.2)",species_names(i),surface_flux(i)
+  ! enddo
   
   
   call out2atmosphere_txt("../atmosphere_Hadean.txt",.true.,.true.,err)

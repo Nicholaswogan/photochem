@@ -255,6 +255,7 @@ contains
     edd_file = photoinit%edd_file
     allocate(usol_file(nq,nzf))
     usol_file = photoinit%usol_file
+    no_water_profile = photoinit%no_water_profile
     
     ! settings
     back_gas = photoset%back_gas

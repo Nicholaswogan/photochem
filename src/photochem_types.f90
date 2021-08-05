@@ -125,6 +125,7 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: T_file(:)
     real(real_kind), allocatable :: edd_file(:)
     real(real_kind), allocatable :: usol_file(:,:)
+    logical :: no_water_profile
   end type
   
 end module

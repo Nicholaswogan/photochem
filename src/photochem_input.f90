@@ -45,7 +45,7 @@ contains
     if (len(trim(err)) /= 0) return
     
     ! initial atmosphere
-    call read_atmosphere_file(atmosphere_txt,photomech,photoinit,err)
+    call read_atmosphere_file(atmosphere_txt, photomech, photoset, photoinit,err)
     if (len(trim(err)) /= 0) return
     
   end subroutine
@@ -1733,7 +1733,8 @@ contains
   end subroutine
   
   subroutine get_photolysis_xs(photomech, photorad, err)
-    use photochem_vars, only: data_dir
+    use interp_tools, only: inter2, addpnt
+    use photochem_vars, only: data_dir, xs_folder_name
     type(PhotoMechanism), intent(in) :: photomech
     type(PhotoRadTran), intent(inout) :: photorad ! inout!
     character(len=err_len), intent(out) :: err
@@ -1750,7 +1751,7 @@ contains
     integer :: i, j, k, l, m, mm, io, kk, ierr
     err = ''
     
-    xsroot = trim(data_dir)//"/xsections/"
+    xsroot = trim(data_dir)//"/"//trim(xs_folder_name)//"/"
     
     ! count temperature columns
     allocate(photorad%num_temp_cols(photomech%kj))
@@ -1945,7 +1946,7 @@ contains
   
   
   subroutine get_rayleigh(photomech, photorad, err)
-    use photochem_vars, only: data_dir
+    use photochem_vars, only: data_dir, xs_folder_name
     use yaml, only : parse, error_length
     type(PhotoMechanism), intent(in) :: photomech
     type(PhotoRadTran), intent(inout) :: photorad ! inout!
@@ -1959,7 +1960,7 @@ contains
     integer :: i, j
     err = ''
     
-    rayleigh_file = trim(data_dir)//"/xsections/rayleigh.yaml"
+    rayleigh_file = trim(data_dir)//"/"// trim(xs_folder_name) //"/rayleigh.yaml"
     
     ! parse yaml file
     root => parse(rayleigh_file,unit=100,error=error)
@@ -2053,6 +2054,7 @@ contains
   end subroutine
   
   subroutine read_stellar_flux(star_file, nw, wavl, photon_flux, err)
+    use interp_tools, only: inter2, addpnt
     use photochem_const, only: c_light, plank
     
     character(len=*), intent(in) :: star_file
@@ -2121,14 +2123,16 @@ contains
   end subroutine
   
   
-  subroutine read_atmosphere_file(atmosphere_txt, photomech, &
+  subroutine read_atmosphere_file(atmosphere_txt, photomech, photoset, &
                                   photoinit, err)
     character(len=*), intent(in) :: atmosphere_txt
     type(PhotoMechanism), intent(in) :: photomech
+    type(PhotoSettings), intent(in) :: photoset
     type(PhotoInitAtm), intent(out) :: photoinit
     character(len=err_len), intent(out) :: err
     
     character(len=10000) :: line
+    character(len=:), allocatable :: message
     character(len=8) :: arr1(1000)
     character(len=24) :: arr11(1000)
     character(len=24),allocatable, dimension(:) :: labels
@@ -2207,9 +2211,22 @@ contains
       enddo
     enddo
     
+    photoinit%no_water_profile = .false.
+    if (photoset%water_sat_trop) then
+      ind = findloc(labels,'H2O')
+      if (ind(1) == 0) then
+        photoinit%no_water_profile = .true. 
+      endif
+    endif
+    
     if (iii.ne.photomech%nq) then
-      print*,'Warning: Did not find initial data for some species in '// &
-              trim(atmosphere_txt)//' . The program will assume initial mixing ratios of 1.0e-40'
+      message = 'Warning: Did not find initial data for some species in '// &
+                trim(atmosphere_txt)//' . The program will assume initial mixing ratios of 1.0e-40'
+      if (photoinit%no_water_profile) then
+        message = message // " except H2O, which will be set to saturation in troposphere with constant "//&
+                              "extrapolation above the tropopause."
+      endif
+      print*,message
     endif
     
     rewind(4)
