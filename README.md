@@ -8,6 +8,7 @@ You need `CMake`, a Fortran compiler, and a C compiler. You can then compile `li
 
 ```sh
 mkdir build
+cd build
 cmake ..
 make
 ```
