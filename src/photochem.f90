@@ -258,6 +258,44 @@ contains
       enddo
     enddo
     
+    ! At this point, rhs(k) would contain monomer production rates
+    ! in terms of [monomers/cm3]/[molecules/cm3]
+    
+    ! we could go find particles in this list
+    ! we then put monomers into the particle
+
+    ! do i = nq-np,nq
+    !   do j = 1,nz
+    !     k = i + (j - 1) * nq
+    ! 
+    !     ! need to compute the mass of monomers produced.
+    !     ! this will require production rate via different mechanism
+    !     ! tot_monomer_production = rhs(k)*density(j)
+    !     ! avg_monomer_mass = 0.d0
+    !     ! do ii = 1,particle_nr(i)
+    !     !   jj = particle_prod_nums(ii,i) ! reaction number
+    !     !   avg_monomer_mass = avg_monomer_mass + &
+    !     !                      (yp(j,jj,i)/tot_monomer_production)*monomer_mass(ii,i)
+    !     ! enddo
+    ! 
+    !     ! NO, we actually can use a fixed mass, because we are assuming a fixed density and monomer radius
+    !     mass_particle = particle_density(i)*(4.d0/3.d0)*pi*particle_radius(j,i)**3.d0
+    ! 
+    !     monomers_in_particle = mass_particle/monomer_mass(kk)
+    ! 
+    !     ! this will then be [particals/cm3] produced.
+    !     rhs(k) = rhs(k)*density(j)/monomers_in_particle
+    ! 
+    !     ! alternatively we might just leave as [particles/cm3]/[molecules/cm3]
+    !     ! These values should then be small, and comparable to mixing ratios.
+    !     ! thus we will not have absolute tolerance problems.
+    !     rhs(k) = rhs(k)/monomers_in_particle
+    ! 
+    ! 
+    !   enddo
+    ! enddo
+    
+    
   end subroutine
   
 
@@ -528,8 +566,9 @@ contains
                                   
     integer, intent(in) :: nsp, nq, nz, nrT, kj, nw, trop_ind
     real(real_kind), intent(inout) :: usol(nq,nz)
-    
     real(real_kind), intent(inout) :: densities(nsp+1,nz)
+    
+    ! real(real_kind), intent(in) :: r_particles(np,nz)
     
     real(real_kind), intent(out) :: density(nz), rx_rates(nz,nrT)
     real(real_kind), intent(out) :: mubar(nz), pressure(nz)
@@ -537,7 +576,9 @@ contains
     real(real_kind), intent(out) :: prates(nz,kj), surf_radiance(nw)
     real(real_kind), intent(out) :: upper_veff_copy(nq)
     real(real_kind), intent(out) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
-    real(real_kind), intent(out) :: ADU(nq,nz), ADL(nq,nz), VH2_esc, VH_esc
+    real(real_kind), intent(out) :: ADU(nq,nz), ADL(nq,nz)
+    ! real(real_kind), intent(out) :: DPU(np,nz), DPL(np,nz)
+    real(real_kind), intent(out) :: VH2_esc, VH_esc
     
     character(len=err_len), intent(out) :: err
     
@@ -1020,7 +1061,8 @@ contains
     use fcvode_mod, only: CV_BDF, CV_NORMAL, FCVodeInit, FCVodeSStolerances, &
                           FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
                           FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
-                          FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd
+                          FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
+                          FCVodeSetUserData
     use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
     use fnvector_serial_mod, only: FN_VMake_Serial   
     use fsunmatrix_band_mod, only: FSUNBandMatrix
@@ -1064,6 +1106,8 @@ contains
     real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
     real(real_kind) :: ADU(nq,nz), ADL(nq,nz), VH2_esc, VH_esc
   
+    err = ''
+    
     ! settings
     mxsteps_ = mxsteps
     neqs_long = neqs
@@ -1113,6 +1157,13 @@ contains
       err = "CVODE setup error."
       return
     end if
+    
+    ! set user data
+    ! ierr = FCVodeSetUserData(cvode_mem, user_data)
+    ! if (ierr /= 0) then
+    !   err = "CVODE setup error."
+    !   return
+    ! end if
     
     ierr = FCVodeInit(cvode_mem, c_funloc(RhsFn), tstart, sunvec_y)
     if (ierr /= 0) then
@@ -1312,13 +1363,21 @@ contains
     integer, intent(in) :: nq, nz
     real(real_kind), intent(in) :: dz(nz), edd(nz), T(nz), den(nz)
     real(real_kind), intent(in) :: grav(nz), mubar(nz)
+    ! real(real_kind), intent(in) :: r_particles(np,nz), partical_den(np,nz)
     real(real_kind), intent(out) :: DU(nq,nz), DL(nq,nz), DD(nq,nz)
     real(real_kind), intent(out) :: ADU(nq,nz), ADL(nq,nz)
+    ! real(real_kind), intent(out) :: ADU(nq-np,nz), ADL(nq-np,nz)
+    ! real(real_kind), intent(out) :: DPU(np,nz), DPL(np,nz)
     real(real_kind), intent(out) :: VH2_esc, VH_esc
     
     real(real_kind) :: eddav_p, eddav_m, denav_p, denav_m, tav_p, tav_m
     real(real_kind) :: bx1x2_p, bx1x2_m, bx1x2_pp, bx1x2_mm, zeta_pp, zeta_mm
     real(real_kind) :: bx1x2
+    
+    ! for particles
+    ! real(real_kind) :: air_density_pp, air_density_mm
+    ! real(real_kind) :: wfall_pp, wfall_mm
+    ! real(real_kind) :: viscosity_pp, viscosity_mm
     
     integer :: i,j
   
@@ -1330,7 +1389,8 @@ contains
       tav_p = sqrt(T(i)*T(i+1))
       tav_m = sqrt(T(i)*T(i-1))
       
-      do j = 1,nq
+      ! gases
+      do j = 1,nq!-np
         ! Equation B.4 in Catling and Kasting (2017)
         bx1x2_p = binary_diffusion_param(species_mass(j), mubar(i), tav_p)
         bx1x2_m = binary_diffusion_param(species_mass(j), mubar(i), tav_m)
@@ -1351,14 +1411,33 @@ contains
       
         ADU(j,i) = zeta_pp/(2.d0*dz(i)*den(i)) 
         ADL(j,i) = - zeta_mm/(2.d0*dz(i)*den(i))
-      enddo      
+      enddo
+      ! ! particles
+      ! do j = nq-np+1,nq
+      ! 
+      !   DU(j,i) = (eddav_p*denav_p)/(dz(i)**2.d0*den(i))
+      !   DL(j,i) = (eddav_m*denav_m)/(dz(i)**2.d0*den(i))
+      !   DD(j,i) = - DU(j,i) - DL(j,i)
+      ! 
+      !   air_density_pp = (den(i+1)/N_avo)*mubar(i+1)
+      !   viscosity_pp = dynamic_viscosity_air(T(i+1))
+      !   wfall_pp = fall_velocity(grav(i+1), r_particles(j,i+1), partical_den(j), air_density_pp, viscosity_pp)
+      ! 
+      !   air_density_mm = (den(i-1)/N_avo)*mubar(i-1)
+      !   viscosity_mm = dynamic_viscosity_air(T(i-1))
+      !   wfall_mm = fall_velocity(grav(i-1), r_particles(j,i-1), partical_den(j), air_density_mm, viscosity_mm)
+      ! 
+      !   DPU(j,i) = wfall_pp*den(i+1)/(2.d0*dz(i)*den(i))
+      !   DPL(j,i) = -wfall_mm*den(i-1)/(2.d0*dz(i)*den(i))
+      ! 
+      ! enddo
     enddo
 
     ! surface layer
     eddav_p = sqrt(edd(1)*edd(2))
     denav_p = sqrt(den(1)*den(2))
     tav_p = sqrt(T(1)*T(2))
-    do j = 1,nq
+    do j = 1,nq!-np
       bx1x2_p = binary_diffusion_param(species_mass(j), mubar(1), tav_p)
       DU(j,1) = (eddav_p*denav_p + bx1x2_p)/(dz(1)**2.d0*den(1))
       DD(j,1) = - DU(j,1)
@@ -1371,6 +1450,15 @@ contains
       ADU(j,1) = zeta_pp/(2.d0*dz(1)*den(1)) 
       ! ADL(j,1) = 0.d0
     enddo
+    ! ! particles
+    ! do j = nq-np+1,nq
+    !   air_density_pp = (den(2)/N_avo)*mubar(2)
+    !   viscosity_pp = dynamic_viscosity_air(T(2))
+    !   wfall_pp = fall_velocity(grav(2), r_particles(j,2), partical_den(j), air_density_pp, viscosity_pp)
+    ! 
+    !   DPU(j,i) = wfall_pp*den(2)/(2.d0*dz(1)*den(1))
+    ! enddo
+    
 
     ! top layer
     eddav_m = sqrt(edd(nz)*edd(nz-1))
@@ -1390,6 +1478,14 @@ contains
       ADL(j,nz) = - zeta_mm/(2.d0*dz(nz)*den(nz))
       ! ADU(j,nz) = 0.d0
     enddo
+    ! ! particles
+    ! do j = nq-np+1,nq
+    !   air_density_mm = (den(nz-1)/N_avo)*mubar(nz-1)
+    !   viscosity_mm = dynamic_viscosity_air(T(nz-1))
+    !   wfall_mm = fall_velocity(grav(nz-1), r_particles(j,nz-1), partical_den(j), air_density_mm, viscosity_mm)
+    ! 
+    !   DPL(j,i) = -wfall_mm*den(nz-1)/(2.d0*dz(nz)*den(nz))
+    ! enddo
 
     ! H2 escape
     if (diff_H_escape) then
@@ -1451,6 +1547,30 @@ contains
     mubar_layer = mubar_layer + f_background * background_mu
   
   end subroutine
+  
+  function dynamic_viscosity_air(T) result(eta)
+      real(real_kind), intent(in) :: T
+      real(real_kind) :: eta ! dynamic viscosity [dynes s/cm^2]
+      ! parameters speceific to Modern Earth air
+      real(real_kind), parameter :: T0 = 273.d0 ! K
+      real(real_kind), parameter :: eta0 = 1.716d-5 ! N s /m^2
+      real(real_kind), parameter :: S = 111.d0 ! K
+      real(real_kind), parameter :: unit_conversion = 10.d0 ! [dynes s/cm^2]/[N s/m^2]
+      ! Dynamic viscosity of Air using the Sutherland relation.
+      ! Reference: White (2006) "Viscous Fluid Flow"
+      ! Equation 1-36 and Table 1-2 (air)
+      eta = unit_conversion*eta0*(T/T0)**(3.d0/2.d0)*(T0 + S)/(T + S)
+  end function
+
+  function fall_velocity(gravity, partical_radius, particle_density, air_density, viscosity) result(wfall)
+    real(real_kind), intent(in) :: gravity, partical_radius, particle_density, air_density, viscosity
+    real(real_kind) :: wfall ! fall velocity [cm/s]
+    ! fall velocity from stokes law
+    ! derived using Equation 9.29 in Seinfeld (2006) 
+    ! title: "Atmospheric Chemistry and Physics"
+    wfall = (2.d0/9.d0)*gravity*partical_radius**2.d0* &
+            (particle_density - air_density)/viscosity
+  end function
   
   function binary_diffusion_param(mu_i, mubar, T) result(b)
     real(real_kind), intent(in) :: mu_i, mubar, T

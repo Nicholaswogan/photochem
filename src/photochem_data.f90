@@ -16,7 +16,7 @@ module photochem_data
   integer, protected :: natoms
   character(len=8), allocatable, protected :: atoms_names(:) 
   real(real_kind), allocatable, protected :: atoms_mass(:) 
-  character(len=8), allocatable, protected :: species_names(:)
+  character(len=15), allocatable, protected :: species_names(:)
   integer, allocatable, protected :: species_composition(:,:)
   real(real_kind), allocatable, protected :: species_mass(:) 
   real(real_kind), allocatable, protected :: thermo_data(:,:,:)

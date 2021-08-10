@@ -2454,6 +2454,26 @@ species:
       - 368.1
   note: Estimated from thermodynamic data at 298 K and species C4H2
 
+# particles:
+# - name: haze
+#   formation: reactions
+#   fixed-composition: false
+#   track-composition: false
+#   density: 1.0 # g/cm3
+#   monomer-radius: 7.35e-4 # microns
+#   reactions:
+#   - equation: H2CN + HCN => haze
+#     rate-constant:
+#       A: 1.1e-12
+#       b: 0.0
+#       Ea: 900
+#   - equation: C4H + HCCCN => haze
+#     rate-constant:
+#       A: 8.6e-16
+#       b: 1.8
+#       Ea: 474.0
+
+
 reactions:
 - equation: H + H (+ M) <=> H2 (+ M)
   type: falloff

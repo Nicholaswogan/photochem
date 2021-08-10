@@ -89,8 +89,9 @@ contains
     
     class (type_dictionary), pointer :: atoms
     class (type_list), pointer :: species, reactions
+    class (type_list), pointer :: particles, particle_reactions
     type (type_error), pointer :: io_err
-    class (type_list_item), pointer :: item
+    class (type_list_item), pointer :: item, item2
     class (type_dictionary), pointer :: dict
     class (type_key_value_pair), pointer :: key_value_pair
 
@@ -100,6 +101,8 @@ contains
     character(len=20), allocatable :: eqr(:), eqp(:)
     integer :: i, j, k, kk, l, ind(1), size_eqr, size_eqp
     logical :: reverse
+    logical :: tmp_logical
+    type (type_list) :: all_reactions
     err = ''
 
     atoms => mapping%get_dictionary('atoms',.true.,error = io_err)
@@ -132,6 +135,85 @@ contains
     enddo
     !!! done with atoms !!!
     
+    !!! particles !!!
+    ! get particles.
+    particles => mapping%get_list('particles',.false.,error = io_err) 
+    if (associated(particles)) then
+      ! there are particles
+      photomech%there_are_particles = .true.
+      photomech%np = 0
+      item => particles%first
+      do while (associated(item))
+        photomech%np = photomech%np + 1
+        item => item%next
+      enddo
+      
+      allocate(photomech%particle_names(photomech%np))
+      allocate(photomech%particle_formation_method(photomech%np))
+      allocate(photomech%particle_density(photomech%np))
+      allocate(photomech%particle_monomer_radius(photomech%np))
+      allocate(photomech%particle_nr(photomech%np))
+      
+      item => particles%first
+      j = 1
+      do while (associated(item))
+        select type (element => item%node)
+        class is (type_dictionary)
+          photomech%particle_names(j) = element%get_string("name",error = io_err) ! get name
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          
+          tmpchar = element%get_string("formation",error = io_err) 
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (trim(tmpchar) == 'reactions') then
+            photomech%particle_formation_method(j) = 1
+          else
+            err = "IOError: the only formation mechanism for partiles is 'reactions'"
+            return
+          endif
+          tmp_logical = element%get_logical("fixed-composition",error = io_err) 
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (tmp_logical) then
+            err = "IOError: Have not yet implemented particles with fixed composition"
+            return
+          endif
+          tmp_logical = element%get_logical("track-composition",error = io_err) 
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (tmp_logical) then
+            err = "IOError: Have not yet implemented ability to track composition"
+            return
+          endif
+          photomech%particle_density(j) = element%get_real("density",error = io_err)
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          photomech%particle_monomer_radius(j) = element%get_real("monomer-radius",error = io_err)
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          
+          if (photomech%particle_formation_method(j) == 1) then
+            ! there should be some reactions making the haze
+            particle_reactions => element%get_list('reactions',.true.,error = io_err) 
+            if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+            item2 => particle_reactions%first
+            do while (associated(item2))
+              ! we need to just add this list of reactions to the other list of reaction
+              
+              call all_reactions%append(item2%node)
+              item2 => item2%next
+            enddo
+          endif
+        
+        class default
+          err = "IOError: Problem with particle number "//char(j)//"  in the input file"
+          return
+        end select
+        item => item%next
+        j = j + 1
+      enddo
+    else ! there are no particles
+      photomech%there_are_particles = .false.
+      photomech%np = 0
+    endif
+    
+    !!! done with particles !!!
+    
     !!! species !!!
     photomech%nsp = 0 ! count number of species
     item => species%first
@@ -140,10 +222,12 @@ contains
       photomech%nsp = photomech%nsp + 1
     enddo
     
+    photomech%nll  = photomech%nsp - photoset%nsl
+    
     if (photoset%back_gas) then
-      photoset%nq = photomech%nsp - photoset%nsl - 1 ! minus 1 for background
+      photoset%nq = photomech%nll - 1 ! minus 1 for background
     else
-      photoset%nq = photomech%nsp - photoset%nsl
+      photoset%nq = photomech%nll
     endif
     photomech%nq = photoset%nq
     photomech%nsl = photoset%nsl
@@ -165,6 +249,7 @@ contains
       select type (element => item%node)
       class is (type_dictionary)
         tmpchar = trim(element%get_string("name",error = io_err)) ! get name
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         ind = findloc(photoset%SL_names,tmpchar)
         if (ind(1) /= 0) then
           j = photoset%nq + l 
@@ -222,6 +307,12 @@ contains
     !!! done with species !!!
     
     !!! reactions !!!
+    item => reactions%first
+    do while (associated(item))
+      call all_reactions%append(item%node)
+      item => item%next
+    enddo
+    
     photomech%nrF = 0 ! count forward reactions
     item => reactions%first
     do while (associated(item))
@@ -1026,7 +1117,7 @@ contains
     integer, intent(in) :: max_num_react, max_num_prod
     
     integer, intent(out) :: numr, nump
-    character(len=8), intent(out) :: outreact(max_num_react), outprod(max_num_prod)
+    character(len=*), intent(out) :: outreact(max_num_react), outprod(max_num_prod)
     logical, intent(out) :: reverse
     character(len=err_len), intent(out) :: err
     
@@ -1059,10 +1150,10 @@ contains
                                   react_sp_nums, prod_sp_nums, err)
     character(len=*), intent(in) :: reaction
     integer, intent(in) :: max_num_react, max_num_prod
-    character(len=8), intent(in) :: reacts(max_num_react)
-    character(len=8), intent(in) :: prods(max_num_prod)
+    character(len=*), intent(in) :: reacts(max_num_react)
+    character(len=*), intent(in) :: prods(max_num_prod)
     integer, intent(in) :: nsp, natoms
-    character(len=8), intent(in) :: species_names(nsp+2)
+    character(len=*), intent(in) :: species_names(nsp+2)
     integer, intent(in) :: species_composition(natoms,nsp+2)
     
     integer, intent(out) :: react_sp_nums(max_num_react)
@@ -1960,7 +2051,7 @@ contains
     integer :: i, j
     err = ''
     
-    rayleigh_file = trim(data_dir)//"/"// trim(xs_folder_name) //"/rayleigh.yaml"
+    rayleigh_file = trim(data_dir)//"/rayleigh/rayleigh.yaml"
     
     ! parse yaml file
     root => parse(rayleigh_file,unit=100,error=error)

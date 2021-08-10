@@ -3,7 +3,8 @@
 module photochem_const
   implicit none
   ! public
-  integer, private, parameter :: real_kind = kind(1.0d0)
+  integer, parameter :: err_len = 1024
+  integer, parameter :: real_kind = kind(1.0d0)
   real(real_kind), parameter :: Rgas = 8.31446261815324d0 ! ideal gas constant (j/(mol*K))
   real(real_kind), parameter :: k_boltz = 1.380649d-16 ! boltzmann's constant cgs units (egs/K)
   real(real_kind), parameter :: G_grav = 6.67430d-11 ! gravitational constant (N * m2 / kg)
