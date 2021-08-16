@@ -167,7 +167,7 @@ contains
           if (trim(tmpchar) == 'reactions') then
             photomech%particle_formation_method(j) = 1
           else
-            err = "IOError: the only formation mechanism for partiles is 'reactions'"
+            err = "IOError: the only formation mechanism for particles is 'reactions'"
             return
           endif
           tmp_logical = element%get_logical("fixed-composition",error = io_err) 
@@ -188,13 +188,12 @@ contains
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           
           if (photomech%particle_formation_method(j) == 1) then
-            ! there should be some reactions making the haze
+            ! there should be some reactions making the monomers
             particle_reactions => element%get_list('reactions',.true.,error = io_err) 
             if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
             item2 => particle_reactions%first
             do while (associated(item2))
               ! we need to just add this list of reactions to the other list of reaction
-              
               call all_reactions%append(item2%node)
               item2 => item2%next
             enddo

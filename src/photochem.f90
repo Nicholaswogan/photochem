@@ -1,6 +1,7 @@
 
 
 module photochem
+  use photochem_types, only: WrkBackgroundAtm
   implicit none
   
   integer, private, parameter :: real_kind = kind(1.0d0)
@@ -552,10 +553,7 @@ contains
     res = 0
   end function
   
-  subroutine prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol, densities, &
-                                     density, rx_rates, mubar, pressure, fH2O, &
-                                     prates, surf_radiance, upper_veff_copy, &
-                                     DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
+  subroutine prep_all_background_gas(wrk, err)
     use photochem_const, only: pi
     use photochem_data, only: photonums, water_sat_trop, LH2O, LH, LH2, &
                               back_gas_name, diff_H_escape
@@ -563,113 +561,92 @@ contains
                               xs_x_qy, photon_flux, diurnal_fac, solar_zenith, &
                               surface_albedo, lowerboundcond, lower_fix_mr, &
                               photon_scale_factor
-                                  
-    integer, intent(in) :: nsp, nq, nz, nrT, kj, nw, trop_ind
-    real(real_kind), intent(inout) :: usol(nq,nz)
-    real(real_kind), intent(inout) :: densities(nsp+1,nz)
     
-    ! real(real_kind), intent(in) :: r_particles(np,nz)
-    
-    real(real_kind), intent(out) :: density(nz), rx_rates(nz,nrT)
-    real(real_kind), intent(out) :: mubar(nz), pressure(nz)
-    real(real_kind), intent(out) :: fH2O(trop_ind)
-    real(real_kind), intent(out) :: prates(nz,kj), surf_radiance(nw)
-    real(real_kind), intent(out) :: upper_veff_copy(nq)
-    real(real_kind), intent(out) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
-    real(real_kind), intent(out) :: ADU(nq,nz), ADL(nq,nz)
-    ! real(real_kind), intent(out) :: DPU(np,nz), DPL(np,nz)
-    real(real_kind), intent(out) :: VH2_esc, VH_esc
-    
+    type(WrkBackgroundAtm), intent(inout) :: wrk
     character(len=err_len), intent(out) :: err
     
-    real(real_kind) :: sum_usol(nz)
     real(real_kind) :: u0
     integer :: i, j, k
     
     err = ''
     
-    do i = 1,nq
+    do i = 1,wrk%nq
       if (lowerboundcond(i) == 1) then
-        usol(i,1) = lower_fix_mr(i)
+        wrk%usol(i,1) = lower_fix_mr(i)
       endif
     enddo
     
-    call prep_atm_background_gas(nq, nz, trop_ind, sum_usol, usol, &
-                                 density, mubar, pressure, fH2O, err)  
+    call prep_atm_background_gas(wrk%nq, wrk%nz, wrk%trop_ind, wrk%sum_usol, wrk%usol, &
+                                 wrk%density, wrk%mubar, wrk%pressure, wrk%fH2O, err)  
     if (len_trim(err) /= 0) return  
     
     if (water_sat_trop) then
-      do i = 1,trop_ind
-        usol(LH2O,i) = fH2O(i)
+      do i = 1,wrk%trop_ind
+        wrk%usol(LH2O,i) = wrk%fH2O(i)
       enddo
     endif 
         
     ! diffusion coefficients
-    call diffusion_coefficients(nq, nz, dz, edd, temperature, density, grav, mubar, &
-                                DU, DD, DL, ADU, ADL, VH2_esc, VH_esc)
+    call diffusion_coefficients(wrk%nq, wrk%nz, dz, edd, temperature, wrk%density, grav, wrk%mubar, &
+                                wrk%DU, wrk%DD, wrk%DL, wrk%ADU, wrk%ADL, wrk%VH2_esc, wrk%VH_esc)
     
     ! H and H2 escape
     if (diff_H_escape) then
       if (back_gas_name /= "H2") then
-        upper_veff_copy(LH2) = VH2_esc                     
+        wrk%upper_veff_copy(LH2) = wrk%VH2_esc                     
       endif
-      upper_veff_copy(LH) = VH_esc 
+      wrk%upper_veff_copy(LH) = wrk%VH_esc 
     endif
     
-    do j = 1,nz
-      do i = 1,nq
-        densities(i,j) = usol(i,j)*density(j)
+    do j = 1,wrk%nz
+      do i = 1,wrk%nq
+        wrk%densities(i,j) = wrk%usol(i,j)*wrk%density(j)
       enddo
-      densities(nsp,j) = (1.d0-sum_usol(j))*density(j) ! background gas
-      densities(nsp+1,j) = 1.d0 ! for hv
+      wrk%densities(wrk%nsp,j) = (1.d0-wrk%sum_usol(j))*wrk%density(j) ! background gas
+      wrk%densities(wrk%nsp+1,j) = 1.d0 ! for hv
     enddo
 
-    call reaction_rates(nsp, nz, nrT, temperature, density, &
-                        densities, rx_rates, err)
+    call reaction_rates(wrk%nsp, wrk%nz, wrk%nrT, temperature, wrk%density, &
+                        wrk%densities, wrk%rx_rates, err)
     if (len_trim(err) /= 0) return
     
     u0 = cos(solar_zenith*pi/180.d0)
-    call photorates(nz, nsp, kj, nw, dz, densities, xs_x_qy, &
+    call photorates(wrk%nz, wrk%nsp, wrk%kj, wrk%nw, dz, wrk%densities, xs_x_qy, &
                     photon_flux, photon_scale_factor, diurnal_fac, u0, surface_albedo, &
-                    prates, surf_radiance, err)
+                    wrk%prates, wrk%surf_radiance, err)
     if (len_trim(err) /= 0) return
     
-    do i = 1,kj
+    do i = 1,wrk%kj
       k = photonums(i)
-      rx_rates(:,k) = prates(:,i) 
+      wrk%rx_rates(:,k) = wrk%prates(:,i) 
     enddo 
     
   end subroutine
   
   
-  subroutine rhs_background_gas(neqs, usol_flat, rhs, err)
-    use photochem_const, only: pi, small_real
-    
+  subroutine rhs_background_gas(neqs, user_data, usol_flat, rhs, err)
+    use iso_c_binding, only: c_ptr, c_f_pointer
+    use photochem_const, only: pi, small_real  
     use photochem_data, only: nq, nsp, nsl, nrT, kj, nw, LH2O, water_sat_trop
     use photochem_vars, only: nz, z, dz, trop_ind, &
                               lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
                               lower_dist_height, upper_veff, upper_flux
   
     integer, intent(in) :: neqs
+    type(c_ptr), intent(in) :: user_data
     real(real_kind), intent(in) :: usol_flat(neqs)
     real(real_kind), intent(out) :: rhs(neqs)
     character(len=err_len), intent(out) :: err
     
-    real(real_kind) :: usol(nq,nz)
-    
-    real(real_kind) :: mubar(nz), pressure(nz)
-    real(real_kind) :: density(nz), fH2O(nz)
-    real(real_kind) :: densities(nsp+1,nz)
-    real(real_kind) :: rx_rates(nz,nrT)
-    real(real_kind) :: prates(nz,kj), surf_radiance(nw)
-    real(real_kind) :: xp(nz), xl(nz)
-    real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz), ADU(nq,nz), ADL(nq,nz)
-    real(real_kind) :: VH2_esc, VH_esc, upper_veff_copy(nq)
+    type(WrkBackgroundAtm), pointer :: wrk
     
     real(real_kind) :: disth, ztop, ztop1    
     integer :: i, k, j, jdisth
     
     err = ''
+    
+    ! dereference pointer to work arrays
+    call c_f_pointer(user_data, wrk)
     
     if (any(usol_flat /= usol_flat)) then
       err = 'Input mixing ratios to the rhs contains NaNs. This is typically '//&
@@ -683,48 +660,45 @@ contains
       do i = 1,nq
         k = i + (j-1)*nq
         if (usol_flat(k) < 0.d0) then
-          usol(i,j) = min(usol_flat(k),-small_real)
+          wrk%usol(i,j) = min(usol_flat(k),-small_real)
         else
-          usol(i,j) = max(usol_flat(k),small_real)
+          wrk%usol(i,j) = max(usol_flat(k),small_real)
         endif
       enddo
     enddo
-    upper_veff_copy = upper_veff
+    wrk%upper_veff_copy = upper_veff
     
     ! alters usol to deal with fixing mixing ratios, and H2O in troposphere.
-    call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol, densities, &
-                             density, rx_rates, mubar, pressure, fH2O, &
-                             prates, surf_radiance, upper_veff_copy, &
-                             DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
+    call prep_all_background_gas(wrk, err)
     if (len_trim(err) /= 0) return
     
-    call dochem(neqs, nsp, nsl, nq, nz, nrT, usol, density, rx_rates, &
-                densities, xp, xl, rhs) 
+    call dochem(neqs, nsp, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+                wrk%densities, wrk%xp, wrk%xl, rhs) 
     
     ! diffusion (interior grid points)
     do j = 2,nz-1
       do i = 1,nq
         k = i + (j-1)*nq
-        rhs(k) = rhs(k) + DU(i,j)*usol(i,j+1) + ADU(i,j)*usol(i,j+1) &
-                        + DD(i,j)*usol(i,j) &
-                        + DL(i,j)*usol(i,j-1) + ADL(i,j)*usol(i,j-1)
+        rhs(k) = rhs(k) + wrk%DU(i,j)*wrk%usol(i,j+1) + wrk%ADU(i,j)*wrk%usol(i,j+1) &
+                        + wrk%DD(i,j)*wrk%usol(i,j) &
+                        + wrk%DL(i,j)*wrk%usol(i,j-1) + wrk%ADL(i,j)*wrk%usol(i,j-1)
       enddo
     enddo
     
     ! Lower boundary
     do i = 1,nq
       if (lowerboundcond(i) == 0 .or. lowerboundcond(i) == 3) then
-        rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
-                        - DU(i,1)*usol(i,1) &
-                        - lower_vdep(i)*usol(i,1)/dz(1)
+        rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
+                        - wrk%DU(i,1)*wrk%usol(i,1) &
+                        - lower_vdep(i)*wrk%usol(i,1)/dz(1)
       elseif (lowerboundcond(i) == 1) then
         ! rhs(i) = 0.d0
         rhs(i) = 0.d0
         ! rhs(i) = - 1.d-5*atan((usol(i,1) - lower_fix_mr(i)))
       else ! (lowerboundcond(i) == 2) then
-        rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
-                        - DU(i,1)*usol(i,1) &
-                        + lower_flux(i)/(density(1)*dz(1))
+        rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
+                        - wrk%DU(i,1)*wrk%usol(i,1) &
+                        + lower_flux(i)/(wrk%density(1)*dz(1))
       endif
     enddo
 
@@ -732,13 +706,13 @@ contains
     do i = 1,nq
       k = i + (nz-1)*nq
       if (upperboundcond(i) == 0) then
-        rhs(k) = rhs(k) - DL(i,nz)*usol(i,nz) &
-                        + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
-                        - upper_veff_copy(i)*usol(i,nz)/dz(nz)    
+        rhs(k) = rhs(k) - wrk%DL(i,nz)*wrk%usol(i,nz) &
+                        + wrk%DL(i,nz)*wrk%usol(i,nz-1) + wrk%ADL(i,nz)*wrk%usol(i,nz-1) &
+                        - wrk%upper_veff_copy(i)*wrk%usol(i,nz)/dz(nz)    
       elseif (upperboundcond(i) == 2) then
-        rhs(k) = rhs(k) - DL(i,nz)*usol(i,nz) &
-                        + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
-                        - upper_flux(i)/(density(nz)*dz(nz))
+        rhs(k) = rhs(k) - wrk%DL(i,nz)*wrk%usol(i,nz) &
+                        + wrk%DL(i,nz)*wrk%usol(i,nz-1) + wrk%ADL(i,nz)*wrk%usol(i,nz-1) &
+                        - upper_flux(i)/(wrk%density(nz)*dz(nz))
       endif
     enddo
     
@@ -752,7 +726,7 @@ contains
         ztop1 = z(jdisth) + 0.5d0*dz(jdisth)
         do j = 2,jdisth
           k = i + (j-1)*nq
-          rhs(k) = rhs(k) + 2.d0*lower_flux(i)*(ztop1-z(j))/(density(j)*ztop**2.d0)
+          rhs(k) = rhs(k) + 2.d0*lower_flux(i)*(ztop1-z(j))/(wrk%density(j)*ztop**2.d0)
         enddo
       endif
     enddo 
@@ -766,7 +740,8 @@ contains
     
   end subroutine
   
-  subroutine jac_background_gas(lda_neqs, neqs, usol_flat, jac, err)
+  subroutine jac_background_gas(lda_neqs, neqs, user_data, usol_flat, jac, err)
+    use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
     use photochem_data, only: lda, kd, ku, kl, nq, nsp, nsl, nrT, kj, nw,  &
@@ -776,29 +751,28 @@ contains
                               upper_veff
   
     integer, intent(in) :: lda_neqs, neqs
+    type(c_ptr), intent(in) :: user_data
     real(real_kind), intent(in) :: usol_flat(neqs)
     real(real_kind), intent(out), target :: jac(lda_neqs)
     character(len=err_len), intent(out) :: err
     
-    real(real_kind) :: usol(nq,nz)
     real(real_kind), pointer :: djac(:,:)
     real(real_kind) :: usol_perturb(nq,nz)
     real(real_kind) :: R(nz)
     real(real_kind) :: rhs(neqs)
     real(real_kind) :: rhs_perturb(neqs)
     
-    real(real_kind) :: mubar(nz), pressure(nz), density(nz), fH2O(trop_ind)
-    real(real_kind) :: densities(nsp+1,nz)
-    real(real_kind) :: rx_rates(nz,nrT)
-    real(real_kind) :: prates(nz,kj), surf_radiance(nw)
-    real(real_kind) :: upper_veff_copy(nq)
-    real(real_kind) :: xp(nz), xl(nz)
-    real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz), ADU(nq,nz), ADL(nq,nz)
-    real(real_kind) :: VH2_esc, VH_esc
+    type(WrkBackgroundAtm), pointer :: wrk
+    ! we need these work arrays for parallel jacobian claculation.
+    ! It is probably possible to use memory in "wrk", but i will ignore
+    ! this for now.
+    real(real_kind) :: densities(nsp+1,nz), xp(nz), xl(nz)
     
     integer :: i, k, j, m, mm
     
     err = ''
+    
+    call c_f_pointer(user_data, wrk)
     
     if (any(usol_flat /= usol_flat)) then
       err = 'Input mixing ratios to the rhs contains NaNs. This is typically '//&
@@ -812,38 +786,35 @@ contains
       do i = 1,nq
         k = i + (j-1)*nq
         if (usol_flat(k) < 0.d0) then
-          usol(i,j) = min(usol_flat(k),-small_real)
+          wrk%usol(i,j) = min(usol_flat(k),-small_real)
         else
-          usol(i,j) = max(usol_flat(k),small_real)
+          wrk%usol(i,j) = max(usol_flat(k),small_real)
         endif
       enddo
     enddo
-    upper_veff_copy = upper_veff
+    wrk%upper_veff_copy = upper_veff
     
     ! pointer to jac. We reshape to make accessing more intuitive.
     djac(1:lda,1:neqs) => jac
     
     ! alters usol.
-    call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol, densities, &
-                             density, rx_rates, mubar, pressure, fH2O, &
-                             prates, surf_radiance, upper_veff_copy, &
-                             DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
+    call prep_all_background_gas(wrk, err)
     if (len_trim(err) /= 0) return
     
     ! compute chemistry contribution to jacobian using forward differences
     jac = 0.d0
-    call dochem(neqs, nsp, nsl, nq, nz, nrT, usol, density, rx_rates, &
-                densities, xp, xl, rhs) 
+    call dochem(neqs, nsp, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+                wrk%densities, wrk%xp, wrk%xl, rhs) 
     !$omp parallel private(i,j,k,m,mm,usol_perturb, R, densities, xp, xl, rhs_perturb)
-    usol_perturb = usol
+    usol_perturb = wrk%usol
     !$omp do
     do i = 1,nq
       do j = 1,nz
-        R(j) = epsj*abs(usol(i,j))
-        usol_perturb(i,j) = usol(i,j) + R(j)
+        R(j) = epsj*abs(wrk%usol(i,j))
+        usol_perturb(i,j) = wrk%usol(i,j) + R(j)
       enddo
 
-      call dochem(neqs, nsp, nsl, nq, nz, nrT, usol_perturb, density, rx_rates, &
+      call dochem(neqs, nsp, nsl, nq, nz, nrT, usol_perturb, wrk%density, wrk%rx_rates, &
                   densities, xp, xl, rhs_perturb) 
 
       do m = 1,nq
@@ -855,7 +826,7 @@ contains
       enddo
       
       do j= 1,nz
-        usol_perturb(i,j) = usol(i,j)
+        usol_perturb(i,j) = wrk%usol(i,j)
       enddo
     enddo
     !$omp enddo
@@ -865,9 +836,9 @@ contains
     do j = 2,nz-1
       do i = 1,nq
         k = i + (j-1)*nq      
-        djac(ku,k+nq) = DU(i,j) + ADU(i,j)
-        djac(kd,k)    = djac(kd,k)    + DD(i,j)        
-        djac(kl,k-nq) = DL(i,j) + ADL(i,j)
+        djac(ku,k+nq) = wrk%DU(i,j) + wrk%ADU(i,j)
+        djac(kd,k)    = djac(kd,k)    + wrk%DD(i,j)        
+        djac(kl,k-nq) = wrk%DL(i,j) + wrk%ADL(i,j)
       enddo
     enddo
     
@@ -878,8 +849,8 @@ contains
         !                 - DU(i,1)*usol(i,1) &
         !                 - lower_vdep(i)*usol(i,1)/dz(1)
                         
-        djac(ku,i+nq) = DU(i,1) + ADU(i,1)
-        djac(kd,i)    = djac(kd,i)    - DU(i,1) - lower_vdep(i)/dz(1)
+        djac(ku,i+nq) = wrk%DU(i,1) + wrk%ADU(i,1)
+        djac(kd,i)    = djac(kd,i)    - wrk%DU(i,1) - lower_vdep(i)/dz(1)
       elseif (lowerboundcond(i) == 1) then
         ! rhs(i) = - atan((usol(i,1) - lower_fix_mr(i)))
         do m=1,nq
@@ -889,7 +860,7 @@ contains
         djac(ku,i+nq) = 0.d0
         ! For some reason this term makes the integration
         ! much happier. I will keep it. Jacobians don't need to be perfect.
-        djac(kd,i) = - DU(i,1)
+        djac(kd,i) = - wrk%DU(i,1)
 
         ! djac(kd,i) = 1.d0/((lower_fix_mr(i) - usol(i,1))**2.d0 + 1.d0)
 
@@ -898,8 +869,8 @@ contains
         !                 - DU(i,1)*usol(i,1) &
         !                 + lower_flux(i)/(density(1)*dz(1))
                                               
-        djac(ku,i+nq) = DU(i,1) + ADU(i,1)
-        djac(kd,i)    = djac(kd,i)    - DU(i,1)         
+        djac(ku,i+nq) = wrk%DU(i,1) + wrk%ADU(i,1)
+        djac(kd,i)    = djac(kd,i)    - wrk%DU(i,1)         
       endif
     enddo
 
@@ -911,11 +882,11 @@ contains
         !                 + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
         !                 - upper_veff(i)*usol(i,nz)/dz(nz)    
         
-        djac(kd,k) = djac(kd,k) - DL(i,nz) - upper_veff_copy(i)/dz(nz) 
-        djac(kl,k-nq) = DL(i,nz) + ADL(i,nz)
+        djac(kd,k) = djac(kd,k) - wrk%DL(i,nz) - wrk%upper_veff_copy(i)/dz(nz) 
+        djac(kl,k-nq) = wrk%DL(i,nz) + wrk%ADL(i,nz)
       elseif (upperboundcond(i) == 2) then
-        djac(kd,k) = djac(kd,k) - DL(i,nz)
-        djac(kl,k-nq) = DL(i,nz) + ADL(i,nz)
+        djac(kd,k) = djac(kd,k) - wrk%DL(i,nz)
+        djac(kl,k-nq) = wrk%DL(i,nz) + wrk%ADL(i,nz)
       endif
     enddo
     
@@ -928,7 +899,7 @@ contains
         enddo
         ! For some reason this term makes the integration
         ! much happier. I will keep it. Jacobians don't need to be perfect.
-        djac(kd,k) = - DU(LH2O,j)
+        djac(kd,k) = - wrk%DU(LH2O,j)
         djac(ku,k+nq) = 0.d0
         if (j /= 1) then
           djac(kl,k-nq) = 0.d0
@@ -970,7 +941,7 @@ contains
     fvec(1:neqs) => FN_VGetArrayPointer(sunvec_f)
     
     ! fill RHS vector
-    call rhs_background_gas(neqs, yvec, fvec, err)
+    call rhs_background_gas(neqs, user_data, yvec, fvec, err)
     loc_ierr = FCVodeGetNumSteps(cvode_mem, nsteps)
     
     if (nsteps(1) /= nsteps_previous .and. verbose > 0) then
@@ -1041,7 +1012,7 @@ contains
     ierr = 0    
     yvec(1:neqs) => FN_VGetArrayPointer(sunvec_y)
     Jmat(1:neqs*lda) => FSUNBandMatrix_Data(sunmat_J)
-    call jac_background_gas(lda*neqs, neqs, yvec, Jmat, err)
+    call jac_background_gas(lda*neqs, neqs, user_data, yvec, Jmat, err)
     if (len_trim(err) /= 0) then
       print*,trim(err)//". CVODE will attempt to correct the error."
       ierr = 1
@@ -1098,13 +1069,9 @@ contains
     
     real(real_kind) :: fH2O(trop_ind)
     integer :: i, j, k, ii
-
-    real(real_kind) :: densities(nsp+1,nz)    
-    real(real_kind):: density(nz), rx_rates(nz,nrT)
-    real(real_kind):: mubar(nz), pressure(nz)
-    real(real_kind) :: prates(nz,kj), surf_radiance(nw), upper_veff_copy(nq)
-    real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
-    real(real_kind) :: ADU(nq,nz), ADL(nq,nz), VH2_esc, VH_esc
+    
+    type(c_ptr)    :: user_data
+    type(WrkBackgroundAtm), target :: wrk
   
     err = ''
     
@@ -1114,6 +1081,9 @@ contains
     tcur   = tstart
     mu = nq
     ml = nq
+    
+    call wrk%init(nsp, nq, nz, nrT, kj, nw, trop_ind)
+    user_data = c_loc(wrk)
     
     ! initialize solution vector
     do j=1,nz
@@ -1159,11 +1129,11 @@ contains
     end if
     
     ! set user data
-    ! ierr = FCVodeSetUserData(cvode_mem, user_data)
-    ! if (ierr /= 0) then
-    !   err = "CVODE setup error."
-    !   return
-    ! end if
+    ierr = FCVodeSetUserData(cvode_mem, user_data)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
     
     ierr = FCVodeInit(cvode_mem, c_funloc(RhsFn), tstart, sunvec_y)
     if (ierr /= 0) then
@@ -1232,10 +1202,9 @@ contains
         enddo
         
         ! this will alter solution(:,:,ii) with proper fixed mixing ratios and H2O
-        call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, solution(:,:,ii), densities, &
-                                     density, rx_rates, mubar, pressure, fH2O, &
-                                     prates, surf_radiance, upper_veff_copy, &
-                                     DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
+        wrk%usol = solution(:,:,ii)
+        call prep_all_background_gas(wrk, err)
+        solution(:,:,ii) = wrk%usol
                                      
       endif
     enddo
@@ -1309,41 +1278,32 @@ contains
     real(real_kind), intent(out) :: surface_flux(nq)
     character(len=1024), intent(out) :: err
   
-    real(real_kind) :: densities(nsp+1,nz)
-    real(real_kind) :: density(nz), rx_rates(nz,nrT)
-    real(real_kind) :: mubar(nz), pressure(nz)
-    real(real_kind) :: fH2O(trop_ind)
-    real(real_kind) :: prates(nz,kj), surf_radiance(nw), upper_veff_copy(nq)
-    real(real_kind) :: DU(nq,nz), DD(nq,nz), DL(nq,nz)
-    real(real_kind) :: ADU(nq,nz), ADL(nq,nz), VH2_esc, VH_esc
-    real(real_kind) :: usol_copy(nq,nz)
-    real(real_kind) :: xp(nz), xl(nz), rhs(neqs)
-    
+    real(real_kind) :: rhs(neqs)  
+    type(WrkBackgroundAtm) :: wrk
     real(real_kind) :: diffusive_production
     real(real_kind) :: chemical_production
   
     integer :: i
   
     err = ''
+    
+    call wrk%init(nsp, nq, nz, nrT, kj, nw, trop_ind)
   
-    usol_copy = usol
-    upper_veff_copy = upper_veff
-    call prep_all_background_gas(nsp, nq, nz, nrT, kj, nw, trop_ind, usol_copy, densities, &
-                             density, rx_rates, mubar, pressure, fH2O, &
-                             prates, surf_radiance, upper_veff_copy, &
-                             DU, DD, DL, ADU, ADL, VH2_esc, VH_esc, err)
+    wrk%usol = usol
+    wrk%upper_veff_copy = upper_veff
+    call prep_all_background_gas(wrk, err)
     if (len_trim(err) /= 0) return
   
-    call dochem(neqs, nsp, nsl, nq, nz, nrT, usol, density, rx_rates, &
-                densities, xp, xl, rhs) 
+    call dochem(neqs, nsp, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+                wrk%densities, wrk%xp, wrk%xl, rhs) 
                           
     ! surface flux is molecules required to sustain the lower boundary
     ! chemical production + diffusion production = total change in lower cell    
     do i = 1,nq
-      diffusive_production =   (DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
-                                - DU(i,1)*usol(i,1)) &
-                                *density(1)*dz(1)
-      chemical_production = rhs(i)*density(1)*dz(1)
+      diffusive_production =   (wrk%DU(i,1)*usol(i,2) + wrk%ADU(i,1)*usol(i,2) &
+                                - wrk%DU(i,1)*usol(i,1)) &
+                                *wrk%density(1)*dz(1)
+      chemical_production = rhs(i)*wrk%density(1)*dz(1)
       surface_flux(i) = -(diffusive_production + chemical_production)
       ! We don't count chemical production for water
       if (water_sat_trop) then

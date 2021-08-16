@@ -72,7 +72,7 @@ module photochem_types ! make a giant IO object
     
     ! particles
     logical :: there_are_particles
-    integer :: np
+    integer :: np ! number of particles
     character(len=15), allocatable :: particle_names(:)
     integer, allocatable :: particle_formation_method(:)
     real(real_kind), allocatable :: particle_density(:)
@@ -144,6 +144,7 @@ module photochem_types ! make a giant IO object
   
   type :: WrkBackgroundAtm
     
+    ! Used in prep_all_background_gas
     ! dimensions
     integer :: nsp
     integer :: nq
@@ -152,17 +153,17 @@ module photochem_types ! make a giant IO object
     integer :: kj
     integer :: nw
     integer :: trop_ind
-    
     ! work arrays
     real(real_kind), allocatable :: usol(:,:) ! (nq,nz)
+    real(real_kind), allocatable :: densities(:,:) ! (nsp+1,nz)
+    real(real_kind), allocatable :: density(:) ! (nz)
+    real(real_kind), allocatable :: rx_rates(:,:) ! (nz,nrT)
     real(real_kind), allocatable :: mubar(:) ! (nz)
     real(real_kind), allocatable :: pressure(:) ! (nz)
-    real(real_kind), allocatable :: density(:) ! (nz)
     real(real_kind), allocatable :: fH2O(:) ! (nz)
-    real(real_kind), allocatable :: densities(:,:) ! (nsp+1,nz)
-    real(real_kind), allocatable :: rx_rates(:,:) ! (nz,nrT)
     real(real_kind), allocatable :: prates(:,:) ! (nz,kj)
     real(real_kind), allocatable :: surf_radiance(:) ! (nw)
+    real(real_kind), allocatable :: upper_veff_copy(:) ! (nq)
     real(real_kind), allocatable :: xp(:) ! (nz)
     real(real_kind), allocatable :: xl(:) ! (nz)
     ! diffusion and H escape
@@ -173,8 +174,10 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: ADL(:,:) ! (nq,nz)
     real(real_kind) :: VH2_esc
     real(real_kind) :: VH_esc
-    ! boundary conditions copy
-    real(real_kind), allocatable :: upper_veff_copy(:) ! (nq)
+    ! other
+    real(real_kind), allocatable :: sum_usol(:) ! (nz)
+    ! end used in prep_all_background_gas
+    
     
   contains
     procedure :: init => init_WrkBackgroundAtm
@@ -255,6 +258,7 @@ contains
     allocate(self%ADU(nq,nz))
     allocate(self%ADL(nq,nz))
     allocate(self%upper_veff_copy(nq))
+    allocate(self%sum_usol(nz))
   end subroutine
   
 end module

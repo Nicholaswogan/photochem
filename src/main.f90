@@ -42,9 +42,9 @@ program main
     print*,trim(err)
     stop 1
   endif
-  ! do i = 1,nq
-  !   print"(A10,' = ',es10.2)",species_names(i),surface_flux(i)
-  ! enddo
+  do i = 1,nq
+    print"(A10,' = ',es10.2)",species_names(i),surface_flux(i)
+  enddo
   
   
   call out2atmosphere_txt("../atmosphere_Hadean.txt",.true.,.true.,err)
