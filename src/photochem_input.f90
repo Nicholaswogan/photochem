@@ -1357,6 +1357,7 @@ contains
     integer :: j, i, ind(1), io
     character(len=str_len), allocatable :: dups(:)
     character(len=30) :: temp_char
+    integer :: default_lowerboundcond
     
     err = ''
     
@@ -1456,6 +1457,17 @@ contains
       return
     endif
     
+    ! default lower boundary
+    temp_char = tmp1%get_string('default-lower-boundary',"deposition velocity",error = io_err)
+    if (trim(temp_char) == 'deposition velocity') then
+      default_lowerboundcond = 0
+    elseif (trim(temp_char) == 'Moses') then
+      default_lowerboundcond = -1
+    else
+      err = "IOError: Only 'deposition velocity' or 'Moses' can be default boundary conditions."
+      return
+    endif
+    
     tmp2 => tmp1%get_dictionary('water',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photoset%water_sat_trop = tmp2%get_logical('water-saturated-troposphere',error = io_err)
@@ -1513,7 +1525,7 @@ contains
     allocate(photoset%upper_veff(photoset%nq))
     allocate(photoset%upper_flux(photoset%nq))
     ! default boundary conditions
-    photoset%lowerboundcond = 0
+    photoset%lowerboundcond = default_lowerboundcond
     photoset%lower_vdep = 0.d0
     photoset%upperboundcond = 0
     photoset%upper_veff = 0.d0
@@ -1755,6 +1767,8 @@ contains
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       Lmr = 0.d0 
+    elseif (bctype == "Moses") then
+      lowercond = -1
     else
       err = 'IOError: "'//trim(bctype)//'" is not a valid lower boundary condition for '//trim(molecule_name)
       return

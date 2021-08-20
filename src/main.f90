@@ -16,9 +16,9 @@ program main
   xs_folder_name = "xsections"
 
   call setup("../data/reaction_mechanisms/zahnle_earth.yaml", &
-             "../templates/Hadean/settings_Hadean.yaml", &
-             "../templates/Hadean/Sun_4.0Ga.txt", &
-             "../templates/Hadean/atmosphere_Hadean.txt", err)
+             "../templates/ModernEarth/settings_ModernEarth.yaml", &
+             "../templates/ModernEarth/Sun_now.txt", &
+             "../templates/ModernEarth/atmosphere_ModernEarth.txt", err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop
@@ -47,7 +47,7 @@ program main
   enddo
   
   
-  call out2atmosphere_txt("../atmosphere_Hadean.txt",.true.,.true.,err)
+  call out2atmosphere_txt("../atmosphere_ModernEarth.txt",.true.,.true.,err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop

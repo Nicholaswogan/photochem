@@ -494,6 +494,20 @@ contains
         return
       endif
       deallocate(fvec, wa)
+      
+      ! use the solution for tropospheric H2O to compute molar weight
+      ! and pressure and density.
+      do i = 1,trop_ind
+        usol(LH2O,i) = fH2O(i)
+      enddo
+      
+      do i = 1,nz
+        call molar_weight(nq, usol(:,i), sum_usol(i), species_mass, back_gas_mu, mubar(i))
+      enddo
+      
+      call press_and_den(nz, temperature, grav, surface_pressure*1.d6, dz, &
+                         mubar, pressure, density)
+      
     endif 
     
   end subroutine
@@ -554,7 +568,7 @@ contains
   end function
   
   subroutine prep_all_background_gas(wrk, err)
-    use photochem_const, only: pi
+    use photochem_const, only: pi, k_boltz, N_avo
     use photochem_data, only: photonums, water_sat_trop, LH2O, LH, LH2, &
                               back_gas_name, diff_H_escape
     use photochem_vars, only: temperature, grav, dz, edd, &
@@ -579,17 +593,14 @@ contains
     call prep_atm_background_gas(wrk%nq, wrk%nz, wrk%trop_ind, wrk%sum_usol, wrk%usol, &
                                  wrk%density, wrk%mubar, wrk%pressure, wrk%fH2O, err)  
     if (len_trim(err) /= 0) return  
-    
-    if (water_sat_trop) then
-      do i = 1,wrk%trop_ind
-        wrk%usol(LH2O,i) = wrk%fH2O(i)
-      enddo
-    endif 
         
     ! diffusion coefficients
     call diffusion_coefficients(wrk%nq, wrk%nz, dz, edd, temperature, wrk%density, grav, wrk%mubar, &
                                 wrk%DU, wrk%DD, wrk%DL, wrk%ADU, wrk%ADL, wrk%VH2_esc, wrk%VH_esc)
     
+    ! surface scale height
+    wrk%surface_scale_height = (k_boltz*temperature(1)*N_avo)/(wrk%mubar(1)*grav(1))
+
     ! H and H2 escape
     if (diff_H_escape) then
       if (back_gas_name /= "H2") then
@@ -628,7 +639,7 @@ contains
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
     use photochem_data, only: nq, nsp, nsl, nrT, kj, nw, LH2O, water_sat_trop
-    use photochem_vars, only: nz, z, dz, trop_ind, &
+    use photochem_vars, only: nz, z, dz, trop_ind, edd, &
                               lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
                               lower_dist_height, upper_veff, upper_flux
   
@@ -695,10 +706,17 @@ contains
         ! rhs(i) = 0.d0
         rhs(i) = 0.d0
         ! rhs(i) = - 1.d-5*atan((usol(i,1) - lower_fix_mr(i)))
-      else ! (lowerboundcond(i) == 2) then
+      elseif (lowerboundcond(i) == 2) then
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
                         - wrk%DU(i,1)*wrk%usol(i,1) &
                         + lower_flux(i)/(wrk%density(1)*dz(1))
+      ! Moses (2001) boundary condition for gas giants
+      ! A deposition velocity controled by how quickly gases
+      ! turbulantly mix vertically
+      elseif (lowerboundcond(i) == -1) then
+        rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
+                        - wrk%DU(i,1)*wrk%usol(i,1) &
+                        - (edd(1)/wrk%surface_scale_height)*wrk%usol(i,1)/dz(1)
       endif
     enddo
 
@@ -746,7 +764,7 @@ contains
     
     use photochem_data, only: lda, kd, ku, kl, nq, nsp, nsl, nrT, kj, nw,  &
                               water_sat_trop, LH2O
-    use photochem_vars, only: nz, dz, epsj, trop_ind, &
+    use photochem_vars, only: nz, dz, epsj, trop_ind, edd, &
                               lowerboundcond, upperboundcond, lower_vdep, &
                               upper_veff
   
@@ -864,13 +882,16 @@ contains
 
         ! djac(kd,i) = 1.d0/((lower_fix_mr(i) - usol(i,1))**2.d0 + 1.d0)
 
-      else ! (lowerboundcond(i) == 2) then
+      elseif (lowerboundcond(i) == 2) then
         ! rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
         !                 - DU(i,1)*usol(i,1) &
         !                 + lower_flux(i)/(density(1)*dz(1))
                                               
         djac(ku,i+nq) = wrk%DU(i,1) + wrk%ADU(i,1)
-        djac(kd,i)    = djac(kd,i)    - wrk%DU(i,1)         
+        djac(kd,i)    = djac(kd,i)    - wrk%DU(i,1)
+      elseif (lowerboundcond(i) == -1) then
+        djac(ku,i+nq) = wrk%DU(i,1) + wrk%ADU(i,1)
+        djac(kd,i)    = djac(kd,i)    - wrk%DU(i,1) - (edd(1)/wrk%surface_scale_height)/dz(1)
       endif
     enddo
 

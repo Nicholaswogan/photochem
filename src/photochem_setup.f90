@@ -194,7 +194,7 @@ contains
     
     write(unit=1,fmt="(a6,1x)",advance='no') "alt"
     write(unit=1,fmt="(a27)",advance='no') "temp"
-    write(unit=1,fmt="(a27,4x)",advance='no') "eddy"
+    write(unit=1,fmt="(a27,11x)",advance='no') "eddy"
     write(unit=1,fmt="(a27)",advance='no') species_names(1)
     do j = 2,nq
       write(unit=1,fmt="(a27)",advance='no') species_names(j)

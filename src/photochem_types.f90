@@ -176,6 +176,7 @@ module photochem_types ! make a giant IO object
     real(real_kind) :: VH_esc
     ! other
     real(real_kind), allocatable :: sum_usol(:) ! (nz)
+    real(real_kind) :: surface_scale_height
     ! end used in prep_all_background_gas
     
     
