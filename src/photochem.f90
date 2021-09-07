@@ -1007,7 +1007,6 @@ contains
                                 result(ierr) bind(C,name='JacFn')
     !======= Inclusions ===========
     use, intrinsic :: iso_c_binding
-    use fcvode_mod
     use fsundials_nvector_mod
     use fnvector_serial_mod
     use fsunmatrix_band_mod
