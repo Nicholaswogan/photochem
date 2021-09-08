@@ -12,3 +12,29 @@
 
 missing:
 'CO2', 'H2CO', 'HNO', 'HNO2', 'O2', 'O3', 'SO2'
+
+# 9/7/21
+
+I'm using Kevin's cross sections for all species except the following, which use Phidrates database.
+
+'CO2', 'H2CO', 'O2', 'O3', 'SO2', 'NO'
+
+I omit the following photolysis reactions
+
+```yaml
+- equation: SO2 + hv => S + O + O
+  type: photolysis
+  - equation: HNO + hv => NO + H
+    rate-constant:
+      A: 1.0e-3
+      b: 0.0
+      Ea: 0.0
+  - equation: HNO2 + hv => NO + OH
+    rate-constant:
+      A: 1.0e-3
+      b: 0.0
+      Ea: 0.0
+```
+
+I omit `SO2 + hv => S + O + O` because Phidrates has no data for this reaction. I omit `HNO + hv => NO + H` and `HNO2 + hv => NO + OH` because Kevin hard-codes rates instead of using cross sections. I am unable to find cross sections. 
+
