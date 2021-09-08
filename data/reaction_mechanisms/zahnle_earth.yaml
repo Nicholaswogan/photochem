@@ -2419,6 +2419,7 @@ species:
       - 299.25
       - 368.1
   note: Estimated from thermodynamic data at 298 K and species C4H2
+
 reactions:
 - equation: H + H (+ M) <=> H2 (+ M)
   type: falloff
@@ -2803,16 +2804,6 @@ reactions:
 - equation: H + H2COH <=> H2CO + H2
   rate-constant:
     A: 1.66e-11
-    b: 0.0
-    Ea: 0.0
-- equation: H + H2COH (+ M) <=> CH3 + OH (+ M)
-  type: falloff
-  low-P-rate-constant:
-    A: 0.0
-    b: 0.0
-    Ea: 0.0
-  high-P-rate-constant:
-    A: 0.0
     b: 0.0
     Ea: 0.0
 - equation: HCO + H2COH <=> H2CO + H2CO
@@ -5103,16 +5094,6 @@ reactions:
     A: 8.0e-11
     b: 0.0
     Ea: -186.0
-- equation: NO2 + CN (+ M) <=> CO + N2O (+ M)
-  type: falloff
-  low-P-rate-constant:
-    A: 0.0
-    b: 0.0
-    Ea: 0.0
-  high-P-rate-constant:
-    A: 0.0
-    b: 0.0
-    Ea: 0.0
 - equation: NO2 + CN <=> CO2 + N2
   rate-constant:
     A: 5.0e-12

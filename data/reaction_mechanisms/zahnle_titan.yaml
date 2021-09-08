@@ -4701,16 +4701,6 @@ reactions:
       A: 8.0e-11
       Ea: -186.0
       b: 0.0
-  - equation: NO2 + CN (+ M) <=> CO + N2O (+ M)
-    high-P-rate-constant:
-      A: 0.0
-      Ea: 0.0
-      b: 0.0
-    low-P-rate-constant:
-      A: 0.0
-      Ea: 0.0
-      b: 0.0
-    type: falloff
   - equation: NO2 + CN <=> CO2 + N2
     rate-constant:
       A: 5.0e-12
