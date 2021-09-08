@@ -439,23 +439,6 @@ species:
       - 107.0
       - 399.7013
   note: From the NIST database
-# - name: S8
-#   composition:
-#     S: 8
-#   thermo:
-#     model: Shomate
-#     temperature-ranges:
-#     - 0.0
-#     - 6000.0
-#     data:
-#     - - 180.6697
-#       - 1.918988
-#       - -0.52013
-#       - 0.044394
-#       - -2.270155
-#       - 39.45
-#       - 635.5496
-#   note: From the NIST database
 - name: H2S
   composition:
     H: 2
@@ -2196,23 +2179,6 @@ species:
       - -412.1812
       - 337.4151
   note: Estimated from thermodynamic data at 298 K and species HNO3
-# - name: S8L
-#   composition:
-#     S: 8
-#   thermo:
-#     model: Shomate
-#     temperature-ranges:
-#     - 0.0
-#     - 6000.0
-#     data:
-#     - - 180.6697
-#       - 1.918988
-#       - -0.52013
-#       - 0.044394
-#       - -2.270155
-#       - 73.45
-#       - 665.3196
-#   note: Estimated from thermodynamic data at 298 K and species S8
 - name: O1D
   composition:
     O: 1
@@ -2453,27 +2419,6 @@ species:
       - 299.25
       - 368.1
   note: Estimated from thermodynamic data at 298 K and species C4H2
-
-# particles:
-# - name: haze
-#   formation: reactions
-#   fixed-composition: false
-#   track-composition: false
-#   density: 1.0 # g/cm3
-#   monomer-radius: 7.35e-4 # microns
-#   reactions:
-#   - equation: H2CN + HCN => haze
-#     rate-constant:
-#       A: 1.1e-12
-#       b: 0.0
-#       Ea: 900
-#   - equation: C4H + HCCCN => haze
-#     rate-constant:
-#       A: 8.6e-16
-#       b: 1.8
-#       Ea: 474.0
-
-
 reactions:
 - equation: H + H (+ M) <=> H2 (+ M)
   type: falloff
@@ -3942,32 +3887,6 @@ reactions:
     A: 4.0e-11
     b: 0.0
     Ea: 500.0
-# - equation: S4 + S4 (+ M) <=> S8 (+ M)
-#   type: falloff
-#   low-P-rate-constant:
-#     A: 9.0e-26
-#     b: -2.0
-#     Ea: 0.0
-#   high-P-rate-constant:
-#     A: 1.0e-11
-#     b: 0.0
-#     Ea: 0.0
-# - equation: S4 + S4 (+ M) <=> S8L (+ M)
-#   type: falloff
-#   low-P-rate-constant:
-#     A: 9.0e-25
-#     b: -2.0
-#     Ea: 0.0
-#   high-P-rate-constant:
-#     A: 1.0e-10
-#     b: 0.0
-#     Ea: 0.0
-# - equation: S8L + M <=> S8 + M
-#   type: three-body
-#   rate-constant:
-#     A: 2.0e-11
-#     b: 0.0
-#     Ea: 500.0
 - equation: S + H (+ M) <=> HS (+ M)
   type: falloff
   low-P-rate-constant:
@@ -5511,9 +5430,9 @@ reactions:
     Ea: 0.0
 - equation: CH3CHO + H <=> CH3CO + H2
   rate-constant:
-    A: 6.6e-11
-    b: 0.0
-    Ea: 2100.0
+    A: 2.14209e-19
+    b: 2.58
+    Ea: 615.0
 - equation: CH3CHO + H <=> CH2CHO + H2
   rate-constant:
     A: 1.381873e-20
@@ -5564,11 +5483,6 @@ reactions:
     A: 7.0e-11
     b: 0.0
     Ea: 0.0
-# - equation: H + S8 <=> HS4 + S4
-#   rate-constant:
-#     A: 3.0e-12
-#     b: 0.0
-#     Ea: 5000.0
 - equation: H + HS4 <=> H2 + S4
   rate-constant:
     A: 1.0e-10
@@ -5594,11 +5508,6 @@ reactions:
     A: 3.0e-11
     b: 0.0
     Ea: 500.0
-# - equation: HS4 + HS4 <=> H2 + S8
-#   rate-constant:
-#     A: 3.0e-12
-#     b: 0.0
-#     Ea: 2500.0
 - equation: S + HS4 <=> HS + S4
   rate-constant:
     A: 3.0e-11
@@ -6155,10 +6064,6 @@ reactions:
   type: photolysis
 - equation: SO3 + hv => SO2 + O
   type: photolysis
-# - equation: S8 + hv => S8L
-#   type: photolysis
-# - equation: S8L + hv => S4 + S4
-#   type: photolysis
 - equation: HCl + hv => H + Cl
   type: photolysis
 - equation: HOCl + hv => OH + Cl
