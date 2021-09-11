@@ -83,6 +83,24 @@ particles:
 I will take the Lavvas approach. Except initially, I will not consider microphysics. I will assume fixed particle sizes vs altitude.
 
 
+Lets start simple with sulfur condensation.
+
+```yaml
+- name: SO4aer
+  formation: saturation
+  composition:
+    H: 2
+    S: 1
+    O: 4
+  gas-phase: H2SO4
+  saturation-parameters: ??? 
+  density: 1.0 # g/cm3
+  optical-properties: khare1984
+  optical-type: mie
+```
+
+Lets look at how we should model saturation...
+
 
 
 

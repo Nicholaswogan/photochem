@@ -173,7 +173,7 @@ contains
     gibbs = enthalpy*1000.d0 - T*entropy
   end subroutine
   
-  subroutine chempl(nz, nsp, nrT, densities, rx_rates, k, loss_start_ind, xp, xl)
+  subroutine chempl(nz, nsp, nrT, densities, rx_rates, k, xp, xl)
     use photochem_data, only: nump, numl, iprod, iloss, &
                               reactants_sp_inds, nreactants
     
@@ -182,7 +182,6 @@ contains
     real(real_kind), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
     real(real_kind), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
     integer, intent(in) :: k ! species number
-    integer, intent(in) :: loss_start_ind ! = 1 if LL, and = 2 for short-lived
     
     ! output
     real(real_kind), intent(out) :: xp(nz), xl(nz) ! molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
@@ -216,9 +215,64 @@ contains
       l = nreactants(m) ! number of reactants
       do j = 1,nz
         DD = 1.d0
-        do ii = loss_start_ind,l
+        do ii = 1,l
           iii = reactants_sp_inds(ii,m)
           DD = DD * densities(iii,j)
+        enddo
+        xl(j) = xl(j) + rx_rates(j,m) * DD
+      enddo
+    enddo
+    
+  end subroutine
+  
+  subroutine chempl_sl(nz, nsp, nrT, densities, rx_rates, k, xp, xl)
+    use photochem_data, only: nump, numl, iprod, iloss, &
+                              reactants_sp_inds, nreactants
+    
+    ! input
+    integer, intent(in) :: nz, nsp, nrT
+    real(real_kind), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
+    real(real_kind), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
+    integer, intent(in) :: k ! species number
+    
+    ! output
+    real(real_kind), intent(out) :: xp(nz), xl(nz) ! molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
+    
+    ! local
+    real(real_kind) :: DD
+    integer :: np, nl
+    integer :: i, ii, iii, m, l, j
+    xp = 0.d0
+    xl = 0.d0
+    
+    np = nump(k) ! k is a species
+    ! np is number of reactions that produce species k
+    do i=1,np
+      m = iprod(i,k) ! m is reaction number
+      l = nreactants(m) ! l is the number of reactants
+      do j = 1,nz
+        DD = 1.d0
+        do ii = 1,l
+          iii = reactants_sp_inds(ii,m)
+          DD = DD * densities(iii,j)
+        enddo
+        xp(j) = xp(j) + rx_rates(j,m) * DD
+      enddo
+    enddo
+    
+    nl = numl(k) ! k is a species
+    ! nl is number of reactions that destroy species k
+    do i=1,nl
+      m = iloss(i,k) ! This will JUST be reaction number
+      l = nreactants(m) ! number of reactants
+      do j = 1,nz
+        DD = 1.d0
+        do ii = 1,l
+          iii = reactants_sp_inds(ii,m)
+          ! We skip the short-lived species.
+          if (iii /= k) then
+            DD = DD * densities(iii,j)
+          endif
         enddo
         xl(j) = xl(j) + rx_rates(j,m) * DD
       enddo
@@ -246,56 +300,18 @@ contains
     
     ! short lived
     do k = nq+1,nq+nsl
-      call chempl(nz, nsp, nrT, densities, rx_rates, k, 2, xp, xl) 
+      call chempl_sl(nz, nsp, nrT, densities, rx_rates, k, xp, xl) 
       densities(k,:) = xp/xl
     enddo
     
     ! long lived              
     do i = 1,nq
-      call chempl(nz, nsp, nrT, densities, rx_rates, i, 1, xp, xl)
+      call chempl(nz, nsp, nrT, densities, rx_rates, i, xp, xl)
       do j = 1,nz
         k = i + (j - 1) * nq
         rhs(k) = xp(j)/density(j) - xl(j)/density(j)
       enddo
     enddo
-    
-    ! At this point, rhs(k) would contain monomer production rates
-    ! in terms of [monomers/cm3]/[molecules/cm3]
-    
-    ! we could go find particles in this list
-    ! we then put monomers into the particle
-
-    ! do i = nq-np,nq
-    !   do j = 1,nz
-    !     k = i + (j - 1) * nq
-    ! 
-    !     ! need to compute the mass of monomers produced.
-    !     ! this will require production rate via different mechanism
-    !     ! tot_monomer_production = rhs(k)*density(j)
-    !     ! avg_monomer_mass = 0.d0
-    !     ! do ii = 1,particle_nr(i)
-    !     !   jj = particle_prod_nums(ii,i) ! reaction number
-    !     !   avg_monomer_mass = avg_monomer_mass + &
-    !     !                      (yp(j,jj,i)/tot_monomer_production)*monomer_mass(ii,i)
-    !     ! enddo
-    ! 
-    !     ! NO, we actually can use a fixed mass, because we are assuming a fixed density and monomer radius
-    !     mass_particle = particle_density(i)*(4.d0/3.d0)*pi*particle_radius(j,i)**3.d0
-    ! 
-    !     monomers_in_particle = mass_particle/monomer_mass(kk)
-    ! 
-    !     ! this will then be [particals/cm3] produced.
-    !     rhs(k) = rhs(k)*density(j)/monomers_in_particle
-    ! 
-    !     ! alternatively we might just leave as [particles/cm3]/[molecules/cm3]
-    !     ! These values should then be small, and comparable to mixing ratios.
-    !     ! thus we will not have absolute tolerance problems.
-    !     rhs(k) = rhs(k)/monomers_in_particle
-    ! 
-    ! 
-    !   enddo
-    ! enddo
-    
     
   end subroutine
   

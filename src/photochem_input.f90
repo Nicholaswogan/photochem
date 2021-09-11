@@ -1762,13 +1762,6 @@ contains
         call reaction_string(photomech,kk,reaction)
         m = photomech%nreactants(kk)
         
-        ! check that sl species is the first reactant
-        if (photomech%reactants_sp_inds(1,kk) /= j) then
-          err = 'IOError: Reaction "'//reaction//'" short lived species is not'// &
-          ' is not the first reactant. Short lived species must always be the first reactant.'
-          return
-        endif
-        
         counter = 0
         do mm = 1, m
           n = photomech%reactants_sp_inds(mm,kk)
