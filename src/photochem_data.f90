@@ -8,12 +8,15 @@ module photochem_data
   ! Data that doesn't after file read-in
 
   ! molecules
-  integer, protected :: nsp
   integer, protected :: nq
+  integer, protected :: ng_1
+  integer, protected :: nll
+  integer, protected :: nsl
+  integer, protected :: ng
+  integer, protected :: nsp
+  integer, protected :: natoms
   integer, protected :: kd, kl, ku ! not read in. It is nq + nq + 1 (diagonal width of jacobian)
   integer, protected :: lda ! not read in 
-  integer, protected :: nsl
-  integer, protected :: natoms
   character(len=8), allocatable, protected :: atoms_names(:) 
   real(real_kind), allocatable, protected :: atoms_mass(:) 
   character(len=15), allocatable, protected :: species_names(:)
@@ -21,6 +24,15 @@ module photochem_data
   real(real_kind), allocatable, protected :: species_mass(:) 
   real(real_kind), allocatable, protected :: thermo_data(:,:,:)
   real(real_kind), allocatable, protected :: thermo_temps(:,:)
+  
+  ! particles
+  logical :: there_are_particles
+  integer :: np ! number of particles
+  integer :: npq ! number of particle equations. for now nq = npq.
+  integer, allocatable :: particle_formation_method(:) ! np
+  real(real_kind), allocatable :: particle_density(:) ! np
+  real(real_kind), allocatable :: particle_sat_params(:,:) ! 3, np
+  integer, allocatable :: particle_gas_phase_ind(:) ! np
   
   ! reactions
   logical, protected :: reverse
@@ -68,6 +80,7 @@ module photochem_data
   real(real_kind), allocatable, protected :: T_file(:)
   real(real_kind), allocatable, protected :: edd_file(:)
   real(real_kind), allocatable, protected :: usol_file(:,:)
+  real(real_kind), allocatable, protected :: particle_radius_file(:,:)
   
   ! settings
   logical, protected :: back_gas
@@ -114,8 +127,17 @@ contains
       deallocate(species_names)
       deallocate(species_composition)
       deallocate(species_mass)
-      deallocate(thermo_data)
-      deallocate(thermo_temps)
+      if (photomech%reverse) then
+        deallocate(thermo_data)
+        deallocate(thermo_temps)
+      endif
+      
+      if (photomech%there_are_particles) then
+        deallocate(particle_formation_method)
+        deallocate(particle_density) 
+        deallocate(particle_sat_params)
+        deallocate(particle_gas_phase_ind)
+      endif
       
       deallocate(reactants_names)
       deallocate(products_names)
@@ -149,18 +171,24 @@ contains
       deallocate(T_file)
       deallocate(edd_file)
       deallocate(usol_file)
+      if (photomech%there_are_particles) then
+        deallocate(particle_radius_file)
+      endif
     
     endif
     
     ! species
-    nsp = photomech%nsp
     nq = photomech%nq
+    ng_1 = photomech%ng_1
+    nll = photomech%nll
+    nsl = photomech%nsl
+    ng = photomech%ng
+    nsp = photomech%nsp
+    natoms = photomech%natoms
     kd = 2*nq + 1
     kl = kd + nq
     ku = kd - nq
     lda = 3*nq + 1
-    nsl = photomech%nsl
-    natoms = photomech%natoms
     allocate(atoms_names(natoms))
     atoms_names = photomech%atoms_names
     allocate(atoms_mass(natoms))
@@ -172,10 +200,25 @@ contains
     allocate(species_mass(nsp))
     species_mass = photomech%species_mass
     if (photomech%reverse) then
-      allocate(thermo_data(7,2,nsp))
+      allocate(thermo_data(7,2,ng))
       thermo_data = photomech%thermo_data
-      allocate(thermo_temps(3,nsp))
+      allocate(thermo_temps(3,ng))
       thermo_temps = photomech%thermo_temps
+    endif
+    
+    ! particles
+    there_are_particles = photomech%there_are_particles
+    np = photomech%np
+    npq = photomech%npq
+    if (there_are_particles) then
+      allocate(particle_formation_method(np))
+      particle_formation_method = photomech%particle_formation_method
+      allocate(particle_density(np))
+      particle_density = photomech%particle_density
+      allocate(particle_sat_params(3,np))
+      particle_sat_params = photomech%particle_sat_params
+      allocate(particle_gas_phase_ind(np))
+      particle_gas_phase_ind = photomech%particle_gas_phase_ind
     endif
     
     ! reactions
@@ -255,6 +298,10 @@ contains
     edd_file = photoinit%edd_file
     allocate(usol_file(nq,nzf))
     usol_file = photoinit%usol_file
+    if (there_are_particles) then
+      allocate(particle_radius_file(npq,nzf))
+      particle_radius_file = photoinit%particle_radius_file
+    endif
     no_water_profile = photoinit%no_water_profile
     
     ! settings
@@ -283,6 +330,9 @@ contains
       deallocate(upper_veff)
       deallocate(upper_flux)
       deallocate(photon_flux)
+      if (photomech%there_are_particles) then
+        deallocate(condensation_rate)
+      endif
     endif
     
     ! boundary conditions
@@ -320,6 +370,12 @@ contains
     allocate(photon_flux(nw))
     photon_flux = photorad%photon_flux
     photon_scale_factor = photoset%photon_scale_factor  
+    
+    ! particles
+    if (photomech%there_are_particles) then
+      allocate(condensation_rate(np))
+      condensation_rate = photoset%condensation_rate
+    endif
     
     ! settings
     use_manabe = photoset%use_manabe ! use manabe formula

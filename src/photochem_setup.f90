@@ -10,11 +10,11 @@ contains
   
   subroutine setup(mechanism_file, settings_file, flux_file, atmosphere_txt, err)
     use photochem_data, only: setup_files, &
-                              planet_radius, planet_mass, nq, kj, nw, &
+                              planet_radius, planet_mass, nq, kj, nw, npq, &
                               water_sat_trop
     use photochem_vars, only: bottom_atmos, top_atmos, nz, &
                               z, dz, grav, temperature, edd, usol_init, &
-                              xs_x_qy, trop_ind, trop_alt
+                              particle_radius, xs_x_qy, trop_ind, trop_alt
     
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
@@ -33,7 +33,8 @@ contains
       trop_ind = minloc(z,1, z .ge. trop_alt) - 1
     endif
     call gravity(planet_radius, planet_mass, nz, z, grav)
-    call interp2atmosfile(nz, nq, z, temperature, edd, usol_init, err)
+    call interp2atmosfile(nz, nq, npq, z, temperature, edd, usol_init, &
+                          particle_radius, err)
     if (len_trim(err) /= 0) return
     
     ! lets do xsections
@@ -84,13 +85,13 @@ contains
 
   end subroutine
   
-  subroutine interp2atmosfile(nz, nq, z, T, edd, usol, err)
+  subroutine interp2atmosfile(nz, nq, npq, z, T, edd, usol, particle_radius, err)
     use interp_tools, only: interp
     use photochem_data, only: nzf, z_file, &
-                              T_file, edd_file, usol_file
-    integer, intent(in) :: nz, nq
+                              T_file, edd_file, usol_file, particle_radius_file, there_are_particles
+    integer, intent(in) :: nz, nq, npq
     real(real_kind), intent(in) :: z(nz)
-    real(real_kind), intent(out) :: T(nz), edd(nz), usol(nq,nz)
+    real(real_kind), intent(out) :: T(nz), edd(nz), usol(nq,nz), particle_radius(npq,nz)
     character(len=err_len), intent(out) :: err
     
     integer :: i
@@ -110,6 +111,14 @@ contains
     enddo
     usol = 10.d0**usol
     
+    if (there_are_particles) then
+      do i = 1,npq
+        call interp(nz, nzf, z, z_file, log10(abs(particle_radius_file(i,:))), particle_radius(i,:), err)
+        if (len_trim(err) /= 0) return
+      enddo
+      particle_radius = 10.d0**particle_radius
+    endif
+    
     if (z(1) < z_file(1)) then
       print*,'Warning: vertical grid is being extrapolated below where there is input data.'
     endif
@@ -121,7 +130,7 @@ contains
   end subroutine
   
   subroutine allocate_nz_vars()
-    use photochem_data, only: nq, kj, nw
+    use photochem_data, only: nq, kj, nw, npq
     use photochem_vars
     use photochem_wrk
     ! nqL = count(lowerboundcond /= 1)
@@ -135,6 +144,7 @@ contains
       deallocate(edd)
       deallocate(grav)
       deallocate(usol_init)
+      deallocate(particle_radius)
       deallocate(xs_x_qy)
       deallocate(usol_out)
     endif
@@ -145,6 +155,7 @@ contains
     allocate(edd(nz))
     allocate(grav(nz))
     allocate(usol_init(nq,nz))
+    allocate(particle_radius(npq,nz))
     allocate(xs_x_qy(nz,kj,nw))
     allocate(usol_out(nq,nz))
 

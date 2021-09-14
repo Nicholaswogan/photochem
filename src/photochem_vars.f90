@@ -42,6 +42,10 @@ module photochem_vars
   real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
   real(real_kind) :: photon_scale_factor
   
+  ! particles
+  ! condensation rate of particles
+  real(real_kind), allocatable :: condensation_rate(:)
+  
   ! switch for dealing with H2O if not read in.
   logical :: no_water_profile
 
@@ -56,6 +60,7 @@ module photochem_vars
   real(real_kind), allocatable :: edd(:)
   real(real_kind), allocatable :: grav(:)
   real(real_kind), allocatable, target :: usol_init(:,:)
+  real(real_kind), allocatable :: particle_radius(:,:)
   real(real_kind), allocatable :: xs_x_qy(:,:,:)
   
   ! output

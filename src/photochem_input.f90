@@ -87,9 +87,9 @@ contains
     type(PhotoMechanism), intent(out) :: photomech
     character(len=err_len), intent(out) :: err
     
-    class (type_dictionary), pointer :: atoms
+    class (type_dictionary), pointer :: atoms, sat_params
     class (type_list), pointer :: species, reactions
-    class (type_list), pointer :: particles, particle_reactions
+    class (type_list), pointer :: particles
     type (type_error), pointer :: io_err
     class (type_list_item), pointer :: item, item2
     class (type_dictionary), pointer :: dict
@@ -99,10 +99,12 @@ contains
     character(len=str_len) :: tmpchar
     character(len=str_len) :: tmp
     character(len=20), allocatable :: eqr(:), eqp(:)
-    integer :: i, j, k, kk, l, ind(1), size_eqr, size_eqp
+    integer :: i, ii, j, k, kk, l, ind(1), size_eqr, size_eqp
     logical :: reverse
     logical :: tmp_logical
-    type (type_list) :: all_reactions
+    ! all_species causes a small memory leak. Not sure how to free the memory properly
+    type(type_list) :: all_species, all_reactions ! will include particles
+
     err = ''
 
     atoms => mapping%get_dictionary('atoms',.true.,error = io_err)
@@ -151,12 +153,15 @@ contains
       allocate(photomech%particle_names(photomech%np))
       allocate(photomech%particle_formation_method(photomech%np))
       allocate(photomech%particle_density(photomech%np))
-      allocate(photomech%particle_monomer_radius(photomech%np))
-      allocate(photomech%particle_nr(photomech%np))
+      allocate(photomech%particle_sat_params(3,photomech%np))
+      allocate(photomech%particle_gas_phase(photomech%np))
+      allocate(photomech%particle_optical_prop(photomech%np))
+      allocate(photomech%particle_optical_type(photomech%np))
       
       item => particles%first
       j = 1
       do while (associated(item))
+        call all_species%append(item%node)
         select type (element => item%node)
         class is (type_dictionary)
           photomech%particle_names(j) = element%get_string("name",error = io_err) ! get name
@@ -164,39 +169,67 @@ contains
           
           tmpchar = element%get_string("formation",error = io_err) 
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          if (trim(tmpchar) == 'reactions') then
+          if (trim(tmpchar) == 'saturation') then
             photomech%particle_formation_method(j) = 1
+          elseif (trim(tmpchar) == 'reaction') then
+            photomech%particle_formation_method(j) = 2
           else
-            err = "IOError: the only formation mechanism for particles is 'reactions'"
-            return
-          endif
-          tmp_logical = element%get_logical("fixed-composition",error = io_err) 
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          if (tmp_logical) then
-            err = "IOError: Have not yet implemented particles with fixed composition"
-            return
-          endif
-          tmp_logical = element%get_logical("track-composition",error = io_err) 
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          if (tmp_logical) then
-            err = "IOError: Have not yet implemented ability to track composition"
+            err = "IOError: the only formation mechanism for particles is 'saturation'"
             return
           endif
           photomech%particle_density(j) = element%get_real("density",error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          photomech%particle_monomer_radius(j) = element%get_real("monomer-radius",error = io_err)
+          photomech%particle_optical_prop(j) = element%get_string("optical-properties",error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          
+          tmpchar = element%get_string("optical-type",error = io_err)
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (trim(tmpchar) == "mie") then
+            photomech%particle_optical_type(j) = 0
+          elseif  (trim(tmpchar) == "fractal") then
+            err = "IOError: 'fractal' is not an optional optical type for "//trim(photomech%particle_names(j))
+            return
+          else
+            err = "IOError: "//trim(tmpchar)//" is not an optional optical type for "//trim(photomech%particle_names(j))
+            return
+          endif
+  
           if (photomech%particle_formation_method(j) == 1) then
-            ! there should be some reactions making the monomers
-            particle_reactions => element%get_list('reactions',.true.,error = io_err) 
+            ! there should be saturation vapor pressure information
+            sat_params => element%get_dictionary('saturation-parameters',.true.,error = io_err) 
             if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-            item2 => particle_reactions%first
-            do while (associated(item2))
-              ! we need to just add this list of reactions to the other list of reaction
-              call all_reactions%append(item2%node)
-              item2 => item2%next
+            i = 0
+            key_value_pair => sat_params%first
+            do while (associated(key_value_pair))
+              tmpchar = trim(key_value_pair%key)
+              
+              if (trim(tmpchar) == "A") then
+                photomech%particle_sat_params(1,j) = sat_params%get_real(trim(tmpchar),error = io_err)
+                if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+              elseif (trim(tmpchar) == "B") then
+                photomech%particle_sat_params(2,j) = sat_params%get_real(trim(tmpchar),error = io_err)
+                if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+              elseif (trim(tmpchar) == "C") then
+                photomech%particle_sat_params(3,j) = sat_params%get_real(trim(tmpchar),error = io_err)
+                if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+              else
+                err = "Particle "//trim(photomech%particle_names(j))//" saturation parameters "//&
+                      "can only be 'A', 'B', or 'C'"
+                return
+              endif                
+              key_value_pair => key_value_pair%next
+              i = i + 1
             enddo
+            if (i /= 3) then
+              err = "IOError: Missing or two many saturation parameters for "//trim(photomech%particle_names(j))
+              return 
+            endif
+            
+            ! gas phase
+            photomech%particle_gas_phase(j) = element%get_string("gas-phase",error = io_err) 
+            if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          elseif (photomech%particle_formation_method(j) == 2) then
+            ! add the reaction to the list of reactions
+            call all_reactions%append(item%node)
           endif
         
         class default
@@ -211,55 +244,90 @@ contains
       photomech%np = 0
     endif
     
+    ! for now number particle equations will be the same 
+    ! as number of particles
+    photomech%npq = photomech%np
+    
     !!! done with particles !!!
     
     !!! species !!!
-    photomech%nsp = 0 ! count number of species
+    photomech%ng = 0 ! count number of gas phase species
     item => species%first
     do while (associated(item))
       item => item%next
-      photomech%nsp = photomech%nsp + 1
+      photomech%ng = photomech%ng + 1
     enddo
     
-    photomech%nll  = photomech%nsp - photoset%nsl
-    
-    if (photoset%back_gas) then
-      photoset%nq = photomech%nll - 1 ! minus 1 for background
-    else
-      photoset%nq = photomech%nll
-    endif
-    photomech%nq = photoset%nq
+    ! get number of sl from photoset
     photomech%nsl = photoset%nsl
     
+    if (photoset%back_gas) then
+      photomech%nll = photomech%ng - photomech%nsl - 1 ! minus 1 for background
+    else
+      photomech%nll = photomech%ng - photomech%nsl
+    endif
+    
+    photomech%ng_1 = photomech%npq + 1 ! the long lived gas index
+    ! photomech%nq is the last ll gas index
+    
+    ! now we now nq, the number of PDEs
+    photomech%nq = photomech%npq + photomech%nll
+    photoset%nq = photomech%nq
+    
+    ! we also now nsp, the index of the backgorund gas 
+    photomech%nsp = photomech%npq + photomech%ng
+    
+    ! species_mass, species_composition, and species_names
+    ! will include the particles, thus we allocate nsp
     allocate(photomech%species_mass(photomech%nsp))
     allocate(photomech%species_composition(photomech%natoms,photomech%nsp+2))
     photomech%species_composition = 0
     allocate(photomech%species_names(photomech%nsp+2))
     photomech%species_names(photomech%nsp+1) = "hv" ! always add these guys
     photomech%species_names(photomech%nsp+2) = "M"
+    ! we will not include particles in thermodynamic data.
     if (photomech%reverse) then
-      allocate(photomech%thermo_data(7,2,photomech%nsp))
-      allocate(photomech%thermo_temps(3,photomech%nsp))
+      allocate(photomech%thermo_data(7,2,photomech%ng))
+      allocate(photomech%thermo_temps(3,photomech%ng))
     endif
-    kk = 1
-    l = 1
+    
+    ! Append the species to the end of a list
+    ! which has particles in the beginning
     item => species%first
+    do while (associated(item))
+      call all_species%append(item%node)
+      item => item%next
+    enddo
+
+    ! Loop through particles and gases
+    kk = photomech%ng_1
+    l = 1
+    ii = 1 ! overall counter
+    item => all_species%first
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
         tmpchar = trim(element%get_string("name",error = io_err)) ! get name
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        ind = findloc(photoset%SL_names,tmpchar)
-        if (ind(1) /= 0) then
-          j = photoset%nq + l 
-          l = l + 1
-        elseif (tmpchar == photoset%back_gas_name) then
-          j = photomech%nsp
+        
+        
+        if (ii < photomech%ng_1) then
+          ! we are dealing with particles
+          j = ii
         else
-          j = kk
-          kk = kk + 1
+          ! we are dealing with gases
+          ind = findloc(photoset%SL_names,tmpchar)
+          if (ind(1) /= 0) then ! short lived species
+            j = photoset%nq + l 
+            l = l + 1
+          elseif (tmpchar == photoset%back_gas_name) then ! background gas
+            j = photomech%nsp
+          else ! long lived species
+            j = kk
+            kk = kk + 1
+          endif
         endif
-                
+                  
         photomech%species_names(j) = tmpchar
         dict => element%get_dictionary("composition",.true.,error = io_err)  ! get composition
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -280,15 +348,16 @@ contains
         photomech%species_mass(j) = sum(photomech%species_composition(:,j) * photomech%atoms_mass)
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
-        if (photomech%reverse) then
-          call get_thermodata(element,photomech%species_names(j), infile,photomech%thermo_temps(:,j), &
-                              photomech%thermo_data(:,:,j), err) ! get thermodynamic data
+        if (photomech%reverse .and. (ii >= photomech%ng_1)) then
+          call get_thermodata(element,photomech%species_names(j), infile,photomech%thermo_temps(:,j-photomech%npq), &
+                              photomech%thermo_data(:,:,j-photomech%npq), err) ! get thermodynamic data
           if (len_trim(err) > 0) return
         endif
       class default
         err = "IOError: Problem with species number "//char(j)//"  in the input file"
         return
       end select
+      ii = ii + 1
       item => item%next
     enddo
     
@@ -305,15 +374,35 @@ contains
     endif
     !!! done with species !!!
     
+    if (photomech%there_are_particles) then
+      ! get indexes of gas phase condensing species
+      allocate(photomech%particle_gas_phase_ind(photomech%np))
+      do i = 1,photomech%np
+        if (photomech%particle_formation_method(i) == 1) then
+          ! if a condensing molecule
+          ind = findloc(photomech%species_names,photomech%particle_gas_phase(i))
+          if (ind(1) /= 0) then
+            photomech%particle_gas_phase_ind(i) = ind(1)
+          else
+            err = "IOError: particle "//trim(photomech%particle_names(i))// &
+                  " can not be made from "//trim(photomech%particle_gas_phase(i))// &
+                  " because "//trim(photomech%particle_gas_phase(i))//" is not a gas"// &
+                  " in the model."
+            return
+          endif
+        endif
+      enddo
+    endif
+    
     !!! reactions !!!
     item => reactions%first
     do while (associated(item))
       call all_reactions%append(item%node)
       item => item%next
     enddo
-    
+
     photomech%nrF = 0 ! count forward reactions
-    item => reactions%first
+    item => all_reactions%first
     do while (associated(item))
       item => item%next
       photomech%nrF = photomech%nrF + 1
@@ -331,7 +420,7 @@ contains
     photomech%nrR = 0
     photomech%kj = 0
     j = 1
-    item => reactions%first
+    item => all_reactions%first
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
@@ -405,7 +494,7 @@ contains
     
     j = 1
     k = 1
-    item => reactions%first
+    item => all_reactions%first
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
@@ -448,7 +537,7 @@ contains
       item => item%next
       j = j + 1
     enddo
-    
+
     ! nump, numl, iprod, iloss
     ! first find nump and numl then allocate iprod and iloss
     allocate(photomech%nump(photomech%nsp))
@@ -1442,7 +1531,7 @@ contains
     character(len=err_len), intent(out) :: err
     
     class (type_dictionary), pointer :: tmp1, tmp2
-    class (type_list), pointer :: bcs
+    class (type_list), pointer :: bcs, particles
     class (type_list_item), pointer :: item
     type (type_error), pointer :: io_err
     
@@ -1451,6 +1540,7 @@ contains
     character(len=str_len), allocatable :: dups(:)
     character(len=30) :: temp_char
     integer :: default_lowerboundcond
+    logical, allocatable :: particle_checklist(:)
     
     err = ''
     
@@ -1598,6 +1688,47 @@ contains
       endif
     endif
     
+    ! particle parameters
+    if (photomech%there_are_particles) then
+      particles => mapping%get_list('particles',.true.,error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        
+      allocate(particle_checklist(photomech%np))
+      allocate(photoset%condensation_rate(photomech%np))
+      particle_checklist = .false.
+      
+      item => particles%first
+      do while (associated(item))
+        select type (element => item%node)
+        class is (type_dictionary)
+          temp_char = element%get_string('name',error = io_err)
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          ind = findloc(photomech%particle_names,trim(temp_char))
+          if (particle_checklist(ind(1))) then
+            err = "IOError: particle "//trim(temp_char)//" in the settings"// &
+                  " file is listed more than once"
+            return
+          endif
+          if (ind(1) == 0) then
+            err = "IOError: particle "//trim(temp_char)//" in the settings"// &
+                  " file isn't in the list of particles in the reaction mechanism file"
+            return
+          else
+            particle_checklist(ind(1)) = .true.
+          endif
+          
+          photoset%condensation_rate(ind(1)) = element%get_real('condensation-rate',error = io_err)
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          
+        class default
+          err = "IOError: Particle settings must be a list of dictionaries."
+          return
+        end select
+        item => item%next
+      end do
+        
+    endif
+      
     ! boundary conditions and species types
     bcs => mapping%get_list('boundary-conditions',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -2353,6 +2484,9 @@ contains
     photoinit%T_file = 0.d0
     photoinit%edd_file = 0.d0
     photoinit%usol_file = 1.d-40
+    if (photomech%there_are_particles) then
+      allocate(photoinit%particle_radius_file(photomech%npq, photoinit%nzf))
+    endif
     
     rewind(4)
     read(4,'(A)') line
@@ -2417,6 +2551,38 @@ contains
                               "extrapolation above the tropopause."
       endif
       print*,message
+    endif
+    
+    if (photomech%there_are_particles) then
+      ! reads in particles radius
+      iii = 1
+      ! particle names
+      do i = 1,photomech%npq
+        ind = findloc(labels,trim(photomech%species_names(i))//"_r")
+        if (ind(1) /= 0) then
+          rewind(4)
+          read(4,*)
+          do k=1,photoinit%nzf
+            read(4,*,iostat = io) (temp(ii),ii=1,n)
+            if (io /= 0) then
+              err = 'Problem reading in particle radius in '//trim(atmosphere_txt)
+              return
+            endif
+            photoinit%particle_radius_file(i,k) = temp(ind(1))
+          enddo
+        else
+          ! did not find the data
+          ! will set to 0.1 micron
+          photoinit%particle_radius_file(i,:) = 1.d-4
+          iii = 0
+        endif
+      enddo
+      
+      if (iii == 0) then
+        print*,'Warning: Did not find particle radii for some species in '//&
+                trim(atmosphere_txt)//' . The program will assume 0.1 micron raddii.'
+      endif
+      
     endif
     
     rewind(4)

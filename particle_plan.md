@@ -86,20 +86,24 @@ I will take the Lavvas approach. Except initially, I will not consider microphys
 Lets start simple with sulfur condensation.
 
 ```yaml
-- name: SO4aer
+- name: H2SO4aer
   formation: saturation
+  density: 1.0 # g/cm3
+  optical-properties: khare1984
+  optical-type: mie
   composition:
     H: 2
     S: 1
     O: 4
   gas-phase: H2SO4
-  saturation-parameters: ??? 
-  density: 1.0 # g/cm3
-  optical-properties: khare1984
-  optical-type: mie
+  saturation-parameters:
+    A: 16.722
+    B: -10156.0
+    C: 0.0
+  
 ```
 
-Lets look at how we should model saturation...
+
 
 
 

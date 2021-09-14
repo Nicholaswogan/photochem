@@ -2420,6 +2420,39 @@ species:
       - 368.1
   note: Estimated from thermodynamic data at 298 K and species C4H2
 
+particles:
+- name: H2SO4aer
+  formation: saturation
+  density: 1.0 # g/cm3
+  gas-phase: H2SO4
+  saturation-parameters:
+    A: 16.722
+    B: -10156.0
+    C: 0.0
+  composition:
+    H: 2
+    S: 1
+    O: 4
+  optical-properties: khare1984
+  optical-type: mie
+- name: S8aer
+  formation: reaction
+  density: 1.0 # g/cm3
+  composition:
+    S: 8
+  optical-properties: khare1984
+  optical-type: mie
+  equation: S4 + S4 (+ M) => S8aer (+ M)
+  type: falloff
+  low-P-rate-constant:
+    A: 9.0e-26
+    b: -2.0
+    Ea: 0.0
+  high-P-rate-constant:
+    A: 3.0e-11
+    b: 0.0
+    Ea: 0.0
+
 reactions:
 - equation: H + H (+ M) <=> H2 (+ M)
   type: falloff

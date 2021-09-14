@@ -13,7 +13,7 @@ contains
     use photochem_data, only: rateparams, rxtypes, nreactants, &
                               nproducts, reactants_sp_inds, products_sp_inds, &
                               reverse_info, nrF, reverse, num_efficient, def_eff, &
-                              eff_sp_inds, efficiencies, falloff_type
+                              eff_sp_inds, efficiencies, falloff_type, ng, npq
     use photochem_const, only: Rgas, k_boltz, smallest_real ! constants
                               
     integer, intent(in) :: nsp, nz, nrT
@@ -24,7 +24,7 @@ contains
     character(len=err_len), intent(out) :: err
     
     integer :: i, j, k, n, l, m
-    real(real_kind) :: gibbs_energy(nz,nsp)
+    real(real_kind) :: gibbs_energy(nz,ng)
     real(real_kind) :: eff_den(nz), F(nz), k0, kinf(nz), Pr(nz)
     real(real_kind) :: gibbR_forward, gibbP_forward
     real(real_kind) :: Dg_forward
@@ -97,7 +97,7 @@ contains
 
     if (reverse) then ! if there are reverse reactions
       ! compute gibbs energy at all altitudes
-      call compute_gibbs_energy(nz, nsp, temperature, gibbs_energy, err)
+      call compute_gibbs_energy(nz, ng, temperature, gibbs_energy, err)
       if (len_trim(err) /= 0) return
       ! compute reverse rate
       do i = nrF+1,nrT
@@ -108,11 +108,11 @@ contains
         do j = 1,nz
           gibbR_forward = 0.d0
           do k = 1,l
-            gibbR_forward = gibbR_forward + gibbs_energy(j,reactants_sp_inds(k,n))
+            gibbR_forward = gibbR_forward + gibbs_energy(j,reactants_sp_inds(k,n)-npq)
           enddo
           gibbP_forward = 0.d0
           do k = 1,m
-            gibbP_forward = gibbP_forward + gibbs_energy(j,products_sp_inds(k,n))
+            gibbP_forward = gibbP_forward + gibbs_energy(j,products_sp_inds(k,n)-npq)
           enddo
           Dg_forward = gibbP_forward - gibbR_forward ! DG of the forward reaction (J/mol)
           ! compute the reverse rate
@@ -125,19 +125,19 @@ contains
 
   end subroutine
   
-  subroutine compute_gibbs_energy(nz, nsp, temperature, gibbs_energy, err)
+  subroutine compute_gibbs_energy(nz, ng, temperature, gibbs_energy, err)
     use photochem_data, only: thermo_data, thermo_temps, species_names
     
-    integer, intent(in) :: nz, nsp
+    integer, intent(in) :: nz, ng
     real(real_kind), intent(in) :: temperature(nz)
-    real(real_kind), intent(out) :: gibbs_energy(nz,nsp)
+    real(real_kind), intent(out) :: gibbs_energy(nz,ng)
     character(len=err_len), intent(out) :: err
     
     integer :: i, j, k
 
     err = ''
     
-    do i = 1,nsp
+    do i = 1,ng
       do j = 1,nz
         if ((temperature(j) >= thermo_temps(1,i)) .and. &
            (temperature(j) < thermo_temps(2,i))) then
@@ -280,21 +280,33 @@ contains
     
   end subroutine
   
-  subroutine dochem(neqs, nsp, nsl, nq, nz, nrT, usol, density, rx_rates, &
-                    densities, xp, xl, rhs)                    
-    integer, intent(in) :: neqs, nsp, nsl, nq, nz, nrT
+  subroutine dochem(neqs, nsp, np, nsl, nq, nz, nrT, usol, density, rx_rates, &
+                    gas_sat_den, molecules_per_particle, condensation_rate, &
+                    densities, xp, xl, rhs)                 
+    use photochem_const, only: N_avo
+    use photochem_data, only: ng_1, there_are_particles, particle_gas_phase_ind, &
+                              particle_formation_method
+    integer, intent(in) :: neqs, nsp, np, nsl, nq, nz, nrT
     real(real_kind), intent(in) :: usol(nq,nz), density(nz)
     real(real_kind), intent(in) :: rx_rates(nz,nrT)
+    real(real_kind), intent(in) :: gas_sat_den(np,nz)
+    real(real_kind), intent(in) :: molecules_per_particle(np,nz)
+    real(real_kind), intent(in) :: condensation_rate(np)
     real(real_kind), intent(inout) :: densities(nsp+1,nz), xp(nz), xl(nz)
     real(real_kind), intent(out) :: rhs(neqs)
     
-    integer :: i, j, k
+    real(real_kind) :: dn_gas_dt, dn_particle_dt 
+    
+    integer :: i, ii, j, k
     
     do j = 1,nz
-      do k = 1,nq
+      do k = 1,np
+        densities(k,j) = usol(k,j)!*N_avo ! convert mol/cm3 to particles/cm3
+      enddo
+      do k = ng_1,nq
         densities(k,j) = usol(k,j)*density(j)
       enddo
-      densities(nsp,j) = (1.d0-sum(usol(:,j)))*density(j) ! background gas
+      densities(nsp,j) = (1.d0-sum(usol(ng_1:,j)))*density(j) ! background gas
       densities(nsp+1,j) = 1.d0 ! for hv
     enddo
     
@@ -305,13 +317,57 @@ contains
     enddo
     
     ! long lived              
-    do i = 1,nq
+    do i = ng_1,nq
       call chempl(nz, nsp, nrT, densities, rx_rates, i, xp, xl)
       do j = 1,nz
         k = i + (j - 1) * nq
         rhs(k) = xp(j)/density(j) - xl(j)/density(j)
       enddo
     enddo
+    
+    if (there_are_particles) then
+      ! formation from reaction
+      do i = 1,np
+        call chempl(nz, nsp, nrT, densities, rx_rates, i, xp, xl)
+        do j = 1,nz
+          k = i + (j - 1) * nq
+          rhs(k) = (xp(j) - xl(j))/molecules_per_particle(i,j)
+        enddo
+      enddo
+    
+      ! particle condensation and evaporation
+      do j = 1,nz
+        do i = 1,np
+          if (particle_formation_method(i) == 1) then
+            ! index of gas phase
+            ii = particle_gas_phase_ind(i)
+            k = ii + (j - 1) * nq ! gas phase rhs index
+            
+            ! rate the gas molecules are going to particles
+            ! in molecules/cm3/s
+            dn_gas_dt = - condensation_rate(i)* &
+                          (densities(ii,j) - gas_sat_den(i,j))
+            ! add to rhs vector, convert to change in mixing ratio/s
+            if (dn_gas_dt < 0.d0) then
+              rhs(k) = rhs(k) + dn_gas_dt/density(j)            
+            endif
+            
+            ! rate of particle production from gas condensing
+            ! in particles/cm3/s
+            dn_particle_dt = - dn_gas_dt*(1/molecules_per_particle(i,j))
+            k = i + (j - 1) * nq ! particle rhs index
+            ! add to rhs vector, convert to moles/cm3/s
+            if (dn_particle_dt > 0.d0) then
+              rhs(k) = rhs(k) + dn_particle_dt!/N_avo
+            else
+              rhs(k) = rhs(k) + 0.d0
+            endif
+          endif
+          
+        enddo
+      enddo
+      
+    endif
     
   end subroutine
   
@@ -436,7 +492,7 @@ contains
                                      density, mubar, pressure, fH2O, err)
     use, intrinsic :: iso_c_binding, only : c_loc, c_ptr
     use cminpack2fort, only: hybrd1 ! interface to hybrd1 from cminpack
-    use photochem_data, only: species_mass, back_gas_mu, water_sat_trop, LH2O          
+    use photochem_data, only: nll, ng_1, species_mass, back_gas_mu, water_sat_trop, LH2O          
     use photochem_vars, only: temperature, grav, dz, surface_pressure, &
                               use_manabe, relative_humidity
     integer, intent(in) :: nq, nz, trop_ind
@@ -469,7 +525,7 @@ contains
     endif 
     
     do i = 1,nz
-      sum_usol(i) = sum(usol(:,i))
+      sum_usol(i) = sum(usol(ng_1:,i))
       if (sum_usol(i) > 1.0d0) then
         err = 'Mixing ratios sum to >1.0 at some altitude (should be <=1).' // &
               ' The atmosphere is probably in a run-away state'
@@ -478,7 +534,7 @@ contains
     enddo
     
     do i = 1,nz
-      call molar_weight(nq, usol(:,i), sum_usol(i), species_mass, back_gas_mu, mubar(i))
+      call molar_weight(nll, usol(ng_1:,i), sum_usol(i), species_mass(ng_1:), back_gas_mu, mubar(i))
     enddo
     
     call press_and_den(nz, temperature, grav, surface_pressure*1.d6, dz, &
@@ -518,7 +574,11 @@ contains
       enddo
       
       do i = 1,nz
-        call molar_weight(nq, usol(:,i), sum_usol(i), species_mass, back_gas_mu, mubar(i))
+        sum_usol(i) = sum(usol(ng_1:,i))
+      enddo
+      
+      do i = 1,nz
+        call molar_weight(nll, usol(ng_1:,i), sum_usol(i), species_mass(ng_1:), back_gas_mu, mubar(i))
       enddo
       
       call press_and_den(nz, temperature, grav, surface_pressure*1.d6, dz, &
@@ -531,7 +591,7 @@ contains
   ! For computing self-consistent water profile. Called by minpack.
   integer function fcn_fH2O(ptr, n, x, fvec, iflag) result(res)
     use, intrinsic :: iso_c_binding, only : c_f_pointer, c_ptr
-    use photochem_data, only: species_mass, back_gas_mu, LH2O, nq
+    use photochem_data, only: nll, ng_1, species_mass, back_gas_mu, LH2O, nq
     use photochem_vars, only: temperature, grav, dz, surface_pressure, &
                               nz, use_manabe, relative_humidity    
     
@@ -559,11 +619,11 @@ contains
     enddo
   
     do i = 1,nz
-      sum_usol(i) = sum(usol(:,i))
+      sum_usol(i) = sum(usol(ng_1:,i))
     enddo
   
     do i = 1,nz
-      call molar_weight(nq, usol(:,i), sum_usol(i), species_mass, back_gas_mu, mubar(i))
+      call molar_weight(nll, usol(ng_1:,i), sum_usol(i), species_mass(ng_1:), back_gas_mu, mubar(i))
     enddo
   
     call press_and_den(nz, temperature, grav, surface_pressure*1.d6, dz, &
@@ -585,12 +645,14 @@ contains
   
   subroutine prep_all_background_gas(wrk, err)
     use photochem_const, only: pi, k_boltz, N_avo
-    use photochem_data, only: photonums, water_sat_trop, LH2O, LH, LH2, &
-                              back_gas_name, diff_H_escape
+    use photochem_data, only: ng_1, photonums, water_sat_trop, LH2O, LH, LH2, &
+                              back_gas_name, diff_H_escape, npq, &
+                              there_are_particles, particle_sat_params, &
+                              species_mass, particle_density, particle_formation_method
     use photochem_vars, only: temperature, grav, dz, edd, &
                               xs_x_qy, photon_flux, diurnal_fac, solar_zenith, &
                               surface_albedo, lowerboundcond, lower_fix_mr, &
-                              photon_scale_factor
+                              photon_scale_factor, particle_radius
     
     type(WrkBackgroundAtm), intent(inout) :: wrk
     character(len=err_len), intent(out) :: err
@@ -609,10 +671,11 @@ contains
     call prep_atm_background_gas(wrk%nq, wrk%nz, wrk%trop_ind, wrk%sum_usol, wrk%usol, &
                                  wrk%density, wrk%mubar, wrk%pressure, wrk%fH2O, err)  
     if (len_trim(err) /= 0) return  
-        
+    
     ! diffusion coefficients
-    call diffusion_coefficients(wrk%nq, wrk%nz, dz, edd, temperature, wrk%density, grav, wrk%mubar, &
-                                wrk%DU, wrk%DD, wrk%DL, wrk%ADU, wrk%ADL, wrk%VH2_esc, wrk%VH_esc)
+    call diffusion_coefficients(wrk%nq, npq, wrk%nz, dz, edd, temperature, wrk%density, grav, wrk%mubar, &
+                                particle_radius, wrk%DU, wrk%DD, wrk%DL, wrk%ADU, wrk%ADL, &
+                                wrk%wfall, wrk%VH2_esc, wrk%VH_esc)
     
     ! surface scale height
     wrk%surface_scale_height = (k_boltz*temperature(1)*N_avo)/(wrk%mubar(1)*grav(1))
@@ -624,9 +687,23 @@ contains
       endif
       wrk%upper_veff_copy(LH) = wrk%VH_esc 
     endif
+  
+    if (there_are_particles) then
+      do i = 1,wrk%np
+        wrk%lower_vdep_copy(i) = wrk%wfall(i,1)
+        wrk%upper_veff_copy(i) = wrk%wfall(i,wrk%nz)
+      enddo
+    endif
     
+    ! densities include particle densities
+    ! we track mol/cm3 for particles (instead of particles/cm3) 
+    ! because it makes the numbers smaller and closer to 1, which
+    ! is similar to mixing ratios.
     do j = 1,wrk%nz
-      do i = 1,wrk%nq
+      do i = 1,npq
+        wrk%densities(i,j) = wrk%usol(i,j)!*N_avo ! convert mol/cm3 to particles/cm3
+      enddo
+      do i = ng_1,wrk%nq
         wrk%densities(i,j) = wrk%usol(i,j)*wrk%density(j)
       enddo
       wrk%densities(wrk%nsp,j) = (1.d0-wrk%sum_usol(j))*wrk%density(j) ! background gas
@@ -648,14 +725,29 @@ contains
       wrk%rx_rates(:,k) = wrk%prates(:,i) 
     enddo 
     
+    if (there_are_particles) then
+      ! compute The saturation density
+      do j = 1,wrk%nz
+        do i = 1,wrk%np
+          if (particle_formation_method(i) == 1) then
+            wrk%gas_sat_den(i,j) = saturation_density(temperature(j), &
+                                                 particle_sat_params(1,i), &
+                                                 particle_sat_params(2,i), &
+                                                 particle_sat_params(3,i))
+          endif
+          wrk%molecules_per_particle(i,j) = (4.d0/3.d0)*pi*particle_radius(i,j)**3.d0* &
+                                            particle_density(i)*(1/species_mass(i))*N_avo
+        enddo
+      enddo
+    endif
+    
   end subroutine
-  
   
   subroutine rhs_background_gas(neqs, user_data, usol_flat, rhs, err)
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
-    use photochem_data, only: nq, nsp, nsl, nrT, kj, nw, LH2O, water_sat_trop
-    use photochem_vars, only: nz, z, dz, trop_ind, edd, &
+    use photochem_data, only: np, nq, nsp, nsl, nrT, kj, nw, LH2O, water_sat_trop
+    use photochem_vars, only: nz, z, dz, trop_ind, edd, condensation_rate, &
                               lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
                               lower_dist_height, upper_veff, upper_flux
   
@@ -694,12 +786,14 @@ contains
       enddo
     enddo
     wrk%upper_veff_copy = upper_veff
+    wrk%lower_vdep_copy = lower_vdep
     
     ! alters usol to deal with fixing mixing ratios, and H2O in troposphere.
     call prep_all_background_gas(wrk, err)
     if (len_trim(err) /= 0) return
     
-    call dochem(neqs, nsp, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+    call dochem(neqs, nsp, np, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+                wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
                 wrk%densities, wrk%xp, wrk%xl, rhs) 
     
     ! diffusion (interior grid points)
@@ -717,7 +811,7 @@ contains
       if (lowerboundcond(i) == 0 .or. lowerboundcond(i) == 3) then
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
                         - wrk%DU(i,1)*wrk%usol(i,1) &
-                        - lower_vdep(i)*wrk%usol(i,1)/dz(1)
+                        - wrk%lower_vdep_copy(i)*wrk%usol(i,1)/dz(1)
       elseif (lowerboundcond(i) == 1) then
         ! rhs(i) = 0.d0
         rhs(i) = 0.d0
@@ -778,9 +872,9 @@ contains
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
-    use photochem_data, only: lda, kd, ku, kl, nq, nsp, nsl, nrT, kj, nw,  &
+    use photochem_data, only: lda, kd, ku, kl, nq, nsp, np, nsl, nrT, kj, nw,  &
                               water_sat_trop, LH2O
-    use photochem_vars, only: nz, dz, epsj, trop_ind, edd, &
+    use photochem_vars, only: nz, dz, epsj, trop_ind, edd, condensation_rate, &
                               lowerboundcond, upperboundcond, lower_vdep, &
                               upper_veff
   
@@ -827,6 +921,7 @@ contains
       enddo
     enddo
     wrk%upper_veff_copy = upper_veff
+    wrk%lower_vdep_copy = lower_vdep
     
     ! pointer to jac. We reshape to make accessing more intuitive.
     djac(1:lda,1:neqs) => jac
@@ -837,7 +932,8 @@ contains
     
     ! compute chemistry contribution to jacobian using forward differences
     jac = 0.d0
-    call dochem(neqs, nsp, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+    call dochem(neqs, nsp, np, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+                wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
                 wrk%densities, wrk%xp, wrk%xl, rhs) 
     !$omp parallel private(i,j,k,m,mm,usol_perturb, R, densities, xp, xl, rhs_perturb)
     usol_perturb = wrk%usol
@@ -848,8 +944,9 @@ contains
         usol_perturb(i,j) = wrk%usol(i,j) + R(j)
       enddo
 
-      call dochem(neqs, nsp, nsl, nq, nz, nrT, usol_perturb, wrk%density, wrk%rx_rates, &
-                  densities, xp, xl, rhs_perturb) 
+      call dochem(neqs, nsp, np, nsl, nq, nz, nrT, usol_perturb, wrk%density, wrk%rx_rates, &
+                  wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
+                  wrk%densities, wrk%xp, wrk%xl, rhs_perturb) 
 
       do m = 1,nq
         mm = m - i + kd
@@ -884,7 +981,7 @@ contains
         !                 - lower_vdep(i)*usol(i,1)/dz(1)
                         
         djac(ku,i+nq) = wrk%DU(i,1) + wrk%ADU(i,1)
-        djac(kd,i)    = djac(kd,i)    - wrk%DU(i,1) - lower_vdep(i)/dz(1)
+        djac(kd,i)    = djac(kd,i)    - wrk%DU(i,1) - wrk%lower_vdep_copy(i)/dz(1)
       elseif (lowerboundcond(i) == 1) then
         ! rhs(i) = - atan((usol(i,1) - lower_fix_mr(i)))
         do m=1,nq
@@ -952,7 +1049,7 @@ contains
     use fcvode_mod
     use fsundials_nvector_mod
     use photochem_data, only: nq, species_names
-    use photochem_vars, only: neqs, verbose, z
+    use photochem_vars, only: neqs, verbose, z, nz
     use photochem_wrk, only: nsteps_previous, cvode_mem
     use photochem_wrk, only: atol_global
     ! calling variables
@@ -1059,7 +1156,7 @@ contains
   
   subroutine evolve_background_atm(tstart, nq, nz, usol_start, num_t_eval, t_eval, rtol, atol, &
                                    mxsteps, solution, success, err)
-    use photochem_data, only: water_sat_trop, LH2O, nsp, nrT, kj, nw
+    use photochem_data, only: water_sat_trop, LH2O, nsp, nrT, kj, nw, np
     use photochem_vars, only: no_water_profile, neqs, lowerboundcond, lower_fix_mr, trop_ind, &
                               initial_dt, use_fast_jacobian, max_err_test_failures, max_order, trop_ind
     use photochem_wrk, only: cvode_mem
@@ -1118,7 +1215,7 @@ contains
     mu = nq
     ml = nq
     
-    call wrk%init(nsp, nq, nz, nrT, kj, nw, trop_ind)
+    call wrk%init(nsp, np, nq, nz, nrT, kj, nw, trop_ind)
     user_data = c_loc(wrk)
     
     ! initialize solution vector
@@ -1305,10 +1402,10 @@ contains
   end subroutine
   
   subroutine compute_surface_fluxes(nq, nz, usol, surface_flux, err)
-    use photochem_data, only: nsp, nrT, kj, nw, nsl, water_sat_trop, LH2O
-    use photochem_vars, only: trop_ind, lower_fix_mr, neqs, upper_veff, dz
+    use photochem_data, only: nsp, nrT, kj, nw, nsl, water_sat_trop, LH2O, np
+    use photochem_vars, only: trop_ind, lower_fix_mr, neqs, upper_veff, dz, &
+                              condensation_rate
                               
-  
     integer, intent(in) :: nq, nz
     real(real_kind), intent(in) :: usol(nq,nz)
     real(real_kind), intent(out) :: surface_flux(nq)
@@ -1323,14 +1420,15 @@ contains
   
     err = ''
     
-    call wrk%init(nsp, nq, nz, nrT, kj, nw, trop_ind)
+    call wrk%init(nsp, np, nq, nz, nrT, kj, nw, trop_ind)
   
     wrk%usol = usol
     wrk%upper_veff_copy = upper_veff
     call prep_all_background_gas(wrk, err)
     if (len_trim(err) /= 0) return
   
-    call dochem(neqs, nsp, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+    call dochem(neqs, nsp, np, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+                wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
                 wrk%densities, wrk%xp, wrk%xl, rhs) 
                           
     ! surface flux is molecules required to sustain the lower boundary
@@ -1351,19 +1449,18 @@ contains
     
   end subroutine
   
-  subroutine diffusion_coefficients(nq, nz, dz, edd, T, den, grav, mubar, &
-                                    DU, DD, DL, ADU, ADL, VH2_esc, VH_esc)
+  subroutine diffusion_coefficients(nq, npq, nz, dz, edd, T, den, grav, mubar, &
+                                    r_particles, DU, DD, DL, ADU, ADL, wfall, VH2_esc, VH_esc)
     use photochem_const, only: k_boltz, N_avo
-    use photochem_data, only: species_mass, LH2, LH, back_gas_name, diff_H_escape
+    use photochem_data, only: species_mass, LH2, LH, back_gas_name, diff_H_escape, particle_density, ng_1
     
-    integer, intent(in) :: nq, nz
+    integer, intent(in) :: nq, npq, nz
     real(real_kind), intent(in) :: dz(nz), edd(nz), T(nz), den(nz)
     real(real_kind), intent(in) :: grav(nz), mubar(nz)
-    ! real(real_kind), intent(in) :: r_particles(np,nz), partical_den(np,nz)
+    real(real_kind), intent(in) :: r_particles(npq,nz)
     real(real_kind), intent(out) :: DU(nq,nz), DL(nq,nz), DD(nq,nz)
     real(real_kind), intent(out) :: ADU(nq,nz), ADL(nq,nz)
-    ! real(real_kind), intent(out) :: ADU(nq-np,nz), ADL(nq-np,nz)
-    ! real(real_kind), intent(out) :: DPU(np,nz), DPL(np,nz)
+    real(real_kind), intent(out) :: wfall(npq,nz)
     real(real_kind), intent(out) :: VH2_esc, VH_esc
     
     real(real_kind) :: eddav_p, eddav_m, denav_p, denav_m, tav_p, tav_m
@@ -1371,11 +1468,19 @@ contains
     real(real_kind) :: bx1x2
     
     ! for particles
-    ! real(real_kind) :: air_density_pp, air_density_mm
-    ! real(real_kind) :: wfall_pp, wfall_mm
-    ! real(real_kind) :: viscosity_pp, viscosity_mm
+    real(real_kind) :: air_density_pp, air_density_mm
+    real(real_kind) :: wfall_pp, wfall_mm
+    real(real_kind) :: viscosity_pp, viscosity_mm
     
-    integer :: i,j
+    integer :: i, j
+    
+    do i = 1,nz
+      do j = 1,npq
+        air_density_mm = (den(i)/N_avo)*mubar(i)
+        viscosity_mm = dynamic_viscosity_air(T(i))
+        wfall(j,i) = fall_velocity(grav(i), r_particles(j,i), particle_density(j), air_density_mm, viscosity_mm)
+      enddo
+    enddo
   
     do i = 2,nz-1
       eddav_p = sqrt(edd(i)*edd(i+1))
@@ -1386,7 +1491,7 @@ contains
       tav_m = sqrt(T(i)*T(i-1))
       
       ! gases
-      do j = 1,nq!-np
+      do j = ng_1,nq
         ! Equation B.4 in Catling and Kasting (2017)
         bx1x2_p = binary_diffusion_param(species_mass(j), mubar(i), tav_p)
         bx1x2_m = binary_diffusion_param(species_mass(j), mubar(i), tav_m)
@@ -1409,31 +1514,31 @@ contains
         ADL(j,i) = - zeta_mm/(2.d0*dz(i)*den(i))
       enddo
       ! ! particles
-      ! do j = nq-np+1,nq
-      ! 
-      !   DU(j,i) = (eddav_p*denav_p)/(dz(i)**2.d0*den(i))
-      !   DL(j,i) = (eddav_m*denav_m)/(dz(i)**2.d0*den(i))
-      !   DD(j,i) = - DU(j,i) - DL(j,i)
-      ! 
-      !   air_density_pp = (den(i+1)/N_avo)*mubar(i+1)
-      !   viscosity_pp = dynamic_viscosity_air(T(i+1))
-      !   wfall_pp = fall_velocity(grav(i+1), r_particles(j,i+1), partical_den(j), air_density_pp, viscosity_pp)
-      ! 
-      !   air_density_mm = (den(i-1)/N_avo)*mubar(i-1)
-      !   viscosity_mm = dynamic_viscosity_air(T(i-1))
-      !   wfall_mm = fall_velocity(grav(i-1), r_particles(j,i-1), partical_den(j), air_density_mm, viscosity_mm)
-      ! 
-      !   DPU(j,i) = wfall_pp*den(i+1)/(2.d0*dz(i)*den(i))
-      !   DPL(j,i) = -wfall_mm*den(i-1)/(2.d0*dz(i)*den(i))
-      ! 
-      ! enddo
+      do j = 1,npq
+      
+        DU(j,i) = (eddav_p*denav_p)/(dz(i)**2.d0*den(i))
+        DL(j,i) = (eddav_m*denav_m)/(dz(i)**2.d0*den(i))
+        DD(j,i) = - DU(j,i) - DL(j,i)
+      
+        air_density_pp = (den(i+1)/N_avo)*mubar(i+1)
+        viscosity_pp = dynamic_viscosity_air(T(i+1))
+        wfall_pp = fall_velocity(grav(i+1), r_particles(j,i+1), particle_density(j), air_density_pp, viscosity_pp)
+      
+        air_density_mm = (den(i-1)/N_avo)*mubar(i-1)
+        viscosity_mm = dynamic_viscosity_air(T(i-1))
+        wfall_mm = fall_velocity(grav(i-1), r_particles(j,i-1), particle_density(j), air_density_mm, viscosity_mm)
+      
+        ADU(j,i) = wfall_pp*den(i+1)/(2.d0*dz(i)*den(i))
+        ADL(j,i) = -wfall_mm*den(i-1)/(2.d0*dz(i)*den(i))
+      
+      enddo
     enddo
 
     ! surface layer
     eddav_p = sqrt(edd(1)*edd(2))
     denav_p = sqrt(den(1)*den(2))
     tav_p = sqrt(T(1)*T(2))
-    do j = 1,nq!-np
+    do j = ng_1,nq
       bx1x2_p = binary_diffusion_param(species_mass(j), mubar(1), tav_p)
       DU(j,1) = (eddav_p*denav_p + bx1x2_p)/(dz(1)**2.d0*den(1))
       DD(j,1) = - DU(j,1)
@@ -1446,21 +1551,24 @@ contains
       ADU(j,1) = zeta_pp/(2.d0*dz(1)*den(1)) 
       ! ADL(j,1) = 0.d0
     enddo
-    ! ! particles
-    ! do j = nq-np+1,nq
-    !   air_density_pp = (den(2)/N_avo)*mubar(2)
-    !   viscosity_pp = dynamic_viscosity_air(T(2))
-    !   wfall_pp = fall_velocity(grav(2), r_particles(j,2), partical_den(j), air_density_pp, viscosity_pp)
-    ! 
-    !   DPU(j,i) = wfall_pp*den(2)/(2.d0*dz(1)*den(1))
-    ! enddo
+    ! particles
+    do j = 1,npq
+      DU(j,1) = (eddav_p*denav_p)/(dz(1)**2.d0*den(1))
+      DD(j,1) = - DU(j,1)
+      
+      air_density_pp = (den(2)/N_avo)*mubar(2)
+      viscosity_pp = dynamic_viscosity_air(T(2))
+      wfall_pp = fall_velocity(grav(2), r_particles(j,2), particle_density(j), air_density_pp, viscosity_pp)
+      
+      ADU(j,1) = wfall_pp*den(2)/(2.d0*dz(1)*den(1))
+    enddo
     
 
     ! top layer
     eddav_m = sqrt(edd(nz)*edd(nz-1))
     denav_m = sqrt(den(nz)*den(nz-1))
     tav_m = sqrt(T(nz)*T(nz-1))
-    do j = 1,nq      
+    do j = ng_1,nq      
       bx1x2_m = binary_diffusion_param(species_mass(j), mubar(nz), tav_m)
       
       ! DU(j,nz) = 0.d0
@@ -1474,14 +1582,17 @@ contains
       ADL(j,nz) = - zeta_mm/(2.d0*dz(nz)*den(nz))
       ! ADU(j,nz) = 0.d0
     enddo
-    ! ! particles
-    ! do j = nq-np+1,nq
-    !   air_density_mm = (den(nz-1)/N_avo)*mubar(nz-1)
-    !   viscosity_mm = dynamic_viscosity_air(T(nz-1))
-    !   wfall_mm = fall_velocity(grav(nz-1), r_particles(j,nz-1), partical_den(j), air_density_mm, viscosity_mm)
-    ! 
-    !   DPL(j,i) = -wfall_mm*den(nz-1)/(2.d0*dz(nz)*den(nz))
-    ! enddo
+    ! particles
+    do j = 1,npq
+      DL(j,nz) = (eddav_m*denav_m)/(dz(nz)**2.d0*den(nz))
+      DD(j,nz) = - DL(j,nz)
+      
+      air_density_mm = (den(nz-1)/N_avo)*mubar(nz-1)
+      viscosity_mm = dynamic_viscosity_air(T(nz-1))
+      wfall_mm = fall_velocity(grav(nz-1), r_particles(j,nz-1), particle_density(j), air_density_mm, viscosity_mm)
+    
+      ADL(j,nz) = -wfall_mm*den(nz-1)/(2.d0*dz(nz)*den(nz))
+    enddo
 
     ! H2 escape
     if (diff_H_escape) then
@@ -1524,25 +1635,41 @@ contains
   
   end subroutine
   
-  subroutine molar_weight(nq, usol_layer, sum_usol_layer, masses, background_mu, mubar_layer)
+  subroutine molar_weight(nll, usol_layer, sum_usol_layer, masses, background_mu, mubar_layer)
     implicit none
-    integer, intent(in) :: nq
-    real(real_kind), intent(in) :: usol_layer(nq)
+    integer, intent(in) :: nll
+    real(real_kind), intent(in) :: usol_layer(nll)
     real(real_kind), intent(in) :: sum_usol_layer
-    real(real_kind), intent(in) :: masses(nq)
+    real(real_kind), intent(in) :: masses(nll)
     real(real_kind), intent(in) :: background_mu
     real(real_kind), intent(out) :: mubar_layer
     integer :: j
     real(real_kind) :: f_background
   
     mubar_layer = 0.d0
-    do j = 1, nq
+    do j = 1, nll
       mubar_layer = mubar_layer + usol_layer(j) * masses(j)
     enddo
     f_background = 1.d0 - sum_usol_layer
     mubar_layer = mubar_layer + f_background * background_mu
   
   end subroutine
+  
+  function saturation_pressure(T, A, B, C) result(Psat)
+      real(real_kind), intent(in) :: T ! Kelvin
+      real(real_kind), intent(in) :: A, B, C ! parameters
+      real(real_kind) :: Psat ! saturation pressure [bar]
+      ! Simple exponential fit to saturation pressure data
+      Psat = exp(A + B/T + C/T**2.d0)
+  end function
+  
+  function saturation_density(T, A, B, C) result(nsat)
+      use photochem_const, only: k_boltz
+      real(real_kind), intent(in) :: T ! Kelvin
+      real(real_kind), intent(in) :: A, B, C ! parameters
+      real(real_kind) :: nsat ! saturation density [molecules/cm3]
+      nsat = saturation_pressure(T, A, B, C)*1.d6/(k_boltz*T)
+  end function
   
   function dynamic_viscosity_air(T) result(eta)
       real(real_kind), intent(in) :: T
@@ -1559,7 +1686,11 @@ contains
   end function
 
   function fall_velocity(gravity, partical_radius, particle_density, air_density, viscosity) result(wfall)
-    real(real_kind), intent(in) :: gravity, partical_radius, particle_density, air_density, viscosity
+    real(real_kind), intent(in) :: gravity ! cm/s^2
+    real(real_kind), intent(in) :: partical_radius ! cm
+    real(real_kind), intent(in) :: particle_density ! g/cm^3
+    real(real_kind), intent(in) :: air_density ! g/cm^3
+    real(real_kind), intent(in) :: viscosity ! dynes s/cm^2
     real(real_kind) :: wfall ! fall velocity [cm/s]
     ! fall velocity from stokes law
     ! derived using Equation 9.29 in Seinfeld (2006) 

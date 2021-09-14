@@ -51,35 +51,47 @@ module photochem_types ! make a giant IO object
     integer, allocatable :: upperboundcond(:) ! 0 or 1
     real(real_kind), allocatable :: upper_veff(:)
     real(real_kind), allocatable :: upper_flux(:)
+    
+    ! condensation rate of particles
+    real(real_kind), allocatable :: condensation_rate(:)
+    
   end type
   
   type :: PhotoMechanism
     
     ! molecules
-    integer :: nq ! number of PDEs
-    integer :: nll ! number of long lived gas molecules
-    integer :: nsl ! number of short lived gas molecules
-    integer :: ng ! nll + nsl, total number of gas-phase species
-    integer :: nsp ! nll + nsl + np
+    integer :: nq ! nqp + nll, total number of PDEs
+    
+    integer :: ng_1
+    integer :: nll ! number of long lived gas molecules (number of gas-phase PDEs)
+    integer :: nsl ! number of short lived gas molecules (their index is between nq + 1 and nsp - 1)
+    integer :: ng ! nll + nsl + 1, total number of gas-phase species, including background
+
+    integer :: nsp ! nll + nsl + npq - 1, background gas index
+    ! nsp + 1 is hv index
+    ! nsp + 2 is M index
+    
     integer :: natoms
     character(len=8), allocatable :: atoms_names(:) 
     real(real_kind), allocatable :: atoms_mass(:) 
-    character(len=15), allocatable :: species_names(:)
-    integer, allocatable :: species_composition(:,:)
-    real(real_kind), allocatable :: species_mass(:) 
-    real(real_kind), allocatable :: thermo_data(:,:,:)
-    real(real_kind), allocatable :: thermo_temps(:,:)
+    character(len=15), allocatable :: species_names(:) ! nsp (particle names + gas names)
+    integer, allocatable :: species_composition(:,:) ! natoms, nsp
+    real(real_kind), allocatable :: species_mass(:) ! nsp
+    real(real_kind), allocatable :: thermo_data(:,:,:) ! ng
+    real(real_kind), allocatable :: thermo_temps(:,:) ! ng
     
     ! particles
     logical :: there_are_particles
     integer :: np ! number of particles
-    character(len=15), allocatable :: particle_names(:)
-    integer, allocatable :: particle_formation_method(:)
-    real(real_kind), allocatable :: particle_density(:)
-    real(real_kind), allocatable :: particle_monomer_radius(:)
-    integer, allocatable :: particle_nr(:)
-    integer, allocatable :: ind_smaller_polymer_maker(:,:) ! (particle_nr(), np)
-    real(real_kind), allocatable :: particle_eta(:,:)
+    integer :: npq ! number of particle equations. for now nq = npq.
+    character(len=15), allocatable :: particle_names(:) ! nqp
+    integer, allocatable :: particle_formation_method(:) ! np
+    real(real_kind), allocatable :: particle_density(:) ! np
+    real(real_kind), allocatable :: particle_sat_params(:,:) ! 3, np
+    character(len=15), allocatable :: particle_gas_phase(:) ! np
+    integer, allocatable :: particle_gas_phase_ind(:) ! np
+    character(len=50), allocatable :: particle_optical_prop(:) ! np
+    integer, allocatable :: particle_optical_type(:) ! np
     
     ! reactions
     logical :: reverse
@@ -139,6 +151,7 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: T_file(:)
     real(real_kind), allocatable :: edd_file(:)
     real(real_kind), allocatable :: usol_file(:,:)
+    real(real_kind), allocatable :: particle_radius_file(:,:)
     logical :: no_water_profile
   end type
   
@@ -147,6 +160,7 @@ module photochem_types ! make a giant IO object
     ! Used in prep_all_background_gas
     ! dimensions
     integer :: nsp
+    integer :: np
     integer :: nq
     integer :: nz
     integer :: nrT
@@ -164,6 +178,7 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: prates(:,:) ! (nz,kj)
     real(real_kind), allocatable :: surf_radiance(:) ! (nw)
     real(real_kind), allocatable :: upper_veff_copy(:) ! (nq)
+    real(real_kind), allocatable :: lower_vdep_copy(:) ! (nq)
     real(real_kind), allocatable :: xp(:) ! (nz)
     real(real_kind), allocatable :: xl(:) ! (nz)
     ! diffusion and H escape
@@ -177,6 +192,9 @@ module photochem_types ! make a giant IO object
     ! other
     real(real_kind), allocatable :: sum_usol(:) ! (nz)
     real(real_kind) :: surface_scale_height
+    real(real_kind), allocatable :: wfall(:,:)
+    real(real_kind), allocatable :: gas_sat_den(:,:)
+    real(real_kind), allocatable :: molecules_per_particle(:,:)
     ! end used in prep_all_background_gas
     
     
@@ -230,11 +248,12 @@ contains
   end subroutine
   
   
-  subroutine init_WrkBackgroundAtm(self, nsp, nq, nz, nrT, kj, nw, trop_ind)
+  subroutine init_WrkBackgroundAtm(self, nsp, np, nq, nz, nrT, kj, nw, trop_ind)
     class(WrkBackgroundAtm), intent(inout) :: self
-    integer, intent(in) :: nsp, nq, nz, nrT, kj, nw, trop_ind
+    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw, trop_ind
     
     self%nsp = nsp
+    self%np = np
     self%nq = nq
     self%nz = nz
     self%nrT = nrT
@@ -259,7 +278,11 @@ contains
     allocate(self%ADU(nq,nz))
     allocate(self%ADL(nq,nz))
     allocate(self%upper_veff_copy(nq))
+    allocate(self%lower_vdep_copy(nq))
     allocate(self%sum_usol(nz))
+    allocate(self%wfall(np,nz))
+    allocate(self%gas_sat_den(np,nz))
+    allocate(self%molecules_per_particle(np,nz))
   end subroutine
   
 end module
