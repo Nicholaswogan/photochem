@@ -91,7 +91,7 @@ contains
     class (type_list), pointer :: species, reactions
     class (type_list), pointer :: particles
     type (type_error), pointer :: io_err
-    class (type_list_item), pointer :: item, item2
+    class (type_list_item), pointer :: item, item2, next
     class (type_dictionary), pointer :: dict
     class (type_key_value_pair), pointer :: key_value_pair
 
@@ -372,6 +372,13 @@ contains
         return
       endif
     endif
+    item => all_species%first
+    do while (associated(item))
+       next => item%next
+       deallocate(item)
+       item => next
+    end do
+    nullify(all_species%first)
     !!! done with species !!!
     
     if (photomech%there_are_particles) then
@@ -537,6 +544,15 @@ contains
       item => item%next
       j = j + 1
     enddo
+    
+    item => all_reactions%first
+    do while (associated(item))
+       next => item%next
+       deallocate(item)
+       item => next
+    end do
+    nullify(all_reactions%first)
+    
 
     ! nump, numl, iprod, iloss
     ! first find nump and numl then allocate iprod and iloss
