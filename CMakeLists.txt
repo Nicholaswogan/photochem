@@ -17,6 +17,11 @@ if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
 endif()
 
+if ("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU" 
+   AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wunused")
+endif()
+
 option(BUILD_WITH_OPENMP "Compile with muli-threading" OFF)
 if (BUILD_WITH_OPENMP)
   find_package(OpenMP REQUIRED)

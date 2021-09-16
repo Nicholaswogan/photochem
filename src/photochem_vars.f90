@@ -72,7 +72,7 @@ module photochem_vars
   
   ! other
   real(real_kind) :: equilibrium_time = 1.d17
-  real(c_double) :: initial_dt = 1.d-15
+  real(c_double) :: initial_dt = 1.d-6
   integer(c_int) :: max_err_test_failures = 15
   integer(c_int) :: max_order = 5
   logical :: use_fast_jacobian = .true.

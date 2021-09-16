@@ -681,7 +681,7 @@ contains
   
   subroutine prep_all_background_gas(wrk, err)
     use photochem_const, only: pi, k_boltz, N_avo
-    use photochem_data, only: ng_1, photonums, water_sat_trop, LH2O, LH, LH2, &
+    use photochem_data, only: ng_1, photonums, LH, LH2, &
                               back_gas_name, diff_H_escape, npq, &
                               there_are_particles, particle_sat_params, &
                               species_mass, particle_density, particle_formation_method
@@ -784,7 +784,7 @@ contains
   subroutine rhs_background_gas(neqs, user_data, usol_flat, rhs, err)
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
-    use photochem_data, only: np, nq, nsp, nsl, nrT, kj, nw, LH2O, water_sat_trop
+    use photochem_data, only: np, nq, nsp, nsl, nrT, LH2O, water_sat_trop
     use photochem_vars, only: nz, z, dz, trop_ind, edd, condensation_rate, &
                               lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
                               lower_dist_height, upper_veff, upper_flux
@@ -910,7 +910,7 @@ contains
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
-    use photochem_data, only: lda, kd, ku, kl, nq, nsp, np, nsl, nrT, kj, nw,  &
+    use photochem_data, only: lda, kd, ku, kl, nq, nsp, np, nsl, nrT,  &
                               water_sat_trop, LH2O
     use photochem_vars, only: nz, dz, epsj, trop_ind, edd, condensation_rate, &
                               lowerboundcond, upperboundcond, lower_vdep, &
@@ -932,7 +932,6 @@ contains
     ! we need these work arrays for parallel jacobian claculation.
     ! It is probably possible to use memory in "wrk", but i will ignore
     ! this for now.
-    real(real_kind) :: densities(nsp+1,nz), xp(nz), xl(nz)
     
     integer :: i, k, j, m, mm
     
@@ -1087,7 +1086,7 @@ contains
     use fcvode_mod
     use fsundials_nvector_mod
     use photochem_data, only: nq, species_names
-    use photochem_vars, only: neqs, verbose, z, nz
+    use photochem_vars, only: neqs, verbose, z
     use photochem_wrk, only: nsteps_previous, cvode_mem
     use photochem_wrk, only: atol_global
     ! calling variables
@@ -1441,7 +1440,7 @@ contains
   
   subroutine compute_surface_fluxes(nq, nz, usol, surface_flux, err)
     use photochem_data, only: nsp, nrT, kj, nw, nsl, water_sat_trop, LH2O, np
-    use photochem_vars, only: trop_ind, lower_fix_mr, neqs, upper_veff, dz, &
+    use photochem_vars, only: trop_ind, neqs, upper_veff, dz, &
                               condensation_rate
                               
     integer, intent(in) :: nq, nz

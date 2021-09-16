@@ -91,7 +91,7 @@ contains
     class (type_list), pointer :: species, reactions
     class (type_list), pointer :: particles
     type (type_error), pointer :: io_err
-    class (type_list_item), pointer :: item, item2, next
+    class (type_list_item), pointer :: item, next
     class (type_dictionary), pointer :: dict
     class (type_key_value_pair), pointer :: key_value_pair
 
@@ -101,7 +101,6 @@ contains
     character(len=20), allocatable :: eqr(:), eqp(:)
     integer :: i, ii, j, k, kk, l, ind(1), size_eqr, size_eqp
     logical :: reverse
-    logical :: tmp_logical
     ! all_species causes a small memory leak. Not sure how to free the memory properly
     type(type_list) :: all_species, all_reactions ! will include particles
 
@@ -2342,7 +2341,7 @@ contains
   
   
   subroutine get_rayleigh(photomech, photorad, err)
-    use photochem_vars, only: data_dir, xs_folder_name
+    use photochem_vars, only: data_dir
     use yaml, only : parse, error_length
     type(PhotoMechanism), intent(in) :: photomech
     type(PhotoRadTran), intent(inout) :: photorad ! inout!
