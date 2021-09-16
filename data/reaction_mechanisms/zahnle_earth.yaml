@@ -2433,14 +2433,14 @@ particles:
     H: 2
     S: 1
     O: 4
-  optical-properties: khare1984
+  optical-properties: palmer1975
   optical-type: mie
 - name: S8aer
   formation: reaction
   density: 1.0 # g/cm3
   composition:
     S: 8
-  optical-properties: khare1984
+  optical-properties: palmer1975
   optical-type: mie
   equation: S4 + S4 (+ M) => S8aer (+ M)
   type: falloff

@@ -91,9 +91,9 @@ contains
     close(2)
     
     ! now lets interpolate a bunch
-    allocate(w0_file(nw,nrad_file))
-    allocate(qext_file(nw,nrad_file))
-    allocate(g_file(nw,nrad_file))
+    allocate(w0_file(nrad_file,nw))
+    allocate(qext_file(nrad_file,nw))
+    allocate(g_file(nrad_file,nw))
     
     allocate(temp_data(nw_tmp+2)) ! for interpolation
     allocate(temp_wavelength(nw_tmp+2))
@@ -101,14 +101,14 @@ contains
     ! We do a constant extrapolation
     ! beyond the aerosol data, if it is necessary.
     ! If extrapolation happens, we print a warning
-    if (wavl(1) < wavl_tmp(1)) then
-      print*,"Warning: Constantly extrapolating aerosol data file"//trim(filename)// &
-              " to lower wavelengths than there is data."
-    endif
-    if (wavl(nw+1) > wavl_tmp(nw_tmp)) then
-      print*,"Warning: Constantly extrapolating aerosol data file"//trim(filename)// &
-              " to larger wavelengths than there is data."
-    endif
+    ! if (wavl(1) < wavl_tmp(1)) then
+    !   print*,"Warning: Constantly extrapolating aerosol data file"//trim(filename)// &
+    !           " to lower wavelengths than there is data."
+    ! endif
+    ! if (wavl(nw+1) > wavl_tmp(nw_tmp)) then
+    !   print*,"Warning: Constantly extrapolating aerosol data file"//trim(filename)// &
+    !           " to larger wavelengths than there is data."
+    ! endif
     do i = 1, nrad_file
       
       ! w0 (single scattering albedo)
@@ -122,7 +122,7 @@ contains
               " to the wavelength grid"
         return
       endif
-      call inter2(nw+1, wavl, w0_file(:,i), &
+      call inter2(nw+1, wavl, w0_file(i,:), &
                   nw_tmp+2, temp_wavelength, temp_data, ierr)
       if (ierr /= 0) then
         err = "Problems interpolating mie data from file "//trim(filename)// &
@@ -141,7 +141,7 @@ contains
               " to the wavelength grid"
         return
       endif
-      call inter2(nw+1, wavl, qext_file(:,i), &
+      call inter2(nw+1, wavl, qext_file(i,:), &
                   nw_tmp+2, temp_wavelength, temp_data, ierr)
       if (ierr /= 0) then
         err = "Problems interpolating mie data from file "//trim(filename)// &
@@ -160,7 +160,7 @@ contains
               " to the wavelength grid"
         return
       endif
-      call inter2(nw+1, wavl, g_file(:,i), &
+      call inter2(nw+1, wavl, g_file(i,:), &
                   nw_tmp+2, temp_wavelength, temp_data, ierr)
       if (ierr /= 0) then
         err = "Problems interpolating mie data from file "//trim(filename)// &

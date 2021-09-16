@@ -139,9 +139,15 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: sigray(:,:) ! (len(raynums), nw)
     integer, allocatable :: raynums(:) ! species number of rayleigh species
     
-    
     ! need some photons
     real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
+    
+    ! particles
+    integer :: nrad_file
+    real(real_kind), allocatable :: radii_file(:,:) ! (nrad, np)
+    real(real_kind), allocatable :: w0_file(:,:,:) ! (nw, nrad, np)
+    real(real_kind), allocatable :: qext_file(:,:,:) ! (nw, nrad, np)
+    real(real_kind), allocatable :: g_file(:,:,:) ! (nw, nrad, np)
 
   end type
   

@@ -10,11 +10,12 @@ contains
   
   subroutine setup(mechanism_file, settings_file, flux_file, atmosphere_txt, err)
     use photochem_data, only: setup_files, &
-                              planet_radius, planet_mass, nq, kj, nw, npq, &
+                              planet_radius, planet_mass, nq, kj, nw, npq, np, &
                               water_sat_trop
     use photochem_vars, only: bottom_atmos, top_atmos, nz, &
                               z, dz, grav, temperature, edd, usol_init, &
-                              particle_radius, xs_x_qy, trop_ind, trop_alt
+                              particle_radius, xs_x_qy, trop_ind, trop_alt, &
+                              w0_particles, qext_particles, gt_particles
     
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
@@ -38,25 +39,35 @@ contains
     if (len_trim(err) /= 0) return
     
     ! lets do xsections
-    call interp2xsdata(nz, kj, nw, temperature, xs_x_qy, err)
+    call interp2xsdata(nz, kj, nw, np, temperature, particle_radius, xs_x_qy, &
+                       w0_particles, qext_particles, gt_particles, err)
     if (len_trim(err) /= 0) return
 
   end subroutine
   
-  subroutine interp2xsdata(nz,kj,nw,temperature,xs_x_qy, err)
+  subroutine interp2xsdata(nz, kj, nw, np, temperature, particle_radius, xs_x_qy, &
+                           w0_particles, qext_particles, gt_particles, err)
     use interp_tools, only: interp
     use photochem_const, only: small_real
     use photochem_data, only: num_temp_cols, sum_temp_cols, &
-                              xs_data, xs_data_temps
+                              xs_data, xs_data_temps, &
+                              nrad_file, radii_file, w0_file, qext_file, g_file, &
+                              there_are_particles
     
-    integer, intent(in) :: nz, kj, nw
+    integer, intent(in) :: nz, kj, nw, np
     real(real_kind), intent(in) :: temperature(nz)
+    real(real_kind), intent(in) :: particle_radius(np,nz)
     real(real_kind), intent(out) :: xs_x_qy(nz,kj,nw)
+    real(real_kind), intent(out) :: w0_particles(np,nz,nw)
+    real(real_kind), intent(out) :: qext_particles(np,nz,nw)
+    real(real_kind), intent(out) :: gt_particles(np,nz,nw)
+    
     character(len=err_len), intent(out) :: err
     
-    integer :: i, j, k, l, m, ncol
+    integer :: i, j, k, l, m, ncol, jj
     real(real_kind) :: val(1), T_temp(1)
     real(real_kind) ,allocatable :: tmp(:)
+    real(real_kind) :: dr, slope, intercept
     
     allocate(tmp(size(xs_data_temps,1)))
     err = ''
@@ -82,6 +93,49 @@ contains
     enddo
     !$omp end do
     !$omp end parallel
+    
+    ! particles
+    if (there_are_particles) then
+      do j = 1,nz
+        do k = 1,np
+          if (particle_radius(k,j) <= radii_file(1,k)) then
+            err = "There is not any optical data for the "// &
+                  "particle radii specified in the atmosphere."
+            return
+          endif
+          if (particle_radius(k,j) >= radii_file(nrad_file,k)) then
+            err = "There is not any optical data for the "// &
+                  "particle radii specified in the atmosphere."
+            return
+          endif
+        enddo
+      enddo
+      do i = 1,nw
+        do j = 1,nz
+          do k = 1,np
+            do jj = 1,nrad_file-1
+              if (particle_radius(k,j) >= radii_file(jj,k) .and. &
+                  particle_radius(k,j) < radii_file(jj+1,k)) then
+                
+                dr = radii_file(jj+1,k) - radii_file(jj,k)
+                
+                slope = (w0_file(jj+1,k,i) - w0_file(jj,k,i))/dr
+                intercept = w0_file(jj,k,i) - radii_file(jj,k)*slope
+                w0_particles(k,j,i) = slope*particle_radius(k,j) + intercept
+                
+                slope = (qext_file(jj+1,k,i) - qext_file(jj,k,i))/dr
+                intercept = qext_file(jj,k,i) - radii_file(jj,k)*slope
+                qext_particles(k,j,i) = slope*particle_radius(k,j) + intercept
+                
+                slope = (g_file(jj+1,k,i) - g_file(jj,k,i))/dr
+                intercept = g_file(jj,k,i) - radii_file(jj,k)*slope
+                gt_particles(k,j,i) = slope*particle_radius(k,j) + intercept
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
+    endif
 
   end subroutine
   
@@ -130,7 +184,7 @@ contains
   end subroutine
   
   subroutine allocate_nz_vars()
-    use photochem_data, only: nq, kj, nw, npq
+    use photochem_data, only: nq, kj, nw, npq, np
     use photochem_vars
     use photochem_wrk
     ! nqL = count(lowerboundcond /= 1)
@@ -147,6 +201,9 @@ contains
       deallocate(particle_radius)
       deallocate(xs_x_qy)
       deallocate(usol_out)
+      deallocate(w0_particles)
+      deallocate(qext_particles)
+      deallocate(gt_particles)
     endif
     
     allocate(temperature(nz))
@@ -158,6 +215,9 @@ contains
     allocate(particle_radius(npq,nz))
     allocate(xs_x_qy(nz,kj,nw))
     allocate(usol_out(nq,nz))
+    allocate(w0_particles(np,nz,nw))
+    allocate(qext_particles(np,nz,nw))
+    allocate(gt_particles(np,nz,nw))
 
   end subroutine
   
@@ -175,12 +235,14 @@ contains
   end subroutine
   
   subroutine out2atmosphere_txt(filename, overwrite, clip, err)
-    use photochem_data, only: nq, species_names
-    use photochem_vars, only: nz, usol_out, temperature, z, edd, at_photo_equilibrium
+    use photochem_data, only: nq, species_names, there_are_particles, npq
+    use photochem_vars, only: nz, usol_out, temperature, z, edd, at_photo_equilibrium, &
+                              particle_radius
     
     character(len=*), intent(in) :: filename
     logical, intent(in) :: overwrite, clip
     character(len=1024), intent(out) :: err
+    character(len=100) :: tmp
     
     integer :: io, i, j
     
@@ -203,13 +265,22 @@ contains
       endif
     endif
     
-    write(unit=1,fmt="(a6,1x)",advance='no') "alt"
-    write(unit=1,fmt="(a27)",advance='no') "temp"
-    write(unit=1,fmt="(a27,11x)",advance='no') "eddy"
-    write(unit=1,fmt="(a27)",advance='no') species_names(1)
-    do j = 2,nq
-      write(unit=1,fmt="(a27)",advance='no') species_names(j)
+    tmp = 'alt'
+    write(unit=1,fmt="(3x,a27)",advance='no') tmp
+    tmp = 'temp'
+    write(unit=1,fmt="(a27)",advance='no') tmp
+    tmp = 'eddy'
+    write(unit=1,fmt="(a27)",advance='no') tmp
+    do j = 1,nq
+      tmp = species_names(j)
+      write(unit=1,fmt="(a27)",advance='no') tmp
     enddo
+    if (there_are_particles) then
+      do j = 1,npq
+        tmp = trim(species_names(j))//"_r"
+        write(unit=1,fmt="(a27)",advance='no') tmp
+      enddo
+    endif
     
     do i = 1,nz
       write(1,*)
@@ -223,6 +294,11 @@ contains
           write(unit=1,fmt="(es27.17e3)",advance='no') usol_out(j,i)
         endif
       enddo
+      if (there_are_particles) then
+        do j = 1,npq
+          write(unit=1,fmt="(es27.17e3)",advance='no') particle_radius(j,i)
+        enddo
+      endif
     enddo
     
     close(1)

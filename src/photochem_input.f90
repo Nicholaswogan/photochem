@@ -2067,6 +2067,65 @@ contains
     call get_photolysis_xs(photomech, photorad, err)
     if (len_trim(err) /= 0) return
     
+    if (photomech%there_are_particles) then
+      call get_aerosol_xs(photomech, photorad, err)
+      if (len_trim(err) /= 0) return
+    endif
+    
+  end subroutine
+  
+  subroutine get_aerosol_xs(photomech, photorad, err)
+    use photochem_mie, only: read_mie_data_file
+    use photochem_vars, only: data_dir
+    type(PhotoMechanism), intent(in) :: photomech
+    type(PhotoRadTran), intent(inout) :: photorad
+    character(len=err_len), intent(out) :: err
+    
+    integer :: nrad
+    integer, parameter :: nrad_fixed = 50
+    real(real_kind), allocatable :: radii(:)
+    real(real_kind), allocatable :: w0(:,:), qext(:,:), g(:,:)
+    character(len=:), allocatable :: xsroot
+    character(len=:), allocatable :: filename
+    integer :: i
+    
+    xsroot = trim(data_dir)//"/aerosol_xsections/"
+    
+    allocate(photorad%radii_file(photomech%np, nrad_fixed))
+    allocate(photorad%w0_file(photomech%np, nrad_fixed, photorad%nw))
+    allocate(photorad%qext_file(photomech%np, nrad_fixed, photorad%nw))
+    allocate(photorad%g_file(photomech%np, nrad_fixed, photorad%nw))
+    photorad%nrad_file = nrad_fixed
+    
+    do i = 1,photomech%np
+      
+      if (photomech%particle_optical_type(i) == 0) then
+        filename = xsroot//trim(photomech%particle_optical_prop(i))// &
+                  "/mie_"//trim(photomech%particle_optical_prop(i))//".dat"
+      elseif (photomech%particle_optical_type(i) == 1) then
+        filename = xsroot//trim(photomech%particle_optical_prop(i))// &
+                  "/frac_"//trim(photomech%particle_optical_prop(i))//".dat"
+      endif
+      
+      if (allocated(radii)) then
+        deallocate(radii, w0, qext, g)
+      endif
+      call read_mie_data_file(filename, photorad%nw, photorad%wavl, &
+                              nrad, radii, w0, qext, g, err) 
+      if (len_trim(err) /= 0) return
+      if (nrad /= nrad_fixed) then
+        err = "IOError: Aerosol data file "//filename// &
+              "must have 50 radii bins."
+        return
+      endif
+      
+      photorad%radii_file(:,i) = radii/1.d4 ! convert from micron to cm
+      photorad%w0_file(:,i,:) = w0
+      photorad%qext_file(:,i,:) = qext
+      photorad%g_file(:,i,:) = g
+
+    enddo
+    
   end subroutine
   
   subroutine get_photolysis_xs(photomech, photorad, err)

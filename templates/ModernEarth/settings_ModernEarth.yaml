@@ -78,10 +78,6 @@ boundary-conditions:
       type: effusion velocity
   - name: O1D
     type: short lived
-  - name: 1CH2
-    type: short lived
-  - name: NNH
-    type: short lived
   - name: N2D
     type: short lived
 

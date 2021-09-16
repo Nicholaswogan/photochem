@@ -62,6 +62,9 @@ module photochem_vars
   real(real_kind), allocatable, target :: usol_init(:,:)
   real(real_kind), allocatable :: particle_radius(:,:)
   real(real_kind), allocatable :: xs_x_qy(:,:,:)
+  real(real_kind), allocatable :: w0_particles(:,:,:)
+  real(real_kind), allocatable :: qext_particles(:,:,:)
+  real(real_kind), allocatable :: gt_particles(:,:,:)
   
   ! output
   logical :: at_photo_equilibrium = .false.

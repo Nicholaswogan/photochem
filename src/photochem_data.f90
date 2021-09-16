@@ -73,7 +73,14 @@ module photochem_data
   integer, protected :: nray
   real(real_kind), allocatable, protected :: sigray(:,:) ! (len(raynums), nw)
   integer, allocatable, protected :: raynums(:) ! species number of rayleigh species
-    
+  
+  ! particle radiative transfer
+  integer, protected :: nrad_file
+  real(real_kind), allocatable, protected  :: radii_file(:,:) 
+  real(real_kind), allocatable, protected  :: w0_file(:,:,:)
+  real(real_kind), allocatable, protected  :: qext_file(:,:,:) 
+  real(real_kind), allocatable, protected  :: g_file(:,:,:) 
+  
   ! initial conditions  
   integer, protected :: nzf
   real(real_kind), allocatable, protected :: z_file(:)
@@ -167,6 +174,13 @@ contains
       deallocate(sigray)
       deallocate(raynums)
       
+      if (photomech%there_are_particles) then 
+        deallocate(radii_file)
+        deallocate(w0_file)
+        deallocate(qext_file)
+        deallocate(g_file)
+      endif
+        
       deallocate(z_file)
       deallocate(T_file)
       deallocate(edd_file)
@@ -287,6 +301,19 @@ contains
     sigray = photorad%sigray
     allocate(raynums(size(photorad%raynums)))
     raynums = photorad%raynums
+    
+    ! particle raditative transfer
+    if (there_are_particles) then
+      nrad_file = photorad%nrad_file
+      allocate(radii_file(np, nrad_file))
+      radii_file = photorad%radii_file
+      allocate(w0_file(np,nrad_file,nw))
+      w0_file = photorad%w0_file
+      allocate(qext_file(np,nrad_file,nw))
+      qext_file = photorad%qext_file
+      allocate(g_file(np,nrad_file,nw))
+      g_file = photorad%g_file
+    endif
     
     ! initial conditions  
     nzf = photoinit%nzf

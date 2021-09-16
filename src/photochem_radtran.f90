@@ -7,12 +7,12 @@ module photochem_radtran
 
 contains
   
-  subroutine two_stream(nz, tau, w0, u0, Rsfc, amean, surface_radiance, ierr, method)
+  subroutine two_stream(nz, tau, w0, gt, u0, Rsfc, amean, surface_radiance, ierr)
     integer, intent(in) :: nz
-    real(8), intent(in) :: tau(nz)
-    real(8), intent(in) :: w0(nz)
+    real(8), intent(inout) :: tau(nz)
+    real(8), intent(inout) :: w0(nz)
+    real(8), intent(inout) :: gt(nz)
     real(8), intent(in) :: u0, Rsfc
-    integer, intent(in), optional :: method
     real(8), intent(out) :: amean(nz+1)
     real(8), intent(out) :: surface_radiance
     integer, intent(out) :: ierr 
@@ -20,7 +20,6 @@ contains
     ! real(real_kind) :: intensity(nz)
     
     ! local
-    real(real_kind) :: gt(nz)
     real(real_kind) :: gam1(nz), gam2(nz), gam3(nz), gam4(nz), u1
     real(real_kind) :: lambda(nz), cap_gam(nz)
     real(real_kind) :: e1(nz), e2(nz), e3(nz), e4(nz)
@@ -34,25 +33,17 @@ contains
     ! integer ::  info
     
     ierr = 0
-    gt = 0.0d0 ! asymetry factor. Zero for now
-    
-    i = 0
-    if (present(method)) i = method
-    if (i == 1) then
-      ! Eddington Two-Stream coefficients (Table 1)
-      gam1 = (7.d0 - w0*(4.d0 + 3.d0*gt))/4.d0
-      gam2 = -(1.d0- w0*(4.d0 - 3.d0*gt))/4.d0
-      gam3 = (2.d0 - 3.d0*gt*u0)/4.d0
-      gam4 = 1.d0 - gam3
-      u1 = 0.5d0
-    else ! default
-      ! Quadrature Two-Stream coefficients (Table 1)
-      gam1 = dsqrt(3.d0)*(2.d0-w0*(1+gt))/2.d0
-      gam2 = dsqrt(3.d0)*w0*(1.d0-gt)/2.d0
-      gam3 = (1.d0-dsqrt(3.d0)*gt*u0)/2.d0
-      gam4 = 1.d0 - gam3
-      u1 = 1.d0/dsqrt(3.d0)
-    endif
+    ! Delta-Eddington scaling (Joseph et al. 1976)
+    tau = tau*(1.d0-w0*gt*gt)
+    w0 = w0*(1.d0-gt*gt)/(1.d0-w0*gt*gt)
+    gt = gt/(1.d0+gt)
+
+    ! Quadrature Two-Stream coefficients (Table 1)
+    gam1 = dsqrt(3.d0)*(2.d0-w0*(1+gt))/2.d0
+    gam2 = dsqrt(3.d0)*w0*(1.d0-gt)/2.d0
+    gam3 = (1.d0-dsqrt(3.d0)*gt*u0)/2.d0
+    gam4 = 1.d0 - gam3
+    u1 = 1.d0/dsqrt(3.d0)
 
     ! lambda, and capital Gamma (Equations 21, 22)
     lambda = (gam1**2.d0 - gam2**2.d0)**(0.5d0)

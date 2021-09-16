@@ -29,7 +29,8 @@ message (STATUS "Building with OpenMP multi-threading = ${BUILD_WITH_OPENMP}")
 # adding src build dependencies
 add_subdirectory(src)
 
-set(PHOTOCHEM_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90 
+set(PHOTOCHEM_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_mie.f90 
+                      ${CMAKE_SOURCE_DIR}/src/photochem_const.f90 
                       ${CMAKE_SOURCE_DIR}/src/photochem_types.f90 
                       ${CMAKE_SOURCE_DIR}/src/photochem_input.f90 
                       ${CMAKE_SOURCE_DIR}/src/photochem_wrk.f90 

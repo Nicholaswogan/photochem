@@ -372,16 +372,22 @@ contains
   end subroutine
   
 
-  subroutine photorates(nz, nsp, kj, nw, dz, densities, xs_x_qy, &
+  subroutine photorates(nz, nsp, kj, nw, np, dz, densities, xs_x_qy, &
+                        w0_particles, qext_particles, gt_particles, &
                         flux, photon_scale_factor, diurnal_fac, u0, Rsfc, &
                         prates, surf_radiance,err)
     use photochem_radtran, only: two_stream
+    use photochem_const, only: pi
     use photochem_data, only: photonums, reactants_sp_inds, nray, sigray, raynums
+    use photochem_vars, only: particle_radius
     ! input
-    integer, intent(in) :: nz, nsp, kj, nw
+    integer, intent(in) :: nz, nsp, kj, nw, np
     real(real_kind), intent(in) :: dz(nz)
     real(real_kind), intent(in) :: densities(nsp+1, nz)
     real(real_kind), intent(in) :: xs_x_qy(nz,kj,nw)
+    real(real_kind), intent(in) :: w0_particles(np,nz,nw)
+    real(real_kind), intent(in) :: qext_particles(np,nz,nw)
+    real(real_kind), intent(in) :: gt_particles(np,nz,nw)
     real(real_kind), intent(in) :: flux(nw)
     real(real_kind), intent(in) :: photon_scale_factor
     real(real_kind), intent(in) :: diurnal_fac, u0, Rsfc
@@ -393,22 +399,26 @@ contains
     
     ! local
     real(real_kind) :: partial_prates(nz,kj)
-    real(real_kind) :: tausg(nz), taua(nz), tau(nz), w0(nz)
+    real(real_kind) :: tausg(nz), taua(nz), tau(nz), w0(nz), gt(nz)
+    real(real_kind) :: taup(nz), tausp(nz)
     real(real_kind) :: amean(nz+1), surf_rad, flx
     real(real_kind) :: amean_grd(nz)
+    real(real_kind) :: taup_1, gt_1, tausp_1(np,nz)
     integer :: l, i, j, jj, k, n, ie, ierr, ierrs
     
+
     ierrs = 0
     prates = 0.d0
     err = ''
     !$omp parallel private(l, i, j, jj, k, n, ie, ierr, partial_prates, &
-    !$omp& tausg, taua, tau, w0, amean, surf_rad, &
+    !$omp& tausg, taua, tau, w0, gt, amean, surf_rad, &
     !$omp& amean_grd, flx)
     ierr = 0
     partial_prates = 0.d0
     !$omp do
     do l = 1,nw
       
+      ! rayleigh scattering
       tausg = 0.d0
       do i = 1,nray
         j = raynums(i)
@@ -417,7 +427,8 @@ contains
           tausg(n) = tausg(n) + sigray(i,l)*densities(j,k)*dz(k)
         enddo
       enddo
-
+      
+      ! photolysis
       taua = 0.d0
       do i = 1,kj
         jj = photonums(i)
@@ -427,13 +438,38 @@ contains
           taua(n) = taua(n) + xs_x_qy(k,i,l)*densities(j,k)*dz(k)
         enddo
       enddo
-
-      tau = tausg + taua
-      do i = 1,nz
-        w0(i) = min(0.99999d0,tausg(i)/tau(i))
+      
+      ! particles
+      taup = 0.d0
+      tausp = 0.d0
+      tausp_1 = 0.d0
+      do k = 1,nz
+        n = nz+1-k
+        do i = 1,np
+          taup_1 = qext_particles(i,k,l)*pi*particle_radius(i,j)**2*densities(i,k)*dz(k)
+          taup(n) = taup(n) + taup_1
+          tausp_1(i,n) = w0_particles(i,k,l)*taup_1
+          tausp(n) = tausp(n) + tausp_1(i,n)
+        enddo
+      enddo
+      gt = 0.d0
+      do k = 1,nz
+        n = nz+1-k
+        gt_1 = 0.d0
+        do i = 1,np
+          gt_1 = gt_1 + gt_particles(i,k,l)*tausp_1(i,n) &
+                  /(tausp(n)+tausg(n))
+        enddo
+        gt(n) = min(gt_1,0.999999d0)
       enddo
       
-      call two_stream(nz, tau, w0, u0, Rsfc, amean, surf_rad, ie)
+      ! sum of all contributions
+      tau = tausg + taua + taup + tausp
+      do i = 1,nz
+        w0(i) = min(0.99999d0,(tausg(i) + tausp(i))/tau(i))
+      enddo
+      
+      call two_stream(nz, tau, w0, gt, u0, Rsfc, amean, surf_rad, ie)
       surf_radiance(l) = surf_rad
       ierr = ierr + ie
       do i = 1, nz+1
@@ -652,7 +688,8 @@ contains
     use photochem_vars, only: temperature, grav, dz, edd, &
                               xs_x_qy, photon_flux, diurnal_fac, solar_zenith, &
                               surface_albedo, lowerboundcond, lower_fix_mr, &
-                              photon_scale_factor, particle_radius
+                              photon_scale_factor, particle_radius, &
+                              w0_particles, qext_particles, gt_particles
     
     type(WrkBackgroundAtm), intent(inout) :: wrk
     character(len=err_len), intent(out) :: err
@@ -715,7 +752,8 @@ contains
     if (len_trim(err) /= 0) return
     
     u0 = cos(solar_zenith*pi/180.d0)
-    call photorates(wrk%nz, wrk%nsp, wrk%kj, wrk%nw, dz, wrk%densities, xs_x_qy, &
+    call photorates(wrk%nz, wrk%nsp, wrk%kj, wrk%nw, wrk%np, dz, wrk%densities, xs_x_qy, &
+                    w0_particles, qext_particles, gt_particles, &
                     photon_flux, photon_scale_factor, diurnal_fac, u0, surface_albedo, &
                     wrk%prates, wrk%surf_radiance, err)
     if (len_trim(err) /= 0) return
