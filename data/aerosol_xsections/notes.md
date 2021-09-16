@@ -16,6 +16,8 @@ Each folder should contain a few files: `mie.dat` (required), `frac.dat` (option
 
 `khare1984` is data for optical properties of fractal hydrocarbon aerosols from [Khare et al. (1984)](https://www.sciencedirect.com/science/article/pii/0019103584901428) downloaded from hitran.org at this link: https://hitran.org/data/Aerosols-2016/ascii/exoplanets/khare_tholins.dat.
 
+`palmer1975` is data for optical properties of H2SO4 from [Palmer et al. (1975)](https://www.osapublishing.org/ao/abstract.cfm?uri=ao-14-1-208) downloaded from hitran.org at this link: https://hitran.org/data/Aerosols-2016/ascii/single_files/palmer_williams_h2so4.dat. I used the column with 95.6% H2SO4. 
+
 
 
 
