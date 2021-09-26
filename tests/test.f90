@@ -14,12 +14,12 @@ program main
   logical :: success
   integer :: i, j
 
-  data_dir = "data/"
+  data_dir = "../data/"
 
-  call setup("data/reaction_mechanisms/zahnle_earth.yaml", &
-             "templates/ModernEarth/settings_ModernEarth.yaml", &
-             "templates/ModernEarth/Sun_now.txt", &
-             "templates/ModernEarth/atmosphere_ModernEarth.txt", err)
+  call setup("../data/reaction_mechanisms/zahnle_earth.yaml", &
+             "../templates/ModernEarth/settings_ModernEarth.yaml", &
+             "../templates/ModernEarth/Sun_now.txt", &
+             "../templates/ModernEarth/atmosphere_ModernEarth.txt", err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop 1
@@ -38,7 +38,7 @@ program main
     stop 1
   endif
   
-  ! require the solution doesn't change to within 1%
+  ! require the solution doesn't change to within 10%
   do j = 1, nz
     do i = 1,nq
       if (usol_out(i,j) > atol) then

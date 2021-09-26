@@ -96,8 +96,9 @@ module photochem_data
   integer, protected :: back_gas_ind
   real(real_kind), protected :: planet_mass
   real(real_kind), protected :: planet_radius
-  logical, protected :: water_sat_trop
+  logical, protected :: fix_water_in_trop
   integer, protected :: LH2O
+  logical :: stratospheric_cond
   logical, protected :: diff_H_escape
   integer, protected :: LH2
   integer, protected :: LH
@@ -337,7 +338,11 @@ contains
     back_gas_name = photoset%back_gas_name
     planet_mass = photoset%planet_mass
     planet_radius = photoset%planet_radius
-    water_sat_trop = photoset%water_sat_trop
+    fix_water_in_trop = photoset%fix_water_in_trop
+    if (fix_water_in_trop) then
+      stratospheric_cond = photoset%stratospheric_cond
+      LH2O = photoset%LH2O
+    endif
     LH2O = photoset%LH2O
     diff_H_escape = photoset%diff_H_escape
     LH2 = photoset%LH2
@@ -388,7 +393,7 @@ contains
     surface_albedo = photoset%surface_albedo 
     solar_zenith = photoset%solar_zenith
     diurnal_fac = photoset%diurnal_fac
-    if (water_sat_trop) then
+    if (fix_water_in_trop) then
       trop_alt = photoset%trop_alt
     else
       trop_alt = -1.d0
@@ -400,13 +405,19 @@ contains
     
     ! particles
     if (photomech%there_are_particles) then
-      allocate(condensation_rate(np))
+      allocate(condensation_rate(2,np))
       condensation_rate = photoset%condensation_rate
     endif
     
     ! settings
-    use_manabe = photoset%use_manabe ! use manabe formula
-    relative_humidity = photoset%relative_humidity ! relative humidity if no manabe
+    if (fix_water_in_trop) then
+      use_manabe = photoset%use_manabe ! use manabe formula
+      relative_humidity = photoset%relative_humidity ! relative humidity if no manabe
+      if (stratospheric_cond) then
+        relative_humidity_cold_trap = photoset%relative_humidity_cold_trap
+        H2O_condensation_rate = photoset%H2O_condensation_rate
+      endif
+    endif
 
   end subroutine
 

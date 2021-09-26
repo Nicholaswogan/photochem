@@ -282,22 +282,27 @@ contains
   
   subroutine dochem(neqs, nsp, np, nsl, nq, nz, nrT, usol, density, rx_rates, &
                     gas_sat_den, molecules_per_particle, condensation_rate, &
+                    H2O_sat_mix, H2O_condensation_rate, &
                     densities, xp, xl, rhs)                 
-    use photochem_const, only: N_avo
+    use photochem_const, only: N_avo, pi
+    use photochem_vars, only: relative_humidity_cold_trap, trop_ind
     use photochem_data, only: ng_1, there_are_particles, particle_gas_phase_ind, &
-                              particle_formation_method
+                              particle_formation_method, fix_water_in_trop, stratospheric_cond, &
+                              LH2O
     integer, intent(in) :: neqs, nsp, np, nsl, nq, nz, nrT
     real(real_kind), intent(in) :: usol(nq,nz), density(nz)
     real(real_kind), intent(in) :: rx_rates(nz,nrT)
     real(real_kind), intent(in) :: gas_sat_den(np,nz)
     real(real_kind), intent(in) :: molecules_per_particle(np,nz)
-    real(real_kind), intent(in) :: condensation_rate(np)
+    real(real_kind), intent(in) :: condensation_rate(2,np)
+    real(real_kind), intent(in) :: H2O_sat_mix(nz)
+    real(real_kind), intent(in) :: H2O_condensation_rate(2)
     real(real_kind), intent(inout) :: densities(nsp+1,nz), xp(nz), xl(nz)
     real(real_kind), intent(out) :: rhs(neqs)
     
-    real(real_kind) :: dn_gas_dt, dn_particle_dt 
+    real(real_kind) :: dn_gas_dt, dn_particle_dt, H2O_cold_trap, cond_rate
     
-    integer :: i, ii, j, k
+    integer :: i, ii, j, k, kk
     
     do j = 1,nz
       do k = 1,np
@@ -325,6 +330,25 @@ contains
       enddo
     enddo
     
+    ! if stratospheric water condesation is on, then condense
+    ! water in the stratosphere.
+    if (fix_water_in_trop) then
+      if (stratospheric_cond) then
+        do j = trop_ind+1,nz
+          k = LH2O + (j - 1) * nq
+          H2O_cold_trap = relative_humidity_cold_trap*H2O_sat_mix(j)
+          if (usol(LH2O,j) >= H2O_cold_trap) then
+            
+            cond_rate = damp_condensation_rate(H2O_condensation_rate(1), &
+                                               H2O_condensation_rate(2), &
+                                               usol(LH2O,j)/H2O_cold_trap)
+            rhs(k) = rhs(k) - cond_rate*(usol(LH2O,j) - H2O_cold_trap)
+             
+          endif
+        enddo
+      endif
+    endif
+    
     if (there_are_particles) then
       ! formation from reaction
       do i = 1,np
@@ -335,35 +359,39 @@ contains
         enddo
       enddo
     
-      ! particle condensation and evaporation
+      ! particle condensation
       do j = 1,nz
         do i = 1,np
+          ! if this particle forms from condensation
           if (particle_formation_method(i) == 1) then
-            ! index of gas phase
-            ii = particle_gas_phase_ind(i)
-            k = ii + (j - 1) * nq ! gas phase rhs index
-            
-            ! rate the gas molecules are going to particles
-            ! in molecules/cm3/s
-            dn_gas_dt = - condensation_rate(i)* &
-                          (densities(ii,j) - gas_sat_den(i,j))
-            ! add to rhs vector, convert to change in mixing ratio/s
-            if (dn_gas_dt < 0.d0) then
-              rhs(k) = rhs(k) + dn_gas_dt/density(j)            
-            endif
-            
-            ! rate of particle production from gas condensing
-            ! in particles/cm3/s
-            dn_particle_dt = - dn_gas_dt*(1/molecules_per_particle(i,j))
+            ii = particle_gas_phase_ind(i) ! index of gas phase
+            kk = ii + (j - 1) * nq ! gas phase rhs index
             k = i + (j - 1) * nq ! particle rhs index
-            ! add to rhs vector, convert to moles/cm3/s
-            if (dn_particle_dt > 0.d0) then
-              rhs(k) = rhs(k) + dn_particle_dt!/N_avo
+            
+            ! if the gas phase is super-saturated
+            if (densities(ii,j) >= gas_sat_den(i,j)) then
+              ! compute condensation rate
+              cond_rate = damp_condensation_rate(condensation_rate(1,i), &
+                                                 condensation_rate(2,i), &
+                                                 densities(ii,j)/gas_sat_den(i,j))
+            
+              ! rate the gas molecules are going to particles
+              ! in molecules/cm3/s
+              dn_gas_dt = - cond_rate* &
+                            (densities(ii,j) - gas_sat_den(i,j))
+              ! add to rhs vector, convert to change in mixing ratio/s
+              rhs(kk) = rhs(kk) + dn_gas_dt/density(j)            
+            
+              ! rate of particle production from gas condensing
+              ! in particles/cm3/s
+              dn_particle_dt = - dn_gas_dt*(1/molecules_per_particle(i,j))
+              ! add to rhs vector, convert to moles/cm3/s
+              rhs(k) = rhs(k) + dn_particle_dt
             else
-              rhs(k) = rhs(k) + 0.d0
+              ! particles don't change!
+              rhs(k) = 0.d0
             endif
-          endif
-          
+          endif          
         enddo
       enddo
       
@@ -525,17 +553,17 @@ contains
   end subroutine
   
   subroutine prep_atm_background_gas(nq, nz, trop_ind, sum_usol, usol, &
-                                     density, mubar, pressure, fH2O, err)
+                                     density, mubar, pressure, fH2O, H2O_sat_mix, err)
     use, intrinsic :: iso_c_binding, only : c_loc, c_ptr
     use cminpack2fort, only: hybrd1 ! interface to hybrd1 from cminpack
-    use photochem_data, only: nll, ng_1, species_mass, back_gas_mu, water_sat_trop, LH2O          
+    use photochem_data, only: nll, ng_1, species_mass, back_gas_mu, fix_water_in_trop, LH2O          
     use photochem_vars, only: temperature, grav, dz, surface_pressure, &
                               use_manabe, relative_humidity
     integer, intent(in) :: nq, nz, trop_ind
     real(real_kind), intent(inout), target :: usol(nq,nz)
     real(real_kind), intent(out) :: sum_usol(nz)
     real(real_kind), intent(out) :: density(nz)
-    real(real_kind), intent(out) :: mubar(nz), pressure(nz), fH2O(trop_ind)
+    real(real_kind), intent(out) :: mubar(nz), pressure(nz), fH2O(trop_ind), H2O_sat_mix(nz)
     character(len=err_len), intent(out) :: err
     
     real(real_kind) :: rel
@@ -554,7 +582,7 @@ contains
     
     ! If water is fixed in the troposhere, lets set it to zero.
     ! This will be to get an initial guess for the non-linear solve.
-    if (water_sat_trop) then
+    if (fix_water_in_trop) then
       do i = 1,trop_ind
         usol(LH2O,i) = 0.d0
       enddo
@@ -576,7 +604,7 @@ contains
     call press_and_den(nz, temperature, grav, surface_pressure*1.d6, dz, &
                        mubar, pressure, density)
                        
-    if (water_sat_trop) then
+    if (fix_water_in_trop) then
       ! Compute initial guess for fH2O
       do i = 1,trop_ind
         if (use_manabe) then
@@ -619,6 +647,11 @@ contains
       
       call press_and_den(nz, temperature, grav, surface_pressure*1.d6, dz, &
                          mubar, pressure, density)
+      
+      ! compute H2O saturation mixing ratio at all altitudes
+      do i = 1,nz
+        H2O_sat_mix(i) = sat_pressure_H2O(temperature(i))/pressure(i)
+      enddo
       
     endif 
     
@@ -706,7 +739,7 @@ contains
     enddo
     
     call prep_atm_background_gas(wrk%nq, wrk%nz, wrk%trop_ind, wrk%sum_usol, wrk%usol, &
-                                 wrk%density, wrk%mubar, wrk%pressure, wrk%fH2O, err)  
+                                 wrk%density, wrk%mubar, wrk%pressure, wrk%fH2O, wrk%H2O_sat_mix, err)  
     if (len_trim(err) /= 0) return  
     
     ! diffusion coefficients
@@ -784,10 +817,10 @@ contains
   subroutine rhs_background_gas(neqs, user_data, usol_flat, rhs, err)
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
-    use photochem_data, only: np, nq, nsp, nsl, nrT, LH2O, water_sat_trop
+    use photochem_data, only: np, nq, nsp, nsl, nrT, LH2O, fix_water_in_trop
     use photochem_vars, only: nz, z, dz, trop_ind, edd, condensation_rate, &
                               lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
-                              lower_dist_height, upper_veff, upper_flux
+                              lower_dist_height, upper_veff, upper_flux, H2O_condensation_rate
   
     integer, intent(in) :: neqs
     type(c_ptr), intent(in) :: user_data
@@ -832,6 +865,7 @@ contains
     
     call dochem(neqs, nsp, np, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
+                wrk%H2O_sat_mix, H2O_condensation_rate, &
                 wrk%densities, wrk%xp, wrk%xl, rhs) 
     
     ! diffusion (interior grid points)
@@ -897,7 +931,7 @@ contains
       endif
     enddo 
     
-    if (water_sat_trop) then
+    if (fix_water_in_trop) then
       do j = 1,trop_ind
         k = LH2O + (j-1)*nq
         rhs(k) = 0.d0
@@ -911,10 +945,10 @@ contains
     use photochem_const, only: pi, small_real
     
     use photochem_data, only: lda, kd, ku, kl, nq, nsp, np, nsl, nrT,  &
-                              water_sat_trop, LH2O
+                              fix_water_in_trop, LH2O
     use photochem_vars, only: nz, dz, epsj, trop_ind, edd, condensation_rate, &
                               lowerboundcond, upperboundcond, lower_vdep, &
-                              upper_veff
+                              upper_veff, H2O_condensation_rate
   
     integer, intent(in) :: lda_neqs, neqs
     type(c_ptr), intent(in) :: user_data
@@ -971,6 +1005,7 @@ contains
     jac = 0.d0
     call dochem(neqs, nsp, np, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
+                wrk%H2O_sat_mix, H2O_condensation_rate, &
                 wrk%densities, wrk%xp, wrk%xl, rhs) 
     !$omp parallel private(i,j,k,m,mm,usol_perturb, R, densities, xp, xl, rhs_perturb)
     usol_perturb = wrk%usol
@@ -983,6 +1018,7 @@ contains
 
       call dochem(neqs, nsp, np, nsl, nq, nz, nrT, usol_perturb, wrk%density, wrk%rx_rates, &
                   wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
+                  wrk%H2O_sat_mix, H2O_condensation_rate, &
                   wrk%densities, wrk%xp, wrk%xl, rhs_perturb) 
 
       do m = 1,nq
@@ -1061,7 +1097,7 @@ contains
       endif
     enddo
     
-    if (water_sat_trop) then
+    if (fix_water_in_trop) then
       do j = 1,trop_ind
         k = LH2O + (j-1)*nq
         do m = 1,nq
@@ -1193,10 +1229,10 @@ contains
   
   subroutine evolve_background_atm(tstart, nq, nz, usol_start, num_t_eval, t_eval, rtol, atol, &
                                    mxsteps, solution, success, err)
-    use photochem_data, only: water_sat_trop, LH2O, nsp, nrT, kj, nw, np
+    use photochem_data, only: fix_water_in_trop, LH2O, nsp, nrT, kj, nw, np
     use photochem_vars, only: no_water_profile, neqs, lowerboundcond, lower_fix_mr, trop_ind, &
                               initial_dt, use_fast_jacobian, max_err_test_failures, max_order, trop_ind
-    use photochem_wrk, only: cvode_mem
+    use photochem_wrk, only: cvode_mem, wrk_out
     
     use, intrinsic :: iso_c_binding
     use fcvode_mod, only: CV_BDF, CV_NORMAL, FCVodeInit, FCVodeSStolerances, &
@@ -1267,7 +1303,7 @@ contains
         yvec(i) = lower_fix_mr(i)
       endif
     enddo
-    if (water_sat_trop) then
+    if (fix_water_in_trop) then
       call water_mixing_ratio(nq, nz, trop_ind, usol_start, fH2O, err)
       if (len_trim(err) /= 0) return 
       do j = 1,trop_ind
@@ -1378,7 +1414,9 @@ contains
                                      
       endif
     enddo
-        
+    
+    ! save the last wrk
+    wrk_out = wrk
     ! free memory
     call FN_VDestroy(sunvec_y)
     call FCVodeFree(cvode_mem)
@@ -1426,22 +1464,22 @@ contains
 
     real(real_kind) :: sum_usol(nz)
     real(real_kind) :: density(nz)
-    real(real_kind) :: mubar(nz), pressure(nz)
+    real(real_kind) :: mubar(nz), pressure(nz), H2O_sat_mix(nz)
     
     err = ""
     
     usol_copy = usol
     
     call prep_atm_background_gas(nq, nz, trop_ind, sum_usol, usol_copy, &
-                                 density, mubar, pressure, fH2O, err)
+                                 density, mubar, pressure, fH2O, H2O_sat_mix, err)
     if (len_trim(err) /= 0) return
     
   end subroutine
   
   subroutine compute_surface_fluxes(nq, nz, usol, surface_flux, err)
-    use photochem_data, only: nsp, nrT, kj, nw, nsl, water_sat_trop, LH2O, np
+    use photochem_data, only: nsp, nrT, kj, nw, nsl, fix_water_in_trop, LH2O, np
     use photochem_vars, only: trop_ind, neqs, upper_veff, dz, &
-                              condensation_rate
+                              condensation_rate, H2O_condensation_rate
                               
     integer, intent(in) :: nq, nz
     real(real_kind), intent(in) :: usol(nq,nz)
@@ -1466,6 +1504,7 @@ contains
   
     call dochem(neqs, nsp, np, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
+                wrk%H2O_sat_mix, H2O_condensation_rate, &
                 wrk%densities, wrk%xp, wrk%xl, rhs) 
                           
     ! surface flux is molecules required to sustain the lower boundary
@@ -1477,7 +1516,7 @@ contains
       chemical_production = rhs(i)*wrk%density(1)*dz(1)
       surface_flux(i) = -(diffusive_production + chemical_production)
       ! We don't count chemical production for water
-      if (water_sat_trop) then
+      if (fix_water_in_trop) then
         if (i == LH2O) then
           surface_flux(i) = - diffusive_production
         endif
@@ -1794,6 +1833,42 @@ contains
     ! Catling and Kasting (Equation 1.49)
     p_H2O = 10.d0*e0*exp(lc/Rc*(1/T0 - 1/T))
     ! output is in dynes/cm2
+  end function
+  
+  ! function sat_pressure_H2O(T) result(p_H2O)
+  !   real(real_kind), intent(in) :: T ! temperature in K
+  !   real(real_kind) :: p_H2O ! dynes/cm2
+  ! 
+  !   real(real_kind), parameter:: c0 = 6111.5
+  !   real(real_kind), parameter:: c1 = 23.036
+  !   real(real_kind), parameter:: c2 = -333.7
+  !   real(real_kind), parameter:: c3 = 279.82
+  !   real(real_kind), parameter:: w0 = 6112.1
+  !   real(real_kind), parameter:: w1 = 18.729
+  !   real(real_kind), parameter:: w2 = -227.3
+  !   real(real_kind), parameter:: w3 = 257.87
+  ! 
+  !   real(real_kind) :: T_C
+  ! 
+  !   T_C = T - 273.15d0
+  ! 
+  !   if (T_C < 0) then
+  !     p_H2O = c0 * exp( (c1*T_C + T_C**2/c2)/(T_C + c3) )
+  !   else
+  !     p_H2O = w0 * exp( (w1*T_C + T_C**2/w2)/(T_C + w3) )
+  !   endif
+  ! end function
+  
+  function damp_condensation_rate(A, rh0, rh) result(k)
+    use photochem_const, only: pi
+    real(real_kind), intent(in) :: A
+    real(real_kind), intent(in) :: rh0
+    real(real_kind), intent(in) :: rh ! the relative humidity
+    real(real_kind) :: k
+    ! k = 0 for rh = 0
+    ! k = A for rh = infinity, approaches asymptotically
+    ! k = 0.5*A for rh = rh0
+    k = A*(2.d0/pi)*atan((rh - 1.d0)/(rh0 - 1.d0))
   end function
   
   subroutine print_reaction_string(rxn)

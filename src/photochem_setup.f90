@@ -11,7 +11,7 @@ contains
   subroutine setup(mechanism_file, settings_file, flux_file, atmosphere_txt, err)
     use photochem_data, only: setup_files, &
                               planet_radius, planet_mass, nq, kj, nw, npq, np, &
-                              water_sat_trop
+                              fix_water_in_trop
     use photochem_vars, only: bottom_atmos, top_atmos, nz, &
                               z, dz, grav, temperature, edd, usol_init, &
                               particle_radius, xs_x_qy, trop_ind, trop_alt, &
@@ -30,7 +30,7 @@ contains
     call allocate_nz_vars()
     ! set up the atmosphere grid
     call vertical_grid(bottom_atmos, top_atmos, nz, z, dz)
-    if (water_sat_trop) then
+    if (fix_water_in_trop) then
       trop_ind = minloc(z,1, z .ge. trop_alt) - 1
     endif
     call gravity(planet_radius, planet_mass, nz, z, grav)
@@ -238,6 +238,7 @@ contains
     use photochem_data, only: nq, species_names, there_are_particles, npq
     use photochem_vars, only: nz, usol_out, temperature, z, edd, at_photo_equilibrium, &
                               particle_radius
+    use photochem_wrk, only: wrk_out
     
     character(len=*), intent(in) :: filename
     logical, intent(in) :: overwrite, clip
@@ -267,6 +268,8 @@ contains
     
     tmp = 'alt'
     write(unit=1,fmt="(3x,a27)",advance='no') tmp
+    tmp = 'press'
+    write(unit=1,fmt="(a27)",advance='no') tmp
     tmp = 'temp'
     write(unit=1,fmt="(a27)",advance='no') tmp
     tmp = 'eddy'
@@ -285,6 +288,7 @@ contains
     do i = 1,nz
       write(1,*)
       write(unit=1,fmt="(es27.17e3)",advance='no') z(i)/1.d5
+      write(unit=1,fmt="(es27.17e3)",advance='no') wrk_out%pressure(i)/1.d6
       write(unit=1,fmt="(es27.17e3)",advance='no') temperature(i)
       write(unit=1,fmt="(es27.17e3)",advance='no') edd(i)
       do j = 1,nq

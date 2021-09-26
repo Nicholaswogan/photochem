@@ -1,24 +1,16 @@
 
 module photochem_wrk
-  use, intrinsic :: iso_c_binding
+  use, intrinsic :: iso_c_binding, only: c_long, c_ptr
+  use photochem_types, only: WrkBackgroundAtm
   implicit none
 
   integer, parameter :: real_kind = kind(1.0d0)
-  ! variables that need to be carried from
-  ! one iteration to the next of the photochemical model
-  ! e.g.: initial conditions for nonlinear solves
-  ! public ...
   
-  ! also some pre-allocated work arrays
-
-  real(real_kind), allocatable :: real_nz_nsp(:,:)
-  real(real_kind), allocatable :: real_nz(:)
-  integer, allocatable :: int_nz(:)
+  ! also some pre-allocated work array
   integer(c_long) :: nsteps_previous = -10
   type(c_ptr)    :: cvode_mem  ! CVODE memory
-  
-  real(real_kind) :: wrk_real
   real(real_kind) :: atol_global
   
+  type(WrkBackgroundAtm) :: wrk_out ! output
   
 end module

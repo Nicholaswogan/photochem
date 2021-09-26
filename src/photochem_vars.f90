@@ -37,6 +37,8 @@ module photochem_vars
   integer :: trop_ind
   logical :: use_manabe ! use manabe formula
   real(real_kind) :: relative_humidity ! relative humidity if no manabe
+  real(real_kind) :: relative_humidity_cold_trap
+  real(real_kind) :: H2O_condensation_rate(2)
   
   ! Radiative tranfer
   real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
@@ -44,7 +46,7 @@ module photochem_vars
   
   ! particles
   ! condensation rate of particles
-  real(real_kind), allocatable :: condensation_rate(:)
+  real(real_kind), allocatable :: condensation_rate(:,:)
   
   ! switch for dealing with H2O if not read in.
   logical :: no_water_profile

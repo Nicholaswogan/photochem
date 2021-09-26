@@ -23,9 +23,20 @@ planet:
   solar-zenith-angle: 50.0
   diff-lim-hydrogen-escape: true
   water:
-    water-saturated-troposphere: true
+    fix-water-in-troposphere: true
     tropopause-altitude: 1.1e6 # cm
     relative-humidity: manabe
+    stratospheric-condensation: true
+    cold-trap-relative-humitity: 0.1 # relative humidity at the cold trap
+    condensation-rate: 
+      A: 1.0e-5
+      rh0: 1.05
+
+particles:
+  - name: H2SO4aer
+    condensation-rate:
+      A: 1.0e-5
+      rh0: 1.05 
 
 # Assumes veff = vdep = 0 boundary condition for species not specified.
 # Assumes species is long-lived unless specified

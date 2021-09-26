@@ -51,8 +51,6 @@ set(F2PY_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90
                   ${CMAKE_SOURCE_DIR}/src/photochem.f90)
 
 if (BUILD_STATIC_PHOTOCHEM)
-  file(COPY "${CMAKE_SOURCE_DIR}/data" DESTINATION "${CMAKE_BINARY_DIR}")
-  file(COPY "${CMAKE_SOURCE_DIR}/templates" DESTINATION "${CMAKE_BINARY_DIR}")
   
   # libphotochem.a
   add_library(photochem 
@@ -63,17 +61,17 @@ if (BUILD_STATIC_PHOTOCHEM)
                             )
 
   # the main executable
-  add_executable(photo.run ${CMAKE_SOURCE_DIR}/src/main.f90)
-  target_link_libraries(photo.run photochem)
-  target_include_directories(photo.run PRIVATE ${CMAKE_BINARY_DIR}/modules)
+  add_executable(photorun ${CMAKE_SOURCE_DIR}/src/main.f90)
+  target_link_libraries(photorun photochem)
+  target_include_directories(photorun PRIVATE ${CMAKE_BINARY_DIR}/modules)
 
   #  tests
-  add_executable(test.run ${CMAKE_SOURCE_DIR}/tests/test.f90)
-  target_link_libraries(test.run photochem)
-  target_include_directories(test.run PRIVATE ${CMAKE_BINARY_DIR}/modules)
+  add_executable(testrun ${CMAKE_SOURCE_DIR}/tests/test.f90)
+  target_link_libraries(testrun photochem)
+  target_include_directories(testrun PRIVATE ${CMAKE_BINARY_DIR}/modules)
 
   enable_testing()
-  add_test(test_photochem test.run)
+  add_test(test_photochem testrun)
 endif()
 
 if (BUILD_F2PY_PHOTOCHEM)

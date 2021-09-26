@@ -1545,7 +1545,7 @@ contains
     type(PhotoSettings), intent(inout) :: photoset
     character(len=err_len), intent(out) :: err
     
-    class (type_dictionary), pointer :: tmp1, tmp2
+    class (type_dictionary), pointer :: tmp1, tmp2, tmp3
     class (type_list), pointer :: bcs, particles
     class (type_list_item), pointer :: item
     type (type_error), pointer :: io_err
@@ -1668,15 +1668,15 @@ contains
     
     tmp2 => tmp1%get_dictionary('water',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photoset%water_sat_trop = tmp2%get_logical('water-saturated-troposphere',error = io_err)
+    photoset%fix_water_in_trop = tmp2%get_logical('fix-water-in-troposphere',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     ind = findloc(photomech%species_names,'H2O')
     photoset%LH2O = ind(1)
-    if (ind(1) == 0 .and. photoset%water_sat_trop) then
+    if (ind(1) == 0 .and. photoset%fix_water_in_trop) then
       err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
       return
     endif
-    if (photoset%water_sat_trop) then  
+    if (photoset%fix_water_in_trop) then  
       photoset%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       if ((photoset%trop_alt < photoset%bottom_atmos) .or. &
@@ -1701,6 +1701,28 @@ contains
       else
         photoset%use_manabe = .false.
       endif
+      
+      photoset%stratospheric_cond = tmp2%get_logical('stratospheric-condensation',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      if (photoset%stratospheric_cond) then
+        photoset%relative_humidity_cold_trap = tmp2%get_real('cold-trap-relative-humitity',error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        
+        
+        tmp3 => tmp2%get_dictionary('condensation-rate',.true.,error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        
+        photoset%H2O_condensation_rate(1) = tmp3%get_real('A',error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        photoset%H2O_condensation_rate(2) = tmp3%get_real('rh0',error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (photoset%H2O_condensation_rate(2) <= 1) then
+          err = 'IOError: Rate constant "rh0" for H2O condensation must be > 1. See '//trim(infile)
+          return
+        endif
+      endif
+        
     endif
     
     ! particle parameters
@@ -1709,7 +1731,7 @@ contains
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
       allocate(particle_checklist(photomech%np))
-      allocate(photoset%condensation_rate(photomech%np))
+      allocate(photoset%condensation_rate(2,photomech%np))
       particle_checklist = .false.
       
       item => particles%first
@@ -1732,7 +1754,12 @@ contains
             particle_checklist(ind(1)) = .true.
           endif
           
-          photoset%condensation_rate(ind(1)) = element%get_real('condensation-rate',error = io_err)
+          tmp1 => element%get_dictionary('condensation-rate',.true.,error = io_err)
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          
+          photoset%condensation_rate(1,ind(1)) = tmp1%get_real('A',error = io_err)
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          photoset%condensation_rate(2,ind(1)) = tmp1%get_real('rh0',error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           
         class default
@@ -1793,7 +1820,7 @@ contains
           enddo
         endif
         ! make sure it isn't water
-        if (photoset%water_sat_trop .and. dups(j) == "H2O") then
+        if (photoset%fix_water_in_trop .and. dups(j) == "H2O") then
           err = "IOError: H2O can not have a specified boundary condition"// &
                 " if water-saturated-troposphere = true in the settings file."
           return
@@ -2610,7 +2637,7 @@ contains
     enddo
     
     photoinit%no_water_profile = .false.
-    if (photoset%water_sat_trop) then
+    if (photoset%fix_water_in_trop) then
       ind = findloc(labels,'H2O')
       if (ind(1) == 0) then
         photoinit%no_water_profile = .true. 

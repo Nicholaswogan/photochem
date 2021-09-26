@@ -6,7 +6,7 @@ module photochem_types ! make a giant IO object
   integer, parameter :: str_len = 1024
   
   public PhotoMechanism, PhotoSettings, PhotoRadTran, PhotoInitAtm
-  public WrkBackgroundAtm, WrkTwoStream
+  public WrkBackgroundAtm
   
   type :: PhotoSettings
     real(real_kind) :: bottom_atmos
@@ -30,10 +30,13 @@ module photochem_types ! make a giant IO object
     real(real_kind) :: surface_albedo ! this can be changed
     real(real_kind) :: diurnal_fac
     real(real_kind) :: solar_zenith
-    logical :: water_sat_trop
+    logical :: fix_water_in_trop
     integer :: LH2O
     logical :: use_manabe ! use manabe formula
     real(real_kind) :: relative_humidity ! relative humidity if no manabe
+    logical :: stratospheric_cond
+    real(real_kind) :: relative_humidity_cold_trap
+    real(real_kind) :: H2O_condensation_rate(2)
     logical :: diff_H_escape
     integer :: LH2
     integer :: LH
@@ -53,7 +56,7 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: upper_flux(:)
     
     ! condensation rate of particles
-    real(real_kind), allocatable :: condensation_rate(:)
+    real(real_kind), allocatable :: condensation_rate(:,:)
     
   end type
   
@@ -181,6 +184,7 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: mubar(:) ! (nz)
     real(real_kind), allocatable :: pressure(:) ! (nz)
     real(real_kind), allocatable :: fH2O(:) ! (nz)
+    real(real_kind), allocatable :: H2O_sat_mix(:) ! (nz)
     real(real_kind), allocatable :: prates(:,:) ! (nz,kj)
     real(real_kind), allocatable :: surf_radiance(:) ! (nw)
     real(real_kind), allocatable :: upper_veff_copy(:) ! (nq)
@@ -208,52 +212,8 @@ module photochem_types ! make a giant IO object
     procedure :: init => init_WrkBackgroundAtm
   end type
   
-  type WrkTwoStream
-    real(real_kind), allocatable :: gt(:)
-    real(real_kind), allocatable :: gam1(:), gam2(:), gam3(:), gam4(:)
-    real(real_kind), allocatable :: lambda(:), cap_gam(:)
-    real(real_kind), allocatable :: e1(:), e2(:), e3(:), e4(:)
-    real(real_kind), allocatable :: tauc(:), direct(:)
-    real(real_kind), allocatable :: cp0(:), cpb(:), cm0(:), cmb(:)
-    real(real_kind), allocatable :: A(:), B(:), D(:), E(:)
-    real(real_kind), allocatable :: y1(:), y2(:)
-  contains
-    procedure :: init => init_WrkTwoStream
-  end type
-  
 contains
-  
-  subroutine init_WrkTwoStream(self, nz)
-    class(WrkTwoStream), intent(inout) :: self
-    integer, intent(in) :: nz
-    
-    allocate(self%gt(nz))
-    allocate(self%gam1(nz))
-    allocate(self%gam2(nz))
-    allocate(self%gam3(nz))
-    allocate(self%gam4(nz))
-    allocate(self%lambda(nz))
-    allocate(self%cap_gam(nz))
-    allocate(self%e1(nz))
-    allocate(self%e2(nz))
-    allocate(self%e3(nz))
-    allocate(self%e4(nz))
-    allocate(self%tauc(nz+1))
-    allocate(self%direct(nz+1))
-    allocate(self%cp0(nz))
-    allocate(self%cpb(nz))
-    allocate(self%cm0(nz))
-    allocate(self%cmb(nz))
-    allocate(self%A(nz*2))
-    allocate(self%B(nz*2))
-    allocate(self%D(nz*2))
-    allocate(self%E(nz*2))
-    allocate(self%y1(nz))
-    allocate(self%y2(nz))
-
-  end subroutine
-  
-  
+ 
   subroutine init_WrkBackgroundAtm(self, nsp, np, nq, nz, nrT, kj, nw, trop_ind)
     class(WrkBackgroundAtm), intent(inout) :: self
     integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw, trop_ind
@@ -267,11 +227,38 @@ contains
     self%nw = nw
     self%trop_ind = trop_ind
     
+    if (allocated(self%usol)) then
+      deallocate(self%usol)
+      deallocate(self%mubar)
+      deallocate(self%pressure)
+      deallocate(self%density)
+      deallocate(self%fH2O)
+      deallocate(self%H2O_sat_mix)
+      deallocate(self%densities)
+      deallocate(self%rx_rates)
+      deallocate(self%prates)
+      deallocate(self%surf_radiance)
+      deallocate(self%xp)
+      deallocate(self%xl)
+      deallocate(self%DU)
+      deallocate(self%DD)
+      deallocate(self%DL)
+      deallocate(self%ADU)
+      deallocate(self%ADL)
+      deallocate(self%upper_veff_copy)
+      deallocate(self%lower_vdep_copy)
+      deallocate(self%sum_usol)
+      deallocate(self%wfall)
+      deallocate(self%gas_sat_den)
+      deallocate(self%molecules_per_particle)
+    endif
+    
     allocate(self%usol(nq,nz))
     allocate(self%mubar(nz))
     allocate(self%pressure(nz))
     allocate(self%density(nz))
-    allocate(self%fH2O(nz))
+    allocate(self%fH2O(trop_ind))
+    allocate(self%H2O_sat_mix(nz))
     allocate(self%densities(nsp+1,nz))
     allocate(self%rx_rates(nz,nrT))
     allocate(self%prates(nz,kj))
