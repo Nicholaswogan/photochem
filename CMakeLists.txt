@@ -46,9 +46,10 @@ set(PHOTOCHEM_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_mie.f90
                       ${CMAKE_SOURCE_DIR}/src/photochem.f90)
                       
 set(F2PY_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90 
-                  ${CMAKE_SOURCE_DIR}/src/photochem_vars.f90 
-                  ${CMAKE_SOURCE_DIR}/src/photochem_setup.f90
-                  ${CMAKE_SOURCE_DIR}/src/photochem.f90)
+                 ${CMAKE_SOURCE_DIR}/src/photochem_vars.f90 
+                 ${CMAKE_SOURCE_DIR}/src/photochem_data.f90 
+                 ${CMAKE_SOURCE_DIR}/src/photochem_setup.f90
+                 ${CMAKE_SOURCE_DIR}/src/photochem.f90)
 
 if (BUILD_STATIC_PHOTOCHEM)
   
@@ -101,7 +102,9 @@ if (BUILD_F2PY_PHOTOCHEM)
   COMMAND ${F2PY_EXECUTABLE}
     -m ${f2py_module_name}
     ${F2PY_SOURCES}
-    only: setup photo_equilibrium compute_surface_fluxes out2atmosphere_txt :
+    --lower
+    only: setup photo_equilibrium compute_surface_fluxes out2in out2atmosphere_txt
+          get_species_names get_atoms_names :
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${F2PY_SOURCES}
   )

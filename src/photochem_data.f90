@@ -17,18 +17,18 @@ module photochem_data
   integer, protected :: natoms
   integer, protected :: kd, kl, ku ! not read in. It is nq + nq + 1 (diagonal width of jacobian)
   integer, protected :: lda ! not read in 
-  character(len=8), allocatable, protected :: atoms_names(:) 
-  real(real_kind), allocatable, protected :: atoms_mass(:) 
-  character(len=15), allocatable, protected :: species_names(:)
-  integer, allocatable, protected :: species_composition(:,:)
-  real(real_kind), allocatable, protected :: species_mass(:) 
-  real(real_kind), allocatable, protected :: thermo_data(:,:,:)
-  real(real_kind), allocatable, protected :: thermo_temps(:,:)
+  character(len=8), allocatable :: atoms_names(:) 
+  real(real_kind), allocatable :: atoms_mass(:) 
+  character(len=15), allocatable :: species_names(:)
+  integer, allocatable :: species_composition(:,:)
+  real(real_kind), allocatable :: species_mass(:) 
+  real(real_kind), allocatable :: thermo_data(:,:,:)
+  real(real_kind), allocatable :: thermo_temps(:,:)
   
   ! particles
-  logical :: there_are_particles
-  integer :: np ! number of particles
-  integer :: npq ! number of particle equations. for now nq = npq.
+  logical, protected :: there_are_particles
+  integer, protected :: np ! number of particles
+  integer, protected :: npq ! number of particle equations. for now nq = npq.
   integer, allocatable :: particle_formation_method(:) ! np
   real(real_kind), allocatable :: particle_density(:) ! np
   real(real_kind), allocatable :: particle_sat_params(:,:) ! 3, np
@@ -41,53 +41,53 @@ module photochem_data
   integer, protected :: nrT ! number of total reactions
   integer, protected :: max_num_reactants
   integer, protected :: max_num_products
-  character(len=8), allocatable, protected :: reactants_names(:,:)
-  character(len=8), allocatable, protected :: products_names(:,:)
-  integer, allocatable, protected :: reactants_sp_inds(:,:) ! for getting species nums in reactions
-  integer, allocatable, protected :: products_sp_inds(:,:)
-  integer, allocatable, protected :: nreactants(:) ! number of reactants
-  integer, allocatable, protected :: nproducts(:) ! number of products
-  integer, allocatable, protected :: reverse_info(:) ! indexs between forward and reverse reactions
-  integer, allocatable, protected :: rxtypes(:) ! 0 is photolysis, 1 is elementary, 2 is three-body, 3 is falloff
-  real(real_kind), allocatable, protected :: rateparams(:,:) ! (10, nrF)
-  real(real_kind), allocatable, protected :: efficiencies(:,:) ! (maxval(num_efficient), nrF)
-  integer, allocatable, protected :: eff_sp_inds(:,:) ! (maxval(num_efficient), nrF)
-  integer, allocatable, protected :: num_efficient(:) ! number of efficiencies for each reaction
-  real(real_kind), allocatable, protected :: def_eff(:) ! default efficiency
-  integer, allocatable, protected :: falloff_type(:) ! type of falloff function (0 = none, 1 = Troe without T2,..)
-  integer, allocatable, protected :: nump(:) ! number of production mechanisms (rxns) for each sp
-  integer, allocatable, protected :: numl(:) ! number of loss mechanisms (rxns) for each sp
-  integer, allocatable, protected :: iprod(:,:) ! (nmax,nsp) returns reaction # of production mechanism for sp
-  integer, allocatable, protected :: iloss(:,:) ! (nmax,nsp) returns reaction # of loss mechanism for sp
+  character(len=8), allocatable :: reactants_names(:,:)
+  character(len=8), allocatable :: products_names(:,:)
+  integer, allocatable :: reactants_sp_inds(:,:) ! for getting species nums in reactions
+  integer, allocatable :: products_sp_inds(:,:)
+  integer, allocatable :: nreactants(:) ! number of reactants
+  integer, allocatable :: nproducts(:) ! number of products
+  integer, allocatable :: reverse_info(:) ! indexs between forward and reverse reactions
+  integer, allocatable :: rxtypes(:) ! 0 is photolysis, 1 is elementary, 2 is three-body, 3 is falloff
+  real(real_kind), allocatable :: rateparams(:,:) ! (10, nrF)
+  real(real_kind), allocatable :: efficiencies(:,:) ! (maxval(num_efficient), nrF)
+  integer, allocatable :: eff_sp_inds(:,:) ! (maxval(num_efficient), nrF)
+  integer, allocatable :: num_efficient(:) ! number of efficiencies for each reaction
+  real(real_kind), allocatable :: def_eff(:) ! default efficiency
+  integer, allocatable :: falloff_type(:) ! type of falloff function (0 = none, 1 = Troe without T2,..)
+  integer, allocatable :: nump(:) ! number of production mechanisms (rxns) for each sp
+  integer, allocatable :: numl(:) ! number of loss mechanisms (rxns) for each sp
+  integer, allocatable :: iprod(:,:) ! (nmax,nsp) returns reaction # of production mechanism for sp
+  integer, allocatable :: iloss(:,:) ! (nmax,nsp) returns reaction # of loss mechanism for sp
   integer, protected :: kj ! number of photolysis reactions
-  integer, allocatable, protected :: photonums(:) ! (kj) the reaction number of each photolysis reaction
+  integer, allocatable :: photonums(:) ! (kj) the reaction number of each photolysis reaction
 
   ! raditative transfer
   integer, protected :: nw
-  real(real_kind), allocatable, protected :: wavl(:) ! (nw+1)
-  integer, allocatable, protected :: num_temp_cols(:) ! (kj)
-  integer, allocatable, protected :: sum_temp_cols(:) ! (kj)
+  real(real_kind), allocatable :: wavl(:) ! (nw+1)
+  integer, allocatable :: num_temp_cols(:) ! (kj)
+  integer, allocatable :: sum_temp_cols(:) ! (kj)
   ! All data for every reaction in single vector to save memory
-  real(real_kind), allocatable, protected :: xs_data(:) ! (sum(num_temp_cols)*nw) 
-  real(real_kind), allocatable, protected :: xs_data_temps(:,:) ! (maxval(num_temp_cols), kj)
+  real(real_kind), allocatable :: xs_data(:) ! (sum(num_temp_cols)*nw) 
+  real(real_kind), allocatable :: xs_data_temps(:,:) ! (maxval(num_temp_cols), kj)
   integer, protected :: nray
-  real(real_kind), allocatable, protected :: sigray(:,:) ! (len(raynums), nw)
-  integer, allocatable, protected :: raynums(:) ! species number of rayleigh species
+  real(real_kind), allocatable :: sigray(:,:) ! (len(raynums), nw)
+  integer, allocatable :: raynums(:) ! species number of rayleigh species
   
   ! particle radiative transfer
   integer, protected :: nrad_file
-  real(real_kind), allocatable, protected  :: radii_file(:,:) 
-  real(real_kind), allocatable, protected  :: w0_file(:,:,:)
-  real(real_kind), allocatable, protected  :: qext_file(:,:,:) 
-  real(real_kind), allocatable, protected  :: g_file(:,:,:) 
+  real(real_kind), allocatable  :: radii_file(:,:) 
+  real(real_kind), allocatable  :: w0_file(:,:,:)
+  real(real_kind), allocatable  :: qext_file(:,:,:) 
+  real(real_kind), allocatable  :: g_file(:,:,:) 
   
   ! initial conditions  
   integer, protected :: nzf
-  real(real_kind), allocatable, protected :: z_file(:)
-  real(real_kind), allocatable, protected :: T_file(:)
-  real(real_kind), allocatable, protected :: edd_file(:)
-  real(real_kind), allocatable, protected :: usol_file(:,:)
-  real(real_kind), allocatable, protected :: particle_radius_file(:,:)
+  real(real_kind), allocatable :: z_file(:)
+  real(real_kind), allocatable :: T_file(:)
+  real(real_kind), allocatable :: edd_file(:)
+  real(real_kind), allocatable :: usol_file(:,:)
+  real(real_kind), allocatable :: particle_radius_file(:,:)
   
   ! settings
   logical, protected :: back_gas
@@ -98,7 +98,7 @@ module photochem_data
   real(real_kind), protected :: planet_radius
   logical, protected :: fix_water_in_trop
   integer, protected :: LH2O
-  logical :: stratospheric_cond
+  logical, protected :: stratospheric_cond
   logical, protected :: diff_H_escape
   integer, protected :: LH2
   integer, protected :: LH

@@ -1478,7 +1478,7 @@ contains
   
   subroutine compute_surface_fluxes(nq, nz, usol, surface_flux, err)
     use photochem_data, only: nsp, nrT, kj, nw, nsl, fix_water_in_trop, LH2O, np
-    use photochem_vars, only: trop_ind, neqs, upper_veff, dz, &
+    use photochem_vars, only: trop_ind, neqs, upper_veff, lower_vdep, dz, &
                               condensation_rate, H2O_condensation_rate
                               
     integer, intent(in) :: nq, nz
@@ -1499,6 +1499,7 @@ contains
   
     wrk%usol = usol
     wrk%upper_veff_copy = upper_veff
+    wrk%lower_vdep_copy = lower_vdep
     call prep_all_background_gas(wrk, err)
     if (len_trim(err) /= 0) return
   
@@ -1914,15 +1915,6 @@ contains
     if ((rxtypes(i) == 2) .or.(rxtypes(i) == 3)) then
       rxstring = rxstring //' + M'
     endif
-  end subroutine
-  
-  subroutine get_usol_init(usol)
-    use photochem_vars, only: usol_init, nz
-    use photochem_data, only: nq
-    
-    real(real_kind), intent(out) :: usol(nq,nz)
-    usol = usol_init
-
   end subroutine
 
 end module

@@ -231,6 +231,7 @@ contains
       no_water_profile = .false.
     else
       err = "Can not set output to input without first converging to photochemical equilibrium."
+      return
     endif
   end subroutine
   
@@ -337,6 +338,33 @@ contains
     do i = 2,nz
       z(i) = z(i-1) + dz(i)
     enddo
+  end subroutine
+  
+  !!! setter and getter functions !!!
+  
+  subroutine get_species_names(n,names)
+    use photochem_data, only: species_names
+    integer, intent(in) :: n
+    character(len=15), intent(inout) :: names(n)
+    !f2py intent(in, out) names(n)
+    names = species_names
+  end subroutine
+  
+  subroutine get_atoms_names(n,names)
+    use photochem_data, only: atoms_names
+    integer, intent(in) :: n
+    character(len=8), intent(inout) :: names(n)
+    !f2py intent(in, out) names(n)
+    names = atoms_names
+  end subroutine
+  
+  subroutine get_usol_init(usol)
+    use photochem_vars, only: usol_init, nz
+    use photochem_data, only: nq
+    
+    real(real_kind), intent(out) :: usol(nq,nz)
+    usol = usol_init
+
   end subroutine
   
 end module
