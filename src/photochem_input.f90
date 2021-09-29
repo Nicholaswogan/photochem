@@ -1768,6 +1768,14 @@ contains
         end select
         item => item%next
       end do
+      
+      do i = 1,photomech%np
+        if (photomech%particle_formation_method(i) == 1 .and. .not. particle_checklist(i)) then
+          err = 'IOError: Particle '//trim(photomech%particle_names(i))// &
+                ' does not have any condensation rate data in the file '//trim(infile)
+          return
+        endif
+      enddo
         
     endif
       
@@ -2117,10 +2125,10 @@ contains
     
     xsroot = trim(data_dir)//"/aerosol_xsections/"
     
-    allocate(photorad%radii_file(photomech%np, nrad_fixed))
-    allocate(photorad%w0_file(photomech%np, nrad_fixed, photorad%nw))
-    allocate(photorad%qext_file(photomech%np, nrad_fixed, photorad%nw))
-    allocate(photorad%g_file(photomech%np, nrad_fixed, photorad%nw))
+    allocate(photorad%radii_file(nrad_fixed,photomech%np))
+    allocate(photorad%w0_file(nrad_fixed, photomech%np, photorad%nw))
+    allocate(photorad%qext_file(nrad_fixed, photomech%np, photorad%nw))
+    allocate(photorad%g_file(nrad_fixed, photomech%np, photorad%nw))
     photorad%nrad_file = nrad_fixed
     
     do i = 1,photomech%np
@@ -2149,7 +2157,7 @@ contains
       photorad%w0_file(:,i,:) = w0
       photorad%qext_file(:,i,:) = qext
       photorad%g_file(:,i,:) = g
-
+      
     enddo
     
   end subroutine
@@ -2674,7 +2682,7 @@ contains
         else
           ! did not find the data
           ! will set to 0.1 micron
-          photoinit%particle_radius_file(i,:) = 1.d-4
+          photoinit%particle_radius_file(i,:) = 1.d-5
           iii = 0
         endif
       enddo
