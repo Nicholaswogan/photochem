@@ -28,13 +28,13 @@ planet:
     cold-trap-relative-humitity: 0.1 # relative humidity at the cold trap
     condensation-rate: 
       A: 1.0e-5
-      rh0: 1.05 # condensation rate is computed with A*arctan((rh - 1)/(rh0 - 1))
+      rh0: 1.05 # condensation rate is computed with A*(2/pi)*arctan((rh - 1)/(rh0 - 1))
     
 particles:
   - name: H2SO4aer
     condensation-rate:
       A: 1.0e-5
-      rh0: 1.05 
+      rh0: 1.05
 
 # Assumes veff = vdep = 0 boundary condition for species not specified.
 # Assumes species is long-lived unless specified
@@ -78,6 +78,41 @@ boundary-conditions:
     lower-boundary:
       mixing-ratio: 3.1e-7
       type: mixing-ratio
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: H2SO4aer
+    lower-boundary:
+      vdep: 1.0e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: S8aer
+    lower-boundary:
+      vdep: 1.0e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HCaer1
+    lower-boundary:
+      vdep: 1.0e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HCaer2
+    lower-boundary:
+      vdep: 1.0e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HCaer3
+    lower-boundary:
+      vdep: 1.0e-2
+      type: deposition velocity
     upper-boundary:
       veff: 0.0
       type: effusion velocity

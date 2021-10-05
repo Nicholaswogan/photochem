@@ -2452,6 +2452,69 @@ particles:
     A: 3.0e-11
     b: 0.0
     Ea: 0.0
+- name: HCaer1
+  formation: reaction
+  density: 1.0 # g/cm3
+  composition:
+    C: 6
+    H: 2
+  optical-properties: khare1984
+  optical-type: mie
+  equation: C2H + C4H2 => HCaer1 + H
+  type: elementary
+  rate-constant:
+    A: 1.5e-10
+    b: 0.0
+    Ea: 0.0
+- name: HCaer2
+  formation: reaction
+  density: 1.0 # g/cm3
+  composition:
+    C: 2
+    H: 3
+    N: 2
+  optical-properties: khare1984
+  optical-type: mie
+  equation: H2CN + HCN => HCaer2
+  type: elementary
+  rate-constant:
+    A: 1.1e-12
+    b: 0
+    Ea: 900
+- name: HCaer3
+  formation: reaction
+  density: 1.0 # g/cm3
+  composition:
+    C: 7
+    H: 2
+    N: 1
+  optical-properties: khare1984
+  optical-type: mie
+  equation: C4H + HCCCN => HCaer3
+  type: elementary
+  rate-constant:
+    A: 1.1e-12
+    b: 0
+    Ea: 900
+# - name: HCaer4
+#   formation: reaction
+#   density: 1.0 # g/cm3
+#   composition:
+#     C: 7
+#     H: 4
+#     N: 1
+#   optical-properties: khare1984
+#   optical-type: mie
+#   equation: C4H3 + HCCCN + M => HCaer4 + M
+#   type: falloff
+#   low-P-rate-constant:
+#     A: 3e-30
+#     b: 0.0
+#     Ea: 740.0
+#   high-P-rate-constant:
+#     A: 5.53
+#     b: -3.89
+#     Ea: 4635.0
 
 reactions:
 - equation: H + H (+ M) <=> H2 (+ M)
