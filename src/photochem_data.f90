@@ -140,7 +140,7 @@ contains
         deallocate(thermo_temps)
       endif
       
-      if (photomech%there_are_particles) then
+      if (allocated(particle_formation_method)) then
         deallocate(particle_formation_method)
         deallocate(particle_density) 
         deallocate(particle_sat_params)
@@ -153,7 +153,9 @@ contains
       deallocate(products_sp_inds)
       deallocate(nreactants)
       deallocate(nproducts)
-      deallocate(reverse_info)
+      if (allocated(reverse_info)) then
+        deallocate(reverse_info)
+      endif
       deallocate(rxtypes)
       deallocate(rateparams)
       deallocate(efficiencies)
@@ -175,7 +177,7 @@ contains
       deallocate(sigray)
       deallocate(raynums)
       
-      if (photomech%there_are_particles) then 
+      if (allocated(radii_file)) then 
         deallocate(radii_file)
         deallocate(w0_file)
         deallocate(qext_file)
@@ -186,7 +188,7 @@ contains
       deallocate(T_file)
       deallocate(edd_file)
       deallocate(usol_file)
-      if (photomech%there_are_particles) then
+      if (allocated(particle_radius_file)) then
         deallocate(particle_radius_file)
       endif
     
@@ -362,7 +364,7 @@ contains
       deallocate(upper_veff)
       deallocate(upper_flux)
       deallocate(photon_flux)
-      if (photomech%there_are_particles) then
+      if (allocated(condensation_rate)) then
         deallocate(condensation_rate)
       endif
     endif

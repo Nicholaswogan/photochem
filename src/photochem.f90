@@ -284,7 +284,7 @@ contains
                     gas_sat_den, molecules_per_particle, condensation_rate, &
                     H2O_sat_mix, H2O_condensation_rate, &
                     densities, xp, xl, rhs)                 
-    use photochem_const, only: N_avo, pi
+    use photochem_const, only: N_avo, pi, small_real
     use photochem_vars, only: relative_humidity_cold_trap, trop_ind
     use photochem_data, only: ng_1, there_are_particles, particle_gas_phase_ind, &
                               particle_formation_method, fix_water_in_trop, stratospheric_cond, &
@@ -306,7 +306,7 @@ contains
     
     do j = 1,nz
       do k = 1,np
-        densities(k,j) = usol(k,j)!*N_avo ! convert mol/cm3 to particles/cm3
+        densities(k,j) = max(usol(k,j)*(density(j)/molecules_per_particle(k,j)),small_real)
       enddo
       do k = ng_1,nq
         densities(k,j) = usol(k,j)*density(j)
@@ -355,7 +355,7 @@ contains
         call chempl(nz, nsp, nrT, densities, rx_rates, i, xp, xl)
         do j = 1,nz
           k = i + (j - 1) * nq
-          rhs(k) = (xp(j) - xl(j))/molecules_per_particle(i,j)
+          rhs(k) = (xp(j) - xl(j))/density(j)
         enddo
       enddo
     
@@ -384,9 +384,9 @@ contains
             
               ! rate of particle production from gas condensing
               ! in particles/cm3/s
-              dn_particle_dt = - dn_gas_dt*(1/molecules_per_particle(i,j))
+              dn_particle_dt = - dn_gas_dt/density(j)
               ! add to rhs vector, convert to moles/cm3/s
-              rhs(k) = rhs(k) + dn_particle_dt
+              rhs(k) = dn_particle_dt
             else
               ! particles don't change!
               rhs(k) = 0.d0
@@ -515,7 +515,7 @@ contains
       enddo
       
       flx = flux(l)*diurnal_fac*photon_scale_factor ! photons/cm2/s
-
+      
       do i=1,kj
         do j=1,nz
           partial_prates(j,i) = partial_prates(j,i) + flx*amean_grd(j)*xs_x_qy(j,i,l)
@@ -713,7 +713,7 @@ contains
   end function
   
   subroutine prep_all_background_gas(wrk, err)
-    use photochem_const, only: pi, k_boltz, N_avo
+    use photochem_const, only: pi, k_boltz, N_avo, small_real
     use photochem_data, only: ng_1, photonums, LH, LH2, &
                               back_gas_name, diff_H_escape, npq, &
                               there_are_particles, particle_sat_params, &
@@ -760,8 +760,22 @@ contains
   
     if (there_are_particles) then
       do i = 1,wrk%np
-        wrk%lower_vdep_copy(i) = wrk%wfall(i,1)
-        wrk%upper_veff_copy(i) = wrk%wfall(i,wrk%nz)
+        wrk%lower_vdep_copy(i) = wrk%lower_vdep_copy(i) + wrk%wfall(i,1)
+        wrk%upper_veff_copy(i) = wrk%upper_veff_copy(i) + wrk%wfall(i,wrk%nz)
+      enddo
+
+      ! compute The saturation density
+      do j = 1,wrk%nz
+        do i = 1,wrk%np
+          if (particle_formation_method(i) == 1) then
+            wrk%gas_sat_den(i,j) = saturation_density(temperature(j), &
+                                                 particle_sat_params(1,i), &
+                                                 particle_sat_params(2,i), &
+                                                 particle_sat_params(3,i))
+          endif
+          wrk%molecules_per_particle(i,j) = (4.d0/3.d0)*pi*particle_radius(i,j)**3.d0* &
+                                            particle_density(i)*(1/species_mass(i))*N_avo
+        enddo
       enddo
     endif
     
@@ -771,7 +785,7 @@ contains
     ! is similar to mixing ratios.
     do j = 1,wrk%nz
       do i = 1,npq
-        wrk%densities(i,j) = wrk%usol(i,j)!*N_avo ! convert mol/cm3 to particles/cm3
+        wrk%densities(i,j) = max(wrk%usol(i,j)*(wrk%density(j)/wrk%molecules_per_particle(i,j)), small_real)
       enddo
       do i = ng_1,wrk%nq
         wrk%densities(i,j) = wrk%usol(i,j)*wrk%density(j)
@@ -795,22 +809,6 @@ contains
       k = photonums(i)
       wrk%rx_rates(:,k) = wrk%prates(:,i) 
     enddo 
-    
-    if (there_are_particles) then
-      ! compute The saturation density
-      do j = 1,wrk%nz
-        do i = 1,wrk%np
-          if (particle_formation_method(i) == 1) then
-            wrk%gas_sat_den(i,j) = saturation_density(temperature(j), &
-                                                 particle_sat_params(1,i), &
-                                                 particle_sat_params(2,i), &
-                                                 particle_sat_params(3,i))
-          endif
-          wrk%molecules_per_particle(i,j) = (4.d0/3.d0)*pi*particle_radius(i,j)**3.d0* &
-                                            particle_density(i)*(1/species_mass(i))*N_avo
-        enddo
-      enddo
-    endif
     
   end subroutine
   
@@ -1555,7 +1553,8 @@ contains
       do j = 1,npq
         air_density_mm = (den(i)/N_avo)*mubar(i)
         viscosity_mm = dynamic_viscosity_air(T(i))
-        wfall(j,i) = fall_velocity(grav(i), r_particles(j,i), particle_density(j), air_density_mm, viscosity_mm)
+        wfall(j,i) = fall_velocity(grav(i), r_particles(j,i), particle_density(j), air_density_mm, viscosity_mm) &
+                     *slip_correction_factor(r_particles(j,i), den(i))
       enddo
     enddo
   
@@ -1599,11 +1598,13 @@ contains
       
         air_density_pp = (den(i+1)/N_avo)*mubar(i+1)
         viscosity_pp = dynamic_viscosity_air(T(i+1))
-        wfall_pp = fall_velocity(grav(i+1), r_particles(j,i+1), particle_density(j), air_density_pp, viscosity_pp)
+        wfall_pp = fall_velocity(grav(i+1), r_particles(j,i+1), particle_density(j), air_density_pp, viscosity_pp) &
+                   *slip_correction_factor(r_particles(j,i+1), den(i+1))
       
         air_density_mm = (den(i-1)/N_avo)*mubar(i-1)
         viscosity_mm = dynamic_viscosity_air(T(i-1))
-        wfall_mm = fall_velocity(grav(i-1), r_particles(j,i-1), particle_density(j), air_density_mm, viscosity_mm)
+        wfall_mm = fall_velocity(grav(i-1), r_particles(j,i-1), particle_density(j), air_density_mm, viscosity_mm) &
+                   *slip_correction_factor(r_particles(j,i-1), den(i-1))
       
         ADU(j,i) = wfall_pp*den(i+1)/(2.d0*dz(i)*den(i))
         ADL(j,i) = -wfall_mm*den(i-1)/(2.d0*dz(i)*den(i))
@@ -1635,7 +1636,8 @@ contains
       
       air_density_pp = (den(2)/N_avo)*mubar(2)
       viscosity_pp = dynamic_viscosity_air(T(2))
-      wfall_pp = fall_velocity(grav(2), r_particles(j,2), particle_density(j), air_density_pp, viscosity_pp)
+      wfall_pp = fall_velocity(grav(2), r_particles(j,2), particle_density(j), air_density_pp, viscosity_pp) &
+                  *slip_correction_factor(r_particles(j,2), den(2))
       
       ADU(j,1) = wfall_pp*den(2)/(2.d0*dz(1)*den(1))
     enddo
@@ -1666,7 +1668,8 @@ contains
       
       air_density_mm = (den(nz-1)/N_avo)*mubar(nz-1)
       viscosity_mm = dynamic_viscosity_air(T(nz-1))
-      wfall_mm = fall_velocity(grav(nz-1), r_particles(j,nz-1), particle_density(j), air_density_mm, viscosity_mm)
+      wfall_mm = fall_velocity(grav(nz-1), r_particles(j,nz-1), particle_density(j), air_density_mm, viscosity_mm) &
+                  *slip_correction_factor(r_particles(j,nz-1), den(nz-1))
     
       ADL(j,nz) = -wfall_mm*den(nz-1)/(2.d0*dz(nz)*den(nz))
     enddo
@@ -1773,7 +1776,22 @@ contains
     ! derived using Equation 9.29 in Seinfeld (2006) 
     ! title: "Atmospheric Chemistry and Physics"
     wfall = (2.d0/9.d0)*gravity*partical_radius**2.d0* &
-            (particle_density - air_density)/viscosity
+            (particle_density - air_density)/(viscosity)
+  end function
+  
+  function slip_correction_factor(partical_radius, density) result(correct_fac)
+    real(real_kind), intent(in) :: partical_radius ! cm
+    real(real_kind), intent(in) :: density ! molecules/cm3
+    real(real_kind), parameter :: area_of_molecule = 6.0d-15 ! cm2
+    real(real_kind) :: correct_fac
+    real(real_kind) :: mean_free_path
+    
+    mean_free_path = 1.d0/(density*area_of_molecule)
+    ! slip correction factor
+    ! Equation 9.34 in Seinfeld (2006) 
+    ! title: "Atmospheric Chemistry and Physics"
+    correct_fac =  1.d0 + (mean_free_path/partical_radius)* &
+                          (1.257d0 + 0.4d0*exp((-1.1d0*partical_radius)/(mean_free_path)))
   end function
   
   function binary_diffusion_param(mu_i, mubar, T) result(b)
@@ -1835,30 +1853,6 @@ contains
     p_H2O = 10.d0*e0*exp(lc/Rc*(1/T0 - 1/T))
     ! output is in dynes/cm2
   end function
-  
-  ! function sat_pressure_H2O(T) result(p_H2O)
-  !   real(real_kind), intent(in) :: T ! temperature in K
-  !   real(real_kind) :: p_H2O ! dynes/cm2
-  ! 
-  !   real(real_kind), parameter:: c0 = 6111.5
-  !   real(real_kind), parameter:: c1 = 23.036
-  !   real(real_kind), parameter:: c2 = -333.7
-  !   real(real_kind), parameter:: c3 = 279.82
-  !   real(real_kind), parameter:: w0 = 6112.1
-  !   real(real_kind), parameter:: w1 = 18.729
-  !   real(real_kind), parameter:: w2 = -227.3
-  !   real(real_kind), parameter:: w3 = 257.87
-  ! 
-  !   real(real_kind) :: T_C
-  ! 
-  !   T_C = T - 273.15d0
-  ! 
-  !   if (T_C < 0) then
-  !     p_H2O = c0 * exp( (c1*T_C + T_C**2/c2)/(T_C + c3) )
-  !   else
-  !     p_H2O = w0 * exp( (w1*T_C + T_C**2/w2)/(T_C + w3) )
-  !   endif
-  ! end function
   
   function damp_condensation_rate(A, rh0, rh) result(k)
     use photochem_const, only: pi

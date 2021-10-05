@@ -271,6 +271,8 @@ contains
     write(unit=1,fmt="(3x,a27)",advance='no') tmp
     tmp = 'press'
     write(unit=1,fmt="(a27)",advance='no') tmp
+    tmp = 'den'
+    write(unit=1,fmt="(a27)",advance='no') tmp
     tmp = 'temp'
     write(unit=1,fmt="(a27)",advance='no') tmp
     tmp = 'eddy'
@@ -290,6 +292,7 @@ contains
       write(1,*)
       write(unit=1,fmt="(es27.17e3)",advance='no') z(i)/1.d5
       write(unit=1,fmt="(es27.17e3)",advance='no') wrk_out%pressure(i)/1.d6
+      write(unit=1,fmt="(es27.17e3)",advance='no') wrk_out%density(i)
       write(unit=1,fmt="(es27.17e3)",advance='no') temperature(i)
       write(unit=1,fmt="(es27.17e3)",advance='no') edd(i)
       do j = 1,nq
