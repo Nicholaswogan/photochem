@@ -1474,6 +1474,22 @@ contains
     
   end subroutine
   
+  subroutine output_surface_fluxes(nq, surface_flux, err)
+    use photochem_vars, only: at_photo_equilibrium, usol_out, nz
+    integer, intent(in) :: nq
+    real(real_kind), intent(out) :: surface_flux(nq)
+    character(len=1024), intent(out) :: err
+    err = ''
+    
+    if (at_photo_equilibrium) then
+      call compute_surface_fluxes(nq, nz, usol_out, surface_flux, err)
+    else
+      err = "Can not compute surface fluxes without first converging to photochemical equilibrium."
+      return
+    endif
+    
+  end subroutine
+  
   subroutine compute_surface_fluxes(nq, nz, usol, surface_flux, err)
     use photochem_data, only: nsp, nrT, kj, nw, nsl, fix_water_in_trop, LH2O, np
     use photochem_vars, only: trop_ind, neqs, upper_veff, lower_vdep, dz, &

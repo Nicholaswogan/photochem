@@ -361,13 +361,36 @@ contains
     names = atoms_names
   end subroutine
   
-  subroutine get_usol_init(usol)
-    use photochem_vars, only: usol_init, nz
-    use photochem_data, only: nq
+  subroutine get_output_density(nz, density, err)
+    use photochem_vars, only: at_photo_equilibrium
+    use photochem_wrk, only: wrk_out
     
-    real(real_kind), intent(out) :: usol(nq,nz)
-    usol = usol_init
-
+    integer, intent(in) :: nz
+    real(real_kind), intent(out) :: density(nz)
+    character(len=1024), intent(out) :: err
+    if (.not.at_photo_equilibrium) then
+      err = "Can not retrieve atmospheric density without first converging to photochemical equilibrium."
+      return
+    endif
+    
+    density = wrk_out%density
+    
+  end subroutine
+  
+  subroutine get_output_pressure(nz, pressure, err)
+    use photochem_vars, only: at_photo_equilibrium
+    use photochem_wrk, only: wrk_out
+    
+    integer, intent(in) :: nz
+    real(real_kind), intent(out) :: pressure(nz)
+    character(len=1024), intent(out) :: err
+    if (.not.at_photo_equilibrium) then
+      err = "Can not retrieve atmospheric pressure without first converging to photochemical equilibrium."
+      return
+    endif
+    
+    pressure = wrk_out%pressure
+    
   end subroutine
   
 end module

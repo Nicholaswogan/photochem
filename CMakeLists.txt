@@ -103,8 +103,8 @@ if (BUILD_F2PY_PHOTOCHEM)
     -m ${f2py_module_name}
     ${F2PY_SOURCES}
     --lower
-    only: setup photo_equilibrium compute_surface_fluxes out2in out2atmosphere_txt
-          get_species_names get_atoms_names :
+    only: setup photo_equilibrium output_surface_fluxes out2in out2atmosphere_txt
+          get_species_names get_atoms_names get_output_density get_output_pressure :
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${F2PY_SOURCES}
   )

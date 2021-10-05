@@ -45,11 +45,29 @@ class Photochem():
             raise PhotoException("Must integrate to equilibrium before making a dictionary")
         out = {}
         out['alt'] = self.vars.z/1e5
+        density, err = photochem_setup.get_output_density(self.vars.nz)
+        if len(err.strip()) > 0:
+            raise PhotoException(err.decode("utf-8").strip())
+        out['den'] = density
+        pressure, err = photochem_setup.get_output_pressure(self.vars.nz)
+        if len(err.strip()) > 0:
+            raise PhotoException(err.decode("utf-8").strip())
+        out['press'] = pressure
         names = self.species_names
         for i in range(self.data.nq):
             out[names[i]] = self.vars.usol_out[i,:]
         return out
-        
+    
+    def out_fluxes(self):
+        fluxes, err = photochem.output_surface_fluxes(self.data.nq)
+        if len(err.strip()) > 0:
+            raise PhotoException(err.decode("utf-8").strip())
+        out = {}
+        names = self.species_names
+        for i in range(self.data.nq):
+            out[names[i]] = fluxes[i]
+        return out
+    
     @property
     def species_names(self):
         names = get_character_arr(photochem_setup.get_species_names, \
