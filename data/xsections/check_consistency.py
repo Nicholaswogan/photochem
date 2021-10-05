@@ -4,7 +4,7 @@ from ruamel.yaml import YAML
 yaml = YAML(typ='safe')
 
 def check_consistency(verbose=True):
-    '''Checks for consistency between metadata.yaml, and the data folders/files
+    '''Checks for consistency between metadata.yaml, and the data folders and files
     '''
     fil = open('metadata.yaml','r')
     meta_data = yaml.load(fil)
@@ -25,10 +25,25 @@ def check_consistency(verbose=True):
                     raise Exception('Reaction '+rx+' in xsections meta-data does not have a corresponding data file.')
 
     directories = [a for a in os.listdir() if os.path.isdir(a) and a[0]!='.']
-    try:
-        directories.remove('__pycache__')
-    except:
-        pass
+    directories2remove = ['__pycache__', "Zahnle_Kevin_data"]
+    for directory in directories2remove:
+        try:
+            directories.remove(directory)
+        except:
+            pass
+    
+    # Make sure meta data file has all the reactions in the folder
+    for directory in directories:
+        reactions = []
+        for key in meta_data[directory]['reactions'].keys():
+            reactions.append(key)
+        files = os.listdir(directory)
+        for file in files:
+            if 'xs' not in file:
+                reaction = ' '.join(file.replace('.txt','').split('_'))
+                if reaction not in reactions:
+                    raise Exception("metadata.yaml does not have an entry for reaction "+ \
+                                    reaction+" but data for this reaction exists")
 
     if set(all_species) != set(directories):
         bad = list(set(all_species).symmetric_difference(set(directories)))
@@ -90,23 +105,23 @@ def check_consistency(verbose=True):
         nr = len(meta_data[spec]['reactions'])
         for i in range(1,nr):
             if len(qys[0][0]) != len(qys[i][0]):
-                raise Exception('The quantum yields for '+sp+' must all have the same number of temperature columns, with the same corresponding temperature')
+                raise Exception('The quantum yields for '+spec+' must all have the same number of temperature columns, with the same corresponding temperature')
 
         for i in range(1,nr):
             for j in range(len(qy_temps[0])):
                 if qy_temps[0][j] != qy_temps[i][j]:
-                    raise Exception('The quantum yields for '+sp+' have data at different temperatures.\n'+\
+                    raise Exception('The quantum yields for '+spec+' have data at different temperatures.\n'+\
                                     'This is not allowed.')
 
         for i in range(1,nr):
             if not np.isclose(np.min(wv_qys[0]),np.min(wv_qys[i])):
-                raise Exception('Wavelengths for the quantum yields for ',sp,' have different lower bounds. They must be the same.')
+                raise Exception('Wavelengths for the quantum yields for ',spec,' have different lower bounds. They must be the same.')
             if not np.isclose(np.max(wv_qys[0]),np.max(wv_qys[i])):
-                raise Exception('Wavelengths for the quantum yields for ',sp,' have different upper bounds. They must be the same.')
+                raise Exception('Wavelengths for the quantum yields for ',spec,' have different upper bounds. They must be the same.')
         if not np.isclose(np.min(wv_qys[0]),np.min(wv_xs)):
-            raise Exception('Wavelengths for the quantum yields and cross sections for ',sp,' have different lower bounds. They must be the same.')
+            raise Exception('Wavelengths for the quantum yields and cross sections for ',spec,' have different lower bounds. They must be the same.')
         if not np.isclose(np.max(wv_qys[0]),np.max(wv_xs)):
-            raise Exception('Wavelengths for the quantum yields and cross sections for ',sp,' have different upper bounds. They must be the same.')
+            raise Exception('Wavelengths for the quantum yields and cross sections for ',spec,' have different upper bounds. They must be the same.')
 
         # check qys add to less than 1
         wv_new = np.linspace(np.min(wv_xs),np.max(wv_xs),1000)
@@ -118,7 +133,7 @@ def check_consistency(verbose=True):
                 qy_tot += np.interp(wv_new, wv_qys[j], np.array(qys[j])[:,i])
 
         if not all(qy_tot<1.01):
-            raise Exception('Quantum yields sum for ',sp,' sum to >1. They should sum to <= 1.')
+            raise Exception('Quantum yields sum for ',spec,' sum to >1. They should sum to <= 1.')
 
         # check meta-data wv citations align
         for rx in meta_data[spec]['reactions']:
@@ -137,7 +152,7 @@ def check_consistency(verbose=True):
             low.append(tmp[0])
             high.append(tmp[1])
         if not np.isclose(np.min(low),np.min(wv_xs)) or not np.isclose(np.max(high),np.max(wv_xs)):
-                raise Exception('The citation range in the meta-data does not align with the xs data for '+sp)
+                raise Exception('The citation range in the meta-data does not align with the xs data for '+spec)
 
     if verbose:
         print('metadata.yaml is consistent with the data files.')

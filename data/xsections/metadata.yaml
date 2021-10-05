@@ -1,0 +1,659 @@
+
+overall-notes:
+  - Xsections are in [cm^2/molecule]. Wavelengths are in [nm]. Quantum yields
+    are dimensionless
+  - Huebner and Mukherjee (2015) does not state the temperature of their
+    data. Here I assume their data is reasonable for 300 K.
+
+H2O:
+  reactions:
+    H2O + hv => OH + H:
+      citations:
+      - nm-range: 92.5 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 251.6
+      citation: Kevin Zahnle
+      DOI:
+  general-notes: 
+
+CH2CO:
+  reactions:
+    CH2CO + hv => 1CH2 + CO:
+      citations:
+      - nm-range: 92.5 - 450.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 450.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+H2S:
+  reactions:
+    H2S + hv => HS + H:
+      citations:
+      - nm-range: 176.2 - 450.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 450.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+C4H2:
+  reactions:
+    C4H2 + hv => C4H + H:
+      citations:
+      - nm-range: 92.5 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 251.6
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+S2:
+  reactions:
+    S2 + hv => S + S:
+      citations:
+      - nm-range: 176.2 - 450.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 450.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+C2H6:
+  reactions:
+    C2H6 + hv => C2H5 + H:
+      citations:
+      - nm-range: 92.5 - 172.5
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 172.5
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+S3:
+  reactions:
+    S3 + hv => S2 + S:
+      citations:
+      - nm-range: 176.2 - 850.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 850.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+S4:
+  reactions:
+    S4 + hv => S3 + S:
+      citations:
+      - nm-range: 176.2 - 850.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 850.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+HO2:
+  reactions:
+    HO2 + hv => OH + O:
+      citations:
+      - nm-range: 176.2 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 251.6
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+HNO3:
+  reactions:
+    HNO3 + hv => OH + NO2:
+      citations:
+      - nm-range: 176.2 - 450.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 450.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+NO:
+  reactions:
+    NO + hv => N + O:
+      citations:
+      - nm-range: 0.1 - 191.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+  xsections:
+    citations:
+    - nm-range: 0.1 - 191.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+  general-notes:
+
+HCN:
+  reactions:
+    HCN + hv => H + CN:
+      citations:
+      - nm-range: 92.5 - 172.5
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 172.5
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+N2H4:
+  reactions:
+    N2H4 + hv => N2H3 + H:
+      citations:
+      - nm-range: 92.5 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 251.6
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+SO3:
+  reactions:
+    SO3 + hv => SO2 + O:
+      citations:
+      - nm-range: 176.2 - 450.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 450.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+O2:
+  reactions:
+    O2 + hv => O + O:
+      citations:
+      - nm-range: 0.1 - 242.37
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+    O2 + hv => O + O1D:
+      citations:
+      - nm-range: 0.1 - 242.37
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+  xsections:
+    citations:
+    - nm-range: 0.1 - 242.37
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+  general-notes:
+
+SO2:
+  reactions:
+    SO2 + hv => SO + O:
+      citations:
+      - nm-range: 0.06 - 239.9
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+    SO2 + hv => S + O2:
+      citations:
+      - nm-range: 0.06 - 239.9
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+  xsections:
+    citations:
+    - nm-range: 0.06 - 239.9
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+  general-notes:
+
+CO:
+  reactions:
+    CO + hv => C + O:
+      citations:
+      - nm-range: 92.5 - 172.5
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 172.5
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+CH3OH:
+  reactions:
+    CH3OH + hv => CH3 + OH:
+      citations:
+      - nm-range: 92.5 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+    CH3OH + hv => H2CO + H2:
+      citations:
+      - nm-range: 92.5 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+    CH3OH + hv => CH3O + H:
+      citations:
+      - nm-range: 92.5 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 251.6
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+O3:
+  reactions:
+    O3 + hv => O1D + O2:
+      citations:
+      - nm-range: 0.06 - 900.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+    O3 + hv => O + O2:
+      citations:
+      - nm-range: 0.06 - 900.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+  xsections:
+    citations:
+    - nm-range: 0.06 - 900.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+  general-notes:
+
+CH3CHO:
+  reactions:
+    CH3CHO + hv => CH3CO + H:
+      citations:
+      - nm-range: 92.5 - 850.0
+        citation: Kevin Zahnle
+        DOI:
+    CH3CHO + hv => CH3 + HCO:
+      citations:
+      - nm-range: 92.5 - 850.0
+        citation: Kevin Zahnle
+        DOI:
+    CH3CHO + hv => CH4 + CO:
+      citations:
+      - nm-range: 92.5 - 850.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 850.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+HOCl:
+  reactions:
+    HOCl + hv => OH + Cl:
+      citations:
+      - nm-range: 176.2 - 450.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 450.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+OCS:
+  reactions:
+    OCS + hv => CO + S:
+      citations:
+      - nm-range: 92.5 - 450.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 450.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+S8:
+  reactions:
+    S8 + hv => S8L:
+      citations:
+      - nm-range: 176.2 - 450.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 450.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+CH4:
+  reactions:
+    CH4 + hv => 1CH2 + H2:
+      citations:
+      - nm-range: 92.5 - 172.5
+        citation: Kevin Zahnle
+        DOI:
+    CH4 + hv => CH3 + H:
+      citations:
+      - nm-range: 92.5 - 172.5
+        citation: Kevin Zahnle
+        DOI:
+    CH4 + hv => CH + H2 + H:
+      citations:
+      - nm-range: 92.5 - 172.5
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 172.5
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+C2H4:
+  reactions:
+    C2H4 + hv => C2H3 + H:
+      citations:
+      - nm-range: 92.5 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 251.6
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+SO:
+  reactions:
+    SO + hv => S + O:
+      citations:
+      - nm-range: 176.2 - 450.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 450.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+H2O2:
+  reactions:
+    H2O2 + hv => OH + OH:
+      citations:
+      - nm-range: 176.2 - 450.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 450.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+N2O:
+  reactions:
+    N2O + hv => N2 + O1D:
+      citations:
+      - nm-range: 176.2 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 251.6
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+H2CO:
+  reactions:
+    H2CO + hv => CO + H2:
+      citations:
+      - nm-range: 0.1 - 370.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+    H2CO + hv => HCO + H:
+      citations:
+      - nm-range: 0.1 - 370.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+    H2CO + hv => CO + H + H:
+      citations:
+      - nm-range: 0.1 - 370.0
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+  xsections:
+    citations:
+    - nm-range: 0.1 - 370.0
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+  general-notes:
+
+C2H2:
+  reactions:
+    C2H2 + hv => C2H + H:
+      citations:
+      - nm-range: 92.5 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 251.6
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+HCl:
+  reactions:
+    HCl + hv => H + Cl:
+      citations:
+      - nm-range: 176.2 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 251.6
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+HS:
+  reactions:
+    HS + hv => H + S:
+      citations:
+      - nm-range: 176.2 - 450.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 450.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+NO2:
+  reactions:
+    NO2 + hv => NO + O:
+      citations:
+      - nm-range: 176.2 - 450.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 450.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+CS2:
+  reactions:
+    CS2 + hv => CS + S:
+      citations:
+      - nm-range: 176.2 - 850.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 850.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+N2:
+  reactions:
+    N2 + hv => N + N2D:
+      citations:
+      - nm-range: 92.5 - 172.5
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 172.5
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+NH3:
+  reactions:
+    NH3 + hv => NH2 + H:
+      citations:
+      - nm-range: 92.5 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+    NH3 + hv => NH + H2:
+      citations:
+      - nm-range: 92.5 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 251.6
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+CH3CN:
+  reactions:
+    CH3CN + hv => CH3 + CN:
+      citations:
+      - nm-range: 92.5 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 251.6
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+S8L:
+  reactions:
+    S8L + hv => S4 + S4:
+      citations:
+      - nm-range: 176.2 - 850.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 850.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+Cl2:
+  reactions:
+    Cl2 + hv => Cl + Cl:
+      citations:
+      - nm-range: 176.2 - 450.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 450.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+CH2N2:
+  reactions:
+    CH2N2 + hv => 1CH2 + N2:
+      citations:
+      - nm-range: 176.2 - 850.0
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 850.0
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+HSO:
+  reactions:
+    HSO + hv => HS + O:
+      citations:
+      - nm-range: 176.2 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 176.2 - 251.6
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
+
+CO2:
+  reactions:
+    CO2 + hv => CO + O:
+      citations:
+      - nm-range: 92.5 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+    CO2 + hv => CO + O1D:
+      citations:
+      - nm-range: 92.5 - 251.6
+        citation: Kevin Zahnle
+        DOI:
+  xsections:
+    citations:
+    - nm-range: 92.5 - 251.6
+      citation: Kevin Zahnle
+      DOI:
+  general-notes:
