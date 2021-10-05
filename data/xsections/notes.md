@@ -38,3 +38,11 @@ I omit the following photolysis reactions
 
 I omit `SO2 + hv => S + O + O` because Phidrates has no data for this reaction. I omit `HNO + hv => NO + H` and `HNO2 + hv => NO + OH` because Kevin hard-codes rates instead of using cross sections. I am unable to find cross sections. 
 
+# 10/3/21
+
+I noticed that when modeling Mars, CO2 photolysis was much higher than previous models. It looks like the Phidrates cross sections are too large for CO2 + hv => CO + O branch. So I switched to Kevin Z CO2 cross sections. NOW i use Kevin's cross sections for all but
+
+'H2CO', 'O2', 'O3', 'SO2', 'NO'
+
+Which uses Phidrates.
+
