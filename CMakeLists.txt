@@ -43,6 +43,7 @@ set(PHOTOCHEM_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_mie.f90
                       ${CMAKE_SOURCE_DIR}/src/photochem_data.f90 
                       ${CMAKE_SOURCE_DIR}/src/photochem_setup.f90
                       ${CMAKE_SOURCE_DIR}/src/photochem_radtran.f90
+                      ${CMAKE_SOURCE_DIR}/src/photochem_rainout.f90
                       ${CMAKE_SOURCE_DIR}/src/photochem.f90)
                       
 set(F2PY_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90 

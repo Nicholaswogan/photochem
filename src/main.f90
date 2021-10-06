@@ -19,7 +19,7 @@ program main
   call setup("../data/reaction_mechanisms/zahnle_earth.yaml", &
              "../templates/ModernEarth/settings_ModernEarth.yaml", &
              "../templates/ModernEarth/Sun_now.txt", &
-             "../templates/ModernEarth/atmosphere_ModernEarth.txt", err)
+             "../atmosphere_ModernEarth6.txt", err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop
@@ -47,11 +47,11 @@ program main
     print"(A10,' = ',es10.2)",species_names(i),surface_flux(i)
   enddo
   
-  ! call out2atmosphere_txt("../atmosphere_ModernEarth6.txt",.true.,.true.,err)
-  ! if (len(trim(err)) > 0) then
-  !   print*,trim(err)
-  !   stop
-  ! endif
+  call out2atmosphere_txt("../atmosphere_ModernEarth7.txt",.true.,.true.,err)
+  if (len(trim(err)) > 0) then
+    print*,trim(err)
+    stop
+  endif
   
 
 end program

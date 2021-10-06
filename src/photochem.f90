@@ -280,16 +280,16 @@ contains
     
   end subroutine
   
-  subroutine dochem(neqs, nsp, np, nsl, nq, nz, nrT, usol, density, rx_rates, &
+  subroutine dochem(neqs, nsp, np, nsl, nq, nz, nll, trop_ind, nrT, usol, density, rx_rates, &
                     gas_sat_den, molecules_per_particle, condensation_rate, &
-                    H2O_sat_mix, H2O_condensation_rate, &
+                    H2O_sat_mix, H2O_condensation_rate, rainout_rates, &
                     densities, xp, xl, rhs)                 
     use photochem_const, only: N_avo, pi, small_real
-    use photochem_vars, only: relative_humidity_cold_trap, trop_ind
+    use photochem_vars, only: relative_humidity_cold_trap, gas_rainout
     use photochem_data, only: ng_1, there_are_particles, particle_gas_phase_ind, &
                               particle_formation_method, fix_water_in_trop, stratospheric_cond, &
                               LH2O
-    integer, intent(in) :: neqs, nsp, np, nsl, nq, nz, nrT
+    integer, intent(in) :: neqs, nsp, np, nsl, nq, nz, nll, trop_ind, nrT
     real(real_kind), intent(in) :: usol(nq,nz), density(nz)
     real(real_kind), intent(in) :: rx_rates(nz,nrT)
     real(real_kind), intent(in) :: gas_sat_den(np,nz)
@@ -297,6 +297,7 @@ contains
     real(real_kind), intent(in) :: condensation_rate(2,np)
     real(real_kind), intent(in) :: H2O_sat_mix(nz)
     real(real_kind), intent(in) :: H2O_condensation_rate(2)
+    real(real_kind), intent(in) :: rainout_rates(nll, trop_ind)
     real(real_kind), intent(inout) :: densities(nsp+1,nz), xp(nz), xl(nz)
     real(real_kind), intent(out) :: rhs(neqs)
     
@@ -329,6 +330,17 @@ contains
         rhs(k) = xp(j)/density(j) - xl(j)/density(j)
       enddo
     enddo
+    
+    if (gas_rainout) then
+      ! rainout rates
+      do j = 1,trop_ind
+        do i = ng_1,nq
+          ii = i - np 
+          k = i + (j - 1) * nq
+          rhs(k) = rhs(k) - rainout_rates(ii,j)*usol(i,j)
+        enddo
+      enddo
+    endif
     
     ! if stratospheric water condesation is on, then condense
     ! water in the stratosphere.
@@ -713,6 +725,7 @@ contains
   end function
   
   subroutine prep_all_background_gas(wrk, err)
+    use photochem_rainout, only: rainout
     use photochem_const, only: pi, k_boltz, N_avo, small_real
     use photochem_data, only: ng_1, photonums, LH, LH2, &
                               back_gas_name, diff_H_escape, npq, &
@@ -722,7 +735,7 @@ contains
                               xs_x_qy, photon_flux, diurnal_fac, solar_zenith, &
                               surface_albedo, lowerboundcond, lower_fix_mr, &
                               photon_scale_factor, particle_radius, &
-                              w0_particles, qext_particles, gt_particles
+                              w0_particles, qext_particles, gt_particles, gas_rainout
     
     type(WrkBackgroundAtm), intent(inout) :: wrk
     character(len=err_len), intent(out) :: err
@@ -810,12 +823,17 @@ contains
       wrk%rx_rates(:,k) = wrk%prates(:,i) 
     enddo 
     
+    ! rainout rates
+    if (gas_rainout) then
+      call rainout(wrk%nq, wrk%nz, wrk%nll, wrk%trop_ind, wrk%usol, temperature, wrk%density, wrk%rainout_rates)
+    endif
+
   end subroutine
   
   subroutine rhs_background_gas(neqs, user_data, usol_flat, rhs, err)
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
-    use photochem_data, only: np, nq, nsp, nsl, nrT, LH2O, fix_water_in_trop
+    use photochem_data, only: np, nq, nll, nsp, nsl, nrT, LH2O, fix_water_in_trop
     use photochem_vars, only: nz, z, dz, trop_ind, edd, condensation_rate, &
                               lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
                               lower_dist_height, upper_veff, upper_flux, H2O_condensation_rate
@@ -861,9 +879,9 @@ contains
     call prep_all_background_gas(wrk, err)
     if (len_trim(err) /= 0) return
     
-    call dochem(neqs, nsp, np, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+    call dochem(neqs, nsp, np, nsl, nq, nz, nll, trop_ind, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
-                wrk%H2O_sat_mix, H2O_condensation_rate, &
+                wrk%H2O_sat_mix, H2O_condensation_rate, wrk%rainout_rates, &
                 wrk%densities, wrk%xp, wrk%xl, rhs) 
     
     ! diffusion (interior grid points)
@@ -942,7 +960,7 @@ contains
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
-    use photochem_data, only: lda, kd, ku, kl, nq, nsp, np, nsl, nrT,  &
+    use photochem_data, only: lda, kd, ku, kl, nq, nll, nsp, np, nsl, nrT,  &
                               fix_water_in_trop, LH2O
     use photochem_vars, only: nz, dz, epsj, trop_ind, edd, condensation_rate, &
                               lowerboundcond, upperboundcond, lower_vdep, &
@@ -1001,9 +1019,9 @@ contains
     
     ! compute chemistry contribution to jacobian using forward differences
     jac = 0.d0
-    call dochem(neqs, nsp, np, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+    call dochem(neqs, nsp, np, nsl, nq, nz, nll, trop_ind, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
-                wrk%H2O_sat_mix, H2O_condensation_rate, &
+                wrk%H2O_sat_mix, H2O_condensation_rate, wrk%rainout_rates, &
                 wrk%densities, wrk%xp, wrk%xl, rhs) 
     !$omp parallel private(i,j,k,m,mm,usol_perturb, R, densities, xp, xl, rhs_perturb)
     usol_perturb = wrk%usol
@@ -1014,9 +1032,9 @@ contains
         usol_perturb(i,j) = wrk%usol(i,j) + R(j)
       enddo
 
-      call dochem(neqs, nsp, np, nsl, nq, nz, nrT, usol_perturb, wrk%density, wrk%rx_rates, &
+      call dochem(neqs, nsp, np, nsl, nq, nz, nll, trop_ind, nrT, usol_perturb, wrk%density, wrk%rx_rates, &
                   wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
-                  wrk%H2O_sat_mix, H2O_condensation_rate, &
+                  wrk%H2O_sat_mix, H2O_condensation_rate, wrk%rainout_rates, &
                   wrk%densities, wrk%xp, wrk%xl, rhs_perturb) 
 
       do m = 1,nq
@@ -1491,7 +1509,7 @@ contains
   end subroutine
   
   subroutine compute_surface_fluxes(nq, nz, usol, surface_flux, err)
-    use photochem_data, only: nsp, nrT, kj, nw, nsl, fix_water_in_trop, LH2O, np
+    use photochem_data, only: nsp, nrT, nll, kj, nw, nsl, fix_water_in_trop, LH2O, np
     use photochem_vars, only: trop_ind, neqs, upper_veff, lower_vdep, dz, &
                               condensation_rate, H2O_condensation_rate
                               
@@ -1517,9 +1535,9 @@ contains
     call prep_all_background_gas(wrk, err)
     if (len_trim(err) /= 0) return
   
-    call dochem(neqs, nsp, np, nsl, nq, nz, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+    call dochem(neqs, nsp, np, nsl, nq, nz, nll, trop_ind, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
-                wrk%H2O_sat_mix, H2O_condensation_rate, &
+                wrk%H2O_sat_mix, H2O_condensation_rate, wrk%rainout_rates, &
                 wrk%densities, wrk%xp, wrk%xl, rhs) 
                           
     ! surface flux is molecules required to sustain the lower boundary

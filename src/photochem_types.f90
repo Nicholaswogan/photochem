@@ -34,6 +34,7 @@ module photochem_types ! make a giant IO object
     integer :: LH2O
     logical :: use_manabe ! use manabe formula
     real(real_kind) :: relative_humidity ! relative humidity if no manabe
+    logical :: gas_rainout
     logical :: stratospheric_cond
     real(real_kind) :: relative_humidity_cold_trap
     real(real_kind) :: H2O_condensation_rate(2)
@@ -82,6 +83,7 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: species_mass(:) ! nsp
     real(real_kind), allocatable :: thermo_data(:,:,:) ! ng
     real(real_kind), allocatable :: thermo_temps(:,:) ! ng
+    real(real_kind), allocatable :: henry_data(:,:)
     
     ! particles
     logical :: there_are_particles
@@ -171,6 +173,7 @@ module photochem_types ! make a giant IO object
     integer :: nsp
     integer :: np
     integer :: nq
+    integer :: nll
     integer :: nz
     integer :: nrT
     integer :: kj
@@ -205,6 +208,7 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: wfall(:,:)
     real(real_kind), allocatable :: gas_sat_den(:,:)
     real(real_kind), allocatable :: molecules_per_particle(:,:)
+    real(real_kind), allocatable :: rainout_rates(:,:)
     ! end used in prep_all_background_gas
     
     
@@ -221,6 +225,7 @@ contains
     self%nsp = nsp
     self%np = np
     self%nq = nq
+    self%nll = nq - np
     self%nz = nz
     self%nrT = nrT
     self%kj = kj
@@ -251,6 +256,7 @@ contains
       deallocate(self%wfall)
       deallocate(self%gas_sat_den)
       deallocate(self%molecules_per_particle)
+      deallocate(self%rainout_rates)
     endif
     
     allocate(self%usol(nq,nz))
@@ -276,6 +282,7 @@ contains
     allocate(self%wfall(np,nz))
     allocate(self%gas_sat_den(np,nz))
     allocate(self%molecules_per_particle(np,nz))
+    allocate(self%rainout_rates(self%nll,trop_ind))
   end subroutine
   
 end module

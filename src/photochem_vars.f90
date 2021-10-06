@@ -37,6 +37,7 @@ module photochem_vars
   integer :: trop_ind
   logical :: use_manabe ! use manabe formula
   real(real_kind) :: relative_humidity ! relative humidity if no manabe
+  logical :: gas_rainout
   real(real_kind) :: relative_humidity_cold_trap
   real(real_kind) :: H2O_condensation_rate(2)
   

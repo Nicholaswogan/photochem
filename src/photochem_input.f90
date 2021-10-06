@@ -617,6 +617,84 @@ contains
     if (len(trim(err)) > 0) return
     !!! end reactions !!!
     
+    
+    !!! henrys law !!!
+    call get_henry(photomech, err)
+    if (len(trim(err)) > 0) return
+    !!! end henrys law !!!
+    
+  end subroutine
+  
+  subroutine get_henry(photomech, err)
+    use yaml, only : parse, error_length
+    use photochem_vars, only: data_dir
+    type(PhotoMechanism), intent(inout) :: photomech
+    character(len=*), intent(out) :: err
+    
+    character(error_length) :: error
+    class (type_node), pointer :: root
+    type (type_error), pointer :: io_err
+    class (type_list_item), pointer :: item
+    integer :: j, ind(1), i
+    
+    character(len=15), allocatable :: henry_names(:)
+    real(real_kind), allocatable :: henry_data(:,:)
+    
+    err = ''
+
+    ! parse yaml file
+    root => parse(trim(data_dir)//"/henry/henry.yaml",unit=100,error=error)
+    if (error /= '') then
+      err = trim(error)
+      return
+    end if
+    select type (root)
+    class is (type_list)
+      
+      j = 0
+      item => root%first
+      do while(associated(item))
+        j = j + 1
+        item => item%next
+      enddo
+      
+      allocate(henry_names(j))
+      allocate(henry_data(2,j))
+      j = 1
+      item => root%first
+      do while(associated(item))
+        select type (element => item%node)
+        class is (type_dictionary)
+          henry_names(j) = element%get_string('name',error = io_err)
+          if (associated(io_err)) then; err = trim(io_err%message); return; endif
+          henry_data(1,j) = element%get_real('A',error = io_err)
+          if (associated(io_err)) then; err = trim(io_err%message); return; endif
+          henry_data(2,j) = element%get_real('B',error = io_err)
+          if (associated(io_err)) then; err = trim(io_err%message); return; endif
+        
+        j = j + 1
+        item => item%next
+        end select
+      enddo
+      
+      
+      call root%finalize()
+      deallocate(root)
+    class default
+      err = "yaml file must have dictionaries at root level"
+      return
+    end select
+    
+    allocate(photomech%henry_data(2,photomech%ng))
+    photomech%henry_data = 0.d0
+    do j = 1,size(henry_names)
+      ind = findloc(photomech%species_names,henry_names(j))
+      if (ind(1) /= 0) then
+        i = ind(1) - photomech%npq
+        photomech%henry_data(:,i) = henry_data(:,j)
+      endif
+    enddo
+    
   end subroutine
   
   subroutine get_efficient(reaction, rxn, infile, photomech, err)
@@ -1702,6 +1780,9 @@ contains
         photoset%use_manabe = .false.
       endif
       
+      photoset%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
       photoset%stratospheric_cond = tmp2%get_logical('stratospheric-condensation',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
@@ -1722,6 +1803,8 @@ contains
           return
         endif
       endif
+    else
+      photoset%gas_rainout = .false.
         
     endif
     

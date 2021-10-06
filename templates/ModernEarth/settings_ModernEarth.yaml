@@ -24,6 +24,7 @@ planet:
     fix-water-in-troposphere: true
     tropopause-altitude: 1.1e6 # cm
     relative-humidity: manabe
+    gas-rainout: true
     stratospheric-condensation: true
     cold-trap-relative-humitity: 0.1 # relative humidity at the cold trap
     condensation-rate: 

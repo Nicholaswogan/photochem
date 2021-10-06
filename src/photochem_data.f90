@@ -24,6 +24,7 @@ module photochem_data
   real(real_kind), allocatable :: species_mass(:) 
   real(real_kind), allocatable :: thermo_data(:,:,:)
   real(real_kind), allocatable :: thermo_temps(:,:)
+  real(real_kind), allocatable :: henry_data(:,:)
   
   ! particles
   logical, protected :: there_are_particles
@@ -135,10 +136,11 @@ contains
       deallocate(species_names)
       deallocate(species_composition)
       deallocate(species_mass)
-      if (photomech%reverse) then
+      if (allocated(thermo_data)) then
         deallocate(thermo_data)
         deallocate(thermo_temps)
       endif
+      deallocate(henry_data)
       
       if (allocated(particle_formation_method)) then
         deallocate(particle_formation_method)
@@ -222,6 +224,8 @@ contains
       allocate(thermo_temps(3,ng))
       thermo_temps = photomech%thermo_temps
     endif
+    allocate(henry_data(2,ng))
+    henry_data = photomech%henry_data
     
     ! particles
     there_are_particles = photomech%there_are_particles
@@ -415,10 +419,13 @@ contains
     if (fix_water_in_trop) then
       use_manabe = photoset%use_manabe ! use manabe formula
       relative_humidity = photoset%relative_humidity ! relative humidity if no manabe
+      gas_rainout = photoset%gas_rainout
       if (stratospheric_cond) then
         relative_humidity_cold_trap = photoset%relative_humidity_cold_trap
         H2O_condensation_rate = photoset%H2O_condensation_rate
       endif
+    else
+      gas_rainout = .false.
     endif
 
   end subroutine
