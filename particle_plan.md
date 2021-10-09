@@ -106,7 +106,8 @@ Lets start simple with sulfur condensation.
 
 
 
+There is definitely a problem with H2SO4aer condensation. Do what Atmos does.
 
-
+Also a problem with haze. Need to get rid of C4H4 and C4H2
 
 

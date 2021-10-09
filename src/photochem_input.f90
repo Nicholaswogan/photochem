@@ -685,15 +685,17 @@ contains
       return
     end select
     
-    allocate(photomech%henry_data(2,photomech%ng))
+    allocate(photomech%henry_data(2,photomech%nsp))
     photomech%henry_data = 0.d0
     do j = 1,size(henry_names)
       ind = findloc(photomech%species_names,henry_names(j))
       if (ind(1) /= 0) then
-        i = ind(1) - photomech%npq
+        i = ind(1)
         photomech%henry_data(:,i) = henry_data(:,j)
       endif
     enddo
+    ! set particle solubility to super high number
+    photomech%henry_data(1,1:photomech%npq) = 1.d11
     
   end subroutine
   
@@ -2765,7 +2767,7 @@ contains
         else
           ! did not find the data
           ! will set to 0.1 micron
-          photoinit%particle_radius_file(i,:) = 1.d-5
+          photoinit%particle_radius_file(i,:) = 1.d-7
           iii = 0
         endif
       enddo

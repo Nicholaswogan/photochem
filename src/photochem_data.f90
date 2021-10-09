@@ -224,7 +224,7 @@ contains
       allocate(thermo_temps(3,ng))
       thermo_temps = photomech%thermo_temps
     endif
-    allocate(henry_data(2,ng))
+    allocate(henry_data(2,nsp))
     henry_data = photomech%henry_data
     
     ! particles

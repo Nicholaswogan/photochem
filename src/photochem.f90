@@ -280,7 +280,7 @@ contains
     
   end subroutine
   
-  subroutine dochem(neqs, nsp, np, nsl, nq, nz, nll, trop_ind, nrT, usol, density, rx_rates, &
+  subroutine dochem(neqs, nsp, np, nsl, nq, nz, trop_ind, nrT, usol, density, rx_rates, &
                     gas_sat_den, molecules_per_particle, condensation_rate, &
                     H2O_sat_mix, H2O_condensation_rate, rainout_rates, &
                     densities, xp, xl, rhs)                 
@@ -289,7 +289,7 @@ contains
     use photochem_data, only: ng_1, there_are_particles, particle_gas_phase_ind, &
                               particle_formation_method, fix_water_in_trop, stratospheric_cond, &
                               LH2O
-    integer, intent(in) :: neqs, nsp, np, nsl, nq, nz, nll, trop_ind, nrT
+    integer, intent(in) :: neqs, nsp, np, nsl, nq, nz, trop_ind, nrT
     real(real_kind), intent(in) :: usol(nq,nz), density(nz)
     real(real_kind), intent(in) :: rx_rates(nz,nrT)
     real(real_kind), intent(in) :: gas_sat_den(np,nz)
@@ -297,7 +297,7 @@ contains
     real(real_kind), intent(in) :: condensation_rate(2,np)
     real(real_kind), intent(in) :: H2O_sat_mix(nz)
     real(real_kind), intent(in) :: H2O_condensation_rate(2)
-    real(real_kind), intent(in) :: rainout_rates(nll, trop_ind)
+    real(real_kind), intent(in) :: rainout_rates(nq, trop_ind)
     real(real_kind), intent(inout) :: densities(nsp+1,nz), xp(nz), xl(nz)
     real(real_kind), intent(out) :: rhs(neqs)
     
@@ -322,6 +322,8 @@ contains
       densities(k,:) = xp/xl
     enddo
     
+    rhs = 0.d0
+    
     ! long lived              
     do i = ng_1,nq
       call chempl(nz, nsp, nrT, densities, rx_rates, i, xp, xl)
@@ -334,10 +336,9 @@ contains
     if (gas_rainout) then
       ! rainout rates
       do j = 1,trop_ind
-        do i = ng_1,nq
-          ii = i - np 
+        do i = 1,nq
           k = i + (j - 1) * nq
-          rhs(k) = rhs(k) - rainout_rates(ii,j)*usol(i,j)
+          rhs(k) = rhs(k) - rainout_rates(i,j)*usol(i,j)
         enddo
       enddo
     endif
@@ -451,7 +452,8 @@ contains
     prates = 0.d0
     err = ''
     !$omp parallel private(l, i, j, jj, k, n, ie, ierr, partial_prates, &
-    !$omp& tausg, taua, tau, w0, gt, amean, surf_rad, &
+    !$omp& taup, taup_1, tausp, tausp_1, tausg, taua, tau, w0, gt, gt_1, &
+    !$omp& amean, surf_rad, &
     !$omp& amean_grd, flx)
     ierr = 0
     partial_prates = 0.d0
@@ -547,11 +549,12 @@ contains
       return
     endif
     
-    ! do i=1,kj
-    !   do j=1,nz
-    !     call round(prates(j,i),-8)
-    !   enddo
-    ! enddo
+    ! if openmp is used, we must round precision for reproducibility
+    !$ do i=1,kj
+    !$   do j=1,nz
+    !$     call round(prates(j,i),-8)
+    !$   enddo
+    !$ enddo
     
   end subroutine
   
@@ -781,6 +784,8 @@ contains
       do j = 1,wrk%nz
         do i = 1,wrk%np
           if (particle_formation_method(i) == 1) then
+            ! problem is that H2SO4 makes aerosols with water.
+            ! so pure condensation won't work I think.
             wrk%gas_sat_den(i,j) = saturation_density(temperature(j), &
                                                  particle_sat_params(1,i), &
                                                  particle_sat_params(2,i), &
@@ -825,7 +830,7 @@ contains
     
     ! rainout rates
     if (gas_rainout) then
-      call rainout(wrk%nq, wrk%nz, wrk%nll, wrk%trop_ind, wrk%usol, temperature, wrk%density, wrk%rainout_rates)
+      call rainout(wrk%nq, wrk%nz, wrk%trop_ind, wrk%usol, temperature, wrk%density, wrk%rainout_rates)
     endif
 
   end subroutine
@@ -879,7 +884,7 @@ contains
     call prep_all_background_gas(wrk, err)
     if (len_trim(err) /= 0) return
     
-    call dochem(neqs, nsp, np, nsl, nq, nz, nll, trop_ind, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+    call dochem(neqs, nsp, np, nsl, nq, nz, trop_ind, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
                 wrk%H2O_sat_mix, H2O_condensation_rate, wrk%rainout_rates, &
                 wrk%densities, wrk%xp, wrk%xl, rhs) 
@@ -977,6 +982,7 @@ contains
     real(real_kind) :: R(nz)
     real(real_kind) :: rhs(neqs)
     real(real_kind) :: rhs_perturb(neqs)
+    real(real_kind) :: densities(nsp+1,nz), xl(nz), xp(nz)
     
     type(WrkBackgroundAtm), pointer :: wrk
     ! we need these work arrays for parallel jacobian claculation.
@@ -1019,11 +1025,11 @@ contains
     
     ! compute chemistry contribution to jacobian using forward differences
     jac = 0.d0
-    call dochem(neqs, nsp, np, nsl, nq, nz, nll, trop_ind, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+    call dochem(neqs, nsp, np, nsl, nq, nz, trop_ind, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
                 wrk%H2O_sat_mix, H2O_condensation_rate, wrk%rainout_rates, &
-                wrk%densities, wrk%xp, wrk%xl, rhs) 
-    !$omp parallel private(i,j,k,m,mm,usol_perturb, R, densities, xp, xl, rhs_perturb)
+                densities, xp, xl, rhs) 
+    !$omp parallel private(i, j, k, m, mm, usol_perturb, R, densities, xl, xp, rhs_perturb)
     usol_perturb = wrk%usol
     !$omp do
     do i = 1,nq
@@ -1032,10 +1038,10 @@ contains
         usol_perturb(i,j) = wrk%usol(i,j) + R(j)
       enddo
 
-      call dochem(neqs, nsp, np, nsl, nq, nz, nll, trop_ind, nrT, usol_perturb, wrk%density, wrk%rx_rates, &
+      call dochem(neqs, nsp, np, nsl, nq, nz, trop_ind, nrT, usol_perturb, wrk%density, wrk%rx_rates, &
                   wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
                   wrk%H2O_sat_mix, H2O_condensation_rate, wrk%rainout_rates, &
-                  wrk%densities, wrk%xp, wrk%xl, rhs_perturb) 
+                  densities, xp, xl, rhs_perturb) 
 
       do m = 1,nq
         mm = m - i + kd
@@ -1535,7 +1541,7 @@ contains
     call prep_all_background_gas(wrk, err)
     if (len_trim(err) /= 0) return
   
-    call dochem(neqs, nsp, np, nsl, nq, nz, nll, trop_ind, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+    call dochem(neqs, nsp, np, nsl, nq, nz, trop_ind, nrT, wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, condensation_rate, &
                 wrk%H2O_sat_mix, H2O_condensation_rate, wrk%rainout_rates, &
                 wrk%densities, wrk%xp, wrk%xl, rhs) 

@@ -173,7 +173,6 @@ module photochem_types ! make a giant IO object
     integer :: nsp
     integer :: np
     integer :: nq
-    integer :: nll
     integer :: nz
     integer :: nrT
     integer :: kj
@@ -225,7 +224,6 @@ contains
     self%nsp = nsp
     self%np = np
     self%nq = nq
-    self%nll = nq - np
     self%nz = nz
     self%nrT = nrT
     self%kj = kj
@@ -282,7 +280,7 @@ contains
     allocate(self%wfall(np,nz))
     allocate(self%gas_sat_den(np,nz))
     allocate(self%molecules_per_particle(np,nz))
-    allocate(self%rainout_rates(self%nll,trop_ind))
+    allocate(self%rainout_rates(self%nq,trop_ind))
   end subroutine
   
 end module

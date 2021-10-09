@@ -4,15 +4,15 @@ module photochem_rainout
   integer, private, parameter :: real_kind = kind(1.0d0)
 contains
   
-subroutine rainout(nq, nz, nll, trop_ind, usol, T, den, rainout_rates)
+subroutine rainout(nq, nz, trop_ind, usol, T, den, rainout_rates)
   use photochem_const, only: k_boltz, N_avo, small_real
   use photochem_data, only: henry_data, LH2O, np, species_names
   use photochem_vars, only: edd, dz, z
   
-  integer, intent(in) :: nq, nz, nll, trop_ind
+  integer, intent(in) :: nq, nz, trop_ind
   real(real_kind), intent(in) :: usol(nq, nz)
   real(real_kind), intent(in) :: T(nz), den(nz)
-  real(real_kind), intent(out) :: rainout_rates(nll, trop_ind)
+  real(real_kind), intent(out) :: rainout_rates(nq, trop_ind)
   
   integer :: i, j
   
@@ -70,8 +70,8 @@ subroutine rainout(nq, nz, nll, trop_ind, usol, T, den, rainout_rates)
   
   !!!!!!! dissolve gas in the rain !!!!!!!!!
   do j = 1,trop_ind
-    do i = 1,nll
-      H_coeff = henrys_law(max(T(j),273.15d0),henry_data(1,i),henry_data(2,i))*(1.d5)      
+    do i = 1,nq
+      H_coeff = henrys_law(max(T(j),273.15d0),henry_data(1,i),henry_data(2,i))*(1.d5)
       H_coeff = max(H_coeff, small_real)
       k_bar = (C1*k_boltz*T(j)*H_coeff/(1.d0+C1*C2*N_avo*LLL*k_boltz*T(j)*H_coeff)) &
                * (WH2O(j)*MH2O/rho_H2O) 
