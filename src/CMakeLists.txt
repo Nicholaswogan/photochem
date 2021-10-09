@@ -1,7 +1,6 @@
 
 # fortran yaml
-add_subdirectory(fortran-yaml EXCLUDE_FROM_ALL)
-# set_property(TARGET yaml PROPERTY Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
+add_subdirectory(fortran-yaml-cpp EXCLUDE_FROM_ALL)
 
 # binning
 add_subdirectory(binning EXCLUDE_FROM_ALL)

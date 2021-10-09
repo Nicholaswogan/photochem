@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION "3.12")
-project(photochem Fortran C)
+project(photochem LANGUAGES Fortran C CXX)
 
 option(SKBUILD "Should be ON of being build by skbuild, 
 and OFF of being build by regular cmake" OFF)
@@ -57,7 +57,7 @@ if (BUILD_STATIC_PHOTOCHEM)
   # libphotochem.a
   add_library(photochem 
               ${PHOTOCHEM_SOURCES})
-  target_link_libraries(photochem yaml sundials_fcvode_mod sundials_cvode cminpack binning)
+  target_link_libraries(photochem fortran-yaml-cpp sundials_fcvode_mod sundials_cvode cminpack binning)
   target_include_directories(photochem PUBLIC
                             "${CMAKE_BINARY_DIR}/modules"
                             )
@@ -71,6 +71,8 @@ if (BUILD_STATIC_PHOTOCHEM)
   add_executable(testrun ${CMAKE_SOURCE_DIR}/tests/test.f90)
   target_link_libraries(testrun photochem)
   target_include_directories(testrun PRIVATE ${CMAKE_BINARY_DIR}/modules)
+
+  set_target_properties(photorun testrun PROPERTIES LINKER_LANGUAGE Fortran)
 
   enable_testing()
   add_test(test_photochem testrun)

@@ -62,7 +62,7 @@ contains
     err = ''
     
     ! parse yaml file
-    root => parse(infile,unit=100,error=error)
+    root => parse(infile,error=error)
     if (error /= '') then
       err = trim(error)
       return
@@ -643,7 +643,7 @@ contains
     err = ''
 
     ! parse yaml file
-    root => parse(trim(data_dir)//"/henry/henry.yaml",unit=100,error=error)
+    root => parse(trim(data_dir)//"/henry/henry.yaml",error=error)
     if (error /= '') then
       err = trim(error)
       return
@@ -1498,7 +1498,7 @@ contains
     integer :: i, j
     err = ''
     
-    root => parse(infile,unit=100,error=error)
+    root => parse(infile,error=error)
     if (error /= '') then
       err = trim(error)
       return
@@ -1601,7 +1601,7 @@ contains
     class (type_node), pointer :: root
     err = ''
     
-    root => parse(infile,unit=100,error=error)
+    root => parse(infile,error=error)
     if (error /= '') then
       err = trim(error)
       return
@@ -2478,7 +2478,7 @@ contains
     rayleigh_file = trim(data_dir)//"/rayleigh/rayleigh.yaml"
     
     ! parse yaml file
-    root => parse(rayleigh_file,unit=100,error=error)
+    root => parse(rayleigh_file,error=error)
     if (error /= '') then
       err = trim(error)
       return
