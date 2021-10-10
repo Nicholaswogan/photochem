@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.4)
-project(fortran-yaml-cpp VERSION 0.0.1 LANGUAGES CXX Fortran)
+
+project(fortran-yaml-cpp VERSION 0.0.2 LANGUAGES CXX C Fortran)
+
+include(FortranCInterface)
+FortranCInterface_VERIFY(CXX)
 
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
@@ -20,7 +24,7 @@ if(NOT EXISTS "${PROJECT_SOURCE_DIR}/yaml-cpp/CMakeLists.txt")
     message(FATAL_ERROR "The submodules were not downloaded! GIT_SUBMODULE was turned off or failed. Please update submodules and try again.")
 endif()
 
-add_subdirectory(yaml-cpp)
+add_subdirectory(yaml-cpp EXCLUDE_FROM_ALL)
 
 set(CMAKE_CXX_STANDARD 11)
 

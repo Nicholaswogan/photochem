@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION "3.12")
 project(photochem LANGUAGES Fortran C CXX)
 
+include(FortranCInterface)
+FortranCInterface_VERIFY()
+FortranCInterface_VERIFY(CXX)
+
+
 option(SKBUILD "Should be ON of being build by skbuild, 
 and OFF of being build by regular cmake" OFF)
 
@@ -71,8 +76,6 @@ if (BUILD_STATIC_PHOTOCHEM)
   add_executable(testrun ${CMAKE_SOURCE_DIR}/tests/test.f90)
   target_link_libraries(testrun photochem)
   target_include_directories(testrun PRIVATE ${CMAKE_BINARY_DIR}/modules)
-
-  set_target_properties(photorun testrun PROPERTIES LINKER_LANGUAGE Fortran)
 
   enable_testing()
   add_test(test_photochem testrun)

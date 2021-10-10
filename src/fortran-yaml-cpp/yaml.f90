@@ -131,7 +131,7 @@ contains
     root_c = LoadFile(trim(path), error)
     if (c_associated(root_c)) then
       call read_value(root_c, root)
-      call root%set_path(path)
+      call root%set_path("")
       call DestroyNode(root_c)
     endif
     
