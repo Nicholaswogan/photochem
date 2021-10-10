@@ -6,8 +6,9 @@ language: fortran
 before_install:
   - sudo apt-get update
   - sudo apt-get install build-essential
-  - sudo apt-get install gfortran
-  - sudo apt-get install gcc
+  - sudo apt install gfortran-10
+  - sudo apt install gcc-10
+  - sudo apt install g++-10
 
 install:
   - mkdir build
