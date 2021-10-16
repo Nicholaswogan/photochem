@@ -838,7 +838,7 @@ contains
   subroutine rhs_background_gas(neqs, user_data, usol_flat, rhs, err)
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
-    use photochem_data, only: np, nq, nll, nsp, nsl, nrT, LH2O, fix_water_in_trop
+    use photochem_data, only: np, nq, nsp, nsl, nrT, LH2O, fix_water_in_trop
     use photochem_vars, only: nz, z, dz, trop_ind, edd, condensation_rate, &
                               lowerboundcond, upperboundcond, lower_vdep, lower_flux, &
                               lower_dist_height, upper_veff, upper_flux, H2O_condensation_rate
@@ -965,7 +965,7 @@ contains
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
-    use photochem_data, only: lda, kd, ku, kl, nq, nll, nsp, np, nsl, nrT,  &
+    use photochem_data, only: lda, kd, ku, kl, nq, nsp, np, nsl, nrT,  &
                               fix_water_in_trop, LH2O
     use photochem_vars, only: nz, dz, epsj, trop_ind, edd, condensation_rate, &
                               lowerboundcond, upperboundcond, lower_vdep, &
@@ -1515,7 +1515,7 @@ contains
   end subroutine
   
   subroutine compute_surface_fluxes(nq, nz, usol, surface_flux, err)
-    use photochem_data, only: nsp, nrT, nll, kj, nw, nsl, fix_water_in_trop, LH2O, np
+    use photochem_data, only: nsp, nrT, kj, nw, nsl, fix_water_in_trop, LH2O, np
     use photochem_vars, only: trop_ind, neqs, upper_veff, lower_vdep, dz, &
                               condensation_rate, H2O_condensation_rate
                               

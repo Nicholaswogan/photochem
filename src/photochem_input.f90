@@ -763,23 +763,24 @@ contains
   
   
   subroutine check_for_duplicates(photomech,err)
+    use sorting, only: sort
     type(PhotoMechanism), intent(in) :: photomech
     character(len=err_len), intent(out) :: err
     character(len=:), allocatable :: rxstring
     
-    integer i, ii, nr, j, np, k, matches, matches_old, kk, jj, jjj
+    integer i, ii, nr, np
     logical l, m
     
-    integer, allocatable :: tmp_arr(:), tmp_arr_save(:)
+    integer, allocatable :: tmp_arr1(:), tmp_arr2(:)
     
     err = ''
     
     if (photomech%max_num_reactants > photomech%max_num_products) then
-      allocate(tmp_arr(photomech%max_num_reactants))
-      allocate(tmp_arr_save(photomech%max_num_reactants))
+      allocate(tmp_arr1(photomech%max_num_reactants))
+      allocate(tmp_arr2(photomech%max_num_reactants))
     else
-      allocate(tmp_arr(photomech%max_num_products))
-      allocate(tmp_arr_save(photomech%max_num_products))
+      allocate(tmp_arr1(photomech%max_num_products))
+      allocate(tmp_arr2(photomech%max_num_products))
     endif
     
     do i = 1,photomech%nrT-1
@@ -789,82 +790,21 @@ contains
         nr = photomech%nreactants(i)
         np = photomech%nproducts(i)
         if (nr == photomech%nreactants(ii) .and. np == photomech%nproducts(i)) then
+          tmp_arr1(1:nr) = photomech%reactants_sp_inds(1:nr,ii)
+          tmp_arr2(1:nr) = photomech%reactants_sp_inds(1:nr,i)
           
-          !!! check if all the reactants are the same
-          tmp_arr(1:nr) = photomech%reactants_sp_inds(1:nr,ii)
-          matches = 0
-          matches_old = 0
-          do j = 1,nr
-            do k = 1,nr-matches
-              if (photomech%reactants_sp_inds(j,i) == tmp_arr(k)) then
-                ! we have found a match. We new delete the match
-                ! from tmp_arr and compare next element of
-                ! photomech%reactants_sp_inds(j,i)
-                jjj = nr-matches
-                jj = 1
-                do kk = 1,jjj
-                  if (kk == k) then
-                    cycle
-                  else
-                    tmp_arr_save(jj) = tmp_arr(kk)
-                    jj = jj + 1
-                  endif
-                enddo
-                tmp_arr(1:jjj-1) = tmp_arr_save(1:jjj-1)
-                
-                matches_old = matches
-                matches = matches + 1
-                exit
-              endif
-            enddo
-            if (matches == matches_old) then
-              ! this means there wasn't a match for one species
-              ! so we can exit
-              exit
-            endif
-          enddo
+          call sort(tmp_arr1(1:nr))
+          call sort(tmp_arr2(1:nr))
           
-          if (nr == matches) then
-            m = .true.
-          else
-            m = .false.
-          endif
+          m = all(tmp_arr1(1:nr) == tmp_arr2(1:nr))
           
-          !!! check if the products are the same
-          tmp_arr(1:np) = photomech%products_sp_inds(1:np,ii)
-          matches = 0
-          matches_old = 0
-          do j = 1,np
-            do k = 1,np-matches
-              if (photomech%products_sp_inds(j,i) == tmp_arr(k)) then
-                
-                jjj = np-matches
-                jj = 1
-                do kk = 1,jjj
-                  if (kk == k) then
-                    cycle
-                  else
-                    tmp_arr_save(jj) = tmp_arr(kk)
-                    jj = jj + 1
-                  endif
-                enddo
-                tmp_arr(1:jjj-1) = tmp_arr_save(1:jjj-1)
-                
-                matches_old = matches
-                matches = matches + 1
-                exit
-              endif
-            enddo
-            if (matches == matches_old) then
-              exit
-            endif
-          enddo
+          tmp_arr1(1:np) = photomech%products_sp_inds(1:np,ii)
+          tmp_arr2(1:np) = photomech%products_sp_inds(1:np,i)
           
-          if (np == matches) then
-            l = .true.
-          else
-            l = .false.
-          endif
+          call sort(tmp_arr1(1:np))
+          call sort(tmp_arr2(1:np))
+          
+          l = all(tmp_arr1(1:np) == tmp_arr2(1:np))
           
           if (m .and. l) then
             err = "IOError: This reaction is a duplicate: "
@@ -872,7 +812,6 @@ contains
             err(len_trim(err)+2:) = rxstring
             return
           endif
-          
         endif
       enddo
     enddo

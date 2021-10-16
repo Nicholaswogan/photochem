@@ -6,7 +6,7 @@ contains
   
 subroutine rainout(nq, nz, trop_ind, usol, T, den, rainout_rates)
   use photochem_const, only: k_boltz, N_avo, small_real
-  use photochem_data, only: henry_data, LH2O, np, species_names
+  use photochem_data, only: henry_data, LH2O
   use photochem_vars, only: edd, dz, z
   
   integer, intent(in) :: nq, nz, trop_ind
