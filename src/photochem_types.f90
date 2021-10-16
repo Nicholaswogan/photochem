@@ -5,7 +5,7 @@ module photochem_types ! make a giant IO object
   integer,parameter :: real_kind = kind(1.0d0)
   integer, parameter :: str_len = 1024
   
-  public PhotoMechanism, PhotoSettings, PhotoRadTran, PhotoInitAtm
+  public PhotoMechanism, PhotoSettings, PhotoRadTran, PhotoInitAtm, XsectionData
   public WrkBackgroundAtm
   
   type :: PhotoSettings
@@ -129,16 +129,17 @@ module photochem_types ! make a giant IO object
 
   end type
   
+  type :: XsectionData
+    integer :: n_temps
+    real(real_kind), allocatable :: xs(:,:) ! (n_temps, nw)
+    real(real_kind), allocatable :: xs_temps(:) ! (n_temps)
+  end type
+  
   type :: PhotoRadTran
     
     integer :: nw
     real(real_kind), allocatable :: wavl(:) ! (nw+1)
-
-    integer, allocatable :: num_temp_cols(:) ! (kj)
-    integer, allocatable :: sum_temp_cols(:) ! (kj)
-    ! All data for every reaction in single vector to save memory
-    real(real_kind), allocatable :: xs_data(:) ! (sum(num_temp_cols)*nw) 
-    real(real_kind), allocatable :: xs_data_temps(:,:) ! (maxval(num_temp_cols), kj)
+    type(XsectionData), allocatable :: xs_data(:) ! (kj)
 
     integer :: nray
     real(real_kind), allocatable :: sigray(:,:) ! (len(raynums), nw)

@@ -1,5 +1,6 @@
 
 module photochem_data
+  use photochem_types, only: XsectionData
   implicit none  
   ! public ! public but protected
   integer, private, parameter :: real_kind = kind(1.0d0)
@@ -66,11 +67,8 @@ module photochem_data
   ! raditative transfer
   integer, protected :: nw
   real(real_kind), allocatable :: wavl(:) ! (nw+1)
-  integer, allocatable :: num_temp_cols(:) ! (kj)
-  integer, allocatable :: sum_temp_cols(:) ! (kj)
-  ! All data for every reaction in single vector to save memory
-  real(real_kind), allocatable :: xs_data(:) ! (sum(num_temp_cols)*nw) 
-  real(real_kind), allocatable :: xs_data_temps(:,:) ! (maxval(num_temp_cols), kj)
+  !f2py integer(8), allocatable :: xs_data(:)
+  type(XsectionData), allocatable :: xs_data(:) ! (kj)
   integer, protected :: nray
   real(real_kind), allocatable :: sigray(:,:) ! (len(raynums), nw)
   integer, allocatable :: raynums(:) ! species number of rayleigh species
@@ -172,10 +170,7 @@ contains
       deallocate(photonums)
       
       deallocate(wavl)
-      deallocate(num_temp_cols)
-      deallocate(sum_temp_cols)
       deallocate(xs_data)
-      deallocate(xs_data_temps)
       deallocate(sigray)
       deallocate(raynums)
       
@@ -295,14 +290,8 @@ contains
     nw = photorad%nw
     allocate(wavl(nw))
     wavl = photorad%wavl
-    allocate(num_temp_cols(kj))
-    num_temp_cols = photorad%num_temp_cols
-    allocate(sum_temp_cols(kj))
-    sum_temp_cols = photorad%sum_temp_cols
-    allocate(xs_data(sum(num_temp_cols)*nw))
-    xs_data = photorad%xs_data
-    allocate(xs_data_temps(maxval(num_temp_cols), kj))
-    xs_data_temps = photorad%xs_data_temps
+    allocate(xs_data(kj))
+    xs_data = photorad%xs_data    
     nray = photorad%nray
     allocate(sigray(size(photorad%sigray,1),nw))
     sigray = photorad%sigray

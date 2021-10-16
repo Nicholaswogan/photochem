@@ -2263,14 +2263,13 @@ contains
     real(real_kind), allocatable :: dumby(:,:)
     real(real_kind), parameter :: rdelta = 1.d-4
     
-    integer :: i, j, k, l, m, mm, io, kk, ierr
+    integer :: i, j, k, l, m, io, kk, ierr
     err = ''
     
     xsroot = trim(data_dir)//"/"//trim(xs_folder_name)//"/"
     
-    ! count temperature columns
-    allocate(photorad%num_temp_cols(photomech%kj))
-    allocate(photorad%sum_temp_cols(photomech%kj))
+    allocate(photorad%xs_data(photomech%kj))
+    
     do i = 1,photomech%kj
       filename = ''
       j = photomech%photonums(i)
@@ -2301,45 +2300,13 @@ contains
         err = 'More cross section temperature data than allowed for reaction '//reaction
         return
       endif
-      photorad%num_temp_cols(i) = k - 2
-      close(101)
-    enddo
-    photorad%sum_temp_cols(1) = 0
-    do i = 2,photomech%kj
-      photorad%sum_temp_cols(i) = photorad%sum_temp_cols(i-1) + photorad%num_temp_cols(i-1)
-    enddo
-    
-    ! allocate
-    allocate(photorad%xs_data(sum(photorad%num_temp_cols)*photorad%nw))
-    allocate(photorad%xs_data_temps(maxval(photorad%num_temp_cols),photomech%kj))
-    photorad%xs_data_temps = 0.d0
-
-    ! read in data
-    do i = 1,photomech%kj
-      filename = ''
-      j = photomech%photonums(i)
-      call reaction_string(photomech,j,reaction)
-      filename = reaction
-      do k = 1,len(filename)-1
-        if (filename(k:k) == ' ') then
-          filename(k:k) = '_'
-        endif
-      enddo
-      filename = filename//'.txt'
-
-      k = photomech%reactants_sp_inds(1,j)
-      filename = trim(photomech%species_names(k))//'/'//filename
-      xsfilename = trim(photomech%species_names(k))//'/'//trim(photomech%species_names(k))//'_xs.txt'
-      open(101, file=xsroot//filename,status='old',iostat=io)
-      read(101,*)
-      read(101,'(A)') line
-       
-      do k=1,photorad%num_temp_cols(i) + 1
-        read(line,*,iostat=io) tmp(1:k)
-      enddo
-      do k=1,photorad%num_temp_cols(i)
+      photorad%xs_data(i)%n_temps = k - 2
+      allocate(photorad%xs_data(i)%xs(k - 2, photorad%nw))
+      allocate(photorad%xs_data(i)%xs_temps(k - 2))
+      
+      do k=1,photorad%xs_data(i)%n_temps
         tmp1 = tmp(k+1)
-        read(tmp1(1:index(tmp1,'K')-1),*,iostat=io) photorad%xs_data_temps(k,i)
+        read(tmp1(1:index(tmp1,'K')-1),*,iostat=io) photorad%xs_data(i)%xs_temps(k)
         if (io /= 0) then
           err = 'Problem reading in cross sections for reaction '//reaction
           return
@@ -2353,25 +2320,25 @@ contains
         if (io == 0) k = k + 1
       enddo
       allocate(file_wav(k+4))
-      allocate(file_qy(k+4,photorad%num_temp_cols(i)))
-      allocate(file_line(photorad%num_temp_cols(i)+1))
-      allocate(dumby(photorad%nw,photorad%num_temp_cols(i)))
-
+      allocate(file_qy(k+4,photorad%xs_data(i)%n_temps))
+      allocate(file_line(photorad%xs_data(i)%n_temps+1))
+      allocate(dumby(photorad%nw,photorad%xs_data(i)%n_temps))
+      
       rewind(101)
       read(101,*)
       read(101,*)
       do l = 1, k
         read(101,'(A)',iostat=io) line
         read(line,*) file_wav(l)
-        do m = 1,photorad%num_temp_cols(i)+1
+        do m = 1,photorad%xs_data(i)%n_temps+1
           read(line,*) file_line(1:m)
         enddo
         file_qy(l,:) = file_line(2:)
       enddo
       
-      ! interpolate to grid. save in photorad%xs_data
+      ! interpolate to grid
       ierr = 0
-      do l = 1, photorad%num_temp_cols(i)
+      do l = 1, photorad%xs_data(i)%n_temps
         kk = k
         call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(1)*(1.d0-rdelta), 0.d0, ierr)
         call addpnt(file_wav, file_qy(:,l), kk+4, k, 0.d0, 0.d0, ierr)
@@ -2382,17 +2349,15 @@ contains
                 trim(reaction)
           return
         endif
-        m = ((l-1)*photorad%nw + 1) + (photorad%sum_temp_cols(i)*photorad%nw)
-        mm = (photorad%nw*l) + (photorad%sum_temp_cols(i)*photorad%nw)
         call inter2(photorad%nw+1,photorad%wavl,dumby(:,l), &
                     kk+4,file_wav,file_qy(:,l),ierr)
-        photorad%xs_data(m:mm) = dumby(:,l)
-        k = kk
         if (ierr /= 0) then
           err = 'IOError: Problem interpolating quantum yield data to photolysis grid for reaction '// &
                 trim(reaction)
           return
         endif
+        photorad%xs_data(i)%xs(l,:) = dumby(:,l)
+        k = kk
       enddo
       
       close(101)
@@ -2411,7 +2376,7 @@ contains
         if (io == 0) k = k + 1
       enddo
       allocate(file_wav(k+4))
-      allocate(file_xs(k+4,photorad%num_temp_cols(i)))
+      allocate(file_xs(k+4,photorad%xs_data(i)%n_temps))
       
       rewind(102)
       read(102,*)
@@ -2419,14 +2384,14 @@ contains
       do l = 1, k
         read(102,'(A)',iostat=io) line
         read(line,*) file_wav(l)
-        do m = 1,photorad%num_temp_cols(i)+1
+        do m = 1,photorad%xs_data(i)%n_temps+1
           read(line,*) file_line(1:m)
         enddo
         file_xs(l,:) = file_line(2:)
       enddo
-
+      
       ierr = 0
-      do l = 1, photorad%num_temp_cols(i)
+      do l = 1, photorad%xs_data(i)%n_temps
         kk = k
         call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(1)*(1.d0-rdelta), 0.d0,ierr)
         call addpnt(file_wav, file_xs(:,l), kk+4, k, 0.d0, 0.d0,ierr)
@@ -2437,24 +2402,19 @@ contains
                 trim(reaction)
           return
         endif
-        m = ((l-1)*photorad%nw + 1) + (photorad%sum_temp_cols(i)*photorad%nw)
-        mm =(photorad%nw*l) + (photorad%sum_temp_cols(i)*photorad%nw)
-
         call inter2(photorad%nw+1,photorad%wavl,dumby(:,l), &
-                    kk+4,file_wav,file_xs(:,l),ierr)
-        photorad%xs_data(m:mm) = photorad%xs_data(m:mm) * dumby(:,l)
-        k = kk
-        
+                    kk+4,file_wav,file_xs(:,l),ierr)  
         if (ierr /= 0) then
           err = 'IOError: Problem interpolating xs data to photolysis grid for reaction '// &
                 trim(reaction)
           return
         endif
+        photorad%xs_data(i)%xs(l,:) = photorad%xs_data(i)%xs(l,:)*dumby(:,l)
+        k = kk
       enddo
 
       close(102)
       deallocate(file_xs, file_wav, file_line, dumby)
-
     enddo
     
   end subroutine

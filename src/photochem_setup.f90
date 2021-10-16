@@ -49,8 +49,7 @@ contains
                            w0_particles, qext_particles, gt_particles, err)
     use interp_tools, only: interp
     use photochem_const, only: small_real
-    use photochem_data, only: num_temp_cols, sum_temp_cols, &
-                              xs_data, xs_data_temps, &
+    use photochem_data, only: xs_data, &
                               nrad_file, radii_file, w0_file, qext_file, g_file, &
                               there_are_particles
     
@@ -64,35 +63,24 @@ contains
     
     character(len=err_len), intent(out) :: err
     
-    integer :: i, j, k, l, m, ncol, jj
+    integer :: i, j, k, jj
     real(real_kind) :: val(1), T_temp(1)
-    real(real_kind) ,allocatable :: tmp(:)
     real(real_kind) :: dr, slope, intercept
     
-    allocate(tmp(size(xs_data_temps,1)))
     err = ''
-    
-    !$omp parallel private(k, i, l, j, m, ncol, T_temp, tmp, val, err)
-    !$omp do
+
     do k = 1, nw
       do i = 1,kj
-        ncol = num_temp_cols(i)
-        do l = 1, ncol
-          m = ((l-1)*nw + 1) + (sum_temp_cols(i)*nw)
-          tmp(l) = xs_data(m+k-1+(l-1)*nw)
-        enddo
-    
         do j = 1,nz
           T_temp(1) = temperature(j)
     
-          call interp(1, ncol, T_temp, xs_data_temps(1:ncol,i), log10(abs(tmp(1:ncol)+small_real)), val, err)
-          ! if (len_trim(err) /= 0) return
+          call interp(1, xs_data(i)%n_temps, T_temp, xs_data(i)%xs_temps, &
+                      log10(abs(xs_data(i)%xs(:,k))), val, err)
+    
           xs_x_qy(j,i,k) = 10.d0**val(1)
         enddo
       enddo
     enddo
-    !$omp end do
-    !$omp end parallel
     
     ! particles
     if (there_are_particles) then

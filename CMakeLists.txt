@@ -121,7 +121,7 @@ if (BUILD_F2PY_PHOTOCHEM)
               "${f2py_module_name}-f2pywrappers2.f90"
                ${PHOTOCHEM_SOURCES})
     
-  target_link_libraries(${generated_module_file} yaml sundials_fcvode_mod sundials_cvode cminpack binning)
+  target_link_libraries(${generated_module_file} fortran-yaml-cpp sundials_fcvode_mod sundials_cvode cminpack binning)
   target_include_directories(${generated_module_file} PUBLIC
                             "${CMAKE_BINARY_DIR}/modules"
                             ${F2PY_INCLUDE_DIRS}
