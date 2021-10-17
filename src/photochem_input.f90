@@ -18,8 +18,8 @@ contains
     character(len=*), intent(in) :: settings_file
     character(len=*), intent(in) :: flux_file
     character(len=*), intent(in) :: atmosphere_txt
-    type(PhotochemData), intent(out) :: photodata
-    type(PhotochemVars), intent(out) :: photovars
+    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemVars), intent(inout) :: photovars
     character(len=err_len), intent(out) :: err
     
     err = ""
@@ -208,9 +208,11 @@ contains
     character(len=*), intent(in) :: settings_file
     character(len=*), intent(in) :: flux_file
     character(len=*), intent(in) :: atmosphere_txt
-    type(PhotochemData), intent(out) :: photodata
-    type(PhotochemVars), intent(out) :: photovars
+    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemVars), intent(inout) :: photovars
     character(len=err_len), intent(out) :: err
+    
+    err = ""
     
     ! first get SL and background species from settings
     call get_SL_and_background(settings_file, photodata, err)

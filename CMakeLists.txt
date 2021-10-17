@@ -5,14 +5,13 @@ include(FortranCInterface)
 FortranCInterface_VERIFY()
 FortranCInterface_VERIFY(CXX)
 
-
 option(SKBUILD "Should be ON of being build by skbuild, 
 and OFF of being build by regular cmake" OFF)
 
 option(BUILD_STATIC_PHOTOCHEM "if ON, then will build the
 static library libphotochem.a" ON)
 
-option(BUILD_F2PY_PHOTOCHEM "if ON, then will build a python
+option(BUILD_PYTHON_PHOTOCHEM "if ON, then will build a python
 version with f2py" OFF)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
@@ -50,22 +49,16 @@ set(PHOTOCHEM_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90
                       ${CMAKE_SOURCE_DIR}/src/photochem_object_rhs.f90
                       ${CMAKE_SOURCE_DIR}/src/photochem_object_integrate.f90
                       ${CMAKE_SOURCE_DIR}/src/atmos.f90)
-                      
-set(F2PY_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90 
-                 ${CMAKE_SOURCE_DIR}/src/photochem_vars.f90 
-                 ${CMAKE_SOURCE_DIR}/src/photochem_data.f90 
-                 ${CMAKE_SOURCE_DIR}/src/photochem_setup.f90
-                 ${CMAKE_SOURCE_DIR}/src/photochem.f90)
+
+# libphotochem.a
+add_library(photochem 
+            ${PHOTOCHEM_SOURCES})
+target_link_libraries(photochem fortran-yaml-cpp sundials_fcvode_mod sundials_cvode cminpack binning)
+target_include_directories(photochem PUBLIC
+                          "${CMAKE_BINARY_DIR}/modules"
+                          )
 
 if (BUILD_STATIC_PHOTOCHEM)
-  
-  # libphotochem.a
-  add_library(photochem 
-              ${PHOTOCHEM_SOURCES})
-  target_link_libraries(photochem fortran-yaml-cpp sundials_fcvode_mod sundials_cvode cminpack binning)
-  target_include_directories(photochem PUBLIC
-                            "${CMAKE_BINARY_DIR}/modules"
-                            )
 
   # the main executable
   add_executable(photorun ${CMAKE_SOURCE_DIR}/src/main.f90)
@@ -81,70 +74,28 @@ if (BUILD_STATIC_PHOTOCHEM)
   add_test(test_photochem testrun)
 endif()
 
-if (BUILD_F2PY_PHOTOCHEM)
+if (BUILD_PYTHON_PHOTOCHEM)
   if (NOT SKBUILD)
     set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/")
   endif()
   
   find_package(PythonExtensions REQUIRED)
-  find_package(NumPy)
-  find_package(F2PY REQUIRED)
+  find_package(NumPy REQUIRED)
+  find_package(Cython REQUIRED)
   
-  message(STATUS "F2PY included from: ${F2PY_INCLUDE_DIR}")
+  add_subdirectory(Photochem)
   
-  set(f2py_module_name "_photochem")
-  set(generated_module_file ${f2py_module_name}${PYTHON_EXTENSION_MODULE_SUFFIX})
+  add_cython_target(_Photochem Photochem/_Photochem.pyx)
+  add_library(_Photochem MODULE ${_Photochem})
+  python_extension_module(_Photochem)
   
-  # f2py -m photochem photochem_setup.f90 photochem_vars.f90 
-  # photochem_data.f90 photochem_const.f90 photochem.f90 
-  # only: setup photo_equilibrium compute_surface_fluxes out2atmosphere_txt :
-  
-  add_custom_target(${f2py_module_name} ALL
-  DEPENDS ${F2PY_SOURCES}
-  )
-  
-  add_custom_command(
-  OUTPUT "${f2py_module_name}module.c" "${f2py_module_name}-f2pywrappers2.f90"
-  COMMAND ${F2PY_EXECUTABLE}
-    -m ${f2py_module_name}
-    ${F2PY_SOURCES}
-    --lower
-    only: setup photo_equilibrium output_surface_fluxes out2in out2atmosphere_txt
-          get_species_names get_atoms_names get_output_density get_output_pressure :
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS ${F2PY_SOURCES}
-  )
-  
-  add_library(${generated_module_file} MODULE
-              "${f2py_module_name}module.c"
-              "${F2PY_INCLUDE_DIR}/fortranobject.c"
-              "${f2py_module_name}-f2pywrappers2.f90"
-               ${PHOTOCHEM_SOURCES})
-    
-  target_link_libraries(${generated_module_file} fortran-yaml-cpp sundials_fcvode_mod sundials_cvode cminpack binning)
-  target_include_directories(${generated_module_file} PUBLIC
-                            "${CMAKE_BINARY_DIR}/modules"
-                            ${F2PY_INCLUDE_DIRS}
-                            ${PYTHON_INCLUDE_DIRS})
-                            
-  set_target_properties(${generated_module_file} PROPERTIES SUFFIX "")
-  set_target_properties(${generated_module_file} PROPERTIES PREFIX "")    
-  
-  if (UNIX)
-    if (APPLE)
-      set_target_properties(${generated_module_file} PROPERTIES
-      LINK_FLAGS  '-Wl,-dylib,-undefined,dynamic_lookup')
-    else()
-      set_target_properties(${generated_module_file} PROPERTIES
-    LINK_FLAGS  '-Wl,--allow-shlib-undefined')
-    endif()
-  endif()
-  
+  target_link_libraries(_Photochem photochem_wrapper)
+  target_include_directories(_Photochem PUBLIC ${NumPy_INCLUDE_DIRS})
   
   if (SKBUILD)
-    install(TARGETS ${generated_module_file} DESTINATION Photochem)
+    install(TARGETS _Photochem  DESTINATION Photochem)
   else()
-    install(TARGETS ${generated_module_file} DESTINATION ${CMAKE_SOURCE_DIR}/Photochem)
+    install(TARGETS _Photochem  DESTINATION ${CMAKE_SOURCE_DIR}/Photochem)
   endif()
 
                     

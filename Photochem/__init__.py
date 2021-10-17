@@ -1,1 +1,1 @@
-from .Photochem import *
+from ._Photochem import *
