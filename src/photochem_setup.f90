@@ -1,14 +1,15 @@
 module photochem_setup
   implicit none
-  ! private
+  private
   integer, private, parameter :: real_kind = kind(1.0d0)
   integer, private, parameter :: err_len = 1024
   
-  ! public :: setup, out2atmosphere_txt
+  public :: setup, out2in, out2atmosphere_txt
   
 contains
   
   subroutine setup(mechanism_file, settings_file, flux_file, atmosphere_txt, err)
+    use photochem_eqns, only: gravity, vertical_grid
     use photochem_data, only: setup_files, &
                               planet_radius, planet_mass, nq, kj, nw, npq, np, &
                               fix_water_in_trop
@@ -298,86 +299,6 @@ contains
     enddo
     
     close(1)
-    
-  end subroutine
-  
-  subroutine gravity(radius, mass, nz, z, grav)
-    use photochem_const, only: G_grav
-    real(real_kind), intent(in) :: radius, mass ! radius in cm, mass in grams
-    integer, intent(in) :: nz
-    real(real_kind), intent(in) :: z(nz) ! cm
-    real(real_kind), intent(out) :: grav(nz) ! cm/s2
-
-    integer :: i
-    
-    do i = 1, nz              
-      grav(i) = G_grav * (mass/1.d3) / ((radius + z(i))/1.d2)**2.d0
-      grav(i) = grav(i)*1.d2 ! convert to cgs
-    enddo 
-    
-  end subroutine
-  
-  subroutine vertical_grid(bottom, top, nz, z, dz)
-    real(real_kind), intent(in) :: bottom, top
-    integer, intent(in) :: nz
-    real(real_kind), intent(out) :: z(nz), dz(nz)
-  
-    integer :: i
-  
-    dz = (top - bottom)/nz
-    z(1) = dz(1)/2.d0
-    do i = 2,nz
-      z(i) = z(i-1) + dz(i)
-    enddo
-  end subroutine
-  
-  !!! setter and getter functions !!!
-  
-  subroutine get_species_names(n,names)
-    use photochem_data, only: species_names
-    integer, intent(in) :: n
-    character(len=15), intent(inout) :: names(n)
-    !f2py intent(in, out) names(n)
-    names = species_names
-  end subroutine
-  
-  subroutine get_atoms_names(n,names)
-    use photochem_data, only: atoms_names
-    integer, intent(in) :: n
-    character(len=8), intent(inout) :: names(n)
-    !f2py intent(in, out) names(n)
-    names = atoms_names
-  end subroutine
-  
-  subroutine get_output_density(nz, density, err)
-    use photochem_vars, only: at_photo_equilibrium
-    use photochem_wrk, only: wrk_out
-    
-    integer, intent(in) :: nz
-    real(real_kind), intent(out) :: density(nz)
-    character(len=1024), intent(out) :: err
-    if (.not.at_photo_equilibrium) then
-      err = "Can not retrieve atmospheric density without first converging to photochemical equilibrium."
-      return
-    endif
-    
-    density = wrk_out%density
-    
-  end subroutine
-  
-  subroutine get_output_pressure(nz, pressure, err)
-    use photochem_vars, only: at_photo_equilibrium
-    use photochem_wrk, only: wrk_out
-    
-    integer, intent(in) :: nz
-    real(real_kind), intent(out) :: pressure(nz)
-    character(len=1024), intent(out) :: err
-    if (.not.at_photo_equilibrium) then
-      err = "Can not retrieve atmospheric pressure without first converging to photochemical equilibrium."
-      return
-    endif
-    
-    pressure = wrk_out%pressure
     
   end subroutine
   

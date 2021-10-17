@@ -1,11 +1,9 @@
 
 module photochem_data
+  use photochem_const, only: real_kind, err_len, str_len
   use photochem_types, only: XsectionData
   implicit none  
   ! public ! public but protected
-  integer, private, parameter :: real_kind = kind(1.0d0)
-  integer, private, parameter :: str_len = 1024
-  integer, private, parameter :: err_len = 1024
   ! Data that doesn't after file read-in
 
   ! molecules

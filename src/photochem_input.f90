@@ -2,59 +2,57 @@
 module photochem_input
   use yaml_types, only : type_node, type_dictionary, type_list, type_error, &
                          type_list_item, type_scalar, type_key_value_pair
-  use photochem_types, only : PhotoMechanism, PhotoSettings, PhotoRadTran, PhotoInitAtm
+  use photochem_types, only : PhotoMechanism, PhotoSettings, PhotoRadTran, PhotoInitAtm, PhotochemData, PhotochemVars
   implicit none
   private 
   integer,parameter :: real_kind = kind(1.0d0)
   integer, parameter :: err_len = 1024
   integer, parameter :: str_len = 1024
 
-  public :: get_photomech, get_photorad, get_photoset, reaction_string, read_all_files
+  public :: read_all_files
     
 contains
   
   subroutine read_all_files(mechanism_file, settings_file, flux_file, atmosphere_txt, &
-                            photomech, photoset, photorad, photoinit, err)
+                            photodata, photovars, err)
     
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
     character(len=*), intent(in) :: flux_file
     character(len=*), intent(in) :: atmosphere_txt
-    type(PhotoMechanism), intent(out) :: photomech
-    type(PhotoSettings), intent(out) :: photoset
-    type(PhotoRadTran), intent(out) :: photorad
-    type(PhotoInitAtm), intent(out) :: photoinit
+    type(PhotochemData), intent(out) :: photodata
+    type(PhotochemVars), intent(out) :: photovars
     character(len=err_len), intent(out) :: err
     
     ! first get SL and background species from settings
-    call get_SL_and_background(settings_file, photoset, err)
+    call get_SL_and_background(settings_file, photodata, err)
     if (len(trim(err)) /= 0) return
     
-    call get_photomech(mechanism_file, photoset, photomech, err)
+    call get_photomech(mechanism_file, photodata, photovars, err)
     if (len(trim(err)) /= 0) return
     
-    call get_photoset(settings_file, photomech, photoset, err)
+    call get_photoset(settings_file, photodata, photovars, err)
     if (len(trim(err)) /= 0) return
     
-    call get_photorad(photomech, photoset, photorad, err)
+    call get_photorad(photodata, photovars, err)
     if (len(trim(err)) /= 0) return
     
     ! stelar flux
-    allocate(photorad%photon_flux(photorad%nw))
-    call read_stellar_flux(flux_file, photorad%nw, photorad%wavl, photorad%photon_flux, err)
+    allocate(photovars%photon_flux(photodata%nw))
+    call read_stellar_flux(flux_file, photodata%nw, photodata%wavl, photovars%photon_flux, err)
     if (len(trim(err)) /= 0) return
     
     ! initial atmosphere
-    call read_atmosphere_file(atmosphere_txt, photomech, photoset, photoinit,err)
+    call read_atmosphere_file(atmosphere_txt, photodata, photovars, err)
     if (len(trim(err)) /= 0) return
     
   end subroutine
   
-  subroutine get_photomech(infile, photoset, photomech, err) 
+  subroutine get_photomech(infile, photodata, photovars, err) 
     use yaml, only : parse, error_length
     character(len=*), intent(in) :: infile
-    type(PhotoSettings), intent(inout) :: photoset
-    type(PhotoMechanism), intent(out) :: photomech
+    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemVars), intent(in) :: photovars
     character(len=err_len), intent(out) :: err
     
     character(error_length) :: error
@@ -69,7 +67,7 @@ contains
     end if
     select type (root)
       class is (type_dictionary)
-        call get_rxmechanism(root, infile, photoset, photomech, err)
+        call get_rxmechanism(root, infile, photodata, photovars, err)
         if (len_trim(err) > 0) return
         call root%finalize()
         deallocate(root)
@@ -80,11 +78,11 @@ contains
      
   end subroutine
   
-  subroutine get_rxmechanism(mapping, infile, photoset, photomech, err)
+  subroutine get_rxmechanism(mapping, infile, photodata, photovars, err)
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
-    type(PhotoSettings), intent(inout) :: photoset
-    type(PhotoMechanism), intent(out) :: photomech
+    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemVars), intent(in) :: photovars
     character(len=err_len), intent(out) :: err
     
     class (type_dictionary), pointer :: atoms, sat_params
@@ -114,22 +112,22 @@ contains
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     ! should i reverse reactions?
-    photomech%reverse = mapping%get_logical('reverse-reactions',.true.,error = io_err)
+    photodata%reverse = mapping%get_logical('reverse-reactions',.true.,error = io_err)
     
     !!! atoms !!!
-    photomech%natoms = 0
+    photodata%natoms = 0
     key_value_pair => atoms%first
     do while (associated(key_value_pair))
-      photomech%natoms = photomech%natoms +1
+      photodata%natoms = photodata%natoms +1
       key_value_pair => key_value_pair%next
     enddo
-    allocate(photomech%atoms_names(photomech%natoms))
-    allocate(photomech%atoms_mass(photomech%natoms))
+    allocate(photodata%atoms_names(photodata%natoms))
+    allocate(photodata%atoms_mass(photodata%natoms))
     j = 1
     key_value_pair => atoms%first
     do while (associated(key_value_pair))
-      photomech%atoms_names(j) = trim(key_value_pair%key)
-      photomech%atoms_mass(j) = atoms%get_real(trim(key_value_pair%key),error = io_err)
+      photodata%atoms_names(j) = trim(key_value_pair%key)
+      photodata%atoms_mass(j) = atoms%get_real(trim(key_value_pair%key),error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       key_value_pair => key_value_pair%next
       j = j + 1
@@ -141,21 +139,21 @@ contains
     particles => mapping%get_list('particles',.false.,error = io_err) 
     if (associated(particles)) then
       ! there are particles
-      photomech%there_are_particles = .true.
-      photomech%np = 0
+      photodata%there_are_particles = .true.
+      photodata%np = 0
       item => particles%first
       do while (associated(item))
-        photomech%np = photomech%np + 1
+        photodata%np = photodata%np + 1
         item => item%next
       enddo
       
-      allocate(photomech%particle_names(photomech%np))
-      allocate(photomech%particle_formation_method(photomech%np))
-      allocate(photomech%particle_density(photomech%np))
-      allocate(photomech%particle_sat_params(3,photomech%np))
-      allocate(photomech%particle_gas_phase(photomech%np))
-      allocate(photomech%particle_optical_prop(photomech%np))
-      allocate(photomech%particle_optical_type(photomech%np))
+      allocate(photodata%particle_names(photodata%np))
+      allocate(photodata%particle_formation_method(photodata%np))
+      allocate(photodata%particle_density(photodata%np))
+      allocate(photodata%particle_sat_params(3,photodata%np))
+      allocate(photodata%particle_gas_phase(photodata%np))
+      allocate(photodata%particle_optical_prop(photodata%np))
+      allocate(photodata%particle_optical_type(photodata%np))
       
       item => particles%first
       j = 1
@@ -163,36 +161,36 @@ contains
         call all_species%append(item%node)
         select type (element => item%node)
         class is (type_dictionary)
-          photomech%particle_names(j) = element%get_string("name",error = io_err) ! get name
+          photodata%particle_names(j) = element%get_string("name",error = io_err) ! get name
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           
           tmpchar = element%get_string("formation",error = io_err) 
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           if (trim(tmpchar) == 'saturation') then
-            photomech%particle_formation_method(j) = 1
+            photodata%particle_formation_method(j) = 1
           elseif (trim(tmpchar) == 'reaction') then
-            photomech%particle_formation_method(j) = 2
+            photodata%particle_formation_method(j) = 2
           else
             err = "IOError: the only formation mechanism for particles is 'saturation'"
             return
           endif
-          photomech%particle_density(j) = element%get_real("density",error = io_err)
+          photodata%particle_density(j) = element%get_real("density",error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          photomech%particle_optical_prop(j) = element%get_string("optical-properties",error = io_err)
+          photodata%particle_optical_prop(j) = element%get_string("optical-properties",error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           tmpchar = element%get_string("optical-type",error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           if (trim(tmpchar) == "mie") then
-            photomech%particle_optical_type(j) = 0
+            photodata%particle_optical_type(j) = 0
           elseif  (trim(tmpchar) == "fractal") then
-            err = "IOError: 'fractal' is not an optional optical type for "//trim(photomech%particle_names(j))
+            err = "IOError: 'fractal' is not an optional optical type for "//trim(photodata%particle_names(j))
             return
           else
-            err = "IOError: "//trim(tmpchar)//" is not an optional optical type for "//trim(photomech%particle_names(j))
+            err = "IOError: "//trim(tmpchar)//" is not an optional optical type for "//trim(photodata%particle_names(j))
             return
           endif
   
-          if (photomech%particle_formation_method(j) == 1) then
+          if (photodata%particle_formation_method(j) == 1) then
             ! there should be saturation vapor pressure information
             sat_params => element%get_dictionary('saturation-parameters',.true.,error = io_err) 
             if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -202,16 +200,16 @@ contains
               tmpchar = trim(key_value_pair%key)
               
               if (trim(tmpchar) == "A") then
-                photomech%particle_sat_params(1,j) = sat_params%get_real(trim(tmpchar),error = io_err)
+                photodata%particle_sat_params(1,j) = sat_params%get_real(trim(tmpchar),error = io_err)
                 if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
               elseif (trim(tmpchar) == "B") then
-                photomech%particle_sat_params(2,j) = sat_params%get_real(trim(tmpchar),error = io_err)
+                photodata%particle_sat_params(2,j) = sat_params%get_real(trim(tmpchar),error = io_err)
                 if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
               elseif (trim(tmpchar) == "C") then
-                photomech%particle_sat_params(3,j) = sat_params%get_real(trim(tmpchar),error = io_err)
+                photodata%particle_sat_params(3,j) = sat_params%get_real(trim(tmpchar),error = io_err)
                 if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
               else
-                err = "Particle "//trim(photomech%particle_names(j))//" saturation parameters "//&
+                err = "Particle "//trim(photodata%particle_names(j))//" saturation parameters "//&
                       "can only be 'A', 'B', or 'C'"
                 return
               endif                
@@ -219,14 +217,14 @@ contains
               i = i + 1
             enddo
             if (i /= 3) then
-              err = "IOError: Missing or two many saturation parameters for "//trim(photomech%particle_names(j))
+              err = "IOError: Missing or two many saturation parameters for "//trim(photodata%particle_names(j))
               return 
             endif
             
             ! gas phase
-            photomech%particle_gas_phase(j) = element%get_string("gas-phase",error = io_err) 
+            photodata%particle_gas_phase(j) = element%get_string("gas-phase",error = io_err) 
             if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          elseif (photomech%particle_formation_method(j) == 2) then
+          elseif (photodata%particle_formation_method(j) == 2) then
             ! add the reaction to the list of reactions
             call all_reactions%append(item%node)
           endif
@@ -239,55 +237,51 @@ contains
         j = j + 1
       enddo
     else ! there are no particles
-      photomech%there_are_particles = .false.
-      photomech%np = 0
+      photodata%there_are_particles = .false.
+      photodata%np = 0
     endif
     
     ! for now number particle equations will be the same 
     ! as number of particles
-    photomech%npq = photomech%np
+    photodata%npq = photodata%np
     
     !!! done with particles !!!
     
     !!! species !!!
-    photomech%ng = 0 ! count number of gas phase species
+    photodata%ng = 0 ! count number of gas phase species
     item => species%first
     do while (associated(item))
       item => item%next
-      photomech%ng = photomech%ng + 1
+      photodata%ng = photodata%ng + 1
     enddo
     
-    ! get number of sl from photoset
-    photomech%nsl = photoset%nsl
-    
-    if (photoset%back_gas) then
-      photomech%nll = photomech%ng - photomech%nsl - 1 ! minus 1 for background
+    if (photodata%back_gas) then
+      photodata%nll = photodata%ng - photodata%nsl - 1 ! minus 1 for background
     else
-      photomech%nll = photomech%ng - photomech%nsl
+      photodata%nll = photodata%ng - photodata%nsl
     endif
     
-    photomech%ng_1 = photomech%npq + 1 ! the long lived gas index
-    ! photomech%nq is the last ll gas index
+    photodata%ng_1 = photodata%npq + 1 ! the long lived gas index
+    ! photodata%nq is the last ll gas index
     
     ! now we now nq, the number of PDEs
-    photomech%nq = photomech%npq + photomech%nll
-    photoset%nq = photomech%nq
+    photodata%nq = photodata%npq + photodata%nll
     
     ! we also now nsp, the index of the backgorund gas 
-    photomech%nsp = photomech%npq + photomech%ng
+    photodata%nsp = photodata%npq + photodata%ng
     
     ! species_mass, species_composition, and species_names
     ! will include the particles, thus we allocate nsp
-    allocate(photomech%species_mass(photomech%nsp))
-    allocate(photomech%species_composition(photomech%natoms,photomech%nsp+2))
-    photomech%species_composition = 0
-    allocate(photomech%species_names(photomech%nsp+2))
-    photomech%species_names(photomech%nsp+1) = "hv" ! always add these guys
-    photomech%species_names(photomech%nsp+2) = "M"
+    allocate(photodata%species_mass(photodata%nsp))
+    allocate(photodata%species_composition(photodata%natoms,photodata%nsp+2))
+    photodata%species_composition = 0
+    allocate(photodata%species_names(photodata%nsp+2))
+    photodata%species_names(photodata%nsp+1) = "hv" ! always add these guys
+    photodata%species_names(photodata%nsp+2) = "M"
     ! we will not include particles in thermodynamic data.
-    if (photomech%reverse) then
-      allocate(photomech%thermo_data(7,2,photomech%ng))
-      allocate(photomech%thermo_temps(3,photomech%ng))
+    if (photodata%reverse) then
+      allocate(photodata%thermo_data(7,2,photodata%ng))
+      allocate(photodata%thermo_temps(3,photodata%ng))
     endif
     
     ! Append the species to the end of a list
@@ -299,7 +293,7 @@ contains
     enddo
 
     ! Loop through particles and gases
-    kk = photomech%ng_1
+    kk = photodata%ng_1
     l = 1
     ii = 1 ! overall counter
     item => all_species%first
@@ -310,29 +304,29 @@ contains
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
         
-        if (ii < photomech%ng_1) then
+        if (ii < photodata%ng_1) then
           ! we are dealing with particles
           j = ii
         else
           ! we are dealing with gases
-          ind = findloc(photoset%SL_names,tmpchar)
+          ind = findloc(photodata%SL_names,tmpchar)
           if (ind(1) /= 0) then ! short lived species
-            j = photoset%nq + l 
+            j = photodata%nq + l 
             l = l + 1
-          elseif (tmpchar == photoset%back_gas_name) then ! background gas
-            j = photomech%nsp
+          elseif (tmpchar == photodata%back_gas_name) then ! background gas
+            j = photodata%nsp
           else ! long lived species
             j = kk
             kk = kk + 1
           endif
         endif
                   
-        photomech%species_names(j) = tmpchar
+        photodata%species_names(j) = tmpchar
         dict => element%get_dictionary("composition",.true.,error = io_err)  ! get composition
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         key_value_pair => dict%first ! dont allow unspecified atoms
         do while (associated(key_value_pair))
-          ind = findloc(photomech%atoms_names,trim(key_value_pair%key))
+          ind = findloc(photodata%atoms_names,trim(key_value_pair%key))
           if (ind(1) == 0) then
             err = 'IOError: The atom "'// trim(key_value_pair%key)// '" is not in the list of atoms.'
             return
@@ -340,16 +334,16 @@ contains
           key_value_pair =>key_value_pair%next
         enddo
         
-        do i=1,photomech%natoms
-          photomech%species_composition(i,j) =  &
-              dict%get_integer(photomech%atoms_names(i),0,error = io_err) ! no error possible.
+        do i=1,photodata%natoms
+          photodata%species_composition(i,j) =  &
+              dict%get_integer(photodata%atoms_names(i),0,error = io_err) ! no error possible.
         enddo
-        photomech%species_mass(j) = sum(photomech%species_composition(:,j) * photomech%atoms_mass)
+        photodata%species_mass(j) = sum(photodata%species_composition(:,j) * photodata%atoms_mass)
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
-        if (photomech%reverse .and. (ii >= photomech%ng_1)) then
-          call get_thermodata(element,photomech%species_names(j), infile,photomech%thermo_temps(:,j-photomech%npq), &
-                              photomech%thermo_data(:,:,j-photomech%npq), err) ! get thermodynamic data
+        if (photodata%reverse .and. (ii >= photodata%ng_1)) then
+          call get_thermodata(element,photodata%species_names(j), infile,photodata%thermo_temps(:,j-photodata%npq), &
+                              photodata%thermo_data(:,:,j-photodata%npq), err) ! get thermodynamic data
           if (len_trim(err) > 0) return
         endif
       class default
@@ -360,12 +354,12 @@ contains
       item => item%next
     enddo
     
-    if (l-1 /= photoset%nsl) then
+    if (l-1 /= photodata%nsl) then
       err = 'IOError: One of the short lived species is not in the file '//trim(infile)
       return
     endif
-    if (photoset%back_gas) then
-      ind = findloc(photomech%species_names,photoset%back_gas_name)
+    if (photodata%back_gas) then
+      ind = findloc(photodata%species_names,photodata%back_gas_name)
       if (ind(1) == 0) then
         err = 'IOError: The specified background gas is not in '//trim(infile)
         return
@@ -380,19 +374,19 @@ contains
     nullify(all_species%first)
     !!! done with species !!!
     
-    if (photomech%there_are_particles) then
+    if (photodata%there_are_particles) then
       ! get indexes of gas phase condensing species
-      allocate(photomech%particle_gas_phase_ind(photomech%np))
-      do i = 1,photomech%np
-        if (photomech%particle_formation_method(i) == 1) then
+      allocate(photodata%particle_gas_phase_ind(photodata%np))
+      do i = 1,photodata%np
+        if (photodata%particle_formation_method(i) == 1) then
           ! if a condensing molecule
-          ind = findloc(photomech%species_names,photomech%particle_gas_phase(i))
+          ind = findloc(photodata%species_names,photodata%particle_gas_phase(i))
           if (ind(1) /= 0) then
-            photomech%particle_gas_phase_ind(i) = ind(1)
+            photodata%particle_gas_phase_ind(i) = ind(1)
           else
-            err = "IOError: particle "//trim(photomech%particle_names(i))// &
-                  " can not be made from "//trim(photomech%particle_gas_phase(i))// &
-                  " because "//trim(photomech%particle_gas_phase(i))//" is not a gas"// &
+            err = "IOError: particle "//trim(photodata%particle_names(i))// &
+                  " can not be made from "//trim(photodata%particle_gas_phase(i))// &
+                  " because "//trim(photodata%particle_gas_phase(i))//" is not a gas"// &
                   " in the model."
             return
           endif
@@ -407,24 +401,24 @@ contains
       item => item%next
     enddo
 
-    photomech%nrF = 0 ! count forward reactions
+    photodata%nrF = 0 ! count forward reactions
     item => all_reactions%first
     do while (associated(item))
       item => item%next
-      photomech%nrF = photomech%nrF + 1
+      photodata%nrF = photodata%nrF + 1
     enddo
     
-    allocate(photomech%rateparams(10,photomech%nrF))
-    allocate(photomech%rxtypes(photomech%nrF))
-    allocate(photomech%falloff_type(photomech%nrF))
-    allocate(photomech%num_efficient(photomech%nrF))
-    photomech%falloff_type = - huge(1)
+    allocate(photodata%rateparams(10,photodata%nrF))
+    allocate(photodata%rxtypes(photodata%nrF))
+    allocate(photodata%falloff_type(photodata%nrF))
+    allocate(photodata%num_efficient(photodata%nrF))
+    photodata%falloff_type = - huge(1)
     ! determine which reactions to reverse. 
     ! Determine maximum number of reactants, and productants
-    photomech%max_num_reactants = 1
-    photomech%max_num_products = 1
-    photomech%nrR = 0
-    photomech%kj = 0
+    photodata%max_num_reactants = 1
+    photodata%max_num_products = 1
+    photodata%nrR = 0
+    photodata%kj = 0
     j = 1
     item => all_reactions%first
     do while (associated(item))
@@ -433,40 +427,40 @@ contains
         tmp = trim(element%get_string("equation",error = io_err))
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
-        call get_rateparams(element, infile, photomech%rxtypes(j), &
-                            photomech%falloff_type(j), photomech%rateparams(:,j), err)
+        call get_rateparams(element, infile, photodata%rxtypes(j), &
+                            photodata%falloff_type(j), photodata%rateparams(:,j), err)
         if (len_trim(err) > 0) return        
         
         call parse_reaction(tmp, reverse, eqr, eqp, err)
         if (len_trim(err) > 0) return
         
-        call compare_rxtype_string(tmp, eqr, eqp, reverse, photomech%rxtypes(j),err)
+        call compare_rxtype_string(tmp, eqr, eqp, reverse, photodata%rxtypes(j),err)
         if (len_trim(err) > 0) return
         
         size_eqp = size(eqp)
         size_eqr = size(eqr)
-        if ((photomech%rxtypes(j) == 2) .or. (photomech%rxtypes(j) == 3)) then ! if threebody or falloff
+        if ((photodata%rxtypes(j) == 2) .or. (photodata%rxtypes(j) == 3)) then ! if threebody or falloff
           size_eqr = size_eqr - 1 ! remove the M
           size_eqp = size_eqp - 1
         endif
         
         if (reverse) then
-          if (.not.photomech%reverse) then
+          if (.not.photodata%reverse) then
             err = 'IOError: reaction file '//trim(infile)//' contains reverse reaction '//tmp// &
                   ', which is incompatible with "reverse-reactions: false"'
             return
           endif
-          photomech%nrR = photomech%nrR + 1
-          if (size_eqr > photomech%max_num_products) photomech%max_num_products = size_eqr
-          if (size_eqp > photomech%max_num_reactants) photomech%max_num_reactants = size_eqp
+          photodata%nrR = photodata%nrR + 1
+          if (size_eqr > photodata%max_num_products) photodata%max_num_products = size_eqr
+          if (size_eqp > photodata%max_num_reactants) photodata%max_num_reactants = size_eqp
         endif
-        if (size_eqr > photomech%max_num_reactants) photomech%max_num_reactants = size_eqr
-        if (size_eqp > photomech%max_num_products) photomech%max_num_products = size_eqp
+        if (size_eqr > photodata%max_num_reactants) photodata%max_num_reactants = size_eqr
+        if (size_eqp > photodata%max_num_products) photodata%max_num_products = size_eqp
         
-        call count_efficiencies(element, photomech%num_efficient(j))
+        call count_efficiencies(element, photodata%num_efficient(j))
         
-        if (photomech%rxtypes(j) == 0) then ! if photolysis reaction
-          photomech%kj = photomech%kj + 1
+        if (photodata%rxtypes(j) == 0) then ! if photolysis reaction
+          photodata%kj = photodata%kj + 1
         endif
       class default
         err = "IOError: Problem with reaction number "//char(j)//" in the input file."
@@ -475,28 +469,28 @@ contains
       item => item%next
       j = j+1
     enddo
-    photomech%nrT = photomech%nrR + photomech%nrF
+    photodata%nrT = photodata%nrR + photodata%nrF
     
     ! allocate stuff and loop through reactions again
-    allocate(photomech%nreactants(photomech%nrT))
-    allocate(photomech%nproducts(photomech%nrT))
-    allocate(photomech%reactants_sp_inds(photomech%max_num_reactants,photomech%nrT))
-    allocate(photomech%products_sp_inds(photomech%max_num_products,photomech%nrT))
-    photomech%reactants_sp_inds = huge(1)
-    photomech%products_sp_inds = huge(1)
-    if (photomech%reverse) then
-      allocate(photomech%reverse_info(photomech%nrT))
-      photomech%reverse_info = 0 ! initialize
+    allocate(photodata%nreactants(photodata%nrT))
+    allocate(photodata%nproducts(photodata%nrT))
+    allocate(photodata%reactants_sp_inds(photodata%max_num_reactants,photodata%nrT))
+    allocate(photodata%products_sp_inds(photodata%max_num_products,photodata%nrT))
+    photodata%reactants_sp_inds = huge(1)
+    photodata%products_sp_inds = huge(1)
+    if (photodata%reverse) then
+      allocate(photodata%reverse_info(photodata%nrT))
+      photodata%reverse_info = 0 ! initialize
     endif
-    allocate(photomech%reactants_names(photomech%max_num_reactants,photomech%nrF))
-    allocate(photomech%products_names(photomech%max_num_products,photomech%nrF))
+    allocate(photodata%reactants_names(photodata%max_num_reactants,photodata%nrF))
+    allocate(photodata%products_names(photodata%max_num_products,photodata%nrF))
     ! efficiency stuff
-    allocate(photomech%efficiencies(maxval(photomech%num_efficient),photomech%nrF))
-    allocate(photomech%eff_sp_inds(maxval(photomech%num_efficient),photomech%nrF))
-    allocate(photomech%def_eff(photomech%nrF))
-    photomech%efficiencies = -huge(1.d0) ! so everything blows up if we make a mistake
-    photomech%eff_sp_inds = -huge(0)
-    photomech%def_eff = 1.d0 ! default is 1
+    allocate(photodata%efficiencies(maxval(photodata%num_efficient),photodata%nrF))
+    allocate(photodata%eff_sp_inds(maxval(photodata%num_efficient),photodata%nrF))
+    allocate(photodata%def_eff(photodata%nrF))
+    photodata%efficiencies = -huge(1.d0) ! so everything blows up if we make a mistake
+    photodata%eff_sp_inds = -huge(0)
+    photodata%def_eff = 1.d0 ! default is 1
     
     j = 1
     k = 1
@@ -507,33 +501,33 @@ contains
         tmp = trim(element%get_string("equation",error = io_err))
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
-        call get_efficient(element, j, infile, photomech, err)
+        call get_efficient(element, j, infile, photodata, err)
         if (len_trim(err)>0) return
         
-        call get_reaction_chars(tmp, photomech%max_num_reactants, photomech%max_num_products, &
-                            photomech%nreactants(j), photomech%nproducts(j), &
-                            photomech%reactants_names(:,j), photomech%products_names(:,j), reverse, err)
+        call get_reaction_chars(tmp, photodata%max_num_reactants, photodata%max_num_products, &
+                            photodata%nreactants(j), photodata%nproducts(j), &
+                            photodata%reactants_names(:,j), photodata%products_names(:,j), reverse, err)
         if (len_trim(err)>0) return
         
-        call get_reaction_sp_nums(tmp, photomech%max_num_reactants, photomech%max_num_products, &
-                                 photomech%reactants_names(:,j), photomech%products_names(:,j), &
-                                 photomech%species_names, photomech%species_composition, &
-                                 photomech%natoms, photomech%nsp, &
-                                 photomech%reactants_sp_inds(:,j), photomech%products_sp_inds(:,j), err)
+        call get_reaction_sp_nums(tmp, photodata%max_num_reactants, photodata%max_num_products, &
+                                 photodata%reactants_names(:,j), photodata%products_names(:,j), &
+                                 photodata%species_names, photodata%species_composition, &
+                                 photodata%natoms, photodata%nsp, &
+                                 photodata%reactants_sp_inds(:,j), photodata%products_sp_inds(:,j), err)
         if (len_trim(err)>0) return
         if (reverse) then
           ! reaction has a reverse
-          i = photomech%nrF + k
-          photomech%reverse_info(j) = i ! the reaction number of reversed reaction
-          photomech%reverse_info(i) = j ! the reaction number of the forward reaction
-          photomech%nreactants(i) = photomech%nproducts(j)
-          photomech%nproducts(i) = photomech%nreactants(j)
+          i = photodata%nrF + k
+          photodata%reverse_info(j) = i ! the reaction number of reversed reaction
+          photodata%reverse_info(i) = j ! the reaction number of the forward reaction
+          photodata%nreactants(i) = photodata%nproducts(j)
+          photodata%nproducts(i) = photodata%nreactants(j)
 
-          kk = photomech%nreactants(i)
-          l = photomech%nreactants(j)
+          kk = photodata%nreactants(i)
+          l = photodata%nreactants(j)
           
-          photomech%reactants_sp_inds(1:kk,i) = photomech%products_sp_inds(1:kk,j)
-          photomech%products_sp_inds(1:l,i) = photomech%reactants_sp_inds(1:l,j)
+          photodata%reactants_sp_inds(1:kk,i) = photodata%products_sp_inds(1:kk,j)
+          photodata%products_sp_inds(1:l,i) = photodata%reactants_sp_inds(1:l,j)
           k = k + 1
         endif
       class default
@@ -555,80 +549,79 @@ contains
 
     ! nump, numl, iprod, iloss
     ! first find nump and numl then allocate iprod and iloss
-    allocate(photomech%nump(photomech%nsp))
-    allocate(photomech%numl(photomech%nsp))
-    photomech%numl = 0
-    photomech%nump = 0
-    do j = 1,photomech%nrT
-      k = photomech%nreactants(j)
+    allocate(photodata%nump(photodata%nsp))
+    allocate(photodata%numl(photodata%nsp))
+    photodata%numl = 0
+    photodata%nump = 0
+    do j = 1,photodata%nrT
+      k = photodata%nreactants(j)
       do i = 1,k
-        kk = photomech%reactants_sp_inds(i,j)
-        if ((kk /= photomech%nsp+1) .and. (kk /= photomech%nsp+2)) then
-          photomech%numl(kk) = photomech%numl(kk) + 1
+        kk = photodata%reactants_sp_inds(i,j)
+        if ((kk /= photodata%nsp+1) .and. (kk /= photodata%nsp+2)) then
+          photodata%numl(kk) = photodata%numl(kk) + 1
         endif
       enddo
-      k = photomech%nproducts(j)
+      k = photodata%nproducts(j)
       do i = 1,k
-        kk = photomech%products_sp_inds(i,j)
-        if ((kk /= photomech%nsp+1) .and. (kk /= photomech%nsp+2)) then
-          photomech%nump(kk) = photomech%nump(kk) + 1
+        kk = photodata%products_sp_inds(i,j)
+        if ((kk /= photodata%nsp+1) .and. (kk /= photodata%nsp+2)) then
+          photodata%nump(kk) = photodata%nump(kk) + 1
         endif
       enddo
     enddo
-    allocate(photomech%iprod(maxval(photomech%nump),photomech%nsp))
-    allocate(photomech%iloss(maxval(photomech%numl),photomech%nsp))
-    photomech%iprod = 0
-    photomech%iloss = 0
-    photomech%numl = 0
-    photomech%nump = 0
+    allocate(photodata%iprod(maxval(photodata%nump),photodata%nsp))
+    allocate(photodata%iloss(maxval(photodata%numl),photodata%nsp))
+    photodata%iprod = 0
+    photodata%iloss = 0
+    photodata%numl = 0
+    photodata%nump = 0
     ! loop again and get iprod and iloss
-    do j = 1,photomech%nrT
-      k = photomech%nreactants(j)
+    do j = 1,photodata%nrT
+      k = photodata%nreactants(j)
       do i = 1,k
-        kk = photomech%reactants_sp_inds(i,j)
-        if ((kk /= photomech%nsp+1) .and. (kk /= photomech%nsp+2)) then
-          photomech%numl(kk) = photomech%numl(kk) + 1
-          l = photomech%numl(kk)
-          photomech%iloss(l,kk) = j
+        kk = photodata%reactants_sp_inds(i,j)
+        if ((kk /= photodata%nsp+1) .and. (kk /= photodata%nsp+2)) then
+          photodata%numl(kk) = photodata%numl(kk) + 1
+          l = photodata%numl(kk)
+          photodata%iloss(l,kk) = j
         endif
       enddo
-      k = photomech%nproducts(j)
+      k = photodata%nproducts(j)
       do i = 1,k
-        kk = photomech%products_sp_inds(i,j)
-        if ((kk /= photomech%nsp+1) .and. (kk /= photomech%nsp+2)) then
-          photomech%nump(kk) = photomech%nump(kk) + 1
-          l = photomech%nump(kk)
-          photomech%iprod(l,kk) = j
+        kk = photodata%products_sp_inds(i,j)
+        if ((kk /= photodata%nsp+1) .and. (kk /= photodata%nsp+2)) then
+          photodata%nump(kk) = photodata%nump(kk) + 1
+          l = photodata%nump(kk)
+          photodata%iprod(l,kk) = j
         endif
       enddo
     enddo
     
     ! photolysis
-    allocate(photomech%photonums(photomech%kj))
+    allocate(photodata%photonums(photodata%kj))
     j = 1
-    do i = 1, photomech%nrF
-      if (photomech%rxtypes(i) == 0) then
-        photomech%photonums(j) = i
+    do i = 1, photodata%nrF
+      if (photodata%rxtypes(i) == 0) then
+        photodata%photonums(j) = i
         j = j + 1
       endif
     enddo
     
-    call check_for_duplicates(photomech,err)
+    call check_for_duplicates(photodata,err)
     if (len(trim(err)) > 0) return
     !!! end reactions !!!
     
-    
     !!! henrys law !!!
-    call get_henry(photomech, err)
+    call get_henry(photodata, photovars, err)
     if (len(trim(err)) > 0) return
     !!! end henrys law !!!
     
   end subroutine
   
-  subroutine get_henry(photomech, err)
+  subroutine get_henry(photodata, photovars, err)
     use yaml, only : parse, error_length
-    use photochem_vars, only: data_dir
-    type(PhotoMechanism), intent(inout) :: photomech
+    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemVars), intent(in) :: photovars
     character(len=*), intent(out) :: err
     
     character(error_length) :: error
@@ -643,7 +636,7 @@ contains
     err = ''
 
     ! parse yaml file
-    root => parse(trim(data_dir)//"/henry/henry.yaml",error=error)
+    root => parse(trim(photovars%data_dir)//"/henry/henry.yaml",error=error)
     if (error /= '') then
       err = trim(error)
       return
@@ -685,25 +678,25 @@ contains
       return
     end select
     
-    allocate(photomech%henry_data(2,photomech%nsp))
-    photomech%henry_data = 0.d0
+    allocate(photodata%henry_data(2,photodata%nsp))
+    photodata%henry_data = 0.d0
     do j = 1,size(henry_names)
-      ind = findloc(photomech%species_names,henry_names(j))
+      ind = findloc(photodata%species_names,henry_names(j))
       if (ind(1) /= 0) then
         i = ind(1)
-        photomech%henry_data(:,i) = henry_data(:,j)
+        photodata%henry_data(:,i) = henry_data(:,j)
       endif
     enddo
     ! set particle solubility to super high number
-    photomech%henry_data(1,1:photomech%npq) = 1.d11
+    photodata%henry_data(1,1:photodata%npq) = 1.d11
     
   end subroutine
   
-  subroutine get_efficient(reaction, rxn, infile, photomech, err)
+  subroutine get_efficient(reaction, rxn, infile, photodata, err)
     class(type_dictionary), intent(in) :: reaction
     integer, intent(in) :: rxn
     character(len=*), intent(in) :: infile
-    type(PhotoMechanism), intent(inout) :: photomech
+    type(PhotochemData), intent(inout) :: photodata
     character(len=*), intent(out) :: err
     
     class(type_dictionary), pointer :: tmpdict
@@ -719,14 +712,14 @@ contains
       key_value_pair => tmpdict%first
       do while (associated(key_value_pair))
         
-        ind = findloc(photomech%species_names,trim(key_value_pair%key))
+        ind = findloc(photodata%species_names,trim(key_value_pair%key))
         if (ind(1) == 0) then
           write(rxn_str,*) rxn
           err = 'IOError: Reaction number '//trim(adjustl(rxn_str))//' has efficiencies for species that are'// &
           ' not in the list of species'
         endif
-        photomech%eff_sp_inds(j,rxn) = ind(1)
-        photomech%efficiencies(j,rxn) = tmpdict%get_real(trim(key_value_pair%key),error = io_err)
+        photodata%eff_sp_inds(j,rxn) = ind(1)
+        photodata%efficiencies(j,rxn) = tmpdict%get_real(trim(key_value_pair%key),error = io_err)
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
 
         key_value_pair => key_value_pair%next
@@ -734,7 +727,7 @@ contains
       enddo
     endif
     
-    photomech%def_eff(rxn) = reaction%get_real("default-efficiency",1.d0,error = io_err)
+    photodata%def_eff(rxn) = reaction%get_real("default-efficiency",1.d0,error = io_err)
 
   end subroutine
   
@@ -762,9 +755,9 @@ contains
   end subroutine
   
   
-  subroutine check_for_duplicates(photomech,err)
+  subroutine check_for_duplicates(photodata,err)
     use sorting, only: sort
-    type(PhotoMechanism), intent(in) :: photomech
+    type(PhotochemData), intent(in) :: photodata
     character(len=err_len), intent(out) :: err
     character(len=:), allocatable :: rxstring
     
@@ -775,31 +768,31 @@ contains
     
     err = ''
     
-    if (photomech%max_num_reactants > photomech%max_num_products) then
-      allocate(tmp_arr1(photomech%max_num_reactants))
-      allocate(tmp_arr2(photomech%max_num_reactants))
+    if (photodata%max_num_reactants > photodata%max_num_products) then
+      allocate(tmp_arr1(photodata%max_num_reactants))
+      allocate(tmp_arr2(photodata%max_num_reactants))
     else
-      allocate(tmp_arr1(photomech%max_num_products))
-      allocate(tmp_arr2(photomech%max_num_products))
+      allocate(tmp_arr1(photodata%max_num_products))
+      allocate(tmp_arr2(photodata%max_num_products))
     endif
     
-    do i = 1,photomech%nrT-1
-      do ii = i+1,photomech%nrT
+    do i = 1,photodata%nrT-1
+      do ii = i+1,photodata%nrT
         
         ! check the same num of reactants and products
-        nr = photomech%nreactants(i)
-        np = photomech%nproducts(i)
-        if (nr == photomech%nreactants(ii) .and. np == photomech%nproducts(i)) then
-          tmp_arr1(1:nr) = photomech%reactants_sp_inds(1:nr,ii)
-          tmp_arr2(1:nr) = photomech%reactants_sp_inds(1:nr,i)
+        nr = photodata%nreactants(i)
+        np = photodata%nproducts(i)
+        if (nr == photodata%nreactants(ii) .and. np == photodata%nproducts(i)) then
+          tmp_arr1(1:nr) = photodata%reactants_sp_inds(1:nr,ii)
+          tmp_arr2(1:nr) = photodata%reactants_sp_inds(1:nr,i)
           
           call sort(tmp_arr1(1:nr))
           call sort(tmp_arr2(1:nr))
           
           m = all(tmp_arr1(1:nr) == tmp_arr2(1:nr))
           
-          tmp_arr1(1:np) = photomech%products_sp_inds(1:np,ii)
-          tmp_arr2(1:np) = photomech%products_sp_inds(1:np,i)
+          tmp_arr1(1:np) = photodata%products_sp_inds(1:np,ii)
+          tmp_arr2(1:np) = photodata%products_sp_inds(1:np,i)
           
           call sort(tmp_arr1(1:np))
           call sort(tmp_arr2(1:np))
@@ -808,7 +801,7 @@ contains
           
           if (m .and. l) then
             err = "IOError: This reaction is a duplicate: "
-            call reaction_string(photomech,i,rxstring)
+            call reaction_string(photodata,i,rxstring)
             err(len_trim(err)+2:) = rxstring
             return
           endif
@@ -818,37 +811,37 @@ contains
     
   end subroutine
   
-  subroutine reaction_string(photomech,rxn,rxstring)
-    type(PhotoMechanism), intent(in) :: photomech
+  subroutine reaction_string(photodata,rxn,rxstring)
+    type(PhotochemData), intent(in) :: photodata
     integer, intent(in) :: rxn
     character(len=:), allocatable, intent(out) :: rxstring
     integer j, k, i
     rxstring = ''
-    if (rxn > photomech%nrF) then
-      i = photomech%reverse_info(rxn)
+    if (rxn > photodata%nrF) then
+      i = photodata%reverse_info(rxn)
     else
       i = rxn
     endif
-    do j = 1,photomech%nreactants(rxn)-1
-      k = photomech%reactants_sp_inds(j,rxn)
-      rxstring = rxstring //(trim(photomech%species_names(k))//' + ')
+    do j = 1,photodata%nreactants(rxn)-1
+      k = photodata%reactants_sp_inds(j,rxn)
+      rxstring = rxstring //(trim(photodata%species_names(k))//' + ')
     enddo
     
-    k = photomech%reactants_sp_inds(photomech%nreactants(rxn),rxn)
-    rxstring = rxstring // trim(photomech%species_names(k))//' => '
+    k = photodata%reactants_sp_inds(photodata%nreactants(rxn),rxn)
+    rxstring = rxstring // trim(photodata%species_names(k))//' => '
     
-    if ((photomech%rxtypes(i) == 2) .or.(photomech%rxtypes(i) == 3)) then
+    if ((photodata%rxtypes(i) == 2) .or.(photodata%rxtypes(i) == 3)) then
       rxstring = rxstring(1:len(rxstring)-4) //(' + M'//' => ')
     endif
     
-    do j = 1,photomech%nproducts(rxn)-1
-      k = photomech%products_sp_inds(j,rxn)
-      rxstring = rxstring // trim(photomech%species_names(k))//' + '
+    do j = 1,photodata%nproducts(rxn)-1
+      k = photodata%products_sp_inds(j,rxn)
+      rxstring = rxstring // trim(photodata%species_names(k))//' + '
     enddo
-    k = photomech%products_sp_inds(photomech%nproducts(rxn),rxn)
-    rxstring = rxstring // trim(photomech%species_names(k))
+    k = photodata%products_sp_inds(photodata%nproducts(rxn),rxn)
+    rxstring = rxstring // trim(photodata%species_names(k))
     
-    if ((photomech%rxtypes(i) == 2) .or.(photomech%rxtypes(i) == 3)) then
+    if ((photodata%rxtypes(i) == 2) .or.(photodata%rxtypes(i) == 3)) then
       rxstring = rxstring //' + M'
     endif
   end subroutine
@@ -1421,10 +1414,10 @@ contains
     endif
   end subroutine
   
-  subroutine get_SL_and_background(infile, photoset, err)
+  subroutine get_SL_and_background(infile, photodata, err)
     use yaml, only : parse, error_length
     character(len=*), intent(in) :: infile
-    type(PhotoSettings), intent(inout) :: photoset
+    type(PhotochemData), intent(inout) :: photodata
     character(len=err_len), intent(out) :: err
   
     character(error_length) :: error
@@ -1449,14 +1442,14 @@ contains
         tmp1 => root%get_dictionary('planet',.true.,error = io_err)
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
-        photoset%back_gas = tmp1%get_logical('use-background-gas',error = io_err)
+        photodata%back_gas = tmp1%get_logical('use-background-gas',error = io_err)
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
-        if (photoset%back_gas) then
-          photoset%back_gas_name = tmp1%get_string('background-gas',error = io_err)
+        if (photodata%back_gas) then
+          photodata%back_gas_name = tmp1%get_string('background-gas',error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         else
-          photoset%back_gas_ind = -1
+          photodata%back_gas_ind = -1
           err = "Currently, the model requires there to be a background gas."// &
                 " You must set 'use-background-gas: true'"
           return
@@ -1464,14 +1457,14 @@ contains
         
         bcs => root%get_list('boundary-conditions',.true.,error = io_err)
         
-        photoset%nsl = 0
+        photodata%nsl = 0
         item => bcs%first
         do while (associated(item))
           select type (element => item%node)
           class is (type_dictionary)
             spec_type = element%get_string('type','long lived',error = io_err)
             if (spec_type == 'short lived') then
-              photoset%nsl = photoset%nsl + 1
+              photodata%nsl = photodata%nsl + 1
             elseif (spec_type == 'long lived') then
               ! do nothing
             else
@@ -1484,17 +1477,17 @@ contains
           end select 
           item => item%next
         enddo
-        allocate(photoset%SL_names(photoset%nsl))
+        allocate(photodata%SL_names(photodata%nsl))
         
-        photoset%nsl = 0
+        photodata%nsl = 0
         item => bcs%first
         do while (associated(item))
           select type (element => item%node)
           class is (type_dictionary)
             spec_type = element%get_string('type','long lived',error = io_err)
             if (spec_type == 'short lived') then
-              photoset%nsl = photoset%nsl + 1
-              photoset%SL_names(photoset%nsl) = element%get_string('name',error = io_err)
+              photodata%nsl = photodata%nsl + 1
+              photodata%SL_names(photodata%nsl) = element%get_string('name',error = io_err)
               if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
             elseif (spec_type == 'long lived') then
               ! do nothing
@@ -1517,10 +1510,10 @@ contains
     end select
     
     ! check for duplicates
-    do i = 1,photoset%nsl-1
-      do j = i+1,photoset%nsl
-        if (photoset%SL_names(i) == photoset%SL_names(j)) then
-          err = 'IOError: Short lived species '//trim(photoset%SL_names(i))// &
+    do i = 1,photodata%nsl-1
+      do j = i+1,photodata%nsl
+        if (photodata%SL_names(i) == photodata%SL_names(j)) then
+          err = 'IOError: Short lived species '//trim(photodata%SL_names(i))// &
                 ' is a duplicate.'
           return
         endif
@@ -1529,11 +1522,11 @@ contains
   
   end subroutine
   
-  subroutine get_photoset(infile, photomech, photoset, err)
+  subroutine get_photoset(infile, photodata, photovars, err)
     use yaml, only : parse, error_length
     character(len=*), intent(in) :: infile
-    type(PhotoMechanism), intent(in) :: photomech
-    type(PhotoSettings), intent(inout) :: photoset
+    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemVars), intent(inout) :: photovars
     character(len=err_len), intent(out) :: err
   
     character(error_length) :: error
@@ -1547,7 +1540,7 @@ contains
     end if
     select type (root)
       class is (type_dictionary)
-        call unpack_settings(root, infile, photomech, photoset, err)
+        call unpack_settings(root, infile, photodata, photovars, err)
         call root%finalize()
         deallocate(root)
       class default
@@ -1557,11 +1550,11 @@ contains
 
   end subroutine
   
-  subroutine unpack_settings(mapping, infile, photomech, photoset, err)
+  subroutine unpack_settings(mapping, infile, photodata, photovars, err)
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
-    type(PhotoMechanism), intent(in) :: photomech
-    type(PhotoSettings), intent(inout) :: photoset
+    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemVars), intent(inout) :: photovars
     character(len=err_len), intent(out) :: err
     
     class (type_dictionary), pointer :: tmp1, tmp2, tmp3
@@ -1581,95 +1574,95 @@ contains
     ! photolysis grid
     tmp1 => mapping%get_dictionary('photolysis-grid',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photoset%regular_grid = tmp1%get_logical('regular-grid',error = io_err)
+    photodata%regular_grid = tmp1%get_logical('regular-grid',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-    if (photoset%regular_grid) then
-      photoset%lower_wavelength = tmp1%get_real('lower-wavelength',error = io_err)
+    if (photodata%regular_grid) then
+      photodata%lower_wavelength = tmp1%get_real('lower-wavelength',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      photoset%upper_wavelength = tmp1%get_real('upper-wavelength',error = io_err)
+      photodata%upper_wavelength = tmp1%get_real('upper-wavelength',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      photoset%nw = tmp1%get_integer('number-of-bins',error = io_err)
+      photodata%nw = tmp1%get_integer('number-of-bins',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      if (photoset%nw < 1) then 
+      if (photodata%nw < 1) then 
         err = 'Number of photolysis bins must be >= 1 in '//trim(infile)
         return
       endif
-      if (photoset%lower_wavelength > photoset%upper_wavelength) then
+      if (photodata%lower_wavelength > photodata%upper_wavelength) then
         err = 'lower-wavelength must be smaller than upper-wavelength in '//trim(infile)
         return
       endif
     else
-      photoset%grid_file = tmp1%get_string('input-file',error = io_err)
+      photodata%grid_file = tmp1%get_string('input-file',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     endif
     ! scale factor for photon flux. Its optional
-    photoset%photon_scale_factor = tmp1%get_real('photon-scale-factor', 1.d0,error = io_err)
+    photovars%photon_scale_factor = tmp1%get_real('photon-scale-factor', 1.d0,error = io_err)
     
     ! atmosphere grid
     tmp1 => mapping%get_dictionary('atmosphere-grid',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photoset%bottom_atmos = tmp1%get_real('bottom',error = io_err)
+    photovars%bottom_atmos = tmp1%get_real('bottom',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photoset%top_atmos = tmp1%get_real('top',error = io_err)
+    photovars%top_atmos = tmp1%get_real('top',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photoset%nz = tmp1%get_integer('number-of-layers',error = io_err)
+    photovars%nz = tmp1%get_integer('number-of-layers',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     ! Planet
     tmp1 => mapping%get_dictionary('planet',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
-    photoset%surface_pressure = tmp1%get_real('surface-pressure',error = io_err)
+    photovars%surface_pressure = tmp1%get_real('surface-pressure',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photoset%surface_pressure < 0.d0) then
+    if (photovars%surface_pressure < 0.d0) then
       err = 'IOError: Planet surface pressure must be greater than zero.'
       return
     endif
-    photoset%planet_mass = tmp1%get_real('planet-mass',error = io_err)
+    photodata%planet_mass = tmp1%get_real('planet-mass',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photoset%planet_mass < 0.d0) then
+    if (photodata%planet_mass < 0.d0) then
       err = 'IOError: Planet mass must be greater than zero.'
       return
     endif
-    photoset%planet_radius = tmp1%get_real('planet-radius',error = io_err)
+    photodata%planet_radius = tmp1%get_real('planet-radius',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photoset%planet_radius < 0.d0) then
+    if (photodata%planet_radius < 0.d0) then
       err = 'IOError: Planet radius must be greater than zero.'
       return
     endif
-    photoset%surface_albedo = tmp1%get_real('surface-albedo',error = io_err)
+    photovars%surface_albedo = tmp1%get_real('surface-albedo',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photoset%surface_albedo < 0.d0) then
+    if (photovars%surface_albedo < 0.d0) then
       err = 'IOError: Surface albedo must be greater than zero.'
       return
     endif
-    photoset%diurnal_fac = tmp1%get_real('diurnal-averaging-factor',error = io_err)
+    photovars%diurnal_fac = tmp1%get_real('diurnal-averaging-factor',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photoset%diurnal_fac < 0.d0 .or. photoset%diurnal_fac > 1.d0) then
+    if (photovars%diurnal_fac < 0.d0 .or. photovars%diurnal_fac > 1.d0) then
       err = 'IOError: diurnal-averaging-factor must be between 0 and 1.'
       return
     endif
     
-    photoset%solar_zenith = tmp1%get_real('solar-zenith-angle',error = io_err)
+    photovars%solar_zenith = tmp1%get_real('solar-zenith-angle',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photoset%solar_zenith < 0.d0 .or. photoset%solar_zenith > 90.d0) then
+    if (photovars%solar_zenith < 0.d0 .or. photovars%solar_zenith > 90.d0) then
       err = 'IOError: solar zenith must be between 0 and 90.'
       return
     endif
     
     ! H2 escape
-    photoset%diff_H_escape = tmp1%get_logical('diff-lim-hydrogen-escape',error = io_err)
+    photodata%diff_H_escape = tmp1%get_logical('diff-lim-hydrogen-escape',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    ind = findloc(photomech%species_names,'H2')
-    photoset%LH2 = ind(1)
-    if (ind(1) == 0 .and. photoset%diff_H_escape) then
+    ind = findloc(photodata%species_names,'H2')
+    photodata%LH2 = ind(1)
+    if (ind(1) == 0 .and. photodata%diff_H_escape) then
       err = 'IOError: H2 must be a species if diff-lim-hydrogen-escape = True.'
       return
     endif
-    ind = findloc(photomech%species_names,'H')
-    photoset%LH = ind(1)
-    if (ind(1) == 0 .and. photoset%diff_H_escape) then
+    ind = findloc(photodata%species_names,'H')
+    photodata%LH = ind(1)
+    if (ind(1) == 0 .and. photodata%diff_H_escape) then
       err = 'IOError: H must be a species if diff-lim-hydrogen-escape = True.'
       return
     endif
@@ -1687,19 +1680,19 @@ contains
     
     tmp2 => tmp1%get_dictionary('water',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photoset%fix_water_in_trop = tmp2%get_logical('fix-water-in-troposphere',error = io_err)
+    photodata%fix_water_in_trop = tmp2%get_logical('fix-water-in-troposphere',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    ind = findloc(photomech%species_names,'H2O')
-    photoset%LH2O = ind(1)
-    if (ind(1) == 0 .and. photoset%fix_water_in_trop) then
+    ind = findloc(photodata%species_names,'H2O')
+    photodata%LH2O = ind(1)
+    if (ind(1) == 0 .and. photodata%fix_water_in_trop) then
       err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
       return
     endif
-    if (photoset%fix_water_in_trop) then  
-      photoset%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
+    if (photodata%fix_water_in_trop) then  
+      photovars%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      if ((photoset%trop_alt < photoset%bottom_atmos) .or. &
-          (photoset%trop_alt > photoset%top_atmos)) then
+      if ((photovars%trop_alt < photovars%bottom_atmos) .or. &
+          (photovars%trop_alt > photovars%top_atmos)) then
           err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
           return
       endif
@@ -1707,55 +1700,55 @@ contains
       temp_char = tmp2%get_string('relative-humidity',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
-      read(temp_char,*,iostat = io) photoset%relative_humidity
+      read(temp_char,*,iostat = io) photovars%relative_humidity
       
       if (io /= 0) then
         ! it isn't a float
         if (trim(temp_char) == "manabe") then
-          photoset%use_manabe = .true.
+          photovars%use_manabe = .true.
         else
           err = '"relative-humidity" can only be a number between 0 and 1, or "manabe". See '//trim(infile)
           return 
         endif
       else
-        photoset%use_manabe = .false.
+        photovars%use_manabe = .false.
       endif
       
-      photoset%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
+      photovars%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      photoset%stratospheric_cond = tmp2%get_logical('stratospheric-condensation',error = io_err)
+      photodata%stratospheric_cond = tmp2%get_logical('stratospheric-condensation',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      if (photoset%stratospheric_cond) then
-        photoset%relative_humidity_cold_trap = tmp2%get_real('cold-trap-relative-humitity',error = io_err)
+      if (photodata%stratospheric_cond) then
+        photovars%relative_humidity_cold_trap = tmp2%get_real('cold-trap-relative-humitity',error = io_err)
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
         
         tmp3 => tmp2%get_dictionary('condensation-rate',.true.,error = io_err)
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
-        photoset%H2O_condensation_rate(1) = tmp3%get_real('A',error = io_err)
+        photovars%H2O_condensation_rate(1) = tmp3%get_real('A',error = io_err)
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        photoset%H2O_condensation_rate(2) = tmp3%get_real('rh0',error = io_err)
+        photovars%H2O_condensation_rate(2) = tmp3%get_real('rh0',error = io_err)
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        if (photoset%H2O_condensation_rate(2) <= 1) then
+        if (photovars%H2O_condensation_rate(2) <= 1) then
           err = 'IOError: Rate constant "rh0" for H2O condensation must be > 1. See '//trim(infile)
           return
         endif
       endif
     else
-      photoset%gas_rainout = .false.
+      photovars%gas_rainout = .false.
         
     endif
     
     ! particle parameters
-    if (photomech%there_are_particles) then
+    if (photodata%there_are_particles) then
       particles => mapping%get_list('particles',.true.,error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
-      allocate(particle_checklist(photomech%np))
-      allocate(photoset%condensation_rate(2,photomech%np))
+      allocate(particle_checklist(photodata%np))
+      allocate(photovars%condensation_rate(2,photodata%np))
       particle_checklist = .false.
       
       item => particles%first
@@ -1764,7 +1757,7 @@ contains
         class is (type_dictionary)
           temp_char = element%get_string('name',error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          ind = findloc(photomech%particle_names,trim(temp_char))
+          ind = findloc(photodata%particle_names,trim(temp_char))
           if (particle_checklist(ind(1))) then
             err = "IOError: particle "//trim(temp_char)//" in the settings"// &
                   " file is listed more than once"
@@ -1781,9 +1774,9 @@ contains
           tmp1 => element%get_dictionary('condensation-rate',.true.,error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           
-          photoset%condensation_rate(1,ind(1)) = tmp1%get_real('A',error = io_err)
+          photovars%condensation_rate(1,ind(1)) = tmp1%get_real('A',error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          photoset%condensation_rate(2,ind(1)) = tmp1%get_real('rh0',error = io_err)
+          photovars%condensation_rate(2,ind(1)) = tmp1%get_real('rh0',error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           
         class default
@@ -1793,9 +1786,9 @@ contains
         item => item%next
       end do
       
-      do i = 1,photomech%np
-        if (photomech%particle_formation_method(i) == 1 .and. .not. particle_checklist(i)) then
-          err = 'IOError: Particle '//trim(photomech%particle_names(i))// &
+      do i = 1,photodata%np
+        if (photodata%particle_formation_method(i) == 1 .and. .not. particle_checklist(i)) then
+          err = 'IOError: Particle '//trim(photodata%particle_names(i))// &
                 ' does not have any condensation rate data in the file '//trim(infile)
           return
         endif
@@ -1807,35 +1800,35 @@ contains
     bcs => mapping%get_list('boundary-conditions',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
-    if (photoset%back_gas) then
-      ind = findloc(photomech%species_names,trim(photoset%back_gas_name))
-      photoset%back_gas_ind = ind(1)
-      photoset%back_gas_mu = photomech%species_mass(ind(1))
+    if (photodata%back_gas) then
+      ind = findloc(photodata%species_names,trim(photodata%back_gas_name))
+      photodata%back_gas_ind = ind(1)
+      photodata%back_gas_mu = photodata%species_mass(ind(1))
     endif
     
     ! allocate boundary conditions
-    allocate(photoset%lowerboundcond(photoset%nq))
-    allocate(photoset%lower_vdep(photoset%nq))
-    allocate(photoset%lower_flux(photoset%nq))
-    allocate(photoset%lower_dist_height(photoset%nq))
-    allocate(photoset%lower_fix_mr(photoset%nq))
-    allocate(photoset%upperboundcond(photoset%nq))
-    allocate(photoset%upper_veff(photoset%nq))
-    allocate(photoset%upper_flux(photoset%nq))
+    allocate(photovars%lowerboundcond(photodata%nq))
+    allocate(photovars%lower_vdep(photodata%nq))
+    allocate(photovars%lower_flux(photodata%nq))
+    allocate(photovars%lower_dist_height(photodata%nq))
+    allocate(photovars%lower_fix_mr(photodata%nq))
+    allocate(photovars%upperboundcond(photodata%nq))
+    allocate(photovars%upper_veff(photodata%nq))
+    allocate(photovars%upper_flux(photodata%nq))
     ! default boundary conditions
-    photoset%lowerboundcond = default_lowerboundcond
-    photoset%lower_vdep = 0.d0
-    photoset%upperboundcond = 0
-    photoset%upper_veff = 0.d0
+    photovars%lowerboundcond = default_lowerboundcond
+    photovars%lower_vdep = 0.d0
+    photovars%upperboundcond = 0
+    photovars%upper_veff = 0.d0
       
     ! determine number of short lived species. 
-    allocate(dups(photomech%nsp))
+    allocate(dups(photodata%nsp))
     j = 1
     item => bcs%first
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
-        if (j > photomech%nsp) then
+        if (j > photodata%nsp) then
           err = "IOError: Too many boundary condition entries in settings file."
           return
         endif
@@ -1852,19 +1845,19 @@ contains
           enddo
         endif
         ! make sure it isn't water
-        if (photoset%fix_water_in_trop .and. dups(j) == "H2O") then
+        if (photodata%fix_water_in_trop .and. dups(j) == "H2O") then
           err = "IOError: H2O can not have a specified boundary condition"// &
                 " if water-saturated-troposphere = true in the settings file."
           return
         endif
         ! check if in rxmech
-        ind = findloc(photomech%species_names,dups(j))
+        ind = findloc(photodata%species_names,dups(j))
         if (ind(1) == 0) then
           err = "IOError: Species "//trim(dups(j))// &
           ' in settings file is not in the reaction mechanism file.'
           return 
         endif
-        if ((ind(1) == photoset%back_gas_ind) .and. (photoset%back_gas)) then ! can't be background gas
+        if ((ind(1) == photodata%back_gas_ind) .and. (photodata%back_gas)) then ! can't be background gas
           err = "IOError: Species "//trim(dups(j))// &
           ' in settings file is the background gas, and can not have boundary conditions.'
           return
@@ -1878,11 +1871,11 @@ contains
           i = ind(1)
           ! get boundary condition
           call get_boundaryconds(element, dups(j), infile, &
-                                 photoset%lowerboundcond(i), photoset%lower_vdep(i), &
-                                 photoset%lower_flux(i), photoset%lower_dist_height(i), &
-                                 photoset%lower_fix_mr(i), &
-                                 photoset%upperboundcond(i), photoset%upper_veff(i), &
-                                 photoset%upper_flux(i), err)
+                                 photovars%lowerboundcond(i), photovars%lower_vdep(i), &
+                                 photovars%lower_flux(i), photovars%lower_dist_height(i), &
+                                 photovars%lower_fix_mr(i), &
+                                 photovars%upperboundcond(i), photovars%upper_veff(i), &
+                                 photovars%upper_flux(i), err)
           if (len_trim(err) /= 0) return
         else
           err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
@@ -1898,15 +1891,15 @@ contains
     
     ! Make sure that upper boundary condition for H and H2 are
     ! effusion velocities, if diffusion limited escape
-    if (photoset%diff_H_escape) then
-      if (photoset%back_gas_name /= "H2") then
-        if (photoset%upperboundcond(photoset%LH2) /= 0) then
+    if (photodata%diff_H_escape) then
+      if (photodata%back_gas_name /= "H2") then
+        if (photovars%upperboundcond(photodata%LH2) /= 0) then
           err = "IOError: H2 must have a have a effusion velocity upper boundary"// &
                 " if diff-lim-hydrogen-escape = True"
           return
         endif
       endif
-      if (photoset%upperboundcond(photoset%LH) /= 0) then
+      if (photovars%upperboundcond(photodata%LH) /= 0) then
         err = "IOError: H must have a have a effusion velocity upper boundary"// &
               " if diff-lim-hydrogen-escape = True"
         return
@@ -1914,29 +1907,28 @@ contains
     endif
 
     ! check for SL nonlinearities
-    call check_sl(photomech, photoset, err)
+    call check_sl(photodata, err)
     if (len_trim(err) /= 0) return
 
     
   end subroutine
   
-  subroutine check_sl(photomech, photoset, err)
-    type(PhotoMechanism), intent(in) :: photomech
-    type(PhotoSettings), intent(in) :: photoset
+  subroutine check_sl(photodata, err)
+    type(PhotochemData), intent(in) :: photodata
     character(len=err_len), intent(out) :: err
     
     integer :: i, j, l, k, kk, m, mm, n, nn, ind(1), counter
     character(len=:), allocatable :: reaction
     err = ''
     
-    do i = 1, photoset%nsl
-      j = photoset%nq + i
+    do i = 1, photodata%nsl
+      j = photodata%nq + i
       ! can not be an efficiency.
-      do k = 1,photomech%nrF
-        if ((photomech%rxtypes(k) == 2) .or. (photomech%rxtypes(k) == 3)) then ! if three body or falloff
-          ind = findloc(photomech%eff_sp_inds(:,k),j)
+      do k = 1,photodata%nrF
+        if ((photodata%rxtypes(k) == 2) .or. (photodata%rxtypes(k) == 3)) then ! if three body or falloff
+          ind = findloc(photodata%eff_sp_inds(:,k),j)
           if (ind(1) /= 0) then
-            call reaction_string(photomech,k,reaction)
+            call reaction_string(photodata,k,reaction)
             err = 'IOError: Reaction "'//reaction//'" has short-lived species collision efficiencies.' // &
             ' This is not allowed. Either remove the efficiencies, or change the species to long lived.'
             return
@@ -1944,15 +1936,15 @@ contains
         endif
       enddo
       
-      l = photomech%nump(j)
+      l = photodata%nump(j)
       do k = 1,l
-        kk = photomech%iprod(k,j)
-        call reaction_string(photomech,kk,reaction)
-        m = photomech%nreactants(kk)
+        kk = photodata%iprod(k,j)
+        call reaction_string(photodata,kk,reaction)
+        m = photodata%nreactants(kk)
         do mm = 1, m
           ! are SL species produced by other SL species?
-          do n = photoset%nq+1,photoset%nq + photoset%nsl
-            if (n == photomech%reactants_sp_inds(mm,kk)) then
+          do n = photodata%nq+1,photodata%nq + photodata%nsl
+            if (n == photodata%reactants_sp_inds(mm,kk)) then
               err = 'IOError: Reaction "'//reaction//'" has short-lived species as reactants'// &
               ' and products. This is not allowed. Change one or both of the species to long-lived.'
               return
@@ -1961,16 +1953,16 @@ contains
         enddo
       enddo
 
-      l = photomech%numl(j)
+      l = photodata%numl(j)
       do k = 1,l
-        kk = photomech%iloss(k,j)
-        call reaction_string(photomech,kk,reaction)
-        m = photomech%nreactants(kk)
+        kk = photodata%iloss(k,j)
+        call reaction_string(photodata,kk,reaction)
+        m = photodata%nreactants(kk)
         
         counter = 0
         do mm = 1, m
-          n = photomech%reactants_sp_inds(mm,kk)
-          do nn = photoset%nq+1,photoset%nq + photoset%nsl
+          n = photodata%reactants_sp_inds(mm,kk)
+          do nn = photodata%nq+1,photodata%nq + photodata%nsl
             if ((nn == n) .and. (n == j)) then
               counter = counter + 1
               if (counter > 1) then
@@ -1982,7 +1974,7 @@ contains
               err = 'IOError: Reaction "'//reaction//'" short lived species react'// &
               ' with other short lived species. This is not allowed.'
               return
-            elseif (photomech%species_names(n) == 'hv') then
+            elseif (photodata%species_names(n) == 'hv') then
               err = 'IOError: Photolysis reaction "'//reaction//'" can not have short lived species.'
               return
             endif
@@ -2093,23 +2085,21 @@ contains
     
   end subroutine
     
-  subroutine get_photorad(photomech, photoset, photorad, err)
-    type(PhotoMechanism), intent(in) :: photomech
-    type(PhotoSettings), intent(in) :: photoset
-    type(PhotoRadTran), intent(out) :: photorad
+  subroutine get_photorad(photodata, photovars, err)
+    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemVars), intent(in) :: photovars
     character(len=err_len), intent(out) :: err
     
     integer :: i
     err = ''
     
     ! compute wavelength grid
-    if (photoset%regular_grid) then
-      photorad%nw = photoset%nw
-      allocate(photorad%wavl(photoset%nw+1))
-      photorad%wavl(1) = photoset%lower_wavelength
-      do i = 2,photoset%nw+1
-        photorad%wavl(i) = photorad%wavl(i-1) + &
-                           (photoset%upper_wavelength - photoset%lower_wavelength)/photoset%nw
+    if (photodata%regular_grid) then
+      allocate(photodata%wavl(photodata%nw+1))
+      photodata%wavl(1) = photodata%lower_wavelength
+      do i = 2,photodata%nw+1
+        photodata%wavl(i) = photodata%wavl(i-1) + &
+                           (photodata%upper_wavelength - photodata%lower_wavelength)/photodata%nw
       enddo
     else
       ! read file
@@ -2118,25 +2108,24 @@ contains
     endif
     
     ! get rayleigh
-    call get_rayleigh(photomech, photorad, err)
+    call get_rayleigh(photodata, photovars, err)
     if (len_trim(err) /= 0) return
     
     ! get photolysis xsections data
-    call get_photolysis_xs(photomech, photorad, err)
+    call get_photolysis_xs(photodata, photovars, err)
     if (len_trim(err) /= 0) return
     
-    if (photomech%there_are_particles) then
-      call get_aerosol_xs(photomech, photorad, err)
+    if (photodata%there_are_particles) then
+      call get_aerosol_xs(photodata, photovars, err)
       if (len_trim(err) /= 0) return
     endif
     
   end subroutine
   
-  subroutine get_aerosol_xs(photomech, photorad, err)
+  subroutine get_aerosol_xs(photodata, photovars, err)
     use photochem_mie, only: read_mie_data_file
-    use photochem_vars, only: data_dir
-    type(PhotoMechanism), intent(in) :: photomech
-    type(PhotoRadTran), intent(inout) :: photorad
+    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemVars), intent(in) :: photovars
     character(len=err_len), intent(out) :: err
     
     integer :: nrad
@@ -2147,28 +2136,28 @@ contains
     character(len=:), allocatable :: filename
     integer :: i
     
-    xsroot = trim(data_dir)//"/aerosol_xsections/"
+    xsroot = trim(photovars%data_dir)//"/aerosol_xsections/"
     
-    allocate(photorad%radii_file(nrad_fixed,photomech%np))
-    allocate(photorad%w0_file(nrad_fixed, photomech%np, photorad%nw))
-    allocate(photorad%qext_file(nrad_fixed, photomech%np, photorad%nw))
-    allocate(photorad%g_file(nrad_fixed, photomech%np, photorad%nw))
-    photorad%nrad_file = nrad_fixed
+    allocate(photodata%radii_file(nrad_fixed,photodata%np))
+    allocate(photodata%w0_file(nrad_fixed, photodata%np, photodata%nw))
+    allocate(photodata%qext_file(nrad_fixed, photodata%np, photodata%nw))
+    allocate(photodata%g_file(nrad_fixed, photodata%np, photodata%nw))
+    photodata%nrad_file = nrad_fixed
     
-    do i = 1,photomech%np
+    do i = 1,photodata%np
       
-      if (photomech%particle_optical_type(i) == 0) then
-        filename = xsroot//trim(photomech%particle_optical_prop(i))// &
-                  "/mie_"//trim(photomech%particle_optical_prop(i))//".dat"
-      elseif (photomech%particle_optical_type(i) == 1) then
-        filename = xsroot//trim(photomech%particle_optical_prop(i))// &
-                  "/frac_"//trim(photomech%particle_optical_prop(i))//".dat"
+      if (photodata%particle_optical_type(i) == 0) then
+        filename = xsroot//trim(photodata%particle_optical_prop(i))// &
+                  "/mie_"//trim(photodata%particle_optical_prop(i))//".dat"
+      elseif (photodata%particle_optical_type(i) == 1) then
+        filename = xsroot//trim(photodata%particle_optical_prop(i))// &
+                  "/frac_"//trim(photodata%particle_optical_prop(i))//".dat"
       endif
       
       if (allocated(radii)) then
         deallocate(radii, w0, qext, g)
       endif
-      call read_mie_data_file(filename, photorad%nw, photorad%wavl, &
+      call read_mie_data_file(filename, photodata%nw, photodata%wavl, &
                               nrad, radii, w0, qext, g, err) 
       if (len_trim(err) /= 0) return
       if (nrad /= nrad_fixed) then
@@ -2177,20 +2166,19 @@ contains
         return
       endif
       
-      photorad%radii_file(:,i) = radii/1.d4 ! convert from micron to cm
-      photorad%w0_file(:,i,:) = w0
-      photorad%qext_file(:,i,:) = qext
-      photorad%g_file(:,i,:) = g
+      photodata%radii_file(:,i) = radii/1.d4 ! convert from micron to cm
+      photodata%w0_file(:,i,:) = w0
+      photodata%qext_file(:,i,:) = qext
+      photodata%g_file(:,i,:) = g
       
     enddo
     
   end subroutine
   
-  subroutine get_photolysis_xs(photomech, photorad, err)
+  subroutine get_photolysis_xs(photodata, photovars, err)
     use interp_tools, only: inter2, addpnt
-    use photochem_vars, only: data_dir, xs_folder_name
-    type(PhotoMechanism), intent(in) :: photomech
-    type(PhotoRadTran), intent(inout) :: photorad ! inout!
+    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemVars), intent(in) :: photovars
     character(len=err_len), intent(out) :: err
     
     integer, parameter :: maxcols = 200
@@ -2205,14 +2193,14 @@ contains
     integer :: i, j, k, l, m, io, kk, ierr
     err = ''
     
-    xsroot = trim(data_dir)//"/"//trim(xs_folder_name)//"/"
+    xsroot = trim(photovars%data_dir)//"/"//trim(photovars%xs_folder_name)//"/"
     
-    allocate(photorad%xs_data(photomech%kj))
+    allocate(photodata%xs_data(photodata%kj))
     
-    do i = 1,photomech%kj
+    do i = 1,photodata%kj
       filename = ''
-      j = photomech%photonums(i)
-      call reaction_string(photomech,j,reaction)
+      j = photodata%photonums(i)
+      call reaction_string(photodata,j,reaction)
       filename = reaction
       do k = 1,len(filename)-1
         if (filename(k:k) == ' ') then
@@ -2221,9 +2209,9 @@ contains
       enddo
       filename = filename//'.txt'
 
-      k = photomech%reactants_sp_inds(1,j)
-      filename = trim(photomech%species_names(k))//'/'//filename
-      xsfilename = trim(photomech%species_names(k))//'/'//trim(photomech%species_names(k))//'_xs.txt'
+      k = photodata%reactants_sp_inds(1,j)
+      filename = trim(photodata%species_names(k))//'/'//filename
+      xsfilename = trim(photodata%species_names(k))//'/'//trim(photodata%species_names(k))//'_xs.txt'
       open(101, file=xsroot//filename,status='old',iostat=io)
       if (io /= 0) then
         err = 'The photolysis reaction '//reaction//' does not have quantum yield data'
@@ -2239,13 +2227,13 @@ contains
         err = 'More cross section temperature data than allowed for reaction '//reaction
         return
       endif
-      photorad%xs_data(i)%n_temps = k - 2
-      allocate(photorad%xs_data(i)%xs(k - 2, photorad%nw))
-      allocate(photorad%xs_data(i)%xs_temps(k - 2))
+      photodata%xs_data(i)%n_temps = k - 2
+      allocate(photodata%xs_data(i)%xs(k - 2, photodata%nw))
+      allocate(photodata%xs_data(i)%xs_temps(k - 2))
       
-      do k=1,photorad%xs_data(i)%n_temps
+      do k=1,photodata%xs_data(i)%n_temps
         tmp1 = tmp(k+1)
-        read(tmp1(1:index(tmp1,'K')-1),*,iostat=io) photorad%xs_data(i)%xs_temps(k)
+        read(tmp1(1:index(tmp1,'K')-1),*,iostat=io) photodata%xs_data(i)%xs_temps(k)
         if (io /= 0) then
           err = 'Problem reading in cross sections for reaction '//reaction
           return
@@ -2259,17 +2247,17 @@ contains
         if (io == 0) k = k + 1
       enddo
       allocate(file_wav(k+4))
-      allocate(file_qy(k+4,photorad%xs_data(i)%n_temps))
-      allocate(file_line(photorad%xs_data(i)%n_temps+1))
-      allocate(dumby(photorad%nw,photorad%xs_data(i)%n_temps))
-      
+      allocate(file_qy(k+4,photodata%xs_data(i)%n_temps))
+      allocate(file_line(photodata%xs_data(i)%n_temps+1))
+      allocate(dumby(photodata%nw,photodata%xs_data(i)%n_temps))
+
       rewind(101)
       read(101,*)
       read(101,*)
       do l = 1, k
         read(101,'(A)',iostat=io) line
         read(line,*) file_wav(l)
-        do m = 1,photorad%xs_data(i)%n_temps+1
+        do m = 1,photodata%xs_data(i)%n_temps+1
           read(line,*) file_line(1:m)
         enddo
         file_qy(l,:) = file_line(2:)
@@ -2277,7 +2265,7 @@ contains
       
       ! interpolate to grid
       ierr = 0
-      do l = 1, photorad%xs_data(i)%n_temps
+      do l = 1, photodata%xs_data(i)%n_temps
         kk = k
         call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(1)*(1.d0-rdelta), 0.d0, ierr)
         call addpnt(file_wav, file_qy(:,l), kk+4, k, 0.d0, 0.d0, ierr)
@@ -2288,14 +2276,14 @@ contains
                 trim(reaction)
           return
         endif
-        call inter2(photorad%nw+1,photorad%wavl,dumby(:,l), &
+        call inter2(photodata%nw+1,photodata%wavl,dumby(:,l), &
                     kk+4,file_wav,file_qy(:,l),ierr)
         if (ierr /= 0) then
           err = 'IOError: Problem interpolating quantum yield data to photolysis grid for reaction '// &
                 trim(reaction)
           return
         endif
-        photorad%xs_data(i)%xs(l,:) = dumby(:,l)
+        photodata%xs_data(i)%xs(l,:) = dumby(:,l)
         k = kk
       enddo
       
@@ -2315,7 +2303,7 @@ contains
         if (io == 0) k = k + 1
       enddo
       allocate(file_wav(k+4))
-      allocate(file_xs(k+4,photorad%xs_data(i)%n_temps))
+      allocate(file_xs(k+4,photodata%xs_data(i)%n_temps))
       
       rewind(102)
       read(102,*)
@@ -2323,14 +2311,14 @@ contains
       do l = 1, k
         read(102,'(A)',iostat=io) line
         read(line,*) file_wav(l)
-        do m = 1,photorad%xs_data(i)%n_temps+1
+        do m = 1,photodata%xs_data(i)%n_temps+1
           read(line,*) file_line(1:m)
         enddo
         file_xs(l,:) = file_line(2:)
       enddo
       
       ierr = 0
-      do l = 1, photorad%xs_data(i)%n_temps
+      do l = 1, photodata%xs_data(i)%n_temps
         kk = k
         call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(1)*(1.d0-rdelta), 0.d0,ierr)
         call addpnt(file_wav, file_xs(:,l), kk+4, k, 0.d0, 0.d0,ierr)
@@ -2341,14 +2329,14 @@ contains
                 trim(reaction)
           return
         endif
-        call inter2(photorad%nw+1,photorad%wavl,dumby(:,l), &
+        call inter2(photodata%nw+1,photodata%wavl,dumby(:,l), &
                     kk+4,file_wav,file_xs(:,l),ierr)  
         if (ierr /= 0) then
           err = 'IOError: Problem interpolating xs data to photolysis grid for reaction '// &
                 trim(reaction)
           return
         endif
-        photorad%xs_data(i)%xs(l,:) = photorad%xs_data(i)%xs(l,:)*dumby(:,l)
+        photodata%xs_data(i)%xs(l,:) = photodata%xs_data(i)%xs(l,:)*dumby(:,l)
         k = kk
       enddo
 
@@ -2359,11 +2347,10 @@ contains
   end subroutine
   
   
-  subroutine get_rayleigh(photomech, photorad, err)
-    use photochem_vars, only: data_dir
+  subroutine get_rayleigh(photodata, photovars, err)
     use yaml, only : parse, error_length
-    type(PhotoMechanism), intent(in) :: photomech
-    type(PhotoRadTran), intent(inout) :: photorad ! inout!
+    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemVars), intent(in) :: photovars
     character(len=err_len), intent(out) :: err
     
     real(real_kind), allocatable :: A(:), B(:), Delta(:)
@@ -2374,7 +2361,7 @@ contains
     integer :: i, j
     err = ''
     
-    rayleigh_file = trim(data_dir)//"/rayleigh/rayleigh.yaml"
+    rayleigh_file = trim(photovars%data_dir)//"/rayleigh/rayleigh.yaml"
     
     ! parse yaml file
     root => parse(rayleigh_file,error=error)
@@ -2384,28 +2371,28 @@ contains
     end if
     select type (root)
       class is (type_dictionary)
-        call rayleigh_params(root,photomech,trim(rayleigh_file),err, &
-                             photorad%raynums, A, B, Delta)
+        call rayleigh_params(root,photodata,trim(rayleigh_file),err, &
+                             photodata%raynums, A, B, Delta)
         if (len_trim(err) /= 0) return
         call root%finalize()
         deallocate(root)
     end select
     
     ! compute cross sections
-    photorad%nray = size(A)
-    allocate(photorad%sigray(photorad%nray,photorad%nw))
-    do i = 1,photorad%nw
+    photodata%nray = size(A)
+    allocate(photodata%sigray(photodata%nray,photodata%nw))
+    do i = 1,photodata%nw
       do j = 1,size(A)
-        call rayleigh_vardavas(A(j), B(j), Delta(j), photorad%wavl(i), &
-                               photorad%sigray(j, i))
+        call rayleigh_vardavas(A(j), B(j), Delta(j), photodata%wavl(i), &
+                               photodata%sigray(j, i))
       enddo
     enddo
     deallocate(A,B,Delta)
   end subroutine
   
-  subroutine rayleigh_params(mapping,photomech,infile,err, raynums, A, B, Delta)
+  subroutine rayleigh_params(mapping,photodata,infile,err, raynums, A, B, Delta)
     class (type_dictionary), intent(in), pointer :: mapping
-    type(PhotoMechanism), intent(in) :: photomech
+    type(PhotochemData), intent(in) :: photodata
     character(len=*), intent(in) :: infile
     character(len=err_len), intent(out) :: err
     
@@ -2420,7 +2407,7 @@ contains
     j = 0
     key_value_pair => mapping%first
     do while (associated(key_value_pair))
-      ind = findloc(photomech%species_names,trim(key_value_pair%key))
+      ind = findloc(photodata%species_names,trim(key_value_pair%key))
       if (ind(1) /= 0) then 
         j = j + 1
       endif
@@ -2433,7 +2420,7 @@ contains
     j = 1
     key_value_pair => mapping%first
     do while (associated(key_value_pair))
-      ind = findloc(photomech%species_names,trim(key_value_pair%key))
+      ind = findloc(photodata%species_names,trim(key_value_pair%key))
       if (ind(1) /= 0) then 
         raynums(j) = ind(1)
         
@@ -2537,12 +2524,10 @@ contains
   end subroutine
   
   
-  subroutine read_atmosphere_file(atmosphere_txt, photomech, photoset, &
-                                  photoinit, err)
+  subroutine read_atmosphere_file(atmosphere_txt, photodata, photovars, err)
     character(len=*), intent(in) :: atmosphere_txt
-    type(PhotoMechanism), intent(in) :: photomech
-    type(PhotoSettings), intent(in) :: photoset
-    type(PhotoInitAtm), intent(out) :: photoinit
+    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemVars), intent(inout) :: photovars
     character(len=err_len), intent(out) :: err
     
     character(len=10000) :: line
@@ -2562,23 +2547,23 @@ contains
     endif
     read(4,'(A)') line
     
-    photoinit%nzf = -1
+    photodata%nzf = -1
     io = 0
     do while (io == 0)
       read(4,*,iostat=io)
-      photoinit%nzf = photoinit%nzf + 1
+      photodata%nzf = photodata%nzf + 1
     enddo
     
-    allocate(photoinit%z_file(photoinit%nzf))
-    allocate(photoinit%T_file(photoinit%nzf))
-    allocate(photoinit%edd_file(photoinit%nzf))
-    allocate(photoinit%usol_file(photomech%nq, photoinit%nzf))
-    photoinit%z_file = 0.d0
-    photoinit%T_file = 0.d0
-    photoinit%edd_file = 0.d0
-    photoinit%usol_file = 1.d-40
-    if (photomech%there_are_particles) then
-      allocate(photoinit%particle_radius_file(photomech%npq, photoinit%nzf))
+    allocate(photodata%z_file(photodata%nzf))
+    allocate(photodata%T_file(photodata%nzf))
+    allocate(photodata%edd_file(photodata%nzf))
+    allocate(photodata%usol_file(photodata%nq, photodata%nzf))
+    photodata%z_file = 0.d0
+    photodata%T_file = 0.d0
+    photodata%edd_file = 0.d0
+    photodata%usol_file = 1.d-40
+    if (photodata%there_are_particles) then
+      allocate(photodata%particle_radius_file(photodata%npq, photodata%nzf))
     endif
     
     rewind(4)
@@ -2609,17 +2594,17 @@ contains
     
     ! reads in mixing ratios
     iii = 0
-    do i=1,photomech%nq
+    do i=1,photodata%nq
       do j=1,n
-        if (labels(j).eq.photomech%species_names(i)) then
+        if (labels(j).eq.photodata%species_names(i)) then
           iii = iii+1
-          do k = 1,photoinit%nzf
+          do k = 1,photodata%nzf
             read(4,*,iostat=io) (temp(ii),ii=1,n)
             if (io /= 0) then
               err = 'Problem reading in initial atmosphere in '//trim(atmosphere_txt)
               return
             endif
-            photoinit%usol_file(i,k) = temp(j)
+            photodata%usol_file(i,k) = temp(j)
           enddo
           rewind(4) ! rewind!
           read(4,*) ! skip first line
@@ -2628,45 +2613,45 @@ contains
       enddo
     enddo
     
-    photoinit%no_water_profile = .false.
-    if (photoset%fix_water_in_trop) then
+    photovars%no_water_profile = .false.
+    if (photodata%fix_water_in_trop) then
       ind = findloc(labels,'H2O')
       if (ind(1) == 0) then
-        photoinit%no_water_profile = .true. 
+        photovars%no_water_profile = .true. 
       endif
     endif
     
-    if (iii.ne.photomech%nq) then
+    if (iii.ne.photodata%nq) then
       message = 'Warning: Did not find initial data for some species in '// &
                 trim(atmosphere_txt)//' . The program will assume initial mixing ratios of 1.0e-40'
-      if (photoinit%no_water_profile) then
+      if (photovars%no_water_profile) then
         message = message // " except H2O, which will be set to saturation in troposphere with constant "//&
                               "extrapolation above the tropopause."
       endif
       print*,message
     endif
     
-    if (photomech%there_are_particles) then
+    if (photodata%there_are_particles) then
       ! reads in particles radius
       iii = 1
       ! particle names
-      do i = 1,photomech%npq
-        ind = findloc(labels,trim(photomech%species_names(i))//"_r")
+      do i = 1,photodata%npq
+        ind = findloc(labels,trim(photodata%species_names(i))//"_r")
         if (ind(1) /= 0) then
           rewind(4)
           read(4,*)
-          do k=1,photoinit%nzf
+          do k=1,photodata%nzf
             read(4,*,iostat = io) (temp(ii),ii=1,n)
             if (io /= 0) then
               err = 'Problem reading in particle radius in '//trim(atmosphere_txt)
               return
             endif
-            photoinit%particle_radius_file(i,k) = temp(ind(1))
+            photodata%particle_radius_file(i,k) = temp(ind(1))
           enddo
         else
           ! did not find the data
           ! will set to 0.1 micron
-          photoinit%particle_radius_file(i,:) = 1.d-7
+          photodata%particle_radius_file(i,:) = 1.d-7
           iii = 0
         endif
       enddo
@@ -2683,13 +2668,13 @@ contains
     ! reads in temperature
     ind = findloc(labels,'temp')
     if (ind(1) /= 0) then
-      do k=1,photoinit%nzf
+      do k=1,photodata%nzf
         read(4,*,iostat = io) (temp(ii),ii=1,n)
         if (io /= 0) then
           err = 'Problem reading in temperature in '//trim(atmosphere_txt)
           return
         endif
-        photoinit%T_file(k) = temp(ind(1))
+        photodata%T_file(k) = temp(ind(1))
       enddo
     else
       err = 'temp was not found in input file '//trim(atmosphere_txt)
@@ -2701,13 +2686,13 @@ contains
     ! reads in alt
     ind = findloc(labels,'alt')
     if (ind(1) /= 0) then
-      do k=1,photoinit%nzf
+      do k=1,photodata%nzf
         read(4,*,iostat = io) (temp(ii),ii=1,n)
         if (io /= 0) then
           err = 'Problem reading in altitude in '//trim(atmosphere_txt)
           return
         endif
-        photoinit%z_file(k) = temp(ind(1))*1.d5 ! conver to cm
+        photodata%z_file(k) = temp(ind(1))*1.d5 ! conver to cm
       enddo
     else
       err = '"alt" was not found in input file '//trim(atmosphere_txt)
@@ -2719,13 +2704,13 @@ contains
     ! reads in eddy diffusion?
     ind = findloc(labels,'eddy')
     if (ind(1) /= 0) then
-      do k=1,photoinit%nzf
+      do k=1,photodata%nzf
         read(4,*,iostat = io) (temp(ii),ii=1,n)
         if (io /= 0) then
           err = 'Problem reading in eddy diffusion in '//trim(atmosphere_txt)
           return
         endif
-        photoinit%edd_file(k) = temp(ind(1))
+        photodata%edd_file(k) = temp(ind(1))
       enddo
     else
       err = 'eddy was not found in input file '//trim(atmosphere_txt)

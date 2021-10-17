@@ -40,16 +40,10 @@ message (STATUS "Building with OpenMP multi-threading = ${BUILD_WITH_OPENMP}")
 add_subdirectory(src)
 
 set(PHOTOCHEM_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_mie.f90 
-                      ${CMAKE_SOURCE_DIR}/src/photochem_const.f90 
+                      ${CMAKE_SOURCE_DIR}/src/photochem_const.f90
+                      ${CMAKE_SOURCE_DIR}/src/photochem_eqns.f90 
                       ${CMAKE_SOURCE_DIR}/src/photochem_types.f90 
-                      ${CMAKE_SOURCE_DIR}/src/photochem_input.f90 
-                      ${CMAKE_SOURCE_DIR}/src/photochem_wrk.f90 
-                      ${CMAKE_SOURCE_DIR}/src/photochem_vars.f90 
-                      ${CMAKE_SOURCE_DIR}/src/photochem_data.f90 
-                      ${CMAKE_SOURCE_DIR}/src/photochem_setup.f90
-                      ${CMAKE_SOURCE_DIR}/src/photochem_radtran.f90
-                      ${CMAKE_SOURCE_DIR}/src/photochem_rainout.f90
-                      ${CMAKE_SOURCE_DIR}/src/photochem.f90)
+                      ${CMAKE_SOURCE_DIR}/src/photochem_input.f90)
                       
 set(F2PY_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90 
                  ${CMAKE_SOURCE_DIR}/src/photochem_vars.f90 
@@ -73,12 +67,12 @@ if (BUILD_STATIC_PHOTOCHEM)
   target_include_directories(photorun PRIVATE ${CMAKE_BINARY_DIR}/modules)
 
   #  tests
-  add_executable(testrun ${CMAKE_SOURCE_DIR}/tests/test.f90)
-  target_link_libraries(testrun photochem)
-  target_include_directories(testrun PRIVATE ${CMAKE_BINARY_DIR}/modules)
+  # add_executable(testrun ${CMAKE_SOURCE_DIR}/tests/test.f90)
+  # target_link_libraries(testrun photochem)
+  # target_include_directories(testrun PRIVATE ${CMAKE_BINARY_DIR}/modules)
 
-  enable_testing()
-  add_test(test_photochem testrun)
+  # enable_testing()
+  # add_test(test_photochem testrun)
 endif()
 
 if (BUILD_F2PY_PHOTOCHEM)

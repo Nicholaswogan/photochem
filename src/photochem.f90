@@ -10,6 +10,7 @@ module photochem
 contains
   
   subroutine reaction_rates(nsp, nz, nrT, temperature, density, densities, rx_rates, err)
+    use photochem_eqns, only: arrhenius_rate, Troe_noT2, Troe_withT2, falloff_rate
     use photochem_data, only: rateparams, rxtypes, nreactants, &
                               nproducts, reactants_sp_inds, products_sp_inds, &
                               reverse_info, nrF, reverse, num_efficient, def_eff, &
@@ -126,6 +127,7 @@ contains
   end subroutine
   
   subroutine compute_gibbs_energy(nz, ng, temperature, gibbs_energy, err)
+    use photochem_eqns, only: gibbs_energy_shomate
     use photochem_data, only: thermo_data, thermo_temps, species_names
     
     integer, intent(in) :: nz, ng
@@ -154,23 +156,6 @@ contains
         call gibbs_energy_shomate(thermo_data(1:7,k,i), temperature(j), gibbs_energy(j,i))
       enddo
     enddo
-  end subroutine
-  
-  subroutine gibbs_energy_shomate(coeffs, T, gibbs)
-    real(real_kind), intent(in) :: coeffs(7)
-    real(real_kind), intent(in) :: T
-    real(real_kind), intent(out) :: gibbs
-    
-    real(real_kind) :: enthalpy, entropy, TT
-    
-    TT = T/1000.d0
-    enthalpy = coeffs(1)*TT + (coeffs(2)*TT**2)/2.d0 &
-             + (coeffs(3)*TT**3)/3.d0  + (coeffs(4)*TT**4)/4.d0 &
-             - coeffs(5)/TT + coeffs(6)
-    entropy = coeffs(1)*log(TT) + coeffs(2)*TT &
-            + (coeffs(3)*TT**2)/2.d0 + (coeffs(4)*TT**3)/3.d0 &
-            - coeffs(5)/(2.d0 * TT**2) + coeffs(7)
-    gibbs = enthalpy*1000.d0 - T*entropy
   end subroutine
   
   subroutine chempl(nz, nsp, nrT, densities, rx_rates, k, xp, xl)
@@ -284,6 +269,7 @@ contains
                     gas_sat_den, molecules_per_particle, condensation_rate, &
                     H2O_sat_mix, H2O_condensation_rate, rainout_rates, &
                     densities, xp, xl, rhs)                 
+    use photochem_eqns, only: damp_condensation_rate
     use photochem_const, only: N_avo, pi, small_real
     use photochem_vars, only: relative_humidity_cold_trap, gas_rainout
     use photochem_data, only: ng_1, there_are_particles, particle_gas_phase_ind, &
@@ -558,17 +544,9 @@ contains
     
   end subroutine
   
-  subroutine round(in,precision)
-    implicit none
-    real(real_kind), intent(inout) :: in
-    integer, intent(in) :: precision
-    integer :: order
-    order = nint(log10(abs(in)))
-    in = nint(in * 10.d0**(-precision-order),8)*10.d0**(precision+order)
-  end subroutine
-  
   subroutine prep_atm_background_gas(nq, nz, trop_ind, sum_usol, usol, &
                                      density, mubar, pressure, fH2O, H2O_sat_mix, err)
+    use photochem_eqns, only: sat_pressure_H2O, molar_weight, press_and_den
     use, intrinsic :: iso_c_binding, only : c_loc, c_ptr
     use cminpack2fort, only: hybrd1 ! interface to hybrd1 from cminpack
     use photochem_data, only: nll, ng_1, species_mass, back_gas_mu, fix_water_in_trop, LH2O          
@@ -674,6 +652,7 @@ contains
 
   ! For computing self-consistent water profile. Called by minpack.
   integer function fcn_fH2O(ptr, n, x, fvec, iflag) result(res)
+    use photochem_eqns, only: sat_pressure_H2O, molar_weight, press_and_den
     use, intrinsic :: iso_c_binding, only : c_f_pointer, c_ptr
     use photochem_data, only: nll, ng_1, species_mass, back_gas_mu, LH2O, nq
     use photochem_vars, only: temperature, grav, dz, surface_pressure, &
@@ -728,6 +707,7 @@ contains
   end function
   
   subroutine prep_all_background_gas(wrk, err)
+    use photochem_eqns, only: saturation_density
     use photochem_rainout, only: rainout
     use photochem_const, only: pi, k_boltz, N_avo, small_real
     use photochem_data, only: ng_1, photonums, LH, LH2, &
@@ -1566,6 +1546,8 @@ contains
   
   subroutine diffusion_coefficients(nq, npq, nz, dz, edd, T, den, grav, mubar, &
                                     r_particles, DU, DD, DL, ADU, ADL, wfall, VH2_esc, VH_esc)
+    use photochem_eqns, only: dynamic_viscosity_air, fall_velocity, slip_correction_factor, &
+                              binary_diffusion_param
     use photochem_const, only: k_boltz, N_avo
     use photochem_data, only: species_mass, LH2, LH, back_gas_name, diff_H_escape, particle_density, ng_1
     
@@ -1726,229 +1708,6 @@ contains
                               + (mubar(nz)*grav(nz))/(k_boltz*T(nz)*N_avo))
     endif
       
-  end subroutine
-  
-  subroutine press_and_den(nz, T, grav, Psurf, dz, &
-                           mubar, pressure, density)
-    use photochem_const, only: k_boltz, N_avo
-  
-    integer, intent(in) :: nz
-    real(real_kind), intent(in) :: T(nz), grav(nz)
-    real(real_kind), intent(in) :: Psurf, dz(nz), mubar(nz)
-  
-    real(real_kind), intent(out) :: pressure(nz)
-    real(real_kind), intent(out) :: density(nz)
-  
-    real(real_kind) :: T_temp
-    integer :: i
-  
-    ! first layer
-    T_temp = T(1)
-    pressure(1) = Psurf * exp(-((mubar(1) * grav(1))/(N_avo * k_boltz * T_temp)) * 0.5d0 * dz(1))
-    density(1) = pressure(1)/(k_boltz * T(1))
-    ! other layers
-    do i = 2,nz
-      T_temp = (T(i) + T(i-1))/2.d0
-      pressure(i) = pressure(i-1) * exp(-((mubar(i) * grav(i))/(N_avo * k_boltz * T_temp))* dz(i))
-      density(i) = pressure(i)/(k_boltz * T(i))
-    enddo
-  
-  end subroutine
-  
-  subroutine molar_weight(nll, usol_layer, sum_usol_layer, masses, background_mu, mubar_layer)
-    implicit none
-    integer, intent(in) :: nll
-    real(real_kind), intent(in) :: usol_layer(nll)
-    real(real_kind), intent(in) :: sum_usol_layer
-    real(real_kind), intent(in) :: masses(nll)
-    real(real_kind), intent(in) :: background_mu
-    real(real_kind), intent(out) :: mubar_layer
-    integer :: j
-    real(real_kind) :: f_background
-  
-    mubar_layer = 0.d0
-    do j = 1, nll
-      mubar_layer = mubar_layer + usol_layer(j) * masses(j)
-    enddo
-    f_background = 1.d0 - sum_usol_layer
-    mubar_layer = mubar_layer + f_background * background_mu
-  
-  end subroutine
-  
-  function saturation_pressure(T, A, B, C) result(Psat)
-      real(real_kind), intent(in) :: T ! Kelvin
-      real(real_kind), intent(in) :: A, B, C ! parameters
-      real(real_kind) :: Psat ! saturation pressure [bar]
-      ! Simple exponential fit to saturation pressure data
-      Psat = exp(A + B/T + C/T**2.d0)
-  end function
-  
-  function saturation_density(T, A, B, C) result(nsat)
-      use photochem_const, only: k_boltz
-      real(real_kind), intent(in) :: T ! Kelvin
-      real(real_kind), intent(in) :: A, B, C ! parameters
-      real(real_kind) :: nsat ! saturation density [molecules/cm3]
-      nsat = saturation_pressure(T, A, B, C)*1.d6/(k_boltz*T)
-  end function
-  
-  function dynamic_viscosity_air(T) result(eta)
-      real(real_kind), intent(in) :: T
-      real(real_kind) :: eta ! dynamic viscosity [dynes s/cm^2]
-      ! parameters speceific to Modern Earth air
-      real(real_kind), parameter :: T0 = 273.d0 ! K
-      real(real_kind), parameter :: eta0 = 1.716d-5 ! N s /m^2
-      real(real_kind), parameter :: S = 111.d0 ! K
-      real(real_kind), parameter :: unit_conversion = 10.d0 ! [dynes s/cm^2]/[N s/m^2]
-      ! Dynamic viscosity of Air using the Sutherland relation.
-      ! Reference: White (2006) "Viscous Fluid Flow"
-      ! Equation 1-36 and Table 1-2 (air)
-      eta = unit_conversion*eta0*(T/T0)**(3.d0/2.d0)*(T0 + S)/(T + S)
-  end function
-
-  function fall_velocity(gravity, partical_radius, particle_density, air_density, viscosity) result(wfall)
-    real(real_kind), intent(in) :: gravity ! cm/s^2
-    real(real_kind), intent(in) :: partical_radius ! cm
-    real(real_kind), intent(in) :: particle_density ! g/cm^3
-    real(real_kind), intent(in) :: air_density ! g/cm^3
-    real(real_kind), intent(in) :: viscosity ! dynes s/cm^2
-    real(real_kind) :: wfall ! fall velocity [cm/s]
-    ! fall velocity from stokes law
-    ! derived using Equation 9.29 in Seinfeld (2006) 
-    ! title: "Atmospheric Chemistry and Physics"
-    wfall = (2.d0/9.d0)*gravity*partical_radius**2.d0* &
-            (particle_density - air_density)/(viscosity)
-  end function
-  
-  function slip_correction_factor(partical_radius, density) result(correct_fac)
-    real(real_kind), intent(in) :: partical_radius ! cm
-    real(real_kind), intent(in) :: density ! molecules/cm3
-    real(real_kind), parameter :: area_of_molecule = 6.0d-15 ! cm2
-    real(real_kind) :: correct_fac
-    real(real_kind) :: mean_free_path
-    
-    mean_free_path = 1.d0/(density*area_of_molecule)
-    ! slip correction factor
-    ! Equation 9.34 in Seinfeld (2006) 
-    ! title: "Atmospheric Chemistry and Physics"
-    correct_fac =  1.d0 + (mean_free_path/partical_radius)* &
-                          (1.257d0 + 0.4d0*exp((-1.1d0*partical_radius)/(mean_free_path)))
-  end function
-  
-  function binary_diffusion_param(mu_i, mubar, T) result(b)
-    real(real_kind), intent(in) :: mu_i, mubar, T
-    real(real_kind) :: b
-    ! Banks and Kockarts 1973, Eq 15.29
-    ! also Catling and Kasting 2017, Eq B.4 (although Catling has a typo,
-    ! and is missing a power of 0.5)
-    b = 1.52d18*((1.d0/mu_i+1.d0/mubar)**0.5d0)*(T**0.5d0)
-  end function
-  
-  function arrhenius_rate(A, b, Ea, T) result(k)
-    real(real_kind), intent(in) :: A, b, Ea, T
-    real(real_kind) :: k
-    k = A * T**b * exp(-Ea/T)
-  end function
-
-  function falloff_rate(kinf, Pr, F) result(k)
-    real(real_kind), intent(in) :: kinf, Pr, F
-    real(real_kind) :: k
-    
-    k = kinf * (Pr / (1.d0 + Pr)) * F
-  end function
-
-  function Troe_noT2(A, T1, T3, T, Pr) result(F)
-    real(real_kind), intent(in) :: A, T1, T3, T, Pr
-    real(real_kind) :: F
-    
-    real(real_kind) :: log10Fcent, f1, C, N
-    
-    log10Fcent = log10((1.d0-A)*exp(-T/T3) + A*exp(-T/T1))
-    C = -0.4d0 - 0.67d0*log10Fcent
-    N = 0.75d0 - 1.27d0*log10Fcent
-    f1 = (log10(Pr) + C)/(N - 0.14d0*(log10(Pr + C)))
-    F = 10.d0**((log10Fcent)/(1.d0 + f1**2.d0))
-  end function
-
-  function Troe_withT2(A, T1, T2, T3, T, Pr) result(F)
-    real(real_kind), intent(in) :: A, T1, T2, T3, T, Pr
-    real(real_kind) :: F
-    
-    real(real_kind) :: log10Fcent, f1, C, N
-    
-    log10Fcent = log10((1.d0-A)*exp(-T/T3) + A*exp(-T/T1) + exp(-T2/T))
-    C = -0.4d0 - 0.67d0*log10Fcent
-    N = 0.75d0 - 1.27d0*log10Fcent
-    f1 = (log10(Pr) + C)/(N - 0.14d0*(log10(Pr + C)))
-    F = 10.d0**((log10Fcent)/(1.d0 + f1**2.d0))
-  end function
-  
-  function sat_pressure_H2O(T) result(p_H2O)
-    real(real_kind), intent(in) :: T ! temperature in K
-    real(real_kind) :: p_H2O
-    real(real_kind), parameter :: lc = 2.5d6 ! specific enthalpy of H2O vaporization
-    real(real_kind), parameter :: Rc = 461.d0 ! gas constant for water
-    real(real_kind), parameter :: e0 = 611.d0 ! Pascals
-    real(real_kind), parameter :: T0 = 273.15d0 ! K
-    ! Catling and Kasting (Equation 1.49)
-    p_H2O = 10.d0*e0*exp(lc/Rc*(1/T0 - 1/T))
-    ! output is in dynes/cm2
-  end function
-  
-  function damp_condensation_rate(A, rh0, rh) result(k)
-    use photochem_const, only: pi
-    real(real_kind), intent(in) :: A
-    real(real_kind), intent(in) :: rh0
-    real(real_kind), intent(in) :: rh ! the relative humidity
-    real(real_kind) :: k
-    ! k = 0 for rh = 0
-    ! k = A for rh = infinity, approaches asymptotically
-    ! k = 0.5*A for rh = rh0
-    k = A*(2.d0/pi)*atan((rh - 1.d0)/(rh0 - 1.d0))
-  end function
-  
-  subroutine print_reaction_string(rxn)
-    integer, intent(in) :: rxn
-    character(len=:), allocatable :: rxstring
-    call reaction_string(rxn,rxstring)
-    print*,rxstring
-  end subroutine
-  
-  subroutine reaction_string(rxn,rxstring)
-    use photochem_data, only: reverse_info, nrF, nreactants, species_names, &
-                              reactants_sp_inds, rxtypes, nproducts, products_sp_inds
-
-    integer, intent(in) :: rxn
-    character(len=:), allocatable, intent(out) :: rxstring
-    integer j, k, i
-
-    rxstring = ''
-    if (rxn > nrF) then
-      i = reverse_info(rxn)
-    else
-      i = rxn
-    endif
-    do j = 1,nreactants(rxn)-1
-      k = reactants_sp_inds(j,rxn)
-      rxstring = rxstring //(trim(species_names(k))//' + ')
-    enddo
-    
-    k = reactants_sp_inds(nreactants(rxn),rxn)
-    rxstring = rxstring // trim(species_names(k))//' => '
-    
-    if ((rxtypes(i) == 2) .or.(rxtypes(i) == 3)) then
-      rxstring = rxstring(1:len(rxstring)-4) //(' + M'//' => ')
-    endif
-    
-    do j = 1,nproducts(rxn)-1
-      k = products_sp_inds(j,rxn)
-      rxstring = rxstring // trim(species_names(k))//' + '
-    enddo
-    k = products_sp_inds(nproducts(rxn),rxn)
-    rxstring = rxstring // trim(species_names(k))
-    
-    if ((rxtypes(i) == 2) .or.(rxtypes(i) == 3)) then
-      rxstring = rxstring //' + M'
-    endif
   end subroutine
 
 end module

@@ -2,10 +2,9 @@
 
 module photochem_vars
   use, intrinsic :: iso_c_binding
+  use photochem_const, only: real_kind, str_len
   implicit none
   ! public
-  integer, private, parameter :: real_kind = kind(1.0d0)
-  integer, private, parameter :: str_len = 1024
 
   ! where the photochem data is
   character(len=str_len) :: data_dir = "data"
