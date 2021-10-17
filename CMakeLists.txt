@@ -73,12 +73,12 @@ if (BUILD_STATIC_PHOTOCHEM)
   target_include_directories(photorun PRIVATE ${CMAKE_BINARY_DIR}/modules)
 
   #  tests
-  # add_executable(testrun ${CMAKE_SOURCE_DIR}/tests/test.f90)
-  # target_link_libraries(testrun photochem)
-  # target_include_directories(testrun PRIVATE ${CMAKE_BINARY_DIR}/modules)
+  add_executable(testrun ${CMAKE_SOURCE_DIR}/tests/test.f90)
+  target_link_libraries(testrun photochem)
+  target_include_directories(testrun PRIVATE ${CMAKE_BINARY_DIR}/modules)
 
-  # enable_testing()
-  # add_test(test_photochem testrun)
+  enable_testing()
+  add_test(test_photochem testrun)
 endif()
 
 if (BUILD_F2PY_PHOTOCHEM)
