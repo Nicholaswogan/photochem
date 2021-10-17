@@ -5,8 +5,7 @@ module photochem_types ! make a giant IO object
   implicit none
   private
   
-  public :: PhotochemData, PhotochemVars, XsectionData
-  public :: WrkBackgroundAtm
+  public :: PhotochemData, PhotochemVars, PhotochemWrk
   
   type :: XsectionData
     integer :: n_temps
@@ -196,7 +195,7 @@ module photochem_types ! make a giant IO object
     integer :: verbose = 1
   end type
   
-  type :: WrkBackgroundAtm
+  type :: PhotochemWrk
     
     ! Used in prep_all_background_gas
     ! dimensions
@@ -242,13 +241,13 @@ module photochem_types ! make a giant IO object
     
     
   contains
-    procedure :: init => init_WrkBackgroundAtm
+    procedure :: init => init_PhotochemWrk
   end type
   
 contains
  
-  subroutine init_WrkBackgroundAtm(self, nsp, np, nq, nz, nrT, kj, nw, trop_ind)
-    class(WrkBackgroundAtm), intent(inout) :: self
+  subroutine init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw, trop_ind)
+    class(PhotochemWrk), intent(inout) :: self
     integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw, trop_ind
     
     self%nsp = nsp

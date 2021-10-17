@@ -45,7 +45,9 @@ set(PHOTOCHEM_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90
                       ${CMAKE_SOURCE_DIR}/src/photochem_mie.f90  
                       ${CMAKE_SOURCE_DIR}/src/photochem_input.f90
                       ${CMAKE_SOURCE_DIR}/src/photochem_object.f90
-                      ${CMAKE_SOURCE_DIR}/src/photochem_object_init.f90)
+                      ${CMAKE_SOURCE_DIR}/src/photochem_object_init.f90
+                      ${CMAKE_SOURCE_DIR}/src/photochem_object_rhs.f90
+                      ${CMAKE_SOURCE_DIR}/src/atmos.f90)
                       
 set(F2PY_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90 
                  ${CMAKE_SOURCE_DIR}/src/photochem_vars.f90 

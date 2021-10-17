@@ -1,17 +1,16 @@
 module photochem_object
-  use photochem_const, only: err_len_tmp => err_len
-  use photochem_types, only : PhotochemData, PhotochemVars
+  use photochem_const, only: err_len, real_kind
+  use photochem_types, only : PhotochemData, PhotochemVars, PhotochemWrk
   implicit none
   
   private
   
-  public :: Photochem, err_len
-  
-  integer, parameter :: err_len = err_len_tmp
+  public :: Photochem
   
   type :: Photochem
     type(PhotochemData) :: dat
     type(PhotochemVars) :: var
+    type(PhotochemWrk) :: wrk
   contains
     procedure :: init => Photochem_init
   end type
@@ -28,8 +27,6 @@ module photochem_object
       character(len=*), intent(in) :: atmosphere_txt
       character(len=err_len), intent(out) :: err
     end subroutine
-    
-    
     
   end interface
   

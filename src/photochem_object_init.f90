@@ -19,6 +19,10 @@ contains
                self%dat, self%var, err)
     if (len_trim(err) /= 0) return 
     
+    call self%wrk%init(self%dat%nsp, self%dat%np, self%dat%nq, &
+                       self%var%nz, self%dat%nrT, self%dat%kj, &
+                       self%dat%nw, self%var%trop_ind)
+    
   end subroutine
   
 end submodule
