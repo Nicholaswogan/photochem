@@ -13,6 +13,7 @@ module photochem_object
     type(PhotochemWrk) :: wrk
   contains
     procedure :: init => Photochem_init
+    procedure :: rhs => rhs_background_gas
   end type
   
   
@@ -25,6 +26,14 @@ module photochem_object
       character(len=*), intent(in) :: settings_file
       character(len=*), intent(in) :: flux_file
       character(len=*), intent(in) :: atmosphere_txt
+      character(len=err_len), intent(out) :: err
+    end subroutine
+    
+    module subroutine rhs_background_gas(self, neqs, usol_flat, rhs, err)
+      class(Photochem), target, intent(inout) :: self
+      integer, intent(in) :: neqs
+      real(real_kind), target, intent(in) :: usol_flat(neqs)
+      real(real_kind), intent(out) :: rhs(neqs)
       character(len=err_len), intent(out) :: err
     end subroutine
     

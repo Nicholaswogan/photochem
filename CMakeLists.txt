@@ -40,6 +40,7 @@ message (STATUS "Building with OpenMP multi-threading = ${BUILD_WITH_OPENMP}")
 add_subdirectory(src)
 
 set(PHOTOCHEM_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90
+                      ${CMAKE_SOURCE_DIR}/src/photochem_radtran.f90 
                       ${CMAKE_SOURCE_DIR}/src/photochem_eqns.f90 
                       ${CMAKE_SOURCE_DIR}/src/photochem_types.f90
                       ${CMAKE_SOURCE_DIR}/src/photochem_mie.f90  

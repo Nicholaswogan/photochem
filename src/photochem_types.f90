@@ -198,15 +198,6 @@ module photochem_types ! make a giant IO object
   type :: PhotochemWrk
     
     ! Used in prep_all_background_gas
-    ! dimensions
-    integer :: nsp
-    integer :: np
-    integer :: nq
-    integer :: nz
-    integer :: nrT
-    integer :: kj
-    integer :: nw
-    integer :: trop_ind
     ! work arrays
     real(real_kind), allocatable :: usol(:,:) ! (nq,nz)
     real(real_kind), allocatable :: densities(:,:) ! (nsp+1,nz)
@@ -249,15 +240,6 @@ contains
   subroutine init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw, trop_ind)
     class(PhotochemWrk), intent(inout) :: self
     integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw, trop_ind
-    
-    self%nsp = nsp
-    self%np = np
-    self%nq = nq
-    self%nz = nz
-    self%nrT = nrT
-    self%kj = kj
-    self%nw = nw
-    self%trop_ind = trop_ind
     
     if (allocated(self%usol)) then
       deallocate(self%usol)
@@ -309,7 +291,7 @@ contains
     allocate(self%wfall(np,nz))
     allocate(self%gas_sat_den(np,nz))
     allocate(self%molecules_per_particle(np,nz))
-    allocate(self%rainout_rates(self%nq,trop_ind))
+    allocate(self%rainout_rates(nq,trop_ind))
   end subroutine
   
 end module

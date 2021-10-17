@@ -238,5 +238,12 @@ contains
     k = A*(2.d0/pi)*atan((rh - 1.d0)/(rh0 - 1.d0))
   end function
   
+  function henrys_law(T, A, B) result(H)
+    real(real_kind), intent(in) :: T
+    real(real_kind), intent(in) :: A
+    real(real_kind), intent(in) :: B
+    real(real_kind) :: H ! mol/(kg * Pa)
+    H = A*exp(B*(1.d0/298.15d0 - 1.d0/T))
+  end function
   
 end module
