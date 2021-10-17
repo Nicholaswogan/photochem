@@ -1,6 +1,6 @@
 
 module photochem_types ! make a giant IO object
-  use, intrinsic :: iso_c_binding, only: c_double, c_int
+  use, intrinsic :: iso_c_binding, only: c_double, c_int, c_long, c_ptr
   use photochem_const, only: real_kind, str_len
   implicit none
   private
@@ -185,7 +185,10 @@ module photochem_types ! make a giant IO object
     logical :: at_photo_equilibrium = .false.
     real(real_kind), allocatable :: usol_out(:,:)
     
-    ! other
+    ! other 
+    real(c_double) :: rtol = 1.d-3
+    real(c_double) :: atol = 1.d-25
+    integer :: mxsteps = 10000
     real(real_kind) :: equilibrium_time = 1.d17
     real(c_double) :: initial_dt = 1.d-6
     integer(c_int) :: max_err_test_failures = 15
@@ -196,6 +199,10 @@ module photochem_types ! make a giant IO object
   end type
   
   type :: PhotochemWrk
+    
+    ! used in cvode
+    integer(c_long) :: nsteps_previous = -10
+    type(c_ptr) :: cvode_mem
     
     ! Used in prep_all_background_gas
     ! work arrays
