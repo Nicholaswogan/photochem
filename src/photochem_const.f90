@@ -5,6 +5,7 @@ module photochem_const
   ! public
   integer, parameter :: err_len = 1024
   integer, parameter :: str_len = 1024
+  integer, parameter :: s_str_len = 20
   integer, parameter :: real_kind = kind(1.0d0)
   real(real_kind), parameter :: Rgas = 8.31446261815324d0 ! ideal gas constant (j/(mol*K))
   real(real_kind), parameter :: k_boltz = 1.380649d-16 ! boltzmann's constant cgs units (egs/K)
@@ -17,5 +18,5 @@ module photochem_const
   real(real_kind), parameter :: smallest_real = tiny(1.d0)
   real(real_kind), parameter :: smaller_real = tiny(1.d0)**0.5d0
   real(real_kind), parameter :: small_real = tiny(1.d0)**0.25d0
-  real(real_kind), parameter :: ln_small_real = dlog(small_real)
+  real(real_kind), parameter :: ln_small_real = log(small_real)
 end module

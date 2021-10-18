@@ -3,8 +3,9 @@ module photochem_atmosphere
   use photochem_types, only : PhotochemData, PhotochemVars, PhotochemWrk
   implicit none
   
+  ! Contains the Atmosphere type. This type computes everything
+    
   private
-  
   public :: Atmosphere
   
   type :: Atmosphere
@@ -17,10 +18,13 @@ module photochem_atmosphere
     procedure :: right_hand_side => rhs_background_gas
     procedure :: jacobian => jac_background_gas
     procedure :: photochemical_equilibrium
+    procedure :: out2atmosphere_txt
+    procedure :: out2in
   end type
   
   
-  interface 
+  interface
+    ! photochem_atmosphere_init.f90
     module subroutine Atmosphere_init(self, data_dir, mechanism_file, &
                                      settings_file, flux_file, atmosphere_txt, err)
       class(Atmosphere), intent(inout) :: self
@@ -32,12 +36,14 @@ module photochem_atmosphere
       character(len=err_len), intent(out) :: err
     end subroutine
     
+    ! photochem_atmosphere_rhs.f90
     module subroutine prep_all_background_gas(self, usol_in, err)
       class(Atmosphere), target, intent(inout) :: self
       real(real_kind), intent(in) :: usol_in(:,:)
       character(len=err_len), intent(out) :: err
     end subroutine
     
+    ! photochem_atmosphere_rhs.f90
     module subroutine rhs_background_gas(self, neqs, usol_flat, rhs, err)
       class(Atmosphere), target, intent(inout) :: self
       integer, intent(in) :: neqs
@@ -46,6 +52,7 @@ module photochem_atmosphere
       character(len=err_len), intent(out) :: err
     end subroutine
     
+    ! photochem_atmosphere_rhs.f90
     module subroutine jac_background_gas(self, lda_neqs, neqs, usol_flat, jac, err)
       class(Atmosphere), target, intent(inout) :: self
       integer, intent(in) :: lda_neqs, neqs
@@ -54,10 +61,24 @@ module photochem_atmosphere
       character(len=err_len), intent(out) :: err
     end subroutine
     
+    ! photochem_atmosphere_integrate.f90
     module subroutine photochemical_equilibrium(self, success, err)
       class(Atmosphere), target, intent(inout) :: self
       logical, intent(out) :: success
       character(len=err_len), intent(out) :: err 
+    end subroutine
+    
+    ! utilities
+    module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
+      class(Atmosphere), target, intent(inout) :: self
+      character(len=*), intent(in) :: filename
+      logical, intent(in) :: overwrite, clip
+      character(len=1024), intent(out) :: err
+    end subroutine
+    
+    module subroutine out2in(self, err)
+      class(Atmosphere), intent(inout) :: self
+      character(len=err_len), intent(out) :: err
     end subroutine
     
   end interface

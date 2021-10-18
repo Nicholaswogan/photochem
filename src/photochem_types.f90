@@ -1,7 +1,7 @@
 
 module photochem_types ! make a giant IO object
   use, intrinsic :: iso_c_binding, only: c_double, c_int, c_long, c_ptr
-  use photochem_const, only: real_kind, str_len
+  use photochem_const, only: real_kind, str_len, s_str_len
   implicit none
   private
   
@@ -24,10 +24,10 @@ module photochem_types ! make a giant IO object
     integer :: natoms
     integer :: kd, kl, ku ! not read in. It is nq + nq + 1 (diagonal width of jacobian)
     integer :: lda ! not read in 
-    character(len=8), allocatable :: atoms_names(:) 
+    character(len=s_str_len), allocatable :: atoms_names(:) 
     real(real_kind), allocatable :: atoms_mass(:) 
-    character(len=20), allocatable :: SL_names(:) ! IN PHOTOSETTINGS
-    character(len=15), allocatable :: species_names(:)
+    character(len=s_str_len), allocatable :: SL_names(:) ! IN PHOTOSETTINGS
+    character(len=s_str_len), allocatable :: species_names(:)
     integer, allocatable :: species_composition(:,:)
     real(real_kind), allocatable :: species_mass(:) 
     real(real_kind), allocatable :: thermo_data(:,:,:)
@@ -38,13 +38,13 @@ module photochem_types ! make a giant IO object
     logical :: there_are_particles
     integer :: np ! number of particles
     integer :: npq ! number of particle equations. for now nq = npq.
-    character(len=15), allocatable :: particle_names(:) ! IN PHOTOMECHANISM
+    character(len=s_str_len), allocatable :: particle_names(:) ! IN PHOTOMECHANISM
     integer, allocatable :: particle_formation_method(:) ! np
     real(real_kind), allocatable :: particle_density(:) ! np
     real(real_kind), allocatable :: particle_sat_params(:,:) ! 3, np
-    character(len=15), allocatable :: particle_gas_phase(:) ! IN PHOTOMECHANISM
+    character(len=s_str_len), allocatable :: particle_gas_phase(:) ! IN PHOTOMECHANISM
     integer, allocatable :: particle_gas_phase_ind(:) ! np
-    character(len=50), allocatable :: particle_optical_prop(:) ! IN PHOTOMECHANISM
+    character(len=s_str_len), allocatable :: particle_optical_prop(:) ! IN PHOTOMECHANISM
     integer, allocatable :: particle_optical_type(:) ! IN PHOTOMECHANISM
     
     ! reactions
@@ -54,8 +54,8 @@ module photochem_types ! make a giant IO object
     integer :: nrT ! number of total reactions
     integer :: max_num_reactants
     integer :: max_num_products
-    character(len=8), allocatable :: reactants_names(:,:)
-    character(len=8), allocatable :: products_names(:,:)
+    character(len=s_str_len), allocatable :: reactants_names(:,:)
+    character(len=s_str_len), allocatable :: products_names(:,:)
     integer, allocatable :: reactants_sp_inds(:,:) ! for getting species nums in reactions
     integer, allocatable :: products_sp_inds(:,:)
     integer, allocatable :: nreactants(:) ! number of reactants

@@ -48,6 +48,7 @@ set(PHOTOCHEM_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90
                       ${CMAKE_SOURCE_DIR}/src/photochem_atmosphere_init.f90
                       ${CMAKE_SOURCE_DIR}/src/photochem_atmosphere_rhs.f90
                       ${CMAKE_SOURCE_DIR}/src/photochem_atmosphere_integrate.f90
+                      ${CMAKE_SOURCE_DIR}/src/photochem_atmosphere_utils.f90
                       ${CMAKE_SOURCE_DIR}/src/photochem.f90)
 
 # libphotochem.a
@@ -84,13 +85,6 @@ if (BUILD_PYTHON_PHOTOCHEM)
   find_package(Cython REQUIRED)
   
   add_subdirectory(Photochem)
-  
-  add_cython_target(_Photochem Photochem/_Photochem.pyx)
-  add_library(_Photochem MODULE ${_Photochem})
-  python_extension_module(_Photochem)
-  
-  target_link_libraries(_Photochem photochem_wrapper)
-  target_include_directories(_Photochem PUBLIC ${NumPy_INCLUDE_DIRS})
   
   if (SKBUILD)
     install(TARGETS _Photochem  DESTINATION Photochem)

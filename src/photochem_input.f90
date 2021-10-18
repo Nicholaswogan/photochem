@@ -3,7 +3,7 @@ module photochem_input
   use yaml_types, only : type_node, type_dictionary, type_list, type_error, &
                          type_list_item, type_scalar, type_key_value_pair
   use photochem_types, only : PhotochemData, PhotochemVars
-  use photochem_const, only: real_kind, str_len, err_len
+  use photochem_const, only: real_kind, str_len, err_len, s_str_len
   implicit none
   private 
 
@@ -286,7 +286,7 @@ contains
     ! temporary work variables
     character(len=str_len) :: tmpchar
     character(len=str_len) :: tmp
-    character(len=20), allocatable :: eqr(:), eqp(:)
+    character(len=s_str_len), allocatable :: eqr(:), eqp(:)
     integer :: i, ii, j, k, kk, l, ind(1), size_eqr, size_eqp
     logical :: reverse
     ! all_species causes a small memory leak. Not sure how to free the memory properly
@@ -820,7 +820,7 @@ contains
     class (type_list_item), pointer :: item
     integer :: j, ind(1), i
     
-    character(len=15), allocatable :: henry_names(:)
+    character(len=s_str_len), allocatable :: henry_names(:)
     real(real_kind), allocatable :: henry_data(:,:)
     
     err = ''
@@ -892,7 +892,7 @@ contains
     class(type_dictionary), pointer :: tmpdict
     class (type_key_value_pair), pointer :: key_value_pair
     type (type_error), pointer :: io_err
-    character(len=20) :: rxn_str
+    character(len=s_str_len) :: rxn_str
     integer :: ind(1), j
     
     tmpdict => reaction%get_dictionary("efficiencies",.false.,error = io_err)
@@ -1038,11 +1038,11 @@ contains
   
   subroutine compare_rxtype_string(tmp, eqr, eqp, reverse, rxtype_int, err)
     character(len=*), intent(in) :: tmp
-    character(len=20), allocatable, intent(in) :: eqr(:), eqp(:)
+    character(len=s_str_len), allocatable, intent(in) :: eqr(:), eqp(:)
     logical, intent(in) :: reverse
     integer, intent(in) :: rxtype_int
     character(len=err_len), intent(out) :: err
-    character(len=15) :: rxtype
+    character(len=s_str_len) :: rxtype
     integer i
     logical k, j, m, l, kk, jj
     l = .false.
@@ -1370,7 +1370,7 @@ contains
   subroutine parse_reaction(instring, reverse, eqr, eqp, err)
     character(len=*), intent(in) :: instring
     logical, intent(out) :: reverse
-    character(len=20), allocatable, intent(out) :: eqr(:), eqp(:)
+    character(len=s_str_len), allocatable, intent(out) :: eqr(:), eqp(:)
     character(len=err_len), intent(out) :: err
     
     character(len=:), allocatable :: string2, string3
@@ -1519,7 +1519,7 @@ contains
     logical, intent(out) :: reverse
     character(len=err_len), intent(out) :: err
     
-    character(len=20), allocatable :: eqr(:), eqp(:)
+    character(len=s_str_len), allocatable :: eqr(:), eqp(:)
     integer :: i
     
     call parse_reaction(instring, reverse, eqr, eqp, err)
@@ -1731,6 +1731,7 @@ contains
     select type (root)
       class is (type_dictionary)
         call unpack_settings(root, infile, photodata, photovars, err)
+        if (len_trim(err) /= 0) return
         call root%finalize()
         deallocate(root)
       class default
@@ -2722,9 +2723,9 @@ contains
     
     character(len=10000) :: line
     character(len=:), allocatable :: message
-    character(len=8) :: arr1(1000)
-    character(len=24) :: arr11(1000)
-    character(len=24),allocatable, dimension(:) :: labels
+    character(len=s_str_len) :: arr1(1000)
+    character(len=s_str_len) :: arr11(1000)
+    character(len=s_str_len),allocatable, dimension(:) :: labels
     integer :: ind(1)
     real(real_kind), allocatable :: temp(:)
     integer :: io, i, n, nn, iii, k, j, ii
