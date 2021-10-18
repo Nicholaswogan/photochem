@@ -1,9 +1,9 @@
 
 program main
-  use Atmos, only: Photochem, err_len
+  use Photochem, only: Atmosphere, err_len
   implicit none
   character(len=err_len) :: err
-  type(Photochem) :: pc
+  type(Atmosphere) :: pc
   logical :: success
   
   err = ""

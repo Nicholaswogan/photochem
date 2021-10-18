@@ -1,12 +1,12 @@
-submodule(photochem_object) photochem_object_init
+submodule(photochem_atmosphere) photochem_atmosphere_init
   implicit none
   
 contains
   
-  subroutine Photochem_init(self, data_dir, mechanism_file, settings_file, flux_file, atmosphere_txt, err)
+  subroutine Atmosphere_init(self, data_dir, mechanism_file, settings_file, flux_file, atmosphere_txt, err)
     use photochem_input, only: setup
     
-    class(Photochem), intent(inout) :: self
+    class(Atmosphere), intent(inout) :: self
     character(len=*), intent(in) :: data_dir
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
@@ -14,6 +14,17 @@ contains
     character(len=*), intent(in) :: atmosphere_txt
     character(len=err_len), intent(out) :: err
     err = ""
+    
+    if (allocated(self%dat)) then
+      deallocate(self%dat)
+      deallocate(self%var)
+      deallocate(self%wrk)
+    endif
+    
+    allocate(self%dat)
+    allocate(self%var)
+    allocate(self%wrk)
+    
     self%var%data_dir = data_dir
     call setup(mechanism_file, settings_file, flux_file, atmosphere_txt, &
                self%dat, self%var, err)

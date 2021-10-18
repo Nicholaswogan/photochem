@@ -1,5 +1,7 @@
-submodule(photochem_object) photochem_object_integrate
+submodule(photochem_atmosphere) photochem_atmosphere_integrate
   implicit none
+  
+  
   
 contains
   
@@ -24,7 +26,7 @@ contains
     real(real_kind) :: tmp, mx
     integer :: k, i, j, ii
     
-    type(Photochem), pointer :: self
+    type(Atmosphere), pointer :: self
   
     ierr = 0
     
@@ -35,7 +37,7 @@ contains
     fvec(1:self%var%neqs) => FN_VGetArrayPointer(sunvec_f)
     
     ! fill RHS vector
-    call self%rhs(self%var%neqs, yvec, fvec, err)
+    call self%right_hand_side(self%var%neqs, yvec, fvec, err)
     loc_ierr = FCVodeGetNumSteps(self%wrk%cvode_mem, nsteps)
     
     if (nsteps(1) /= self%wrk%nsteps_previous .and. self%var%verbose > 0) then
@@ -98,14 +100,14 @@ contains
     real(c_double), pointer :: Jmat(:)
     character(len=err_len) :: err
     
-    type(Photochem), pointer :: self
+    type(Atmosphere), pointer :: self
   
     ierr = 0
     
     call c_f_pointer(user_data, self)
     yvec(1:self%var%neqs) => FN_VGetArrayPointer(sunvec_y)
     Jmat(1:self%var%neqs*self%dat%lda) => FSUNBandMatrix_Data(sunmat_J)
-    call self%jac(self%dat%lda*self%var%neqs, self%var%neqs, yvec, Jmat, err)
+    call self%jacobian(self%dat%lda*self%var%neqs, self%var%neqs, yvec, Jmat, err)
     if (len_trim(err) /= 0) then
       print*,trim(err)//". CVODE will attempt to correct the error."
       ierr = 1
@@ -131,7 +133,7 @@ contains
     use fsunlinsol_band_mod, only: FSUNLinSol_Band
     
     ! in/out
-    class(Photochem), target, intent(inout) :: self
+    class(Atmosphere), target, intent(inout) :: self
     real(c_double), intent(in) :: tstart
     real(real_kind), intent(in) :: usol_start(:,:)
     ! real(c_double), intent(in) :: t_eval(num_t_eval)
@@ -161,7 +163,7 @@ contains
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
-    type(Photochem), pointer :: self_ptr
+    type(Atmosphere), pointer :: self_ptr
   
     err = ''
     
@@ -206,7 +208,7 @@ contains
       endif
     enddo
     if (dat%fix_water_in_trop) then
-      call self%prep_all(usol_start, err)
+      call self%prep_atmosphere(usol_start, err)
       if (len_trim(err) /= 0) return 
       do j = 1,var%trop_ind
         k = dat%LH2O + (j-1)*dat%nq
@@ -310,7 +312,7 @@ contains
         enddo
         
         ! this will alter solution(:,:,ii) with proper fixed mixing ratios and H2O
-        call prep_all_background_gas(self, solution(:,:,ii), err)
+        call self%prep_atmosphere(solution(:,:,ii), err)
         if (len_trim(err) /= 0) return
         solution(:,:,ii) = self%wrk%usol
                                      
@@ -330,7 +332,7 @@ contains
   end subroutine
   
   subroutine photochemical_equilibrium(self, success, err)
-    class(Photochem), target, intent(inout) :: self
+    class(Atmosphere), target, intent(inout) :: self
     logical, intent(out) :: success
     character(len=err_len), intent(out) :: err 
     

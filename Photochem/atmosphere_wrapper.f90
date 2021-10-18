@@ -1,4 +1,5 @@
-module atmos_wrapper
+module atmosphere_wrapper
+  use photochem, only: Atmosphere, err_len, str_len
   use iso_c_binding
   implicit none
   
@@ -8,31 +9,27 @@ contains
   !!! allocator and destroyer !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-  subroutine allocate_photochem(ptr) bind(c)
-    use Atmos, only: Photochem
+  subroutine allocate_atmosphere(ptr) bind(c)
     type(c_ptr), intent(out) :: ptr
-    type(Photochem), pointer :: pc
+    type(Atmosphere), pointer :: pc
     allocate(pc)
     ptr = c_loc(pc)
   end subroutine
   
-  subroutine deallocate_photochem(ptr) bind(c)
-    use Atmos, only: Photochem
+  subroutine deallocate_atmosphere(ptr) bind(c)
     type(c_ptr), intent(in) :: ptr
-    type(Photochem), pointer :: pc
+    type(Atmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
     deallocate(pc)
   end subroutine
-  
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! subroutine wrappers  !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-  subroutine photochem_init_wrapper(ptr, data_dir, mechanism_file, &
-                                    settings_file, flux_file, &
-                                    atmosphere_txt, err) bind(c)
-    use Atmos, only: Photochem, str_len, err_len
+  subroutine atmosphere_init_wrapper(ptr, data_dir, mechanism_file, &
+                                     settings_file, flux_file, &
+                                     atmosphere_txt, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     character(len=c_char), intent(in) :: data_dir(str_len+1)
     character(len=c_char), intent(in) :: mechanism_file(str_len+1)
@@ -47,7 +44,7 @@ contains
     character(len=str_len) :: flux_file_f
     character(len=str_len) :: atmosphere_txt_f
     character(len=err_len) :: err_f
-    type(Photochem), pointer :: pc
+    type(Atmosphere), pointer :: pc
     
     call c_f_pointer(ptr, pc)
     
@@ -68,8 +65,7 @@ contains
     call copy_string_ftoc(err_f, err)
   end subroutine
   
-  subroutine photochem_photochemical_equilibrium_wrapper(ptr, success, err) bind(c)
-    use Atmos, only: Photochem, err_len
+  subroutine atmosphere_photochemical_equilibrium_wrapper(ptr, success, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     logical(c_bool), intent(out) :: success
     character(len=c_char), intent(out) :: err(err_len+1)
@@ -77,7 +73,7 @@ contains
     character(len=err_len) :: err_f
     logical :: success_f
   
-    type(Photochem), pointer :: pc
+    type(Atmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
   
     call pc%photochemical_equilibrium(success_f, err_f)

@@ -1,5 +1,13 @@
-submodule(photochem_object) photochem_object_rhs
+submodule(photochem_atmosphere) photochem_atmosphere_rhs
   implicit none
+  
+  ! Contains routines to compute the right-hand-side and jacobian
+  ! of the system of ODEs describing photochemistry. There are two main components
+  
+  ! prep_all_background_gas - computes the reaction rates, photolysis rates, 
+  ! diffusion coefficients, etc.
+  
+  ! dochem - computes the chemistry contribution to the right-hand-side
   
 contains
   
@@ -7,7 +15,7 @@ contains
     use photochem_eqns, only: arrhenius_rate, Troe_noT2, Troe_withT2, falloff_rate
     use photochem_const, only: Rgas, k_boltz, smallest_real ! constants
     
-    class(Photochem), intent(in) :: self
+    class(Atmosphere), intent(in) :: self
     integer, intent(in) :: nsp, nz, nrT
     real(real_kind), intent(in) :: density(nz)
     real(real_kind), intent(in) :: densities(nsp+1,nz)
@@ -119,7 +127,7 @@ contains
   subroutine compute_gibbs_energy(self, nz, ng, gibbs_energy, err)
     use photochem_eqns, only: gibbs_energy_shomate
     
-    class(Photochem), intent(in) :: self
+    class(Atmosphere), intent(in) :: self
     integer, intent(in) :: nz, ng
     real(real_kind), intent(out) :: gibbs_energy(nz,ng)
     character(len=err_len), intent(out) :: err
@@ -150,7 +158,7 @@ contains
   subroutine chempl(self, nz, nsp, nrT, densities, rx_rates, k, xp, xl)
     
     ! input
-    class(Photochem), intent(in) :: self
+    class(Atmosphere), intent(in) :: self
     integer, intent(in) :: nz, nsp, nrT
     real(real_kind), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
     real(real_kind), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
@@ -201,7 +209,7 @@ contains
   subroutine chempl_sl(self, nz, nsp, nrT, densities, rx_rates, k, xp, xl)
     
     ! input
-    class(Photochem), intent(in) :: self
+    class(Atmosphere), intent(in) :: self
     integer, intent(in) :: nz, nsp, nrT
     real(real_kind), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
     real(real_kind), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
@@ -260,7 +268,7 @@ contains
     use photochem_eqns, only: damp_condensation_rate
     use photochem_const, only: N_avo, pi, small_real
     
-    class(Photochem), target, intent(in) :: self
+    class(Atmosphere), target, intent(in) :: self
     integer, intent(in) :: neqs, nsp, np, nsl, nq, nz, trop_ind, nrT
     real(real_kind), intent(in) :: usol(nq,nz), density(nz)
     real(real_kind), intent(in) :: rx_rates(nz,nrT)
@@ -391,7 +399,7 @@ contains
     use photochem_radtran, only: two_stream
     use photochem_const, only: pi
     ! input
-    class(Photochem), target, intent(in) :: self
+    class(Atmosphere), target, intent(in) :: self
     integer, intent(in) :: nz, nsp, kj, nw
     real(real_kind), intent(in) :: densities(nsp+1, nz)
     
@@ -533,7 +541,7 @@ contains
     use, intrinsic :: iso_c_binding, only : c_loc, c_ptr
     use cminpack2fort, only: hybrd1 ! interface to hybrd1 from cminpack
     
-    class(Photochem), target, intent(in) :: self
+    class(Atmosphere), target, intent(in) :: self
     integer, intent(in) :: nq, nz, trop_ind
     real(real_kind), intent(inout), target :: usol(nq,nz)
     real(real_kind), intent(out) :: sum_usol(nz)
@@ -545,7 +553,7 @@ contains
     integer :: i
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(Photochem), pointer :: self_ptr
+    type(Atmosphere), pointer :: self_ptr
     
     ! hybrd1 varibles for cminpack
     integer :: info
@@ -658,7 +666,7 @@ contains
     real(real_kind), pointer :: pressure(:)
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(Photochem), pointer :: self
+    type(Atmosphere), pointer :: self
   
     integer :: i
     real(real_kind) :: rel
@@ -711,7 +719,7 @@ contains
                               binary_diffusion_param
     use photochem_const, only: k_boltz, N_avo
     
-    class(Photochem), target, intent(in) :: self
+    class(Atmosphere), target, intent(in) :: self
     integer, intent(in) :: nq, npq, nz
     real(real_kind), intent(in) :: den(nz)
     real(real_kind), intent(in) :: mubar(nz)
@@ -884,7 +892,7 @@ contains
     use photochem_const, only: k_boltz, N_avo, small_real
     use photochem_eqns, only: henrys_law
     
-    class(Photochem), target, intent(in) :: self
+    class(Atmosphere), target, intent(in) :: self
     integer, intent(in) :: nq, nz, trop_ind
     real(real_kind), intent(in) :: usol(nq, nz)
     real(real_kind), intent(in) :: den(nz)
@@ -970,7 +978,7 @@ contains
     use photochem_eqns, only: saturation_density
     use photochem_const, only: pi, k_boltz, N_avo, small_real
   
-    class(Photochem), target, intent(inout) :: self
+    class(Atmosphere), target, intent(inout) :: self
     real(real_kind), intent(in) :: usol_in(:,:)
     character(len=err_len), intent(out) :: err
   
@@ -1088,7 +1096,7 @@ contains
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
     
-    class(Photochem), target, intent(inout) :: self
+    class(Atmosphere), target, intent(inout) :: self
     integer, intent(in) :: neqs
     real(real_kind), target, intent(in) :: usol_flat(neqs)
     real(real_kind), intent(out) :: rhs(neqs)
@@ -1202,7 +1210,7 @@ contains
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
-    class(Photochem), target, intent(inout) :: self
+    class(Atmosphere), target, intent(inout) :: self
     integer, intent(in) :: lda_neqs, neqs
     real(real_kind), target, intent(in) :: usol_flat(neqs)
     real(real_kind), intent(out), target :: jac(lda_neqs)

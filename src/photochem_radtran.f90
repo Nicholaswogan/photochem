@@ -1,20 +1,20 @@
 
 module photochem_radtran
+  use photochem_const, only: real_kind
   implicit none
   private
   public :: two_stream
-  integer, private ,parameter :: real_kind = kind(1.0d0)
 
 contains
   
   subroutine two_stream(nz, tau, w0, gt, u0, Rsfc, amean, surface_radiance, ierr)
     integer, intent(in) :: nz
-    real(8), intent(inout) :: tau(nz)
-    real(8), intent(inout) :: w0(nz)
-    real(8), intent(inout) :: gt(nz)
-    real(8), intent(in) :: u0, Rsfc
-    real(8), intent(out) :: amean(nz+1)
-    real(8), intent(out) :: surface_radiance
+    real(real_kind), intent(inout) :: tau(nz)
+    real(real_kind), intent(inout) :: w0(nz)
+    real(real_kind), intent(inout) :: gt(nz)
+    real(real_kind), intent(in) :: u0, Rsfc
+    real(real_kind), intent(out) :: amean(nz+1)
+    real(real_kind), intent(out) :: surface_radiance
     integer, intent(out) :: ierr 
     
     ! real(real_kind) :: intensity(nz)

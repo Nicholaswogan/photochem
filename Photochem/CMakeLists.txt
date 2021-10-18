@@ -1,2 +1,2 @@
-add_library(photochem_wrapper atmos_wrapper.f90)
+add_library(photochem_wrapper atmosphere_wrapper.f90)
 target_link_libraries(photochem_wrapper photochem)

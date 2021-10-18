@@ -1,7 +1,8 @@
 module photochem_mie
+  use photochem_const, only: real_kind, err_len
   implicit none
-  integer, private, parameter :: real_kind = 8
-  integer, private, parameter :: err_len = 1024
+  private
+  public :: read_mie_data_file
   
 contains
   
