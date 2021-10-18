@@ -35,29 +35,7 @@ if (BUILD_WITH_OPENMP)
 endif()
 message (STATUS "Building with OpenMP multi-threading = ${BUILD_WITH_OPENMP}")
 
-# adding src build dependencies
 add_subdirectory(src)
-
-set(PHOTOCHEM_SOURCES ${CMAKE_SOURCE_DIR}/src/photochem_const.f90
-                      ${CMAKE_SOURCE_DIR}/src/photochem_radtran.f90 
-                      ${CMAKE_SOURCE_DIR}/src/photochem_eqns.f90 
-                      ${CMAKE_SOURCE_DIR}/src/photochem_types.f90
-                      ${CMAKE_SOURCE_DIR}/src/photochem_mie.f90  
-                      ${CMAKE_SOURCE_DIR}/src/photochem_input.f90
-                      ${CMAKE_SOURCE_DIR}/src/photochem_atmosphere.f90
-                      ${CMAKE_SOURCE_DIR}/src/photochem_atmosphere_init.f90
-                      ${CMAKE_SOURCE_DIR}/src/photochem_atmosphere_rhs.f90
-                      ${CMAKE_SOURCE_DIR}/src/photochem_atmosphere_integrate.f90
-                      ${CMAKE_SOURCE_DIR}/src/photochem_atmosphere_utils.f90
-                      ${CMAKE_SOURCE_DIR}/src/photochem.f90)
-
-# libphotochem.a
-add_library(photochem 
-            ${PHOTOCHEM_SOURCES})
-target_link_libraries(photochem fortran-yaml-cpp sundials_fcvode_mod sundials_cvode cminpack binning)
-target_include_directories(photochem PUBLIC
-                          "${CMAKE_BINARY_DIR}/modules"
-                          )
 
 if (BUILD_STATIC_PHOTOCHEM)
 
