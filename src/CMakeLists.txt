@@ -1,23 +1,36 @@
 
-# fortran yaml
-add_subdirectory(fortran-yaml-cpp EXCLUDE_FROM_ALL)
+add_subdirectory(dependencies)
 
-# binning
-add_subdirectory(binning EXCLUDE_FROM_ALL)
+set(PHOTOCHEM_MODULES
+  photochem_const.f90
+  photochem_radtran.f90 
+  photochem_eqns.f90 
+  photochem_types.f90)
 
-# CVODE
-set(BUILD_SHARED_LIBS OFF)
-set(EXAMPLES_ENABLE_C OFF)
-set(EXAMPLES_ENABLE_F77 OFF)
-set(EXAMPLES_ENABLE_F90 OFF)
-set(EXAMPLES_ENABLE_F2003 OFF)
-set(BUILD_FORTRAN_MODULE_INTERFACE ON)
-set(BUILD_ARKODE OFF)
-set(BUILD_CVODES OFF)
-set(BUILD_IDA OFF)
-set(BUILD_KINSOL OFF)
-add_subdirectory(cvode-5.7.0 EXCLUDE_FROM_ALL)
+set(PHOTOCHEM_INPUT
+    input/photochem_input.f90
+    input/photochem_input_after_read.f90
+    input/photochem_input_read.f90)
 
-option(BUILD_MODERN_FORTRAN_EXAMPLES OFF)
-add_subdirectory(cminpack EXCLUDE_FROM_ALL)
+set(PHOTOCHEM_ATMOSPHERE
+    atmosphere/photochem_atmosphere.f90
+    atmosphere/photochem_atmosphere_init.f90
+    atmosphere/photochem_atmosphere_rhs.f90
+    atmosphere/photochem_atmosphere_integrate.f90
+    atmosphere/photochem_atmosphere_utils.f90)
+
+set(PHOTOCHEM_SOURCES 
+  ${PHOTOCHEM_MODULES}
+  ${PHOTOCHEM_INPUT}
+  ${PHOTOCHEM_ATMOSPHERE}
+  photochem.f90)
+
+# libphotochem.a
+add_library(photochem 
+            ${PHOTOCHEM_SOURCES})
+target_link_libraries(photochem fortran-yaml-cpp sundials_fcvode_mod sundials_cvode cminpack binning)
+target_include_directories(photochem PUBLIC
+                          "${CMAKE_BINARY_DIR}/modules")
+
+
 
