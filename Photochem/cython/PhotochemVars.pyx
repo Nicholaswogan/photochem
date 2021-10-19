@@ -3,8 +3,17 @@ cdef extern void allocate_photochemvars(void *ptr)
 cdef extern void deallocate_photochemvars(void *ptr)
 
 cdef extern void photochemvars_nz_get(void *ptr, int *nz)
+
+cdef extern void photochemvars_at_photo_equilibrium_get(void *ptr, bint *at_photo_equilibrium)
+
 cdef extern void photochemvars_usol_init_get_size(void *ptr, int *dim1, int *dim2)
 cdef extern void photochemvars_usol_init_get(void *ptr, int *dim1, int *dim2, double *usol_init)
+
+cdef extern void photochemvars_temperature_get_size(void *ptr, int *dim1)
+cdef extern void photochemvars_temperature_get(void *ptr, int *dim1, double *temperature)
+
+cdef extern void photochemvars_z_get_size(void *ptr, int *dim1)
+cdef extern void photochemvars_z_get(void *ptr, int *dim1, double *z)
 
 cdef class PhotochemVars:
   cdef void *_ptr
@@ -36,6 +45,27 @@ cdef class PhotochemVars:
       photochemvars_usol_init_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
   
+  property z:
+    def __get__(self):
+      cdef int dim1
+      photochemvars_z_get_size(&self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      photochemvars_z_get(&self._ptr, &dim1, <double *>arr.data)
+      return arr
+  
+  property temperature:
+    def __get__(self):
+      cdef int dim1
+      photochemvars_temperature_get_size(&self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      photochemvars_temperature_get(&self._ptr, &dim1, <double *>arr.data)
+      return arr
+      
+  property at_photo_equilibrium:
+    def __get__(self):
+      cdef bint at_photo_equilibrium
+      photochemvars_at_photo_equilibrium_get(&self._ptr, &at_photo_equilibrium)
+      return at_photo_equilibrium
       
   
 

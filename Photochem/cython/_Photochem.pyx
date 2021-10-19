@@ -9,6 +9,7 @@ cdef int ERR_LEN = 1024;
 include "Atmosphere.pyx"
 include "PhotochemData.pyx"
 include "PhotochemVars.pyx"
+include "PhotochemWrk.pyx"
 
     
     

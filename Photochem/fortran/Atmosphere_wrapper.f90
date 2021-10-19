@@ -78,7 +78,7 @@ contains
   
   subroutine atmosphere_photochemical_equilibrium_wrapper(ptr, success, err) bind(c)
     type(c_ptr), intent(in) :: ptr
-    logical(c_bool), intent(out) :: success
+    logical(4), intent(out) :: success
     character(len=c_char), intent(out) :: err(err_len+1)
     
     character(len=err_len) :: err_f
@@ -95,7 +95,7 @@ contains
   subroutine atmosphere_out2atmosphere_txt_wrapper(ptr, filename, overwrite, clip, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     character(kind=c_char), intent(in) :: filename(*)
-    logical(c_bool), intent(in) :: overwrite, clip
+    logical(4), intent(in) :: overwrite, clip
     character(kind=c_char), intent(out) :: err(err_len+1)
     
     character(len=:), allocatable :: filename_f
@@ -114,6 +114,35 @@ contains
     call pc%out2atmosphere_txt(filename_f, overwrite_f, clip_f, err_f)
     call copy_string_ftoc(err_f,err)
     
+  end subroutine
+  
+  subroutine atmosphere_out2in_wrapper(ptr, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(len=err_len) :: err_f
+    type(Atmosphere), pointer :: pc
+    
+    call c_f_pointer(ptr, pc)
+    
+    err_f = ''
+    call pc%out2in(err_f)
+    call copy_string_ftoc(err_f,err)
+    
+  end subroutine
+  
+  subroutine atmosphere_surface_fluxes_wrapper(ptr, fluxes, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: fluxes(*)
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(len=err_len) :: err_f
+    type(Atmosphere), pointer :: pc
+    
+    call c_f_pointer(ptr, pc)
+    err_f = ''
+    call pc%surface_fluxes(fluxes(1:pc%dat%nq),err_f)
+    call copy_string_ftoc(err_f,err)
   end subroutine
   
 end module

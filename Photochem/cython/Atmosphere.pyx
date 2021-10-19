@@ -10,6 +10,8 @@ cdef extern void atmosphere_init_wrapper(void *ptr, char *data_dir, char *mechan
                                         void *wrk_ptr, char *err);
 cdef extern void atmosphere_photochemical_equilibrium_wrapper(void *ptr, bint *success, char* err)   
 cdef extern void atmosphere_out2atmosphere_txt_wrapper(void *ptr, char *filename, bint *overwrite, bint *clip, char *err)                         
+cdef extern void atmosphere_out2in_wrapper(void *ptr, char *err)
+cdef extern void atmosphere_surface_fluxes_wrapper(void *ptr, double *fluxes, char *err)
 
 class PhotoException(Exception):
     pass
@@ -62,6 +64,12 @@ cdef class Atmosphere:
       var._ptr = self._var_ptr
       return var
       
+  property wrk:
+    def __get__(self):
+      wrk = PhotochemWrk(alloc = False)
+      wrk._ptr = self._wrk_ptr
+      return wrk
+      
   def photochemical_equilibrium(self):
     cdef bint success
     cdef char err[1024+1]
@@ -77,6 +85,37 @@ cdef class Atmosphere:
     atmosphere_out2atmosphere_txt_wrapper(&self._ptr, filename_c, &overwrite, &clip, err)  
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
+      
+  def out2in(self):
+    cdef char err[1024+1]
+    atmosphere_out2in_wrapper(&self._ptr, err)  
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+      
+  def out_dict(self):
+    if not self.var.at_photo_equilibrium:
+      raise PhotoException("Must integrate to photochemical equilibrium before making output dictionary")
+    out = {}
+    out['alt'] = self.var.z/1e5
+    out['temp'] = self.var.temperature
+    names = self.dat.species_names
+    cdef ndarray usol = self.wrk.usol
+    cdef int i
+    for i in range(self.dat.nq):
+      out[names[i]] = usol[i,:]
+    return out
+    
+  def surface_fluxes(self):
+    cdef ndarray fluxes = np.empty(self.dat.nq, np.double)
+    cdef char err[1024+1]
+    atmosphere_surface_fluxes_wrapper(&self._ptr, <double *>fluxes.data, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    out = {}
+    names = self.dat.species_names
+    for i in range(self.dat.nq):
+      out[names[i]] = fluxes[i]
+    return out
       
 cdef pystring2cstring(str pystring):
   # add a null c char, and convert to byes

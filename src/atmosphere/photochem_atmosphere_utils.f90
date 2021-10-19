@@ -107,4 +107,55 @@ contains
     endif
   end subroutine
   
+  module subroutine surface_fluxes(self, fluxes, err)
+    class(Atmosphere), target, intent(inout) :: self
+    real(real_kind), intent(out) :: fluxes(:)
+    character(len=err_len), intent(out) :: err
+  
+    real(real_kind) :: rhs(self%var%neqs)  
+    real(real_kind) :: diffusive_production
+    real(real_kind) :: chemical_production
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrk), pointer :: wrk
+  
+    integer :: i
+    
+    err = ""
+    
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+    
+    if (size(fluxes) /= dat%nq) then
+      err = "Input fluxes to surface_fluxes has the wrong dimensions"
+      return
+    endif
+    
+    if (.not. var%at_photo_equilibrium) then
+      err = "Must integrate to photochemical equilibrium before calculating surface fluxes"
+      return
+    endif
+  
+    call self%dochem_implicit(var%usol_out, rhs, err)
+    if (len_trim(err) /= 0) return
+  
+    ! surface flux is molecules required to sustain the lower boundary
+    ! chemical production + diffusion production = total change in lower cell    
+    do i = 1,dat%nq
+      diffusive_production =   (wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
+                                - wrk%DU(i,1)*wrk%usol(i,1)) &
+                                *wrk%density(1)*var%dz(1)
+      chemical_production = rhs(i)*wrk%density(1)*var%dz(1)
+      fluxes(i) = -(diffusive_production + chemical_production)
+      ! We don't count chemical production for water
+      if (dat%fix_water_in_trop) then
+        if (i == dat%LH2O) then
+          fluxes(i) = - diffusive_production
+        endif
+      endif
+    enddo
+  
+  end subroutine
+  
 end submodule

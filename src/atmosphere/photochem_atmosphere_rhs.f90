@@ -260,6 +260,37 @@ contains
     
   end subroutine
   
+  module subroutine dochem_implicit(self, usol, rhs, err)
+    class(Atmosphere), target, intent(inout) :: self
+    real(real_kind), intent(in) :: usol(:,:)
+    real(real_kind), intent(out) :: rhs(:)
+    character(len=err_len), intent(out) :: err
+    
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrk), pointer :: wrk
+    
+    err = ""
+    
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+    
+    if (size(usol,1) /= dat%nq .or. size(usol,2) /= var%nz .or. size(rhs) /= var%neqs) then
+      err = "Input usol or rhs to dochem_implicit has the wrong dimensions"
+      return
+    endif
+
+    call self%prep_atmosphere(usol, err)
+    if (len_trim(err) /= 0) return
+    
+    call dochem(self, var%neqs, dat%nsp, dat%np, dat%nsl, dat%nq, var%nz, &
+                var%trop_ind, dat%nrT, wrk%usol, wrk%density, wrk%rx_rates, &
+                wrk%gas_sat_den, wrk%molecules_per_particle, &
+                wrk%H2O_sat_mix, wrk%rainout_rates, &
+                wrk%densities, wrk%xp, wrk%xl, rhs)
+                              
+  end subroutine
   
   subroutine dochem(self, neqs, nsp, np, nsl, nq, nz, trop_ind, nrT, usol, density, rx_rates, &
                     gas_sat_den, molecules_per_particle, &

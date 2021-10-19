@@ -1,10 +1,12 @@
 
 program main
-  use Photochem, only: Atmosphere, err_len
+  use Photochem, only: Atmosphere, err_len, real_kind
   implicit none
   character(len=err_len) :: err
   type(Atmosphere) :: pc
   logical :: success
+  real(real_kind), allocatable :: surface_fluxes(:)
+  integer :: i
   
   err = ""
   call pc%init("../data", &

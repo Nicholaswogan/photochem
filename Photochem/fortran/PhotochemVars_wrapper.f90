@@ -36,6 +36,14 @@ contains
     nz = var%nz
   end subroutine
   
+  subroutine photochemvars_at_photo_equilibrium_get(ptr, at_photo_equilibrium) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    logical(4), intent(out) :: at_photo_equilibrium
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    at_photo_equilibrium = var%at_photo_equilibrium
+  end subroutine
+  
   subroutine photochemvars_usol_init_get_size(ptr, dim1, dim2) bind(c)
     type(c_ptr), intent(in) :: ptr
     integer(c_int), intent(out) :: dim1, dim2
@@ -52,6 +60,40 @@ contains
     type(PhotochemVars), pointer :: var
     call c_f_pointer(ptr, var)
     usol_init = var%usol_init
+  end subroutine
+  
+  subroutine photochemvars_temperature_get_size(ptr, dim1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    dim1 = size(var%temperature,1)
+  end subroutine
+  
+  subroutine photochemvars_temperature_get(ptr, dim1, temperature) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: temperature(dim1)
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    temperature = var%temperature
+  end subroutine
+  
+  subroutine photochemvars_z_get_size(ptr, dim1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    dim1 = size(var%z,1)
+  end subroutine
+  
+  subroutine photochemvars_z_get(ptr, dim1, z) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: z(dim1)
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    z = var%z
   end subroutine
   
   

@@ -36,7 +36,7 @@ cdef class PhotochemData:
     def __get__(self):
       cdef int dim1
       photochemdata_species_names_get_size(&self._ptr, &dim1)
-      cdef ndarray species_names_c = np.empty(dim1*S_STR_LEN + 1, 'c')
+      cdef ndarray species_names_c = np.empty(dim1*S_STR_LEN + 1, 'S1')
       photochemdata_species_names_get(&self._ptr, &dim1, <char *>species_names_c.data)
       return c2stringarr(species_names_c, S_STR_LEN, dim1)
       
@@ -44,7 +44,7 @@ cdef class PhotochemData:
     def __get__(self):
       cdef int dim1
       photochemdata_atoms_names_get_size(&self._ptr, &dim1)
-      cdef ndarray names_c = np.empty(dim1*S_STR_LEN + 1, 'c')
+      cdef ndarray names_c = np.empty(dim1*S_STR_LEN + 1, 'S1')
       photochemdata_atoms_names_get(&self._ptr, &dim1, <char *>names_c.data)
       return c2stringarr(names_c, S_STR_LEN, dim1)
 

@@ -15,11 +15,13 @@ module photochem_atmosphere
   contains
     procedure :: init => Atmosphere_init
     procedure, private :: prep_atmosphere => prep_all_background_gas
+    procedure, private :: dochem_implicit => dochem_implicit
     procedure :: right_hand_side => rhs_background_gas
     procedure :: jacobian => jac_background_gas
     procedure :: photochemical_equilibrium
     procedure :: out2atmosphere_txt
     procedure :: out2in
+    procedure :: surface_fluxes
   end type
   
   
@@ -40,6 +42,14 @@ module photochem_atmosphere
     module subroutine prep_all_background_gas(self, usol_in, err)
       class(Atmosphere), target, intent(inout) :: self
       real(real_kind), intent(in) :: usol_in(:,:)
+      character(len=err_len), intent(out) :: err
+    end subroutine
+    
+    ! photochem_atmosphere_rhs.f90
+    module subroutine dochem_implicit(self, usol, rhs, err)
+      class(Atmosphere), target, intent(inout) :: self
+      real(real_kind), intent(in) :: usol(:,:)
+      real(real_kind), intent(out) :: rhs(:)
       character(len=err_len), intent(out) :: err
     end subroutine
     
@@ -78,6 +88,12 @@ module photochem_atmosphere
     
     module subroutine out2in(self, err)
       class(Atmosphere), intent(inout) :: self
+      character(len=err_len), intent(out) :: err
+    end subroutine
+    
+    module subroutine surface_fluxes(self, fluxes, err)
+      class(Atmosphere), target, intent(inout) :: self
+      real(real_kind), intent(out) :: fluxes(:)
       character(len=err_len), intent(out) :: err
     end subroutine
     
