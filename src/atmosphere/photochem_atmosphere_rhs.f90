@@ -397,6 +397,7 @@ contains
   subroutine photorates(self, nz, nsp, kj, nw, densities, &
                         prates, surf_radiance,err)
     use photochem_radtran, only: two_stream
+    !$ use photochem_eqns, only: round
     use photochem_const, only: pi
     ! input
     class(Atmosphere), target, intent(in) :: self

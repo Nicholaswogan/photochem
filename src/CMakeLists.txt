@@ -31,6 +31,3 @@ add_library(photochem
 target_link_libraries(photochem fortran-yaml-cpp sundials_fcvode_mod sundials_cvode cminpack binning)
 target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules")
-
-
-
