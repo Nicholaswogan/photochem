@@ -38,7 +38,7 @@ cdef class Atmosphere:
     cdef char *flux_file_c = flux_file_b
     cdef bytes atmosphere_txt_b = pystring2cstring(atmosphere_txt)
     cdef char *atmosphere_txt_c = atmosphere_txt_b
-    cdef char err[1024+1]
+    cdef char err[ERR_LEN+1]
     
     # Initialize
     atmosphere_init_wrapper(&self._ptr, data_dir_c, mechanism_file_c,
@@ -72,7 +72,7 @@ cdef class Atmosphere:
       
   def photochemical_equilibrium(self):
     cdef bint success
-    cdef char err[1024+1]
+    cdef char err[ERR_LEN+1]
     atmosphere_photochemical_equilibrium_wrapper(&self._ptr, &success, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -81,13 +81,13 @@ cdef class Atmosphere:
   def out2atmosphere_txt(self,filename = None, bint overwrite = False, bint clip = True):
     cdef bytes filename_b = pystring2cstring(filename)
     cdef char *filename_c = filename_b
-    cdef char err[1024+1]
+    cdef char err[ERR_LEN+1]
     atmosphere_out2atmosphere_txt_wrapper(&self._ptr, filename_c, &overwrite, &clip, err)  
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
       
   def out2in(self):
-    cdef char err[1024+1]
+    cdef char err[ERR_LEN+1]
     atmosphere_out2in_wrapper(&self._ptr, err)  
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -98,6 +98,8 @@ cdef class Atmosphere:
     out = {}
     out['alt'] = self.var.z/1e5
     out['temp'] = self.var.temperature
+    out['pressure'] = self.wrk.pressure
+    out['density'] = self.wrk.density
     names = self.dat.species_names
     cdef ndarray usol = self.wrk.usol
     cdef int i
@@ -107,7 +109,7 @@ cdef class Atmosphere:
     
   def surface_fluxes(self):
     cdef ndarray fluxes = np.empty(self.dat.nq, np.double)
-    cdef char err[1024+1]
+    cdef char err[ERR_LEN+1]
     atmosphere_surface_fluxes_wrapper(&self._ptr, <double *>fluxes.data, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())

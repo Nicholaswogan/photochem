@@ -1,7 +1,8 @@
 submodule(photochem_atmosphere) photochem_atmosphere_integrate
   implicit none
   
-  
+  ! Contains routines for integrating the photochemical equations
+  ! forward in time. Here, we use the CVODE BDF integrator.
   
 contains
   

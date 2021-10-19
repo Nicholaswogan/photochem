@@ -1,6 +1,10 @@
 submodule(photochem_atmosphere) photochem_atmosphere_init
   implicit none
   
+  ! Contains the Constructor for the Atmosphere derived type.
+  ! This constructor reads all data files, setting up atmosphere
+  ! for photochemical calculations.
+  
 contains
   
   subroutine Atmosphere_init(self, data_dir, mechanism_file, settings_file, flux_file, atmosphere_txt, err)

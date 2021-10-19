@@ -3,7 +3,10 @@ module photochem_atmosphere
   use photochem_types, only : PhotochemData, PhotochemVars, PhotochemWrk
   implicit none
   
-  ! Contains the Atmosphere type. This type computes everything
+  ! The Atmosphere type. It contains all data describing the atmosphere
+  ! such as temperature profile, photon flux, chemical species, 
+  ! particles, and chemical reactions. It also contains several
+  ! procedures which compute atmospheric photochemistry.
     
   private
   public :: Atmosphere
@@ -13,20 +16,25 @@ module photochem_atmosphere
     type(PhotochemVars), allocatable :: var
     type(PhotochemWrk), allocatable :: wrk
   contains
+    ! public
     procedure :: init => Atmosphere_init
-    procedure, private :: prep_atmosphere => prep_all_background_gas
-    procedure, private :: dochem_implicit => dochem_implicit
     procedure :: right_hand_side => rhs_background_gas
     procedure :: jacobian => jac_background_gas
     procedure :: photochemical_equilibrium
     procedure :: out2atmosphere_txt
     procedure :: out2in
     procedure :: surface_fluxes
+    
+    ! private
+    procedure, private :: prep_atmosphere => prep_all_background_gas
+    procedure, private :: dochem_implicit => dochem_implicit
   end type
   
   
   interface
-    ! photochem_atmosphere_init.f90
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!! photochem_atmosphere_init.f90 !!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     module subroutine Atmosphere_init(self, data_dir, mechanism_file, &
                                      settings_file, flux_file, atmosphere_txt, err)
       class(Atmosphere), intent(inout) :: self
@@ -38,14 +46,15 @@ module photochem_atmosphere
       character(len=err_len), intent(out) :: err
     end subroutine
     
-    ! photochem_atmosphere_rhs.f90
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!! photochem_atmosphere_rhs.f90 !!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     module subroutine prep_all_background_gas(self, usol_in, err)
       class(Atmosphere), target, intent(inout) :: self
       real(real_kind), intent(in) :: usol_in(:,:)
       character(len=err_len), intent(out) :: err
     end subroutine
     
-    ! photochem_atmosphere_rhs.f90
     module subroutine dochem_implicit(self, usol, rhs, err)
       class(Atmosphere), target, intent(inout) :: self
       real(real_kind), intent(in) :: usol(:,:)
@@ -53,7 +62,6 @@ module photochem_atmosphere
       character(len=err_len), intent(out) :: err
     end subroutine
     
-    ! photochem_atmosphere_rhs.f90
     module subroutine rhs_background_gas(self, neqs, usol_flat, rhs, err)
       class(Atmosphere), target, intent(inout) :: self
       integer, intent(in) :: neqs
@@ -62,7 +70,6 @@ module photochem_atmosphere
       character(len=err_len), intent(out) :: err
     end subroutine
     
-    ! photochem_atmosphere_rhs.f90
     module subroutine jac_background_gas(self, lda_neqs, neqs, usol_flat, jac, err)
       class(Atmosphere), target, intent(inout) :: self
       integer, intent(in) :: lda_neqs, neqs
@@ -71,14 +78,18 @@ module photochem_atmosphere
       character(len=err_len), intent(out) :: err
     end subroutine
     
-    ! photochem_atmosphere_integrate.f90
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!! photochem_atmosphere_integrate.f90 !!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     module subroutine photochemical_equilibrium(self, success, err)
       class(Atmosphere), target, intent(inout) :: self
       logical, intent(out) :: success
       character(len=err_len), intent(out) :: err 
     end subroutine
     
-    ! utilities
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!! photochem_atmosphere_utils.f90 !!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
       class(Atmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: filename
