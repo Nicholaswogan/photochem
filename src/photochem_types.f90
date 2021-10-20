@@ -133,7 +133,7 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: lower_flux(:)
     real(real_kind), allocatable :: lower_dist_height(:)
     real(real_kind), allocatable :: lower_fix_mr(:)
-    integer, allocatable :: upperboundcond(:) ! 0 or 1
+    integer, allocatable :: upperboundcond(:) ! 0 or 2
     real(real_kind), allocatable :: upper_veff(:)
     real(real_kind), allocatable :: upper_flux(:)
     

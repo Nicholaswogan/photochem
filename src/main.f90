@@ -19,10 +19,19 @@ program main
     stop
   endif
   
+  call pc%change_lower_bc('O2','flux',flux=0.d0, err=err)
+  if (len(trim(err)) > 0) then
+    print*,trim(err)
+    stop
+  endif
+  
   call pc%photochemical_equilibrium(success, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop
   endif
+
+  
+
 
 end program

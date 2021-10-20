@@ -145,4 +145,68 @@ contains
     call copy_string_ftoc(err_f,err)
   end subroutine
   
+  subroutine atmosphere_change_lower_bc_wrapper(ptr, species, bc_type, vdep, mix, flux, height, missing, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    character(kind=c_char), intent(in) :: species(*)
+    character(kind=c_char), intent(in) :: bc_type(*)
+    real(c_double), intent(in) :: vdep
+    real(c_double), intent(in) :: mix
+    real(c_double), intent(in) :: flux
+    real(c_double), intent(in) :: height
+    logical(4), intent(in) :: missing
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(len=:), allocatable :: species_f
+    character(len=:), allocatable :: bc_type_f
+    
+    character(len=err_len) :: err_f
+    type(Atmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+    
+    allocate(character(len=len_cstring(species))::species_f)
+    allocate(character(len=len_cstring(bc_type))::bc_type_f)
+    
+    call copy_string_ctof(species, species_f)
+    call copy_string_ctof(bc_type, bc_type_f)
+
+    err_f = ''
+    if (missing) then
+      call pc%change_lower_bc(species_f, bc_type_f, err=err_f)
+    else
+      call pc%change_lower_bc(species_f, bc_type_f, vdep=vdep, mix=mix, flux=flux, height=height, err=err_f)
+    endif
+    call copy_string_ftoc(err_f,err)
+  end subroutine
+  
+  subroutine atmosphere_change_upper_bc_wrapper(ptr, species, bc_type, veff, flux, missing, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    character(kind=c_char), intent(in) :: species(*)
+    character(kind=c_char), intent(in) :: bc_type(*)
+    real(c_double), intent(in) :: veff
+    real(c_double), intent(in) :: flux
+    logical(4), intent(in) :: missing
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(len=:), allocatable :: species_f
+    character(len=:), allocatable :: bc_type_f
+    
+    character(len=err_len) :: err_f
+    type(Atmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+    
+    allocate(character(len=len_cstring(species))::species_f)
+    allocate(character(len=len_cstring(bc_type))::bc_type_f)
+    
+    call copy_string_ctof(species, species_f)
+    call copy_string_ctof(bc_type, bc_type_f)
+
+    err_f = ''
+    if (missing) then
+      call pc%change_upper_bc(species_f, bc_type_f, err=err_f)
+    else
+      call pc%change_upper_bc(species_f, bc_type_f, veff=veff, flux=flux, err=err_f)
+    endif
+    call copy_string_ftoc(err_f,err)
+  end subroutine
+  
 end module

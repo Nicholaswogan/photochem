@@ -12,10 +12,20 @@ cdef extern void atmosphere_photochemical_equilibrium_wrapper(void *ptr, bint *s
 cdef extern void atmosphere_out2atmosphere_txt_wrapper(void *ptr, char *filename, bint *overwrite, bint *clip, char *err)                         
 cdef extern void atmosphere_out2in_wrapper(void *ptr, char *err)
 cdef extern void atmosphere_surface_fluxes_wrapper(void *ptr, double *fluxes, char *err)
+cdef extern void atmosphere_change_lower_bc_wrapper(void *ptr, char *species, char *bc_type, 
+                                                    double *vdep, double *mix, double *flux, double *height, bint *missing, char *err)
+cdef extern void atmosphere_change_upper_bc_wrapper(void *ptr, char *species, 
+                                                    char *bc_type, double *veff, double *flux, bint *missing, char *err)
+
+
+cdef pystring2cstring(str pystring):
+  # add a null c char, and convert to byes
+  cdef bytes cstring = (pystring+'\0').encode('utf-8')
+  return cstring
 
 class PhotoException(Exception):
     pass
-    
+  
 cdef class Atmosphere:
   cdef void *_ptr
   cdef void *_dat_ptr
@@ -118,14 +128,74 @@ cdef class Atmosphere:
     for i in range(self.dat.nq):
       out[names[i]] = fluxes[i]
     return out
+    
+  def change_lower_bc(self, species = None, bc_type = None, vdep = None, mix = None,
+                            flux = None, height = None):
+    
+    cdef bytes species_b = pystring2cstring(species)
+    cdef char *species_c = species_b
+    cdef bytes bc_type_b = pystring2cstring(bc_type)
+    cdef char *bc_type_c = bc_type_b
+    cdef double vdep_c = 0
+    cdef double mix_c = 0
+    cdef double flux_c = 0
+    cdef double height_c = 0
+    cdef bint missing = False
+    if bc_type == 'vdep':
+      if vdep == None:
+        missing = True
+      else:
+        vdep_c = vdep
+    elif bc_type == 'mix':
+      if mix == None:
+        missing = True
+      else:
+        mix_c = mix
+    elif bc_type == 'flux':
+      if flux == None:
+        missing = True
+      else:
+        flux_c = flux
+    elif bc_type == 'vdep + dist flux':
+      if vdep == None or flux == None or height == None:
+        missing = True
+      else:
+        vdep_c = vdep
+        flux_c = flux
+        height_c = height
+    elif bc_type == 'Moses':
+      pass
       
-cdef pystring2cstring(str pystring):
-  # add a null c char, and convert to byes
-  cdef bytes cstring = (pystring+'\0').encode('utf-8')
-  return cstring
+    cdef char err[ERR_LEN+1]
+    atmosphere_change_lower_bc_wrapper(&self._ptr, species_c, bc_type_c, 
+                                      &vdep_c, &mix_c, &flux_c, &height_c, &missing, err);
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
   
+  def change_upper_bc(self, species = None, bc_type = None, veff = None,flux = None):
     
-    
-    
-    
-    
+    cdef bytes species_b = pystring2cstring(species)
+    cdef char *species_c = species_b
+    cdef bytes bc_type_b = pystring2cstring(bc_type)
+    cdef char *bc_type_c = bc_type_b
+    cdef double veff_c = 0
+    cdef double flux_c = 0
+    cdef bint missing = False
+    if bc_type == 'veff':
+      if veff == None:
+        missing = True
+      else:
+        veff_c = veff
+    elif bc_type == 'flux':
+      if flux == None:
+        missing = True
+      else:
+        flux_c = flux
+      
+    cdef char err[ERR_LEN+1]
+    atmosphere_change_upper_bc_wrapper(&self._ptr, species_c, bc_type_c, 
+                                      &veff_c, &flux_c, &missing, err);
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+
+

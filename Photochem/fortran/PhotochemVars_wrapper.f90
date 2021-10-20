@@ -96,5 +96,84 @@ contains
     z = var%z
   end subroutine
   
+  subroutine photochemvars_rtol_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%rtol
+  end subroutine
+  
+  subroutine photochemvars_rtol_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%rtol = val
+  end subroutine
+  
+  subroutine photochemvars_atol_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%atol
+  end subroutine
+  
+  subroutine photochemvars_atol_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%atol = val
+  end subroutine
+  
+  subroutine photochemvars_mxsteps_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%mxsteps
+  end subroutine
+  
+  subroutine photochemvars_mxsteps_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%mxsteps = val
+  end subroutine
+  
+  subroutine photochemvars_equilibrium_time_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%equilibrium_time
+  end subroutine
+  
+  subroutine photochemvars_equilibrium_time_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%equilibrium_time = val
+  end subroutine
+  
+  subroutine photochemvars_verbose_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%verbose
+  end subroutine
+  
+  subroutine photochemvars_verbose_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%verbose = val
+  end subroutine
   
 end module

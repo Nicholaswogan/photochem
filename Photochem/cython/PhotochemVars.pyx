@@ -15,6 +15,21 @@ cdef extern void photochemvars_temperature_get(void *ptr, int *dim1, double *tem
 cdef extern void photochemvars_z_get_size(void *ptr, int *dim1)
 cdef extern void photochemvars_z_get(void *ptr, int *dim1, double *z)
 
+cdef extern void photochemvars_rtol_get(void *ptr, double *val)
+cdef extern void photochemvars_rtol_set(void *ptr, double *val)
+
+cdef extern void photochemvars_atol_get(void *ptr, double *val)
+cdef extern void photochemvars_atol_set(void *ptr, double *val)
+
+cdef extern void photochemvars_mxsteps_get(void *ptr, int *val)
+cdef extern void photochemvars_mxsteps_set(void *ptr, int *val)
+
+cdef extern void photochemvars_equilibrium_time_get(void *ptr, double *val)
+cdef extern void photochemvars_equilibrium_time_set(void *ptr, double *val)
+
+cdef extern void photochemvars_verbose_get(void *ptr, int *val)
+cdef extern void photochemvars_verbose_set(void *ptr, int *val)
+
 cdef class PhotochemVars:
   cdef void *_ptr
   cdef bint _destroy
@@ -67,8 +82,45 @@ cdef class PhotochemVars:
       photochemvars_at_photo_equilibrium_get(&self._ptr, &at_photo_equilibrium)
       return at_photo_equilibrium
       
-  
+  property rtol:
+    def __get__(self):
+      cdef double val
+      photochemvars_rtol_get(&self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      photochemvars_rtol_set(&self._ptr, &val)
+      
+  property atol:
+    def __get__(self):
+      cdef double val
+      photochemvars_atol_get(&self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      photochemvars_atol_set(&self._ptr, &val)
 
+  property mxsteps:
+    def __get__(self):
+      cdef int val
+      photochemvars_mxsteps_get(&self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      photochemvars_mxsteps_set(&self._ptr, &val)
+      
+  property equilibrium_time:
+    def __get__(self):
+      cdef double val
+      photochemvars_equilibrium_time_get(&self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      photochemvars_equilibrium_time_set(&self._ptr, &val)
+  
+  property verbose:
+    def __get__(self):
+      cdef int val
+      photochemvars_verbose_get(&self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      photochemvars_verbose_set(&self._ptr, &val)
 
     
     
