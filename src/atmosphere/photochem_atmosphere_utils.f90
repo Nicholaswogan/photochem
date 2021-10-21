@@ -137,15 +137,15 @@ contains
       return
     endif
   
-    call self%dochem_implicit(var%usol_out, rhs, err)
+    call self%right_hand_side_chem(var%usol_out, rhs, err)
     if (len_trim(err) /= 0) return
   
     ! surface flux is molecules required to sustain the lower boundary
     ! chemical production + diffusion production = total change in lower cell    
     do i = 1,dat%nq
-      diffusive_production =   (wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
-                                - wrk%DU(i,1)*wrk%usol(i,1)) &
-                                *wrk%density(1)*var%dz(1)
+      diffusive_production = (wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
+                              - wrk%DU(i,1)*wrk%usol(i,1)) &
+                              *wrk%density(1)*var%dz(1)
       chemical_production = rhs(i)*wrk%density(1)*var%dz(1)
       fluxes(i) = -(diffusive_production + chemical_production)
       ! We don't count chemical production for water

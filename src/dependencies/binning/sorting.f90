@@ -5,7 +5,7 @@ module sorting
 
 implicit none
 private
-public sort
+public :: sort, argsort
 
 integer, parameter :: dp = kind(1.d0)
 

@@ -18,6 +18,7 @@ module photochem_atmosphere
   contains
     ! public
     procedure :: init => Atmosphere_init
+    procedure :: right_hand_side_chem
     procedure :: right_hand_side => rhs_background_gas
     procedure :: jacobian => jac_background_gas
     procedure :: photochemical_equilibrium
@@ -29,7 +30,6 @@ module photochem_atmosphere
     
     ! private
     procedure, private :: prep_atmosphere => prep_all_background_gas
-    procedure, private :: dochem_implicit => dochem_implicit
   end type
   
   
@@ -57,7 +57,7 @@ module photochem_atmosphere
       character(len=err_len), intent(out) :: err
     end subroutine
     
-    module subroutine dochem_implicit(self, usol, rhs, err)
+    module subroutine right_hand_side_chem(self, usol, rhs, err)
       class(Atmosphere), target, intent(inout) :: self
       real(real_kind), intent(in) :: usol(:,:)
       real(real_kind), intent(out) :: rhs(:)

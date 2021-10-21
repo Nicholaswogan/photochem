@@ -260,7 +260,7 @@ contains
     
   end subroutine
   
-  module subroutine dochem_implicit(self, usol, rhs, err)
+  module subroutine right_hand_side_chem(self, usol, rhs, err)
     class(Atmosphere), target, intent(inout) :: self
     real(real_kind), intent(in) :: usol(:,:)
     real(real_kind), intent(out) :: rhs(:)
