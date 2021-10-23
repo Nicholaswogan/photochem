@@ -1,5 +1,5 @@
 module PhotochemData_wrapper
-  use photochem_const, only: s_str_len
+  use photochem_const, only: s_str_len, m_str_len
   use photochem_types, only: PhotochemData
   use iso_c_binding
   implicit none
@@ -92,9 +92,31 @@ contains
     
   end subroutine
   
+  subroutine photochemdata_reaction_equations_get_size(ptr, dim1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    dim1 = size(dat%reaction_equations)
+  end subroutine
   
-  ! subroutine copy_string_f2d_to_c()
-  
-  
+  subroutine photochemdata_reaction_equations_get(ptr, dim1, names) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    character(kind=c_char), intent(out) :: names(dim1*m_str_len+1)
+    type(PhotochemData), pointer :: dat
+      
+    integer :: i, j, k
+    
+    call c_f_pointer(ptr, dat)
+    do i = 1,dim1
+      do j = 1,m_str_len
+        k = j + (i - 1) * m_str_len
+        names(k) = dat%reaction_equations(i)(j:j)
+      enddo
+    enddo
+    names(dim1*m_str_len+1) = c_null_char
+    
+  end subroutine
   
 end module

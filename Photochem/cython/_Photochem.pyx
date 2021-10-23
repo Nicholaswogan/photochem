@@ -3,6 +3,7 @@ import numpy as np
 import os
 
 DEF S_STR_LEN = 20;
+DEF M_STR_LEN = 100;
 DEF STR_LEN = 1024;
 DEF ERR_LEN = 1024;
 

@@ -5,6 +5,7 @@ program main
   character(len=err_len) :: err
   type(Atmosphere) :: pc
   logical :: success
+  character(len=:), allocatable :: reaction
   integer :: i
   
   err = ""
@@ -16,16 +17,17 @@ program main
                err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
-    stop
+    stop 1
   endif
   
-  call pc%photochemical_equilibrium(success, err)
-  if (len(trim(err)) > 0) then
-    print*,trim(err)
-    stop
-  endif
-
+  ! call pc%photochemical_equilibrium(success, err)
+  ! if (len(trim(err)) > 0) then
+  !   print*,trim(err)
+  !   stop
+  ! endif
   
-
+  ! do i = 1, pc%dat%nrT
+  !   print*,i,trim(pc%dat%reaction_equations(i))
+  ! enddo
 
 end program

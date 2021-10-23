@@ -10,6 +10,9 @@ cdef extern void photochemdata_species_names_get(void *ptr, int *dim1, char* spe
 cdef extern void photochemdata_atoms_names_get_size(void *ptr, int *dim1)
 cdef extern void photochemdata_atoms_names_get(void *ptr, int *dim1, char* names)
 
+cdef extern void photochemdata_reaction_equations_get_size(void *ptr, int *dim1)
+cdef extern void photochemdata_reaction_equations_get(void *ptr, int *dim1, char* names)
+
 cdef class PhotochemData:
   cdef void *_ptr
   cdef bint _destroy
@@ -47,19 +50,17 @@ cdef class PhotochemData:
       cdef ndarray names_c = np.empty(dim1*S_STR_LEN + 1, 'S1')
       photochemdata_atoms_names_get(&self._ptr, &dim1, <char *>names_c.data)
       return c2stringarr(names_c, S_STR_LEN, dim1)
+      
+  property reaction_equations:
+    def __get__(self):
+      cdef int dim1
+      photochemdata_reaction_equations_get_size(&self._ptr, &dim1)
+      cdef ndarray names_c = np.empty(dim1*M_STR_LEN + 1, 'S1')
+      photochemdata_reaction_equations_get(&self._ptr, &dim1, <char *>names_c.data)
+      return c2stringarr(names_c, M_STR_LEN, dim1)
 
-
-cdef c2stringarr(ndarray c_str_arr, int str_len, int arr_len):
-  cdef int i, j, k
-  tmp = [' ' for i in range(str_len)]
-  str_arr = []
-  for i in range(arr_len):
-      for j in range(str_len):
-          k = j + i * str_len
-          tmp[j] = c_str_arr[k].decode('utf-8')
-      str_arr.append(''.join(tmp).strip())
-  return str_arr
-    
-    
+cdef c2stringarr(ndarray c_str_arr, int str_len, int arr_len):  
+  bs = c_str_arr[:-1].tobytes()
+  return [bs[i:i+str_len].decode().strip() for i in range(0, str_len*arr_len, str_len)]
     
     

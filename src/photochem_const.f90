@@ -5,6 +5,7 @@ module photochem_const
   ! public
   integer, parameter :: err_len = 1024
   integer, parameter :: str_len = 1024
+  integer, parameter :: m_str_len = 100
   integer, parameter :: s_str_len = 20
   integer, parameter :: real_kind = kind(1.0d0)
   real(real_kind), parameter :: Rgas = 8.31446261815324d0 ! ideal gas constant (j/(mol*K))

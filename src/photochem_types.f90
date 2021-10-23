@@ -1,7 +1,7 @@
 
 module photochem_types ! make a giant IO object
   use, intrinsic :: iso_c_binding, only: c_double, c_int, c_long, c_ptr
-  use photochem_const, only: real_kind, str_len, s_str_len
+  use photochem_const, only: real_kind, str_len, s_str_len, m_str_len
   implicit none
   private
   
@@ -54,6 +54,7 @@ module photochem_types ! make a giant IO object
     integer :: nrT ! number of total reactions
     integer :: max_num_reactants
     integer :: max_num_products
+    character(len=m_str_len), allocatable :: reaction_equations(:)
     character(len=s_str_len), allocatable :: reactants_names(:,:)
     character(len=s_str_len), allocatable :: products_names(:,:)
     integer, allocatable :: reactants_sp_inds(:,:) ! for getting species nums in reactions

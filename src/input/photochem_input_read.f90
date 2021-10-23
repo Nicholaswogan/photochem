@@ -88,6 +88,7 @@ contains
     ! temporary work variables
     character(len=str_len) :: tmpchar
     character(len=str_len) :: tmp
+    character(len=:), allocatable :: rxstring
     character(len=s_str_len), allocatable :: eqr(:), eqp(:)
     integer :: i, ii, j, k, kk, l, ind(1), size_eqr, size_eqp
     logical :: reverse
@@ -597,6 +598,13 @@ contains
         photodata%photonums(j) = i
         j = j + 1
       endif
+    enddo
+    
+    ! save reaction names
+    allocate(photodata%reaction_equations(photodata%nrT))
+    do i = 1,photodata%nrT
+      call reaction_string(photodata,i,rxstring)
+      photodata%reaction_equations(i) = rxstring
     enddo
     
     call check_for_duplicates(photodata,err)
