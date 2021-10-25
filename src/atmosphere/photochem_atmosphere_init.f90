@@ -42,7 +42,9 @@ contains
     call self%wrk%init(self%dat%nsp, self%dat%np, self%dat%nq, &
                        self%var%nz, self%dat%nrT, self%dat%kj, &
                        self%dat%nw, self%var%trop_ind)
-    
+                       
+    call self%prep_atmosphere(self%var%usol_init, err)
+    if (len_trim(err) /= 0) return 
   end subroutine
   
 end submodule

@@ -24,13 +24,8 @@ contains
     var => self%var
     wrk => self%wrk
     
-    if (.not.var%at_photo_equilibrium) then
-      err = "Can not write an output atmosphere until photochemical equilibrium is achieved."
-      return
-    endif
-    
     ! update wrk variables
-    call self%prep_atmosphere(var%usol_out, err)
+    call self%prep_atmosphere(wrk%usol, err)
     if (len_trim(err) /= 0) return
     
     if (overwrite) then
@@ -77,9 +72,9 @@ contains
       write(unit=1,fmt="(es27.17e3)",advance='no') var%edd(i)
       do j = 1,dat%nq
         if (clip) then
-          write(unit=1,fmt="(es27.17e3)",advance='no') max(var%usol_out(j,i),1.d-40)
+          write(unit=1,fmt="(es27.17e3)",advance='no') max(wrk%usol(j,i),1.d-40)
         else
-          write(unit=1,fmt="(es27.17e3)",advance='no') var%usol_out(j,i)
+          write(unit=1,fmt="(es27.17e3)",advance='no') wrk%usol(j,i)
         endif
       enddo
       if (dat%there_are_particles) then

@@ -119,4 +119,21 @@ contains
     
   end subroutine
   
+  subroutine photochemdata_photonums_get_size(ptr, dim1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    dim1 = size(dat%photonums,1)
+  end subroutine
+  
+  subroutine photochemdata_photonums_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    integer(c_int), intent(out) :: arr(dim1)
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    arr = dat%photonums
+  end subroutine
+  
 end module
