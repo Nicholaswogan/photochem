@@ -657,3 +657,23 @@ CO2:
       citation: Kevin Zahnle
       DOI:
   general-notes:
+      
+C4H4:
+  reactions:
+    C4H4 + hv => C2H2 + C2H2:
+      citations:
+      - nm-range: 160.00 - 240.00
+        citation: Gladstone et al. (1996)
+        DOI: 10.1006/icar.1996.0001
+    C4H4 + hv => C4H2 + H2:
+      citations:
+      - nm-range: 160.00 - 240.00
+        citation: Gladstone et al. (1996)
+        DOI: 10.1006/icar.1996.0001
+  xsections:
+    citations:
+    - nm-range: 160.00 - 240.00
+      citation: Fahr and Nayak (1996)
+      DOI: 10.1016/0301-0104(95)00401-7
+  general-notes: 
+

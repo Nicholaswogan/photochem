@@ -146,7 +146,7 @@ contains
            k = 2
         else
           err = 'The temperature is not within the ranges '// &
-                'given for the thermodynamic data for '//trim(self%dat%species_names(i))
+                'given for the thermodynamic data for '//trim(self%dat%species_names(i+self%dat%npq))
           return
         endif
         ! j/mol

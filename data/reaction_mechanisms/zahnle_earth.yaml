@@ -2461,3 +2461,7 @@ reactions:
   type: photolysis
 - equation: CH3CHO + hv => CH3CO + H
   type: photolysis
+- equation: C4H4 + hv => C4H2 + H2
+  type: photolysis
+- equation: C4H4 + hv => C2H2 + C2H2
+  type: photolysis
