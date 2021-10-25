@@ -6,7 +6,7 @@ submodule(photochem_atmosphere) photochem_atmosphere_integrate
   
 contains
   
-  integer(c_int) function RhsFn(tn, sunvec_y, sunvec_f, user_data) &
+  integer(c_int) module function RhsFn(tn, sunvec_y, sunvec_f, user_data) &
                                 result(ierr) bind(c, name='RhsFn')
     use, intrinsic :: iso_c_binding
     use fcvode_mod
@@ -78,7 +78,7 @@ contains
     return
   end function
   
-  integer(c_int) function JacFn(tn, sunvec_y, sunvec_f, sunmat_J, user_data, &
+  integer(c_int) module function JacFn(tn, sunvec_y, sunvec_f, sunmat_J, user_data, &
                                 tmp1, tmp2, tmp3) &
                                 result(ierr) bind(C,name='JacFn')
     !======= Inclusions ===========
@@ -121,7 +121,7 @@ contains
                                    solution, success, err)
                                    
     use, intrinsic :: iso_c_binding
-    use fcvode_mod, only: CV_BDF, CV_NORMAL, FCVodeInit, FCVodeSStolerances, &
+    use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSStolerances, &
                           FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
                           FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
                           FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
@@ -171,6 +171,12 @@ contains
     dat => self%dat
     var => self%var
     wrk => self%wrk
+    
+    if (c_associated(self%wrk%cvode_mem)) then
+      err = "You have a time stepper initalize. To do other integrations"// &
+            " you need to delete it with 'destroy_stepper' subroutine."
+      return 
+    endif
     
     ! check dimensions
     if (size(usol_start,1) /= dat%nq .or. size(usol_start,2) /= var%nz) then
@@ -267,13 +273,11 @@ contains
       return
     end if
     
-    if (var%use_fast_jacobian) then
-      ierr = FCVodeSetJacFn(wrk%cvode_mem, c_funloc(JacFn))
-      if (ierr /= 0) then
-        err = "CVODE setup error."
-        return
-      end if
-    endif
+    ierr = FCVodeSetJacFn(wrk%cvode_mem, c_funloc(JacFn))
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
     
     ierr = FCVodeSetMaxNumSteps(wrk%cvode_mem, mxsteps_)
     if (ierr /= 0) then
@@ -332,7 +336,7 @@ contains
 
   end subroutine
   
-  subroutine photochemical_equilibrium(self, success, err)
+  module subroutine photochemical_equilibrium(self, success, err)
     class(Atmosphere), target, intent(inout) :: self
     logical, intent(out) :: success
     character(len=err_len), intent(out) :: err 
@@ -356,5 +360,219 @@ contains
     
   end subroutine
 
+  module subroutine initialize_stepper(self, usol_start, err)
+    use, intrinsic :: iso_c_binding
+    use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSStolerances, &
+                          FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
+                          FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
+                          FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
+                          FCVodeSetUserData
+    use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
+    use fnvector_serial_mod, only: FN_VMake_Serial   
+    use fsunmatrix_band_mod, only: FSUNBandMatrix
+    use fsundials_matrix_mod, only: SUNMatrix, FSUNMatDestroy
+    use fsundials_linearsolver_mod, only: SUNLinearSolver, FSUNLinSolFree
+    use fsunlinsol_band_mod, only: FSUNLinSol_Band
+    
+    class(Atmosphere), target, intent(inout) :: self
+    real(real_kind), intent(in) :: usol_start(:,:)
+    character(len=err_len), intent(out) :: err
+    
+    real(c_double) :: tstart
+    integer(c_int) :: ierr       ! error flag from C functions
+    integer(c_long) :: neqs_long
+    integer(c_long) :: mu, ml
+    integer(c_long) :: mxsteps_
+    type(c_ptr)    :: user_data
+    
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrk), pointer :: wrk
+    type(Atmosphere), pointer :: self_ptr
+    
+    integer :: i, j, k
+    
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+    
+    err = ''
+    
+    if (size(usol_start,1) /= dat%nq .or. size(usol_start,2) /= var%nz) then
+      err = "Input 'usol_start' to 'initialize_stepper' is the wrong dimension"
+      return
+    endif
+    
+    mxsteps_ = var%mxsteps
+    neqs_long = var%neqs
+    tstart = 0
+    wrk%tcur = tstart
+    mu = dat%nq
+    ml = dat%nq
+    self_ptr => self
+    user_data = c_loc(self_ptr)
+    
+    if (c_associated(wrk%cvode_mem)) then
+      call FN_VDestroy(wrk%sunvec_y)
+      call FCVodeFree(wrk%cvode_mem)
+      ierr = FSUNLinSolFree(wrk%sunlin)
+      if (ierr /= 0) then
+        err = "CVODE deallocation error"
+        return
+      end if
+      call FSUNMatDestroy(wrk%sunmat)
+      deallocate(wrk%yvec)
+    endif
+    
+    ! initialize solution vector
+    allocate(wrk%yvec(var%neqs))
+    do j=1,var%nz
+      do i=1,dat%nq
+        k = i + (j-1)*dat%nq
+        wrk%yvec(k) = usol_start(i,j)
+      enddo
+    enddo
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == 1) then
+        wrk%yvec(i) = var%lower_fix_mr(i)
+      endif
+    enddo
+    if (dat%fix_water_in_trop) then
+      call self%prep_atmosphere(usol_start, err)
+      if (len_trim(err) /= 0) return 
+      do j = 1,var%trop_ind
+        k = dat%LH2O + (j-1)*dat%nq
+        wrk%yvec(k) = self%wrk%fH2O(j)
+      enddo
+      if (var%no_water_profile) then
+        do j = var%trop_ind+1,var%nz
+          k = dat%LH2O + (j-1)*dat%nq
+          wrk%yvec(k) = self%wrk%fH2O(var%trop_ind)
+        enddo
+      endif
+    endif
+    
+    ! create SUNDIALS N_Vector
+    wrk%sunvec_y => FN_VMake_Serial(neqs_long, wrk%yvec)
+    if (.not. associated(wrk%sunvec_y)) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ! create CVode memory
+    wrk%cvode_mem = FCVodeCreate(CV_BDF)
+    if (.not. c_associated(wrk%cvode_mem)) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ! set user data
+    ierr = FCVodeSetUserData(wrk%cvode_mem, user_data)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeInit(wrk%cvode_mem, c_funloc(RhsFn), tstart, wrk%sunvec_y)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSStolerances(wrk%cvode_mem, var%rtol, var%atol)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    wrk%sunmat => FSUNBandMatrix(neqs_long, mu, ml)
+    wrk%sunlin => FSUNLinSol_Band(wrk%sunvec_y,wrk%sunmat)
+    
+    ierr = FCVodeSetLinearSolver(wrk%cvode_mem, wrk%sunlin, wrk%sunmat)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSetJacFn(wrk%cvode_mem, c_funloc(JacFn))
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSetMaxNumSteps(wrk%cvode_mem, mxsteps_)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSetInitStep(wrk%cvode_mem, var%initial_dt)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSetMaxErrTestFails(wrk%cvode_mem, var%max_err_test_failures)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSetMaxOrd(wrk%cvode_mem, var%max_order)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+  end subroutine
+  
+  module function step(self, err) result(tn)
+    use iso_c_binding, only: c_null_ptr, c_int, c_double, c_associated
+    use fcvode_mod, only: CV_ONE_STEP, FCVode
+    class(Atmosphere), target, intent(inout) :: self
+    character(len=err_len), intent(out) :: err
+    real(real_kind) :: tn
+    
+    integer(c_int) :: ierr
+    real(c_double), parameter :: dum = 0.d0
+    
+    err = ""
+    if (.not.c_associated(self%wrk%cvode_mem)) then
+      err = "You must first initialize the stepper with 'initialize_stepper'"
+      return 
+    endif
+    
+    ierr = FCVode(self%wrk%cvode_mem, dum, self%wrk%sunvec_y, self%wrk%tcur, CV_ONE_STEP)
+    tn = self%wrk%tcur(1)
+  end function
+  
+  module subroutine destroy_stepper(self, err)
+    use iso_c_binding, only: c_int, c_associated, c_null_ptr
+    use fcvode_mod, only: FCVodeFree
+    use fsundials_nvector_mod, only: FN_VDestroy
+    use fsundials_matrix_mod, only: FSUNMatDestroy
+    use fsundials_linearsolver_mod, only: FSUNLinSolFree
+    
+    class(Atmosphere), target, intent(inout) :: self
+    character(len=err_len), intent(out) :: err
+    
+    integer(c_int) :: ierr
+    
+    err = ""
+    
+    if (c_associated(self%wrk%cvode_mem)) then
+      call FN_VDestroy(self%wrk%sunvec_y)
+      call FCVodeFree(self%wrk%cvode_mem)
+      self%wrk%cvode_mem = c_null_ptr
+      ierr = FSUNLinSolFree(self%wrk%sunlin)
+      if (ierr /= 0) then
+        err = "CVODE deallocation error"
+        return
+      end if
+      call FSUNMatDestroy(self%wrk%sunmat)
+      deallocate(self%wrk%yvec)
+    endif
+    
+  end subroutine
   
 end submodule

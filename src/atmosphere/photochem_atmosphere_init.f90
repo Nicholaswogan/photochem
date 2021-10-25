@@ -8,6 +8,7 @@ submodule(photochem_atmosphere) photochem_atmosphere_init
 contains
   
   subroutine Atmosphere_init(self, data_dir, mechanism_file, settings_file, flux_file, atmosphere_txt, err)
+    use iso_c_binding, only : c_associated
     use photochem_input, only: setup
     
     class(Atmosphere), intent(inout) :: self
@@ -20,6 +21,10 @@ contains
     err = ""
     
     if (allocated(self%dat)) then
+      if (c_associated(self%wrk%cvode_mem)) then
+        call self%destroy_stepper(err)
+        if (len_trim(err) /= 0) return 
+      endif
       deallocate(self%dat)
       deallocate(self%var)
       deallocate(self%wrk)

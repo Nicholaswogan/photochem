@@ -158,7 +158,7 @@ contains
   
   end subroutine
   
-  module subroutine change_lower_bc(self, species, bc_type, vdep, mix, flux, height, err)
+  module subroutine set_lower_bc(self, species, bc_type, vdep, mix, flux, height, err)
     class(Atmosphere), intent(inout) :: self
     character(len=*), intent(in) :: species
     character(len=*), intent(in) :: bc_type
@@ -235,7 +235,7 @@ contains
     
   end subroutine
     
-  module subroutine change_upper_bc(self, species, bc_type, veff, flux, err)
+  module subroutine set_upper_bc(self, species, bc_type, veff, flux, err)
     class(Atmosphere), intent(inout) :: self
     character(len=*), intent(in) :: species
     character(len=*), intent(in) :: bc_type

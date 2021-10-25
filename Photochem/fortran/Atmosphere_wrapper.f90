@@ -145,7 +145,7 @@ contains
     call copy_string_ftoc(err_f,err)
   end subroutine
   
-  subroutine atmosphere_change_lower_bc_wrapper(ptr, species, bc_type, vdep, mix, flux, height, missing, err) bind(c)
+  subroutine atmosphere_set_lower_bc_wrapper(ptr, species, bc_type, vdep, mix, flux, height, missing, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     character(kind=c_char), intent(in) :: species(*)
     character(kind=c_char), intent(in) :: bc_type(*)
@@ -171,14 +171,14 @@ contains
 
     err_f = ''
     if (missing) then
-      call pc%change_lower_bc(species_f, bc_type_f, err=err_f)
+      call pc%set_lower_bc(species_f, bc_type_f, err=err_f)
     else
-      call pc%change_lower_bc(species_f, bc_type_f, vdep=vdep, mix=mix, flux=flux, height=height, err=err_f)
+      call pc%set_lower_bc(species_f, bc_type_f, vdep=vdep, mix=mix, flux=flux, height=height, err=err_f)
     endif
     call copy_string_ftoc(err_f,err)
   end subroutine
   
-  subroutine atmosphere_change_upper_bc_wrapper(ptr, species, bc_type, veff, flux, missing, err) bind(c)
+  subroutine atmosphere_set_upper_bc_wrapper(ptr, species, bc_type, veff, flux, missing, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     character(kind=c_char), intent(in) :: species(*)
     character(kind=c_char), intent(in) :: bc_type(*)
@@ -202,10 +202,51 @@ contains
 
     err_f = ''
     if (missing) then
-      call pc%change_upper_bc(species_f, bc_type_f, err=err_f)
+      call pc%set_upper_bc(species_f, bc_type_f, err=err_f)
     else
-      call pc%change_upper_bc(species_f, bc_type_f, veff=veff, flux=flux, err=err_f)
+      call pc%set_upper_bc(species_f, bc_type_f, veff=veff, flux=flux, err=err_f)
     endif
+    call copy_string_ftoc(err_f,err)
+  end subroutine
+  
+  subroutine atmosphere_initialize_stepper_wrapper(ptr, nq, nz, usol_start, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: nq, nz
+    real(c_double), intent(in) :: usol_start(nq, nz)
+    character(len=c_char), intent(out) :: err(err_len+1)
+    
+    character(len=err_len) :: err_f
+  
+    type(Atmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+    
+    call pc%initialize_stepper(usol_start, err_f)
+    call copy_string_ftoc(err_f,err)
+  end subroutine
+  
+  function atmosphere_step_wrapper(ptr, err) result(tn) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    character(len=c_char), intent(out) :: err(err_len+1)
+    real(c_double) :: tn
+  
+    character(len=err_len) :: err_f
+    type(Atmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+  
+    tn = pc%step(err_f)
+    call copy_string_ftoc(err_f,err)
+  end function
+  
+  subroutine atmosphere_destroy_stepper_wrapper(ptr, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    character(len=c_char), intent(out) :: err(err_len+1)
+    
+    character(len=err_len) :: err_f
+  
+    type(Atmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+  
+    call pc%destroy_stepper(err_f)
     call copy_string_ftoc(err_f,err)
   end subroutine
   

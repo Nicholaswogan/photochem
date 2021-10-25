@@ -22,11 +22,14 @@ module photochem_atmosphere
     procedure :: right_hand_side => rhs_background_gas
     procedure :: jacobian => jac_background_gas
     procedure :: photochemical_equilibrium
+    procedure :: initialize_stepper
+    procedure :: step
+    procedure :: destroy_stepper
     procedure :: out2atmosphere_txt
     procedure :: out2in
     procedure :: surface_fluxes
-    procedure :: change_lower_bc
-    procedure :: change_upper_bc
+    procedure :: set_lower_bc
+    procedure :: set_upper_bc
     
     ! private
     procedure, private :: prep_atmosphere => prep_all_background_gas
@@ -78,7 +81,7 @@ module photochem_atmosphere
       real(real_kind), target, intent(in) :: usol_flat(neqs)
       real(real_kind), intent(out), target :: jac(lda_neqs)
       character(len=err_len), intent(out) :: err
-    end subroutine
+    end subroutine  
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_atmosphere_integrate.f90 !!!
@@ -87,6 +90,23 @@ module photochem_atmosphere
       class(Atmosphere), target, intent(inout) :: self
       logical, intent(out) :: success
       character(len=err_len), intent(out) :: err 
+    end subroutine
+    
+    module subroutine initialize_stepper(self, usol_start, err)      
+      class(Atmosphere), target, intent(inout) :: self
+      real(real_kind), intent(in) :: usol_start(:,:)
+      character(len=err_len), intent(out) :: err
+    end subroutine
+    
+    module function step(self, err) result(tn)
+      class(Atmosphere), target, intent(inout) :: self
+      character(len=err_len), intent(out) :: err
+      real(real_kind) :: tn
+    end function
+    
+    module subroutine destroy_stepper(self, err)
+      class(Atmosphere), target, intent(inout) :: self
+      character(len=err_len), intent(out) :: err
     end subroutine
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -110,7 +130,7 @@ module photochem_atmosphere
       character(len=err_len), intent(out) :: err
     end subroutine
     
-    module subroutine change_lower_bc(self, species, bc_type, vdep, mix, flux, height, err)
+    module subroutine set_lower_bc(self, species, bc_type, vdep, mix, flux, height, err)
       class(Atmosphere), intent(inout) :: self
       character(len=*), intent(in) :: species
       character(len=*), intent(in) :: bc_type
@@ -121,7 +141,7 @@ module photochem_atmosphere
       character(len=err_len), intent(out) :: err
     end subroutine
     
-    module subroutine change_upper_bc(self, species, bc_type, veff, flux, err)
+    module subroutine set_upper_bc(self, species, bc_type, veff, flux, err)
       class(Atmosphere), intent(inout) :: self
       character(len=*), intent(in) :: species
       character(len=*), intent(in) :: bc_type

@@ -12,11 +12,14 @@ cdef extern void atmosphere_photochemical_equilibrium_wrapper(void *ptr, bint *s
 cdef extern void atmosphere_out2atmosphere_txt_wrapper(void *ptr, char *filename, bint *overwrite, bint *clip, char *err)                         
 cdef extern void atmosphere_out2in_wrapper(void *ptr, char *err)
 cdef extern void atmosphere_surface_fluxes_wrapper(void *ptr, double *fluxes, char *err)
-cdef extern void atmosphere_change_lower_bc_wrapper(void *ptr, char *species, char *bc_type, 
+cdef extern void atmosphere_set_lower_bc_wrapper(void *ptr, char *species, char *bc_type, 
                                                     double *vdep, double *mix, double *flux, double *height, bint *missing, char *err)
-cdef extern void atmosphere_change_upper_bc_wrapper(void *ptr, char *species, 
+cdef extern void atmosphere_set_upper_bc_wrapper(void *ptr, char *species, 
                                                     char *bc_type, double *veff, double *flux, bint *missing, char *err)
 
+cdef extern void atmosphere_initialize_stepper_wrapper(void *ptr, int *nq, int *nz, double *usol_start, char *err)
+cdef extern double atmosphere_step_wrapper(void *ptr, char *err)
+cdef extern void atmosphere_destroy_stepper_wrapper(void *ptr, char *err)
 
 cdef pystring2cstring(str pystring):
   # add a null c char, and convert to byes
@@ -88,6 +91,29 @@ cdef class Atmosphere:
       raise PhotoException(err.decode("utf-8").strip())
     return success
     
+  def initialize_stepper(self, ndarray[double, ndim=2] usol_start):
+    cdef char err[ERR_LEN+1]
+    cdef int nq = self.dat.nq
+    cdef int nz = self.var.nz
+    if usol_start.shape[0] != nq or usol_start.shape[1] != nz:
+      raise PhotoException("Input usol_start is the wrong size.")
+    atmosphere_initialize_stepper_wrapper(&self._ptr, &nq, &nz,  <double *>usol_start.data, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    
+  def step(self):
+    cdef char err[ERR_LEN+1]
+    cdef double tn = atmosphere_step_wrapper(&self._ptr, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    return tn
+    
+  def destroy_stepper(self):
+    cdef char err[ERR_LEN+1]
+    atmosphere_destroy_stepper_wrapper(&self._ptr, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+      
   def out2atmosphere_txt(self,filename = None, bint overwrite = False, bint clip = True):
     cdef bytes filename_b = pystring2cstring(filename)
     cdef char *filename_c = filename_b
@@ -102,9 +128,7 @@ cdef class Atmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
       
-  def out_dict(self):
-    if not self.var.at_photo_equilibrium:
-      raise PhotoException("Must integrate to photochemical equilibrium before making output dictionary")
+  def mole_fraction_dict(self):
     out = {}
     out['alt'] = self.var.z/1e5
     out['temp'] = self.var.temperature
@@ -129,7 +153,7 @@ cdef class Atmosphere:
       out[names[i]] = fluxes[i]
     return out
     
-  def change_lower_bc(self, species = None, bc_type = None, vdep = None, mix = None,
+  def set_lower_bc(self, species = None, bc_type = None, vdep = None, mix = None,
                             flux = None, height = None):
     
     cdef bytes species_b = pystring2cstring(species)
@@ -167,12 +191,12 @@ cdef class Atmosphere:
       pass
       
     cdef char err[ERR_LEN+1]
-    atmosphere_change_lower_bc_wrapper(&self._ptr, species_c, bc_type_c, 
+    atmosphere_set_lower_bc_wrapper(&self._ptr, species_c, bc_type_c, 
                                       &vdep_c, &mix_c, &flux_c, &height_c, &missing, err);
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
   
-  def change_upper_bc(self, species = None, bc_type = None, veff = None,flux = None):
+  def set_upper_bc(self, species = None, bc_type = None, veff = None,flux = None):
     
     cdef bytes species_b = pystring2cstring(species)
     cdef char *species_c = species_b
@@ -193,7 +217,7 @@ cdef class Atmosphere:
         flux_c = flux
       
     cdef char err[ERR_LEN+1]
-    atmosphere_change_upper_bc_wrapper(&self._ptr, species_c, bc_type_c, 
+    atmosphere_set_upper_bc_wrapper(&self._ptr, species_c, bc_type_c, 
                                       &veff_c, &flux_c, &missing, err);
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())

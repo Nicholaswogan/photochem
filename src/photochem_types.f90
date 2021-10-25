@@ -1,7 +1,11 @@
 
 module photochem_types ! make a giant IO object
-  use, intrinsic :: iso_c_binding, only: c_double, c_int, c_long, c_ptr
+  use, intrinsic :: iso_c_binding, only: c_double, c_int, c_long, c_ptr, c_null_ptr
   use photochem_const, only: real_kind, str_len, s_str_len, m_str_len
+  
+  use fsundials_nvector_mod, only: N_Vector
+  use fsundials_matrix_mod, only: SUNMatrix
+  use fsundials_linearsolver_mod, only: SUNLinearSolver
   implicit none
   private
   
@@ -194,7 +198,6 @@ module photochem_types ! make a giant IO object
     real(c_double) :: initial_dt = 1.d-6
     integer(c_int) :: max_err_test_failures = 15
     integer(c_int) :: max_order = 5
-    logical :: use_fast_jacobian = .true.
     real(real_kind) :: epsj = 1.d-9
     integer :: verbose = 1
   end type
@@ -203,7 +206,12 @@ module photochem_types ! make a giant IO object
     
     ! used in cvode
     integer(c_long) :: nsteps_previous = -10
-    type(c_ptr) :: cvode_mem
+    type(c_ptr) :: cvode_mem = c_null_ptr
+    real(c_double) :: tcur(1)
+    type(N_Vector), pointer :: sunvec_y ! sundials vector
+    type(SUNMatrix), pointer :: sunmat
+    type(SUNLinearSolver), pointer :: sunlin
+    real(c_double), allocatable :: yvec(:)
     
     ! Used in prep_all_background_gas
     ! work arrays
