@@ -2817,7 +2817,7 @@ contains
         else
           ! did not find the data
           ! will set to 0.1 micron
-          photodata%particle_radius_file(i,:) = 1.d-7
+          photodata%particle_radius_file(i,:) = 1.d-5
           iii = 0
         endif
       enddo

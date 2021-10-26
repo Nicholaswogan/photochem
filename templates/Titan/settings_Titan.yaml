@@ -25,7 +25,25 @@ planet:
     fix-water-in-troposphere: false
 
 particles:
-
+- name: H2SO4aer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: HCNaer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: HCCCNaer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: CH3CNaer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: C2H2aer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: C2H4aer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: C2H6aer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: C4H4aer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: N2Oaer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+      
 # Assumes veff = vdep = 0 boundary condition for species not specified.
 # Assumes species is long-lived unless specified
 boundary-conditions:
@@ -36,10 +54,10 @@ boundary-conditions:
     upper-boundary:
       veff: 0.0
       type: effusion velocity
-  - name: CO
+  - name: H2
     lower-boundary:
-      vdep: 0.0
-      type: deposition velocity
+      mixing-ratio: 3e-3
+      type: mixing-ratio
     upper-boundary:
       veff: 0.0
       type: effusion velocity

@@ -158,7 +158,10 @@ contains
     real(real_kind) :: correct_fac
     real(real_kind) :: mean_free_path
     
-    mean_free_path = 1.d0/(density*area_of_molecule)
+    ! The density dependence really is nuts. I'm going to
+    ! dampen out dependence with a power.
+    ! mean_free_path = 1.d0/(density*area_of_molecule)
+    mean_free_path = 1.d0/(density**(1.5d0)*area_of_molecule)
     ! slip correction factor
     ! Equation 9.34 in Seinfeld (2006) 
     ! title: "Atmospheric Chemistry and Physics"

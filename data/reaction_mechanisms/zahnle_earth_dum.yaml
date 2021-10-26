@@ -542,7 +542,7 @@ species:
   composition: {C: 3, H: 4}
   thermo:
     model: Shomate
-    temperature-ranges: [50.0, 1400.0, 6000.0]
+    temperature-ranges: [0.0, 1400.0, 6000.0]
     data:
     - [16.91, 171.84, -92.473, 19.798, 0.035429, 173.62, 165.3]
     - [161.13, -10.876, 2.874, -0.2238, -39.79, 54.345, 287.3]
@@ -551,7 +551,7 @@ species:
   composition: {C: 3, H: 6}
   thermo:
     model: Shomate
-    temperature-ranges: [50.0, 1400.0, 6000.0]
+    temperature-ranges: [0.0, 1400.0, 6000.0]
     data:
     - [5.2871, 225.56, -103.76, 17.388, 0.129, 10.13, 211.0]
     - [173.78, 13.606, -2.1834, 0.1228, -45.669, -27.1, 351.0]
@@ -569,7 +569,7 @@ species:
   composition: {C: 4, H: 4}
   thermo:
     model: Shomate
-    temperature-ranges: [50.0, 3000.0, 6000.0]
+    temperature-ranges: [0.0, 3000.0, 6000.0]
     data:
     - [26.051, 185.07, -83.712, 12.691, 0.014196, 273.0, 255.0]
     - [155.5, 5.0, 0.0, 0.0, 0.0, 198.5, 390.5]
@@ -578,7 +578,7 @@ species:
   composition: {O: 2, Cl: 1}
   thermo:
     model: Shomate
-    temperature-ranges: [50.0, 1000.0, 6000.0]
+    temperature-ranges: [0.0, 1000.0, 6000.0]
     data:
     - [24.12473, 81.01898, -73.80702, 24.544, -0.033548, 94.2948, 265.137]
     - [57.43293, 1.212997, -0.106451, 0.00785, -2.773703, 79.7102, 314.893]
@@ -810,7 +810,7 @@ species:
   composition: {C: 4, H: 3}
   thermo:
     model: Shomate
-    temperature-ranges: [50.0, 3000.0, 6000.0]
+    temperature-ranges: [0.0, 3000.0, 6000.0]
     data:
     - [26.051, 185.07, -83.712, 12.691, 0.014196, 476.0, 249.0]
     - [155.5, 5.0, 0.0, 0.0, 0.0, 401.5, 384.5]
@@ -865,8 +865,14 @@ particles:
   formation: saturation
   density: 1.0
   gas-phase: H2SO4
-  saturation-parameters: {A: 16.722, B: -10156.0, C: 0.0}
-  composition: {H: 2, S: 1, O: 4}
+  saturation-parameters:
+    A: 16.722
+    B: -10156.0
+    C: 0.0
+  composition:
+    H: 2
+    S: 1
+    O: 4
   optical-properties: palmer1975
   optical-type: mie
 - name: C2H2aer
@@ -936,40 +942,64 @@ particles:
 - name: S8aer
   formation: reaction
   density: 1.0
-  composition: {S: 8}
+  composition:
+    S: 8
   optical-properties: palmer1975
   optical-type: mie
   equation: S4 + S4 (+ M) => S8aer (+ M)
   type: falloff
-  low-P-rate-constant: {A: 9.0e-26, b: -2.0, Ea: 0.0}
-  high-P-rate-constant: {A: 3.0e-11, b: 0.0, Ea: 0.0}
+  low-P-rate-constant:
+    A: 9.0e-26
+    b: -2.0
+    Ea: 0.0
+  high-P-rate-constant:
+    A: 3.0e-11
+    b: 0.0
+    Ea: 0.0
 - name: HCaer1
   formation: reaction
   density: 1.0
-  composition: {C: 6, H: 2}
+  composition:
+    C: 6
+    H: 2
   optical-properties: khare1984
   optical-type: mie
   equation: C2H + C4H2 => HCaer1 + H
   type: elementary
-  rate-constant: {A: 1.5e-10, b: 0.0, Ea: 0.0}
+  rate-constant:
+    A: 1.5e-10
+    b: 0.0
+    Ea: 0.0
 - name: HCaer2
   formation: reaction
   density: 1.0
-  composition: {C: 2, H: 3, N: 2}
+  composition:
+    C: 2
+    H: 3
+    N: 2
   optical-properties: khare1984
   optical-type: mie
   equation: H2CN + HCN => HCaer2
   type: elementary
-  rate-constant: {A: 1.1e-12, b: 0, Ea: 900}
+  rate-constant:
+    A: 1.1e-12
+    b: 0
+    Ea: 900
 - name: HCaer3
   formation: reaction
   density: 1.0
-  composition: {C: 7, H: 2, N: 1}
+  composition:
+    C: 7
+    H: 2
+    N: 1
   optical-properties: khare1984
   optical-type: mie
   equation: C4H + HCCCN => HCaer3
   type: elementary
-  rate-constant: {A: 1.1e-12, b: 0, Ea: 900}
+  rate-constant:
+    A: 1.1e-12
+    b: 0
+    Ea: 900
 
 reactions:
 - equation: H + H (+ M) <=> H2 (+ M)
