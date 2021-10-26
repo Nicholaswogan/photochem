@@ -677,3 +677,16 @@ C4H4:
       DOI: 10.1016/0301-0104(95)00401-7
   general-notes: 
 
+HCCCN:
+  reactions:
+    HCCCN + hv => C2H + CN:
+      citations:
+      - nm-range: 0.10 - 200.00
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+  xsections:
+    citations:
+    - nm-range: 0.10 - 200.00
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+  general-notes:

@@ -2499,3 +2499,5 @@ reactions:
   type: photolysis
 - equation: C4H4 + hv => C2H2 + C2H2
   type: photolysis
+- equation: HCCCN + hv => C2H + CN
+  type: photolysis

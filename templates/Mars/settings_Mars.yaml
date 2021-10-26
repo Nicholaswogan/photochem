@@ -1,0 +1,365 @@
+description: Settings for the photochemical model.
+
+atmosphere-grid:
+  bottom: 0.0 # cm
+  top: 1.0e7 # cm
+  number-of-layers: 200
+
+photolysis-grid:
+  regular-grid: true
+  lower-wavelength: 92.5 # nm
+  upper-wavelength: 855.0 # nm
+  number-of-bins: 200
+  photon-scale-factor: 0.43
+  # photon-scale-factor: 1.913
+  # input-file: my/input/file.txt
+
+planet:
+  use-background-gas: true
+  background-gas: CO2
+  surface-pressure: 0.0063 # bar
+  planet-mass: 6.39e26 # grams
+  planet-radius: 3.3766E8 # cm. Radius to bottom of atmosphere-grid
+  surface-albedo: 0.215 # cm
+  diurnal-averaging-factor: 0.5
+  solar-zenith-angle: 50.0
+  diff-lim-hydrogen-escape: true
+  water:
+    fix-water-in-troposphere: true
+    tropopause-altitude: 1.5e6 # cm
+    relative-humidity: 0.1
+    gas-rainout: false
+    stratospheric-condensation: true
+    cold-trap-relative-humitity: 0.1 # relative humidity at the cold trap
+    condensation-rate: {A: 1.0e-4, rh0: 1.05}
+      
+particles:
+- name: H2SO4aer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: HCNaer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: HCCCNaer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: CH3CNaer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: C2H2aer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: C2H4aer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: C2H6aer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: C4H4aer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+- name: N2Oaer
+  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+
+# Assumes veff = vdep = 0 boundary condition for species not specified.
+# Assumes species is long-lived unless specified
+boundary-conditions:
+  - name: O
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: O2
+    lower-boundary:
+      vdep: 0.0
+      type: deposition velocity
+    upper-boundary:
+      flux: 5e6
+      type: flux
+  - name: H
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: OH
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HO2
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: H2O2
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: H2
+    lower-boundary:
+      flux: 2e7
+      type: flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: CO
+    lower-boundary:
+      flux: 7.0e6 
+      type: flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HCO
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: CH4
+    lower-boundary:
+      flux: 0.1e1
+      type: flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: CH3
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: C2H6
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: NO
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: NO2
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HNO
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: H2S
+    lower-boundary:
+      flux: 1.5e6
+      vdep: 2.0e-2
+      distributed-height: 20.0
+      type: deposition velocity + distributed flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HS
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: S
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: SO
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: SO2
+    lower-boundary:
+      flux: 1.0e7
+      vdep: 2.0e-2
+      distributed-height: 20.0
+      type: deposition velocity + distributed flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: H2SO4
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HSO
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: S2
+    lower-boundary:
+      flux: 2e7
+      type: flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: S4
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: SO3
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: OCS
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: S3
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: O3
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HNO3
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: N
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HCl
+    lower-boundary:
+      flux: 6.0e6
+      vdep: 2.0e-2
+      distributed-height: 20.0
+      type: deposition velocity + distributed flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: Cl
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: ClO
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HOCl
+    lower-boundary:
+      vdep: 2e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: N2
+    lower-boundary:
+      mixing-ratio: 2.6e-2
+      type: mixing-ratio
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: H2SO4aer
+    lower-boundary:
+      vdep: 1.0e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: S8aer
+    lower-boundary:
+      vdep: 1.0e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HCaer1
+    lower-boundary:
+      vdep: 1.0e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HCaer2
+    lower-boundary:
+      vdep: 1.0e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HCaer3
+    lower-boundary:
+      vdep: 1.0e-2
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HCN
+    lower-boundary:
+      vdep: 7.0e-3
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: HCCCN
+    lower-boundary:
+      vdep: 7.0e-3
+      type: deposition velocity
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
+  - name: O1D
+    type: short lived
+  - name: N2D
+    type: short lived
+
+
+      
