@@ -9,7 +9,16 @@ module photochem_types ! make a giant IO object
   implicit none
   private
   
-  public :: PhotochemData, PhotochemVars, PhotochemWrk
+  public :: PhotochemData, PhotochemVars, PhotochemWrk, ProductionLoss
+  
+  type :: ProductionLoss
+    real(real_kind), allocatable :: production(:,:)
+    real(real_kind), allocatable :: loss(:,:)
+    real(real_kind), allocatable :: integrated_production(:)
+    real(real_kind), allocatable :: integrated_loss(:)
+    character(len=m_str_len), allocatable :: production_rx(:)
+    character(len=m_str_len), allocatable :: loss_rx(:)
+  end type
   
   type :: XsectionData
     integer :: n_temps

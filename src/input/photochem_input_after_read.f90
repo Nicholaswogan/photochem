@@ -79,7 +79,7 @@ contains
   
   subroutine interp2xsdata(dat, var, err)
     use interp_tools, only: interp
-    use photochem_const, only: small_real
+    use photochem_const, only: smaller_real
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
 
@@ -97,7 +97,7 @@ contains
           T_temp(1) = var%temperature(j)
     
           call interp(1, dat%xs_data(i)%n_temps, T_temp, dat%xs_data(i)%xs_temps, &
-                      log10(abs(dat%xs_data(i)%xs(:,k))), val, err)
+                      log10(abs(dat%xs_data(i)%xs(:,k))+smaller_real), val, err)
                       
           var%xs_x_qy(j,i,k) = 10.d0**val(1)
         enddo

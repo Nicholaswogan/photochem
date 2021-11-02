@@ -1,9 +1,10 @@
 
 program main
-  use Photochem, only: Atmosphere, err_len, real_kind
+  use Photochem, only: Atmosphere, err_len, real_kind, ProductionLoss
   implicit none
   character(len=err_len) :: err
   type(Atmosphere) :: pc
+  type(ProductionLoss) :: pl
   logical :: success
   character(len=:), allocatable :: reaction
   integer :: i
@@ -21,36 +22,16 @@ program main
     stop 1
   endif
   
-  ! pc%var%verbose = 0
-  
-  call pc%initialize_stepper(pc%var%usol_init,err)
+  call pc%photochemical_equilibrium(success,err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop 1
   endif
   
-  do i = 1,10
-    tn = pc%step(err)
-    if (len(trim(err)) > 0) then
-      print*,trim(err)
-      stop 1
-    endif
-  enddo
-  
-  call pc%destroy_stepper(err)
+  call pc%out2atmosphere_txt("../templates/ModernEarth/atmosphere_ModernEarth.txt",.true.,.true.,err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop 1
   endif
-  
-  call pc%photochemical_equilibrium(success, err)
-  if (len(trim(err)) > 0) then
-    print*,trim(err)
-    stop 1
-  endif
-  
-  ! do i = 1, pc%dat%nrT
-  !   print*,i,trim(pc%dat%reaction_equations(i))
-  ! enddo
 
 end program

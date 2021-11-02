@@ -11,6 +11,8 @@ include "Atmosphere.pyx"
 include "PhotochemData.pyx"
 include "PhotochemVars.pyx"
 include "PhotochemWrk.pyx"
+include "ProductionLoss.pyx"
+
 
     
     

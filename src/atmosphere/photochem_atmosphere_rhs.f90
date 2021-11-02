@@ -1405,4 +1405,154 @@ contains
   
   end subroutine
   
+  subroutine chempl_t(self, nz, nsp, nrT, np, nl, densities, rx_rates, k, xpT, xlT)
+  
+    ! input
+    class(Atmosphere), intent(in) :: self
+    integer, intent(in) :: nz, nsp, nrT
+    integer, intent(in) :: np, nl
+    real(real_kind), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
+    real(real_kind), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
+    integer, intent(in) :: k ! species number
+  
+    ! output
+    real(real_kind), intent(out) :: xpT(nz,np), xlT(nz,nl) ! molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
+  
+    ! local
+    real(real_kind) :: DD
+    integer :: i, ii, iii, m, l, j
+    xpT = 0.d0
+    xlT = 0.d0
+  
+    ! np = self%dat%nump(k) ! k is a species
+    ! np is number of reactions that produce species k
+    do i=1,np
+      m = self%dat%iprod(i,k) ! m is reaction number
+      l = self%dat%nreactants(m) ! l is the number of reactants
+      do j = 1,self%var%nz
+        DD = 1.d0
+        do ii = 1,l
+          iii = self%dat%reactants_sp_inds(ii,m)
+          DD = DD * densities(iii,j)
+        enddo
+        xpT(j,i) = rx_rates(j,m) * DD
+      enddo
+    enddo
+  
+    ! nl = self%dat%numl(k) ! k is a species
+    ! nl is number of reactions that destroy species k
+    do i=1,nl
+      m = self%dat%iloss(i,k) ! This will JUST be reaction number
+      l = self%dat%nreactants(m) ! number of reactants
+      do j = 1,self%var%nz
+        DD = 1.d0
+        do ii = 1,l
+          iii = self%dat%reactants_sp_inds(ii,m)
+          DD = DD * densities(iii,j)
+        enddo
+        xlT(j,i) = rx_rates(j,m) * DD
+      enddo
+    enddo
+  
+  end subroutine
+  
+  module subroutine production_and_loss(self, species, usol, pl, err)     
+    use sorting, only: argsort            
+    use photochem_types, only: ProductionLoss
+    use photochem_const, only: small_real
+  
+    class(Atmosphere), target, intent(inout) :: self
+    character(len=*), intent(in) :: species
+    real(real_kind), intent(in) :: usol(:,:)
+    class(ProductionLoss), intent(out) :: pl
+    character(len=err_len), intent(out) :: err
+  
+    real(real_kind) :: xl(self%var%nz), xp(self%var%nz)
+    integer, allocatable :: prod_inds(:), loss_inds(:)
+    integer :: ind(1), sp_ind
+    integer :: i, ii, j, k, kk, np, nl
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrk), pointer :: wrk
+  
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+  
+    err = ""
+    
+    if (size(usol,1) /= dat%nq .or. size(usol,2) /= var%nz) then
+      err = "Input usol to production_and_loss has the wrong dimensions"
+      return
+    endif
+  
+    ind = findloc(dat%species_names(1:dat%nsp),species)
+    sp_ind = ind(1)
+    if (sp_ind == 0) then
+      err = "Species "//trim(species)//" is not in the list of species."
+      return
+    endif
+    
+    call self%prep_atmosphere(usol, err)
+    if (len_trim(err) /= 0) return
+  
+    np = self%dat%nump(sp_ind)
+    nl = self%dat%numl(sp_ind)
+    allocate(pl%production(var%nz,np))
+    allocate(pl%loss(var%nz,nl))
+    allocate(pl%integrated_production(np), pl%integrated_loss(nl))
+    allocate(pl%loss_rx(nl),pl%production_rx(np))
+    allocate(prod_inds(np), loss_inds(nl))
+  
+    do j = 1,var%nz
+      do k = 1,dat%np
+        wrk%densities(k,j) = max(wrk%usol(k,j)* &
+                            (wrk%density(j)/wrk%molecules_per_particle(k,j)),small_real)
+      enddo
+      do k = dat%ng_1,dat%nq
+        wrk%densities(k,j) = wrk%usol(k,j)*wrk%density(j)
+      enddo
+      wrk%densities(dat%nsp,j) = (1.d0-sum(wrk%usol(dat%ng_1:,j)))*wrk%density(j) ! background gas
+      wrk%densities(dat%nsp+1,j) = 1.d0 ! for hv
+    enddo
+  
+    if (sp_ind <= dat%nq) then ! long lived or particle
+      do k = dat%nq+1,dat%nq+dat%nsl
+        call chempl_sl(self, var%nz, dat%nsp, dat%nrT, wrk%densities, wrk%rx_rates, &
+                       k, xp, xl) 
+        wrk%densities(k,:) = xp/xl
+      enddo
+    endif
+    
+    call chempl_t(self, var%nz, dat%nsp, dat%nrT, np, nl, &
+                  wrk%densities, wrk%rx_rates, sp_ind, pl%production, pl%loss)
+  
+    do i = 1,np
+      pl%integrated_production(i) = sum(pl%production(:,i)*var%dz)
+      k = dat%iprod(i,sp_ind) ! reaction number
+      pl%production_rx(i) = dat%reaction_equations(k)
+    enddo
+    do i = 1,nl
+      pl%integrated_loss(i) = sum(pl%loss(:,i)*var%dz)
+      k = dat%iloss(i,sp_ind) ! reaction number
+      pl%loss_rx(i) = dat%reaction_equations(k)
+    enddo
+    
+    ! sort 
+    prod_inds = argsort(pl%integrated_production)
+    loss_inds = argsort(pl%integrated_loss)
+    prod_inds = prod_inds(np:1:-1)
+    loss_inds = loss_inds(nl:1:-1)
+  
+    pl%integrated_production = pl%integrated_production(prod_inds)
+    pl%integrated_loss = pl%integrated_loss(loss_inds)
+    
+    pl%production = pl%production(:,prod_inds)
+    pl%loss = pl%loss(:,loss_inds)
+    
+    pl%production_rx = pl%production_rx(prod_inds)
+    pl%loss_rx = pl%loss_rx(loss_inds)
+    
+  end subroutine
+  
 end submodule

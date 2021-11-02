@@ -250,4 +250,34 @@ contains
     call copy_string_ftoc(err_f,err)
   end subroutine
   
+  subroutine atmosphere_production_and_loss_wrapper(ptr, species, nq, nz, usol, pl_ptr, err) bind(c)
+    use photochem, only: ProductionLoss
+    type(c_ptr), intent(in) :: ptr
+    character(kind=c_char), intent(in) :: species(*)
+    integer(c_int), intent(in) :: nq, nz
+    real(c_double), intent(in) :: usol(nq, nz)
+    type(c_ptr), intent(out) :: pl_ptr
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(len=:), allocatable :: species_f
+    character(len=err_len) :: err_f
+    type(Atmosphere), pointer :: pc
+    type(ProductionLoss), pointer :: pl
+    
+    call c_f_pointer(ptr, pc)
+    allocate(pl)
+    
+    allocate(character(len=len_cstring(species))::species_f)
+    call copy_string_ctof(species, species_f)
+    
+    err_f = ""
+    call pc%production_and_loss(species_f, usol, pl, err_f)
+    if (len_trim(err_f) /= 0) then
+      deallocate(pl)
+    else
+      pl_ptr = c_loc(pl)
+    endif
+    call copy_string_ftoc(err_f, err)
+  end subroutine
+  
 end module

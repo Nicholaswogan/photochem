@@ -19,6 +19,7 @@ module photochem_atmosphere
     ! public
     procedure :: init => Atmosphere_init
     procedure :: right_hand_side_chem
+    procedure :: production_and_loss
     procedure :: right_hand_side => rhs_background_gas
     procedure :: jacobian => jac_background_gas
     procedure :: photochemical_equilibrium
@@ -64,6 +65,15 @@ module photochem_atmosphere
       class(Atmosphere), target, intent(inout) :: self
       real(real_kind), intent(in) :: usol(:,:)
       real(real_kind), intent(out) :: rhs(:)
+      character(len=err_len), intent(out) :: err
+    end subroutine
+    
+    module subroutine production_and_loss(self, species, usol, pl, err)     
+      use photochem_types, only: ProductionLoss
+      class(Atmosphere), target, intent(inout) :: self
+      character(len=*), intent(in) :: species
+      real(real_kind), intent(in) :: usol(:,:)
+      class(ProductionLoss), intent(out) :: pl
       character(len=err_len), intent(out) :: err
     end subroutine
     

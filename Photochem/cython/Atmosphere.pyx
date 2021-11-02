@@ -21,6 +21,9 @@ cdef extern void atmosphere_initialize_stepper_wrapper(void *ptr, int *nq, int *
 cdef extern double atmosphere_step_wrapper(void *ptr, char *err)
 cdef extern void atmosphere_destroy_stepper_wrapper(void *ptr, char *err)
 
+cdef extern void atmosphere_production_and_loss_wrapper(void *ptr, char *species, int *nq, 
+                                                        int *nz, double *usol, void *pl_ptr, char *err)
+
 cdef pystring2cstring(str pystring):
   # add a null c char, and convert to byes
   cdef bytes cstring = (pystring+'\0').encode('utf-8')
@@ -221,5 +224,25 @@ cdef class Atmosphere:
                                       &veff_c, &flux_c, &missing, err);
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
+      
+  def production_and_loss(self, str species, ndarray[double, ndim=2] usol):
+    cdef bytes species_b = pystring2cstring(species)
+    cdef char *species_c = species_b
+    cdef char err[ERR_LEN+1]
+    
+    cdef int nq = self.dat.nq
+    cdef int nz = self.var.nz
+    if not np.isfortran(usol):
+      raise PhotoException("Input usol must have fortran ordering.")
+    if usol.shape[0] != nq or usol.shape[1] != nz:
+      raise PhotoException("Input usol is the wrong size.")
+      
+    cdef void *pl_ptr
+    atmosphere_production_and_loss_wrapper(&self._ptr, species_c, &nq, &nz, <double *>usol.data, &pl_ptr, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    pl = ProductionLoss()
+    pl._ptr = pl_ptr
+    return pl
 
 

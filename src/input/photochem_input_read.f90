@@ -2368,7 +2368,7 @@ contains
     character(len=:), allocatable :: filename, xsfilename, reaction
     character(len=str_len) :: line
     character(len=100) :: tmp(maxcols), tmp1
-    real(real_kind), allocatable :: file_xs(:,:), file_qy(:,:), file_wav(:), file_line(:)
+    real(real_kind), allocatable :: file_xs(:,:), file_qy(:,:), file_wav(:), file_wav_save(:), file_line(:)
     real(real_kind), allocatable :: dumby(:,:)
     real(real_kind), parameter :: rdelta = 1.d-4
     
@@ -2429,6 +2429,7 @@ contains
         if (io == 0) k = k + 1
       enddo
       allocate(file_wav(k+4))
+      allocate(file_wav_save(k+4))
       allocate(file_qy(k+4,photodata%xs_data(i)%n_temps))
       allocate(file_line(photodata%xs_data(i)%n_temps+1))
       allocate(dumby(photodata%nw,photodata%xs_data(i)%n_temps))
@@ -2444,6 +2445,7 @@ contains
         enddo
         file_qy(l,:) = file_line(2:)
       enddo
+      file_wav_save = file_wav
       
       ! interpolate to grid
       ierr = 0
@@ -2467,10 +2469,11 @@ contains
         endif
         photodata%xs_data(i)%xs(l,:) = dumby(:,l)
         k = kk
+        file_wav = file_wav_save
       enddo
       
       close(101)
-      deallocate(file_wav,file_qy)
+      deallocate(file_wav,file_wav_save,file_qy)
       
       ! now do xs
       open(102, file=xsroot//xsfilename,status='old',iostat=io)
@@ -2485,6 +2488,7 @@ contains
         if (io == 0) k = k + 1
       enddo
       allocate(file_wav(k+4))
+      allocate(file_wav_save(k+4))
       allocate(file_xs(k+4,photodata%xs_data(i)%n_temps))
       
       rewind(102)
@@ -2498,6 +2502,7 @@ contains
         enddo
         file_xs(l,:) = file_line(2:)
       enddo
+      file_wav_save = file_wav
       
       ierr = 0
       do l = 1, photodata%xs_data(i)%n_temps
@@ -2520,10 +2525,11 @@ contains
         endif
         photodata%xs_data(i)%xs(l,:) = photodata%xs_data(i)%xs(l,:)*dumby(:,l)
         k = kk
+        file_wav = file_wav_save
       enddo
 
       close(102)
-      deallocate(file_xs, file_wav, file_line, dumby)
+      deallocate(file_xs, file_wav, file_wav_save, file_line, dumby)
     enddo
     
   end subroutine
