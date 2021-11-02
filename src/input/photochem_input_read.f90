@@ -761,7 +761,7 @@ contains
     character(len=err_len), intent(out) :: err
     character(len=:), allocatable :: rxstring
     
-    integer i, ii, nr, np
+    integer i, ii, nr, np, rxt
     logical l, m
     
     integer, allocatable :: tmp_arr1(:), tmp_arr2(:)
@@ -782,7 +782,9 @@ contains
         ! check the same num of reactants and products
         nr = photodata%nreactants(i)
         np = photodata%nproducts(i)
-        if (nr == photodata%nreactants(ii) .and. np == photodata%nproducts(i)) then
+        rxt = photodata%rxtypes(i)
+        if (nr == photodata%nreactants(ii) .and. np == photodata%nproducts(ii) &
+            .and. rxt == photodata%rxtypes(ii)) then
           tmp_arr1(1:nr) = photodata%reactants_sp_inds(1:nr,ii)
           tmp_arr2(1:nr) = photodata%reactants_sp_inds(1:nr,i)
           
@@ -1093,6 +1095,7 @@ contains
     type (type_error), pointer :: io_err
     class(type_dictionary), pointer :: tmpdict
     character(len=str_len) :: rxtype_str
+    logical :: use_jpl
     err = ''
     rateparam = 0.d0
     ! no error possible
@@ -1151,9 +1154,22 @@ contains
       rateparam(6) = tmpdict%get_real('Ea',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
+      use_jpl = reaction%get_logical('JPL',default=.false.,error = io_err)
+      if (use_jpl) then
+        falloff_type = 3
+      else
+        falloff_type = 0
+      endif
+
       nullify(tmpdict)
       tmpdict => reaction%get_dictionary('Troe',.false.,error = io_err)
       if (associated(tmpdict)) then
+        if (use_jpl) then
+          err = "Both 'Troe' and 'JPL' falloff types are specified for reaction "// &
+                trim(reaction%get_string("equation",error = io_err))//". Only one is allowed"
+          return
+        endif
+        
         rateparam(7) = tmpdict%get_real('A',error = io_err)
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         rateparam(8) = tmpdict%get_real('T1',error = io_err)

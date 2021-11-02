@@ -84,6 +84,10 @@ contains
             F(j) = Troe_withT2(self%dat%rateparams(7,i), self%dat%rateparams(8,i), self%dat%rateparams(9,i), &
                                self%dat%rateparams(10,i), self%var%temperature(j), Pr(j))
           enddo
+        elseif (self%dat%falloff_type(i) == 3) then ! JPL falloff function
+          do j = 1,nz
+            F(j) = 0.6d0**(1.d0/(1.d0 + (log10(Pr(j)))**2.d0 ))
+          enddo
         endif
         
         ! compute rate
