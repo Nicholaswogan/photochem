@@ -2389,6 +2389,8 @@ reactions:
   type: falloff
   low-P-rate-constant: {A: 2.308411e-29, b: 0.04, Ea: 0.0}
   high-P-rate-constant: {A: 2.308411e-10, b: 0.04, Ea: 0.0}
+- equation: C2H4 + N2D <=> CH3CN + H
+  rate-constant: {A: 2.3e-10, b: 0.0, Ea: 503}
 - equation: H2O + hv => OH + H
   type: photolysis
 - equation: CO2 + hv => CO + O
