@@ -20,7 +20,10 @@ contains
   subroutine deallocate_atmosphere(ptr) bind(c)
     type(c_ptr), intent(in) :: ptr
     type(Atmosphere), pointer :: pc
+    character(len=err_len) :: err_f
+    
     call c_f_pointer(ptr, pc)
+    call pc%destroy_stepper(err_f)
     deallocate(pc)
   end subroutine
   

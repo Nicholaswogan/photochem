@@ -98,4 +98,21 @@ contains
     arr = wrk%prates
   end subroutine
   
+  subroutine photochemwrk_surf_radiance_get_size(ptr, dim1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    dim1 = size(wrk%surf_radiance,1)
+  end subroutine
+  
+  subroutine photochemwrk_surf_radiance_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    arr = wrk%surf_radiance
+  end subroutine
+  
 end module

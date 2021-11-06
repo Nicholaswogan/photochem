@@ -16,6 +16,9 @@ cdef extern void photochemdata_reaction_equations_get(void *ptr, int *dim1, char
 cdef extern void photochemdata_photonums_get_size(void *ptr, int *dim1)
 cdef extern void photochemdata_photonums_get(void *ptr, int *dim1, int *arr)
 
+cdef extern void photochemdata_wavl_get_size(void *ptr, int *dim1)
+cdef extern void photochemdata_wavl_get(void *ptr, int *dim1, double *arr)
+
 cdef class PhotochemData:
   cdef void *_ptr
   cdef bint _destroy
@@ -68,6 +71,14 @@ cdef class PhotochemData:
       photochemdata_photonums_get_size(&self._ptr, &dim1)
       cdef ndarray arr = np.empty(dim1, np.int32)
       photochemdata_photonums_get(&self._ptr, &dim1, <int *>arr.data)
+      return arr
+      
+  property wavl:
+    def __get__(self):
+      cdef int dim1
+      photochemdata_wavl_get_size(&self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      photochemdata_wavl_get(&self._ptr, &dim1, <double *>arr.data)
       return arr
 
 cdef c2stringarr(ndarray c_str_arr, int str_len, int arr_len):  

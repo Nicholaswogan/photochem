@@ -12,6 +12,12 @@ cdef extern void photochemvars_usol_init_get(void *ptr, int *dim1, int *dim2, do
 cdef extern void photochemvars_temperature_get_size(void *ptr, int *dim1)
 cdef extern void photochemvars_temperature_get(void *ptr, int *dim1, double *temperature)
 
+cdef extern void photochemvars_edd_get_size(void *ptr, int *dim1)
+cdef extern void photochemvars_edd_get(void *ptr, int *dim1, double *arr)
+
+cdef extern void photochemvars_photon_flux_get_size(void *ptr, int *dim1)
+cdef extern void photochemvars_photon_flux_get(void *ptr, int *dim1, double *arr)
+
 cdef extern void photochemvars_grav_get_size(void *ptr, int *dim1)
 cdef extern void photochemvars_grav_get(void *ptr, int *dim1, double *arr)
 
@@ -79,6 +85,22 @@ cdef class PhotochemVars:
       photochemvars_temperature_get(&self._ptr, &dim1, <double *>arr.data)
       return arr
       
+  property edd:
+    def __get__(self):
+      cdef int dim1
+      photochemvars_edd_get_size(&self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      photochemvars_edd_get(&self._ptr, &dim1, <double *>arr.data)
+      return arr
+      
+  property photon_flux:
+    def __get__(self):
+      cdef int dim1
+      photochemvars_photon_flux_get_size(&self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      photochemvars_photon_flux_get(&self._ptr, &dim1, <double *>arr.data)
+      return arr
+  
   property grav:
     def __get__(self):
       cdef int dim1
