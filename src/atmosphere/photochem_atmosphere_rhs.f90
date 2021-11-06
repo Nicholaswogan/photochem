@@ -1010,7 +1010,7 @@ contains
     
   end subroutine
   
-  subroutine prep_all_background_gas(self, usol_in, err)
+  module subroutine prep_all_background_gas(self, usol_in, err)
     use photochem_eqns, only: saturation_density
     use photochem_const, only: pi, k_boltz, N_avo, small_real
   
@@ -1128,7 +1128,7 @@ contains
   
   end subroutine
   
-  subroutine rhs_background_gas(self, neqs, usol_flat, rhs, err)
+  module subroutine rhs_background_gas(self, neqs, usol_flat, rhs, err)
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
     
@@ -1242,7 +1242,7 @@ contains
     
   end subroutine
   
-  subroutine jac_background_gas(self, lda_neqs, neqs, usol_flat, jac, err)
+  module subroutine jac_background_gas(self, lda_neqs, neqs, usol_flat, jac, err)
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     

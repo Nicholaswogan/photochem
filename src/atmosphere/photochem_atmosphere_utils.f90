@@ -6,7 +6,7 @@ submodule(photochem_atmosphere) photochem_atmosphere_utils
   
 contains
   
-  subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
+  module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
     class(Atmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: filename
     logical, intent(in) :: overwrite, clip
@@ -88,7 +88,7 @@ contains
     
   end subroutine
   
-  subroutine out2in(self, err)
+  module subroutine out2in(self, err)
     class(Atmosphere), intent(inout) :: self
     character(len=err_len), intent(out) :: err
     err = ''

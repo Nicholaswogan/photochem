@@ -3,8 +3,8 @@ submodule (photochem_input) photochem_input_read
   
 contains
   
-  subroutine read_all_files(mechanism_file, settings_file, flux_file, atmosphere_txt, &
-                            photodata, photovars, err)
+  module subroutine read_all_files(mechanism_file, settings_file, flux_file, atmosphere_txt, &
+                                   photodata, photovars, err)
     
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
@@ -60,13 +60,12 @@ contains
     select type (root)
       class is (type_dictionary)
         call get_rxmechanism(root, infile, photodata, photovars, err)
-        if (len_trim(err) > 0) return
-        call root%finalize()
-        deallocate(root)
       class default
         err = "yaml file must have dictionaries at root level"
-        return
     end select
+    call root%finalize()
+    deallocate(root)  
+    if (len_trim(err) > 0) return
      
   end subroutine
   
@@ -670,13 +669,13 @@ contains
         end select
       enddo
       
-      
-      call root%finalize()
-      deallocate(root)
     class default
       err = "yaml file must have dictionaries at root level"
-      return
     end select
+    ! Memory leak is possible here. can return before deallocating!!!
+    call root%finalize()
+    deallocate(root)
+    if (len_trim(err) /= 0) return
     
     allocate(photodata%henry_data(2,photodata%nsp))
     photodata%henry_data = 0.d0
@@ -1518,12 +1517,13 @@ contains
           item => item%next
         enddo
 
-        call root%finalize()
-        deallocate(root)
       class default
         err = trim(infile)//" file must have dictionaries at root level"
         return
     end select
+    ! Memory leak is possible here. can return before deallocating!!!
+    call root%finalize()
+    deallocate(root)
     
     ! check for duplicates
     do i = 1,photodata%nsl-1
@@ -1557,13 +1557,12 @@ contains
     select type (root)
       class is (type_dictionary)
         call unpack_settings(root, infile, photodata, photovars, err)
-        if (len_trim(err) /= 0) return
-        call root%finalize()
-        deallocate(root)
       class default
         err = trim(infile)//" file must have dictionaries at root level"
-        return
     end select
+    call root%finalize()
+    deallocate(root)
+    if (len_trim(err) /= 0) return
 
   end subroutine
   
@@ -2561,10 +2560,10 @@ contains
       class is (type_dictionary)
         call rayleigh_params(root,photodata,trim(rayleigh_file),err, &
                              photodata%raynums, A, B, Delta)
-        if (len_trim(err) /= 0) return
-        call root%finalize()
-        deallocate(root)
     end select
+    call root%finalize()
+    deallocate(root)
+    if (len_trim(err) /= 0) return
     
     ! compute cross sections
     photodata%nray = size(A)

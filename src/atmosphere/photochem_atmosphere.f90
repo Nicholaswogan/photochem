@@ -119,6 +119,35 @@ module photochem_atmosphere
       character(len=err_len), intent(out) :: err
     end subroutine
     
+    module function RhsFn(tn, sunvec_y, sunvec_f, user_data) &
+                          result(ierr) bind(c, name='RhsFn')
+      use, intrinsic :: iso_c_binding
+      use fcvode_mod
+      use fsundials_nvector_mod
+      real(c_double), value :: tn
+      type(N_Vector)        :: sunvec_y
+      type(N_Vector)        :: sunvec_f
+      type(c_ptr), value    :: user_data
+      integer(c_int)        :: ierr
+    end function
+    
+    module function JacFn(tn, sunvec_y, sunvec_f, sunmat_J, user_data, &
+                          tmp1, tmp2, tmp3) &
+                          result(ierr) bind(C,name='JacFn')
+      use, intrinsic :: iso_c_binding
+      use fsundials_nvector_mod
+      use fnvector_serial_mod
+      use fsunmatrix_band_mod
+      use fsundials_matrix_mod
+      real(c_double), value :: tn
+      type(N_Vector)        :: sunvec_y 
+      type(N_Vector)        :: sunvec_f
+      type(SUNMatrix)       :: sunmat_J 
+      type(c_ptr), value    :: user_data 
+      type(N_Vector)        :: tmp1, tmp2, tmp3
+      integer(c_int)        :: ierr
+    end function
+    
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_atmosphere_utils.f90 !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

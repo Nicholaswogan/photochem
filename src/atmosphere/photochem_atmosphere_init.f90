@@ -7,7 +7,7 @@ submodule(photochem_atmosphere) photochem_atmosphere_init
   
 contains
   
-  subroutine Atmosphere_init(self, data_dir, mechanism_file, settings_file, flux_file, atmosphere_txt, err)
+  module subroutine Atmosphere_init(self, data_dir, mechanism_file, settings_file, flux_file, atmosphere_txt, err)
     use iso_c_binding, only : c_associated
     use photochem_input, only: setup
     

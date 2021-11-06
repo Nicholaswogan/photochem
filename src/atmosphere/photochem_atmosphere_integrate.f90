@@ -6,8 +6,8 @@ submodule(photochem_atmosphere) photochem_atmosphere_integrate
   
 contains
   
-  integer(c_int) module function RhsFn(tn, sunvec_y, sunvec_f, user_data) &
-                                result(ierr) bind(c, name='RhsFn')
+  module function RhsFn(tn, sunvec_y, sunvec_f, user_data) &
+                        result(ierr) bind(c, name='RhsFn')
     use, intrinsic :: iso_c_binding
     use fcvode_mod
     use fsundials_nvector_mod
@@ -16,6 +16,7 @@ contains
     type(N_Vector)        :: sunvec_y  ! solution N_Vector
     type(N_Vector)        :: sunvec_f  ! rhs N_Vector
     type(c_ptr), value    :: user_data ! user-defined dat
+    integer(c_int)        :: ierr
     
     ! pointers to data in SUNDIALS vectors
     real(c_double), pointer :: yvec(:)
@@ -78,9 +79,9 @@ contains
     return
   end function
   
-  integer(c_int) module function JacFn(tn, sunvec_y, sunvec_f, sunmat_J, user_data, &
-                                tmp1, tmp2, tmp3) &
-                                result(ierr) bind(C,name='JacFn')
+  module function JacFn(tn, sunvec_y, sunvec_f, sunmat_J, user_data, &
+                        tmp1, tmp2, tmp3) &
+                        result(ierr) bind(C,name='JacFn')
     !======= Inclusions ===========
     use, intrinsic :: iso_c_binding
     use fsundials_nvector_mod
@@ -95,6 +96,7 @@ contains
     type(SUNMatrix)        :: sunmat_J  ! rhs N_Vector
     type(c_ptr), value    :: user_data ! user-defined data
     type(N_Vector)        :: tmp1, tmp2, tmp3
+    integer(c_int)        :: ierr
   
     ! pointers to data in SUNDIALS vectors
     real(c_double), pointer :: yvec(:)
