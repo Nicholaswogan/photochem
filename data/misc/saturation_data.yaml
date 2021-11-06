@@ -100,3 +100,12 @@
   composition: {O: 1, N: 2}
   optical-properties: palmer1975
   optical-type: mie
+  
+- name: H2Oaer
+  formation: saturation
+  density: 1
+  gas-phase: H2O
+  saturation-parameters: {A: 14.8, B: -5420.0, C: -0.00795}
+  composition: {H: 2, O: 1}
+  optical-properties: palmer1975
+  optical-type: mie

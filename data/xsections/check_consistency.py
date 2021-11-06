@@ -39,7 +39,7 @@ def check_consistency(verbose=True):
             reactions.append(key)
         files = os.listdir(directory)
         for file in files:
-            if 'xs' not in file:
+            if 'xs' not in file and file[0]!='.':
                 reaction = ' '.join(file.replace('.txt','').split('_'))
                 if reaction not in reactions:
                     raise Exception("metadata.yaml does not have an entry for reaction "+ \
@@ -160,7 +160,6 @@ def check_consistency(verbose=True):
 def generate_photo_yaml_entries(species_list):
     '''Generates list of photolysis reactions given a list of species.
     '''
-    check_consistency(verbose=False)
     species_set = set(species_list)
     fil = open('metadata.yaml','r')
     meta_data = yaml.load(fil)
@@ -175,7 +174,7 @@ def generate_photo_yaml_entries(species_list):
             tmp = set([a.strip() for a in rx.split('=>')[1].split('+')])
             if tmp.issubset(species_set):
                 rx_list.append({})
-                rx_list[-1]['reaction'] = rx
+                rx_list[-1]['equation'] = rx
                 rx_list[-1]['type'] = 'photolysis'
     return rx_list
 

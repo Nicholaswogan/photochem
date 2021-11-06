@@ -690,3 +690,149 @@ HCCCN:
       citation: Huebner and Mukherjee (2015)
       DOI: 10.1016/j.pss.2014.11.022
   general-notes:
+    
+ClO:
+  reactions:
+    ClO + hv => Cl + O1D:
+      citations:
+      - nm-range: 217.63 - 318.56
+        citation: Schmidt et al. (1998)
+        DOI: 10.1016/S0009-2614(97)01302-X
+    ClO + hv => Cl + O:
+      citations:
+      - nm-range: 217.63 - 318.56
+        citation: Schmidt et al. (1998)
+        DOI: 10.1016/S0009-2614(97)01302-X
+  xsections:
+    citations:
+    - nm-range: 217.63 - 318.56
+      citation: Burkholder (1990)
+      DOI: 10.1021/j100365a033
+  general-notes: 
+    
+H2SO4:
+  reactions:
+    H2SO4 + hv => SO3 + H2O:
+      citations:
+      - nm-range: 118.13 - 181.29
+        citation: Lane and Kjaergaard (2008)
+        DOI: 10.1021%2Fjp710863r
+  xsections:
+    citations:
+    - nm-range: 118.13 - 181.29
+      citation: Lane and Kjaergaard (2008)
+      DOI: 10.1021%2Fjp710863r
+  general-notes: null
+
+NO3:
+  reactions:
+    NO3 + hv => NO2 + O:
+      citations:
+      - nm-range: 0.06 - 9000.00
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+    NO3 + hv => NO + O2:
+      citations:
+      - nm-range: 0.06 - 9000.00
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+  xsections:
+    citations:
+    - nm-range: 0.06 - 9000.00
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+  general-notes: null
+  
+OClO:
+  reactions:
+    OClO + hv => ClO + O:
+      citations:
+      - nm-range: 0.10 - 496.00
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+    OClO + hv => ClO + O1D:
+      citations:
+      - nm-range: 0.10 - 496.00
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+  xsections:
+    citations:
+    - nm-range: 0.10 - 496.00
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+  general-notes: null
+  
+HO2NO2:
+  reactions:
+    HO2NO2 + hv => HO2 + NO2:
+      citations:
+      - nm-range: 0.10 - 1340.00
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+    HO2NO2 + hv => OH + NO3:
+      citations:
+      - nm-range: 0.10 - 1340.00
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+  xsections:
+    citations:
+    - nm-range: 0.10 - 1340.00
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+  general-notes: null
+  
+SO2Cl2:
+  reactions:
+    SO2Cl2 + hv => ClSO2 + Cl:
+      citations:
+      - nm-range: 190.00 - 300.00
+        citation: Uthman (1978)
+        DOI: 10.1021/j100509a021
+  xsections:
+    citations:
+    - nm-range: 190.00 - 300.00
+      citation: Uthman (1978)
+      DOI: 10.1021/j100509a021
+  general-notes: null
+  
+COCl2:
+  reactions:
+    COCl2 + hv => ClCO + Cl:
+      citations:
+      - nm-range: 0.0610 - 369.0000
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+  xsections:
+    citations:
+    - nm-range: 0.0610 - 369.0000
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+  general-notes: null
+  
+ClNO:
+  reactions:
+    ClNO + hv => Cl + NO:
+      citations:
+      - nm-range: 0.1000 - 774.8000
+        citation: Huebner and Mukherjee (2015)
+        DOI: 10.1016/j.pss.2014.11.022
+  xsections:
+    citations:
+    - nm-range: 0.1000 - 774.8000
+      citation: Huebner and Mukherjee (2015)
+      DOI: 10.1016/j.pss.2014.11.022
+  general-notes: null
+  
+SNO:
+  reactions:
+    SNO + hv => S + NO:
+      citations:
+      - nm-range: 176.2 - 450.0
+        citation: null
+        DOI: null
+  xsections:
+    citations:
+    - nm-range: 176.2 - 450.0
+      citation: null
+      DOI: null
+  general-notes: Assumed to be the same as NO2.
