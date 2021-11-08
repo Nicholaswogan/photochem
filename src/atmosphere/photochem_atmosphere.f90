@@ -91,7 +91,16 @@ module photochem_atmosphere
       real(real_kind), target, intent(in) :: usol_flat(neqs)
       real(real_kind), intent(out), target :: jac(lda_neqs)
       character(len=err_len), intent(out) :: err
-    end subroutine  
+    end subroutine
+    
+    module function fcn_fH2O(ptr, n, x, fvec, iflag) result(res) bind(c)
+      use, intrinsic :: iso_c_binding, only : c_ptr  
+      type(c_ptr) :: ptr
+      integer, value :: n, iflag
+      real(real_kind), intent(in) :: x(n)
+      real(real_kind), intent(out) :: fvec(n)
+      integer :: res
+    end function  
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_atmosphere_integrate.f90 !!!

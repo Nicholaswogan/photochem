@@ -685,7 +685,7 @@ contains
   end subroutine
 
   ! For computing self-consistent water profile. Called by minpack.
-  integer function fcn_fH2O(ptr, n, x, fvec, iflag) result(res)
+  module function fcn_fH2O(ptr, n, x, fvec, iflag) result(res) bind(c)
     use photochem_eqns, only: sat_pressure_H2O, molar_weight, press_and_den
     use, intrinsic :: iso_c_binding, only : c_f_pointer, c_ptr
   
@@ -693,6 +693,7 @@ contains
     integer, value :: n, iflag ! n == trop_ind
     real(real_kind), intent(in) :: x(n) ! x == fH2O
     real(real_kind), intent(out) :: fvec(n) ! fvec == residual
+    integer :: res
   
     real(real_kind) :: fH2O(n)
     real(real_kind), pointer :: usol(:,:)
