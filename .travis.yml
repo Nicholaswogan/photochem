@@ -8,7 +8,7 @@ before_install:
   - sudo apt-get install build-essential
   - sudo apt-get install gfortran
   - sudo apt-get install gcc
-  - sudo apt-get install g++
+  - sudo apt-get install valgrind
   - mkdir build
   - cd build
 
@@ -16,6 +16,7 @@ script:
   - cmake .. -DTRAVIS=ON
   - make
   - ctest
+  - valgrind --error-exitcode=1 --leak-check=full ./memtest
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)

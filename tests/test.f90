@@ -21,7 +21,7 @@ program main
   call pc%photochemical_equilibrium(success, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
-    stop
+    stop 1
   endif
   
   if (.not. success) then
