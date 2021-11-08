@@ -1,4 +1,4 @@
-# Photochem
+# Photochem [![codecov](https://codecov.io/gh/Nicholaswogan/Photochem/branch/main/graph/badge.svg?token=ZTCXVTG371)](https://codecov.io/gh/Nicholaswogan/Photochem) [![Build Status](https://app.travis-ci.com/Nicholaswogan/Photochem.svg?branch=main)](https://app.travis-ci.com/Nicholaswogan/Photochem)
 
 `Photochem` is a photochemical model of planet's atmospheres. It is currently under construction. 
 
