@@ -1471,7 +1471,7 @@ contains
     real(real_kind) :: xl(self%var%nz), xp(self%var%nz)
     integer, allocatable :: prod_inds(:), loss_inds(:)
     integer :: ind(1), sp_ind
-    integer :: i, ii, j, k, kk, np, nl
+    integer :: i, j, k, np, nl
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk

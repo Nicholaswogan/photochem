@@ -617,6 +617,45 @@ contains
     
   end subroutine
   
+  subroutine get_henry_parse(root, photodata, photovars, henry_names, henry_data, err)
+    class (type_list), intent(in) :: root
+    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemVars), intent(in) :: photovars
+    character(len=s_str_len), allocatable, intent(out) :: henry_names(:)
+    real(real_kind), allocatable, intent(out) :: henry_data(:,:)
+    character(len=*), intent(out) :: err
+  
+    type (type_error), pointer :: io_err
+    class (type_list_item), pointer :: item
+    integer :: j  
+    
+    j = 0
+    item => root%first
+    do while(associated(item))
+      j = j + 1
+      item => item%next
+    enddo
+    
+    allocate(henry_names(j))
+    allocate(henry_data(2,j))
+    j = 1
+    item => root%first
+    do while(associated(item))
+      select type (element => item%node)
+      class is (type_dictionary)
+        henry_names(j) = element%get_string('name',error = io_err)
+        if (associated(io_err)) then; err = trim(io_err%message); return; endif
+        henry_data(1,j) = element%get_real('A',error = io_err)
+        if (associated(io_err)) then; err = trim(io_err%message); return; endif
+        henry_data(2,j) = element%get_real('B',error = io_err)
+        if (associated(io_err)) then; err = trim(io_err%message); return; endif
+      
+      j = j + 1
+      item => item%next
+      end select
+    enddo
+  end subroutine
+  
   subroutine get_henry(photodata, photovars, err)
     use yaml, only : parse, error_length
     type(PhotochemData), intent(inout) :: photodata
@@ -625,8 +664,6 @@ contains
     
     character(error_length) :: error
     class (type_node), pointer :: root
-    type (type_error), pointer :: io_err
-    class (type_list_item), pointer :: item
     integer :: j, ind(1), i
     
     character(len=s_str_len), allocatable :: henry_names(:)
@@ -642,37 +679,10 @@ contains
     end if
     select type (root)
     class is (type_list)
-      
-      j = 0
-      item => root%first
-      do while(associated(item))
-        j = j + 1
-        item => item%next
-      enddo
-      
-      allocate(henry_names(j))
-      allocate(henry_data(2,j))
-      j = 1
-      item => root%first
-      do while(associated(item))
-        select type (element => item%node)
-        class is (type_dictionary)
-          henry_names(j) = element%get_string('name',error = io_err)
-          if (associated(io_err)) then; err = trim(io_err%message); return; endif
-          henry_data(1,j) = element%get_real('A',error = io_err)
-          if (associated(io_err)) then; err = trim(io_err%message); return; endif
-          henry_data(2,j) = element%get_real('B',error = io_err)
-          if (associated(io_err)) then; err = trim(io_err%message); return; endif
-        
-        j = j + 1
-        item => item%next
-        end select
-      enddo
-      
+      call get_henry_parse(root, photodata, photovars, henry_names, henry_data, err)
     class default
       err = "yaml file must have dictionaries at root level"
     end select
-    ! Memory leak is possible here. can return before deallocating!!!
     call root%finalize()
     deallocate(root)
     if (len_trim(err) /= 0) return
@@ -1440,6 +1450,84 @@ contains
     endif
   end subroutine
   
+  subroutine SL_and_background(root, infile, photodata, err)
+    class (type_dictionary), intent(in) :: root
+    character(len=*), intent(in) :: infile
+    type(PhotochemData), intent(inout) :: photodata
+    character(len=err_len), intent(out) :: err
+  
+    class (type_dictionary), pointer :: tmp1
+    type (type_error), pointer :: io_err
+    class (type_list), pointer :: bcs
+    class (type_list_item), pointer :: item
+    character(len=str_len) :: spec_type
+    
+    ! get background species
+    tmp1 => root%get_dictionary('planet',.true.,error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    
+    photodata%back_gas = tmp1%get_logical('use-background-gas',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    
+    if (photodata%back_gas) then
+      photodata%back_gas_name = tmp1%get_string('background-gas',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    else
+      photodata%back_gas_ind = -1
+      err = "Currently, the model requires there to be a background gas."// &
+            " You must set 'use-background-gas: true'"
+      return
+    endif
+    
+    bcs => root%get_list('boundary-conditions',.true.,error = io_err)
+    
+    photodata%nsl = 0
+    item => bcs%first
+    do while (associated(item))
+      select type (element => item%node)
+      class is (type_dictionary)
+        spec_type = element%get_string('type','long lived',error = io_err)
+        if (spec_type == 'short lived') then
+          photodata%nsl = photodata%nsl + 1
+        elseif (spec_type == 'long lived') then
+          ! do nothing
+        else
+          err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
+          return
+        endif
+      class default
+        err = "IOError: Boundary conditions must be a list of dictionaries."
+        return
+      end select 
+      item => item%next
+    enddo
+    allocate(photodata%SL_names(photodata%nsl))
+    
+    photodata%nsl = 0
+    item => bcs%first
+    do while (associated(item))
+      select type (element => item%node)
+      class is (type_dictionary)
+        spec_type = element%get_string('type','long lived',error = io_err)
+        if (spec_type == 'short lived') then
+          photodata%nsl = photodata%nsl + 1
+          photodata%SL_names(photodata%nsl) = element%get_string('name',error = io_err)
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        elseif (spec_type == 'long lived') then
+          ! do nothing
+        else
+          err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
+          return
+        endif
+      class default
+        err = "IOError: Boundary conditions must be a list of dictionaries."
+        return
+      end select 
+      item => item%next
+    enddo
+    
+  end subroutine
+  
   subroutine get_SL_and_background(infile, photodata, err)
     use yaml, only : parse, error_length
     character(len=*), intent(in) :: infile
@@ -1448,11 +1536,6 @@ contains
   
     character(error_length) :: error
     class (type_node), pointer :: root
-    class (type_dictionary), pointer :: tmp1
-    type (type_error), pointer :: io_err
-    class (type_list), pointer :: bcs
-    class (type_list_item), pointer :: item
-    character(len=str_len) :: spec_type
     integer :: i, j
     err = ''
     
@@ -1463,78 +1546,13 @@ contains
     end if
     select type (root)
       class is (type_dictionary)
-        
-        ! get background species
-        tmp1 => root%get_dictionary('planet',.true.,error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        
-        photodata%back_gas = tmp1%get_logical('use-background-gas',error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        
-        if (photodata%back_gas) then
-          photodata%back_gas_name = tmp1%get_string('background-gas',error = io_err)
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        else
-          photodata%back_gas_ind = -1
-          err = "Currently, the model requires there to be a background gas."// &
-                " You must set 'use-background-gas: true'"
-          return
-        endif
-        
-        bcs => root%get_list('boundary-conditions',.true.,error = io_err)
-        
-        photodata%nsl = 0
-        item => bcs%first
-        do while (associated(item))
-          select type (element => item%node)
-          class is (type_dictionary)
-            spec_type = element%get_string('type','long lived',error = io_err)
-            if (spec_type == 'short lived') then
-              photodata%nsl = photodata%nsl + 1
-            elseif (spec_type == 'long lived') then
-              ! do nothing
-            else
-              err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
-              return
-            endif
-          class default
-            err = "IOError: Boundary conditions must be a list of dictionaries."
-            return
-          end select 
-          item => item%next
-        enddo
-        allocate(photodata%SL_names(photodata%nsl))
-        
-        photodata%nsl = 0
-        item => bcs%first
-        do while (associated(item))
-          select type (element => item%node)
-          class is (type_dictionary)
-            spec_type = element%get_string('type','long lived',error = io_err)
-            if (spec_type == 'short lived') then
-              photodata%nsl = photodata%nsl + 1
-              photodata%SL_names(photodata%nsl) = element%get_string('name',error = io_err)
-              if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-            elseif (spec_type == 'long lived') then
-              ! do nothing
-            else
-              err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
-              return
-            endif
-          class default
-            err = "IOError: Boundary conditions must be a list of dictionaries."
-            return
-          end select 
-          item => item%next
-        enddo
-
+        call SL_and_background(root, infile, photodata, err)
       class default
         err = trim(infile)//" file must have dictionaries at root level"
-        return
     end select
-    ! Memory leak is possible here. can return before deallocating!!!
     call root%finalize()
     deallocate(root)
+    if (len_trim(err) /= 0) return
     
     ! check for duplicates
     do i = 1,photodata%nsl-1
