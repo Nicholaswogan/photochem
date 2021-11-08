@@ -1,0 +1,6 @@
+[submodule "fortran-yaml-c"]
+	path = src/dependencies/fortran-yaml-c
+	url = https://github.com/Nicholaswogan/fortran-yaml-c.git
+[submodule "cminpack"]
+	path = cminpack
+	url = https://github.com/Nicholaswogan/cminpack.git

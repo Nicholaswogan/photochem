@@ -1,6 +1,6 @@
 
 # fortran yaml
-add_subdirectory(fortran-yaml-cpp EXCLUDE_FROM_ALL)
+add_subdirectory(fortran-yaml-c EXCLUDE_FROM_ALL)
 
 # binning
 add_subdirectory(binning EXCLUDE_FROM_ALL)
