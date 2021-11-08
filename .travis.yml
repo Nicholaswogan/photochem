@@ -9,12 +9,13 @@ before_install:
   - sudo apt-get install gfortran
   - sudo apt-get install gcc
   - sudo apt-get install g++
-
-install:
   - mkdir build
   - cd build
-  - cmake ../
-  - make
 
 script:
+  - cmake .. -DTRAVIS=ON
+  - make
   - ctest
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)

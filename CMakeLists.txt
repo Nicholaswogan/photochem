@@ -7,6 +7,8 @@ FortranCInterface_VERIFY()
 option(SKBUILD "Should be ON of being build by skbuild, 
 and OFF of being build by regular cmake" OFF)
 
+option(TRAVIS "Should be ON if it is a TravisCI build" OFF)
+
 option(BUILD_STATIC_PHOTOCHEM "if ON, then will build the
 static library libphotochem.a" ON)
 
@@ -20,9 +22,13 @@ if (NOT CMAKE_BUILD_TYPE OR CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
 endif()
 
-if ("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU" 
-   AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wunused")
+if ("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
+  if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wunused")
+  endif()
+  if (TRAVIS)
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fprofile-arcs -ftest-coverage")
+  endif()
 endif()
 
 option(BUILD_WITH_OPENMP "Compile with muli-threading" OFF)
