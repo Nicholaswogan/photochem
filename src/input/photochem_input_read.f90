@@ -760,7 +760,7 @@ contains
     character(len=err_len), intent(out) :: err
     character(len=:), allocatable :: rxstring
     
-    integer i, ii, nr, np, rxt
+    integer i, ii, j, jj, nr, np, rxt, rxt_ii
     logical l, m
     
     integer, allocatable :: tmp_arr1(:), tmp_arr2(:)
@@ -781,9 +781,20 @@ contains
         ! check the same num of reactants and products
         nr = photodata%nreactants(i)
         np = photodata%nproducts(i)
-        rxt = photodata%rxtypes(i)
+        if (i > photodata%nrF) then
+          j = photodata%reverse_info(i)
+        else
+          j = i
+        endif
+        if (ii > photodata%nrF) then
+          jj = photodata%reverse_info(ii)
+        else
+          jj = ii
+        endif
+        rxt = photodata%rxtypes(j)
+        rxt_ii = photodata%rxtypes(jj)
         if (nr == photodata%nreactants(ii) .and. np == photodata%nproducts(ii) &
-            .and. rxt == photodata%rxtypes(ii)) then
+            .and. rxt == rxt_ii) then
           tmp_arr1(1:nr) = photodata%reactants_sp_inds(1:nr,ii)
           tmp_arr2(1:nr) = photodata%reactants_sp_inds(1:nr,i)
           
