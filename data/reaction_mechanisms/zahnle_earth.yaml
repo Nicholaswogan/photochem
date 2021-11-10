@@ -865,6 +865,7 @@ particles:
   formation: saturation
   density: 1.0
   gas-phase: H2SO4
+  saturation-type: H2SO4
   saturation-parameters: {A: 16.722, B: -10156.0, C: 0.0}
   composition: {H: 2, S: 1, O: 4}
   optical-properties: palmer1975

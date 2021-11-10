@@ -4,9 +4,7 @@ program main
   implicit none
   character(len=err_len) :: err
   type(Atmosphere) :: pc
-  logical :: success
   real(real_kind) :: tn
-  integer :: i, j
 
   call pc%init("../data", &
                "../data/reaction_mechanisms/zahnle_earth.yaml", &

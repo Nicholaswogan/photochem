@@ -142,6 +142,7 @@ contains
       allocate(photodata%particle_names(photodata%np))
       allocate(photodata%particle_formation_method(photodata%np))
       allocate(photodata%particle_density(photodata%np))
+      allocate(photodata%particle_sat_type(photodata%np))
       allocate(photodata%particle_sat_params(3,photodata%np))
       allocate(photodata%particle_gas_phase(photodata%np))
       allocate(photodata%particle_optical_prop(photodata%np))
@@ -184,33 +185,45 @@ contains
   
           if (photodata%particle_formation_method(j) == 1) then
             ! there should be saturation vapor pressure information
-            sat_params => element%get_dictionary('saturation-parameters',.true.,error = io_err) 
-            if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-            i = 0
-            key_value_pair => sat_params%first
-            do while (associated(key_value_pair))
-              tmpchar = trim(key_value_pair%key)
-              
-              if (trim(tmpchar) == "A") then
-                photodata%particle_sat_params(1,j) = sat_params%get_real(trim(tmpchar),error = io_err)
-                if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-              elseif (trim(tmpchar) == "B") then
-                photodata%particle_sat_params(2,j) = sat_params%get_real(trim(tmpchar),error = io_err)
-                if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-              elseif (trim(tmpchar) == "C") then
-                photodata%particle_sat_params(3,j) = sat_params%get_real(trim(tmpchar),error = io_err)
-                if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-              else
-                err = "Particle "//trim(photodata%particle_names(j))//" saturation parameters "//&
-                      "can only be 'A', 'B', or 'C'"
-                return
-              endif                
-              key_value_pair => key_value_pair%next
-              i = i + 1
-            enddo
-            if (i /= 3) then
-              err = "IOError: Missing or two many saturation parameters for "//trim(photodata%particle_names(j))
-              return 
+            tmpchar = element%get_string("saturation-type",default="arrhenius",error = io_err)
+            if (tmpchar == 'arrhenius') then
+              photodata%particle_sat_type(j) = 1
+              sat_params => element%get_dictionary('saturation-parameters',.true.,error = io_err) 
+              if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+              i = 0
+              key_value_pair => sat_params%first
+              do while (associated(key_value_pair))
+                tmpchar = trim(key_value_pair%key)
+                
+                if (trim(tmpchar) == "A") then
+                  photodata%particle_sat_params(1,j) = sat_params%get_real(trim(tmpchar),error = io_err)
+                  if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+                elseif (trim(tmpchar) == "B") then
+                  photodata%particle_sat_params(2,j) = sat_params%get_real(trim(tmpchar),error = io_err)
+                  if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+                elseif (trim(tmpchar) == "C") then
+                  photodata%particle_sat_params(3,j) = sat_params%get_real(trim(tmpchar),error = io_err)
+                  if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+                else
+                  err = "Particle "//trim(photodata%particle_names(j))//" saturation parameters "//&
+                        "can only be 'A', 'B', or 'C'"
+                  return
+                endif                
+                key_value_pair => key_value_pair%next
+                i = i + 1
+              enddo
+              if (i /= 3) then
+                err = "IOError: Missing or two many saturation parameters for "//trim(photodata%particle_names(j))
+                return 
+              endif
+            elseif (tmpchar == 'H2SO4') then
+              photodata%particle_sat_type(j) = 2
+              ! make a H2SO4 interpolator
+              call H2SO4_interpolator(photovars, photodata%H2SO4_sat, err)
+              if (len_trim(err) /= 0) return
+            else
+              err = "Saturation type '"//trim(tmpchar)//"' is not a valid type."
+              return
             endif
             
             ! gas phase
@@ -614,6 +627,45 @@ contains
     call get_henry(photodata, photovars, err)
     if (len(trim(err)) > 0) return
     !!! end henrys law !!!
+    
+  end subroutine
+  
+  subroutine H2SO4_interpolator(photovars, s2, err)
+    use linear_interpolation_module, only: nearest_interp_2d
+    type(PhotochemVars), intent(in) :: photovars
+    type(nearest_interp_2d), intent(out) :: s2
+    character(len=err_len), intent(out) :: err
+    
+    real(real_kind), allocatable :: H2O(:)
+    real(real_kind), allocatable :: Temp(:)
+    real(real_kind), allocatable :: H2SO4(:,:)
+    integer :: io
+    integer :: nT, nH2O
+    character(len=:), allocatable :: filename
+    
+    err = ""
+    
+    filename = trim(photovars%data_dir)//"/misc/H2SO4.dat"
+    open(unit=1,file=filename, status='old',iostat=io,form='unformatted')
+    if (io /= 0) then
+      err = "Could not open "//trim(filename)
+      return
+    endif
+    read(1) nT
+    read(1) nH2O
+    allocate(Temp(nT))
+    allocate(H2O(nH2O))
+    allocate(H2SO4(nT,nH2O))
+    read(1) Temp
+    read(1) H2O
+    read(1) H2SO4
+    close(1)
+    
+    call s2%initialize(Temp, H2O, H2SO4, io)
+    if (io /= 0) then
+      err = "Failed to initialize H2SO4 interpolator."
+      return
+    endif
     
   end subroutine
   
@@ -1732,6 +1784,11 @@ contains
     if (ind(1) == 0 .and. photodata%fix_water_in_trop) then
       err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
       return
+    elseif (ind(1) == 0 .and. photodata%there_are_particles) then
+      if (any(photodata%particle_sat_type == 2)) then
+        err = 'IOError: H2O must be a species if H2SO4 condensation is on.'
+        return
+      endif
     endif
     if (photodata%fix_water_in_trop) then  
       photovars%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)

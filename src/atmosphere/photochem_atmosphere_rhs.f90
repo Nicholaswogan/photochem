@@ -1023,6 +1023,7 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
     integer :: i, j, k
+    real(real_kind) :: P_H2SO4
   
     err = ''
   
@@ -1081,12 +1082,17 @@ contains
       do j = 1,var%nz
         do i = 1,dat%np
           if (dat%particle_formation_method(i) == 1) then
-            ! problem is that H2SO4 makes aerosols with water.
-            ! so pure condensation won't work I think.
-            wrk%gas_sat_den(i,j) = saturation_density(var%temperature(j), &
-                                                 dat%particle_sat_params(1,i), &
-                                                 dat%particle_sat_params(2,i), &
-                                                 dat%particle_sat_params(3,i))
+            if (dat%particle_sat_type(i) == 1) then ! arrhenius
+              wrk%gas_sat_den(i,j) = saturation_density(var%temperature(j), &
+                                                   dat%particle_sat_params(1,i), &
+                                                   dat%particle_sat_params(2,i), &
+                                                   dat%particle_sat_params(3,i))
+            elseif (dat%particle_sat_type(i) == 2) then ! interpolate to H2SO4 data
+              call dat%H2SO4_sat%evaluate(var%temperature(j), &
+                                          log10(wrk%usol(dat%LH2O,j)*wrk%pressure(j)/1.d6),P_H2SO4)
+              P_H2SO4 = 10.d0**(P_H2SO4)
+              wrk%gas_sat_den(i,j) = (P_H2SO4*1.d6)/(k_boltz*var%temperature(j))
+            endif
           endif
           wrk%molecules_per_particle(i,j) = (4.d0/3.d0)*pi*var%particle_radius(i,j)**3.d0* &
                                             dat%particle_density(i)*(1/dat%species_mass(i))*N_avo

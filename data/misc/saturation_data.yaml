@@ -109,3 +109,12 @@
   composition: {H: 2, O: 1}
   optical-properties: palmer1975
   optical-type: mie
+  
+- name: S8aer
+  formation: saturation
+  density: 1
+  gas-phase: S8
+  saturation-parameters: {A: 1.41867364e+01, B: -9.14707746e+03, C: -8.84852980e+04}
+  composition: {S: 8}
+  optical-properties: palmer1975
+  optical-type: mie
