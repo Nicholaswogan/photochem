@@ -14,7 +14,7 @@ contains
     integer(c_int) :: length
     integer, parameter :: max_len = 10000
     integer :: j  
-    j = 0
+    j = 1
     do
       if (stringc(j)==c_null_char) then
         length = j - 1
