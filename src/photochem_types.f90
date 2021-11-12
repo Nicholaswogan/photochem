@@ -3,7 +3,7 @@ module photochem_types ! make a giant IO object
   use, intrinsic :: iso_c_binding, only: c_double, c_int, c_long, c_ptr, c_null_ptr
   use photochem_const, only: real_kind, str_len, s_str_len, m_str_len
   
-  use linear_interpolation_module, only: nearest_interp_2d
+  use linear_interpolation_module, only: linear_interp_2d
   use fsundials_nvector_mod, only: N_Vector
   use fsundials_matrix_mod, only: SUNMatrix
   use fsundials_linearsolver_mod, only: SUNLinearSolver
@@ -55,7 +55,7 @@ module photochem_types ! make a giant IO object
     character(len=s_str_len), allocatable :: particle_names(:) ! IN PHOTOMECHANISM
     integer, allocatable :: particle_formation_method(:) ! np
     real(real_kind), allocatable :: particle_density(:) ! np
-    type(nearest_interp_2d) :: H2SO4_sat
+    type(linear_interp_2d) :: H2SO4_sat
     integer, allocatable :: particle_sat_type(:)
     real(real_kind), allocatable :: particle_sat_params(:,:) ! 3, np
     character(len=s_str_len), allocatable :: particle_gas_phase(:) ! IN PHOTOMECHANISM

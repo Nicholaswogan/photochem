@@ -631,9 +631,9 @@ contains
   end subroutine
   
   subroutine H2SO4_interpolator(photovars, s2, err)
-    use linear_interpolation_module, only: nearest_interp_2d
+    use linear_interpolation_module, only: linear_interp_2d
     type(PhotochemVars), intent(in) :: photovars
-    type(nearest_interp_2d), intent(out) :: s2
+    type(linear_interp_2d), intent(out) :: s2
     character(len=err_len), intent(out) :: err
     
     real(real_kind), allocatable :: H2O(:)

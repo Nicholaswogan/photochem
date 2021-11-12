@@ -11,11 +11,11 @@ program main
   real(real_kind) :: tn
   
   err = ""
-  call pc%init("../Photochem/data", &
-               "../Photochem/data/reaction_mechanisms/apl_new.yaml", &
-               "../templates/Venus/settings_Venus_apl.yaml", &
+  call pc%init("../data", &
+               "../data/reaction_mechanisms/zahnle_earth.yaml", &
+               "../templates/ModernEarth/settings_ModernEarth.yaml", &
                "../templates/ModernEarth/Sun_now.txt", &
-               "../templates/Venus/atmosphere.txt", &
+               "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
                err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
@@ -28,10 +28,10 @@ program main
     stop 1
   endif
   
-  ! call pc%out2atmosphere_txt("../templates/ModernEarth/atmosphere_ModernEarth.txt",.true.,.true.,err)
-  ! if (len(trim(err)) > 0) then
-  !   print*,trim(err)
-  !   stop 1
-  ! endif
+  call pc%out2atmosphere_txt("../atmosphere_ModernEarth.txt",.true.,.true.,err)
+  if (len(trim(err)) > 0) then
+    print*,trim(err)
+    stop 1
+  endif
 
 end program
