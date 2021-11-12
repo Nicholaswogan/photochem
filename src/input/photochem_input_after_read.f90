@@ -35,7 +35,7 @@ contains
   end subroutine
   
   subroutine interp2atmosfile(dat, var, err)
-    use interp_tools, only: interp
+    use futils, only: interp
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     character(len=err_len), intent(out) :: err
@@ -78,7 +78,7 @@ contains
   end subroutine
   
   subroutine interp2xsdata(dat, var, err)
-    use interp_tools, only: interp
+    use futils, only: interp
     use photochem_const, only: smaller_real
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var

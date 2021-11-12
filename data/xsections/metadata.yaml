@@ -7,7 +7,7 @@ overall-notes:
 
 H2O:
   reactions:
-    H2O + hv => OH + H:
+    H2O + hv = OH + H:
       citations:
       - nm-range: 92.5 - 251.6
         citation: Kevin Zahnle
@@ -21,7 +21,7 @@ H2O:
 
 CH2CO:
   reactions:
-    CH2CO + hv => 1CH2 + CO:
+    CH2CO + hv = 1CH2 + CO:
       citations:
       - nm-range: 92.5 - 450.0
         citation: Kevin Zahnle
@@ -35,7 +35,7 @@ CH2CO:
 
 H2S:
   reactions:
-    H2S + hv => HS + H:
+    H2S + hv = HS + H:
       citations:
       - nm-range: 176.2 - 450.0
         citation: Kevin Zahnle
@@ -49,7 +49,7 @@ H2S:
 
 C4H2:
   reactions:
-    C4H2 + hv => C4H + H:
+    C4H2 + hv = C4H + H:
       citations:
       - nm-range: 92.5 - 251.6
         citation: Kevin Zahnle
@@ -63,7 +63,7 @@ C4H2:
 
 S2:
   reactions:
-    S2 + hv => S + S:
+    S2 + hv = S + S:
       citations:
       - nm-range: 176.2 - 450.0
         citation: Kevin Zahnle
@@ -77,7 +77,7 @@ S2:
 
 C2H6:
   reactions:
-    C2H6 + hv => C2H5 + H:
+    C2H6 + hv = C2H5 + H:
       citations:
       - nm-range: 92.5 - 172.5
         citation: Kevin Zahnle
@@ -91,7 +91,7 @@ C2H6:
 
 S3:
   reactions:
-    S3 + hv => S2 + S:
+    S3 + hv = S2 + S:
       citations:
       - nm-range: 176.2 - 850.0
         citation: Kevin Zahnle
@@ -105,7 +105,7 @@ S3:
 
 S4:
   reactions:
-    S4 + hv => S3 + S:
+    S4 + hv = S3 + S:
       citations:
       - nm-range: 176.2 - 850.0
         citation: Kevin Zahnle
@@ -119,7 +119,7 @@ S4:
 
 HO2:
   reactions:
-    HO2 + hv => OH + O:
+    HO2 + hv = OH + O:
       citations:
       - nm-range: 176.2 - 251.6
         citation: Kevin Zahnle
@@ -133,7 +133,7 @@ HO2:
 
 HNO3:
   reactions:
-    HNO3 + hv => OH + NO2:
+    HNO3 + hv = OH + NO2:
       citations:
       - nm-range: 176.2 - 450.0
         citation: Kevin Zahnle
@@ -147,7 +147,7 @@ HNO3:
 
 NO:
   reactions:
-    NO + hv => N + O:
+    NO + hv = N + O:
       citations:
       - nm-range: 0.1 - 191.0
         citation: Huebner and Mukherjee (2015)
@@ -161,7 +161,7 @@ NO:
 
 HCN:
   reactions:
-    HCN + hv => H + CN:
+    HCN + hv = H + CN:
       citations:
       - nm-range: 92.5 - 172.5
         citation: Kevin Zahnle
@@ -175,7 +175,7 @@ HCN:
 
 N2H4:
   reactions:
-    N2H4 + hv => N2H3 + H:
+    N2H4 + hv = N2H3 + H:
       citations:
       - nm-range: 92.5 - 251.6
         citation: Kevin Zahnle
@@ -189,7 +189,7 @@ N2H4:
 
 SO3:
   reactions:
-    SO3 + hv => SO2 + O:
+    SO3 + hv = SO2 + O:
       citations:
       - nm-range: 176.2 - 450.0
         citation: Kevin Zahnle
@@ -203,12 +203,12 @@ SO3:
 
 O2:
   reactions:
-    O2 + hv => O + O:
+    O2 + hv = O + O:
       citations:
       - nm-range: 0.1 - 242.37
         citation: Huebner and Mukherjee (2015)
         DOI: 10.1016/j.pss.2014.11.022
-    O2 + hv => O + O1D:
+    O2 + hv = O + O1D:
       citations:
       - nm-range: 0.1 - 242.37
         citation: Huebner and Mukherjee (2015)
@@ -222,12 +222,12 @@ O2:
 
 SO2:
   reactions:
-    SO2 + hv => SO + O:
+    SO2 + hv = SO + O:
       citations:
       - nm-range: 0.06 - 239.9
         citation: Huebner and Mukherjee (2015)
         DOI: 10.1016/j.pss.2014.11.022
-    SO2 + hv => S + O2:
+    SO2 + hv = S + O2:
       citations:
       - nm-range: 0.06 - 239.9
         citation: Huebner and Mukherjee (2015)
@@ -241,7 +241,7 @@ SO2:
 
 CO:
   reactions:
-    CO + hv => C + O:
+    CO + hv = C + O:
       citations:
       - nm-range: 92.5 - 172.5
         citation: Kevin Zahnle
@@ -255,17 +255,17 @@ CO:
 
 CH3OH:
   reactions:
-    CH3OH + hv => CH3 + OH:
+    CH3OH + hv = CH3 + OH:
       citations:
       - nm-range: 92.5 - 251.6
         citation: Kevin Zahnle
         DOI:
-    CH3OH + hv => H2CO + H2:
+    CH3OH + hv = H2CO + H2:
       citations:
       - nm-range: 92.5 - 251.6
         citation: Kevin Zahnle
         DOI:
-    CH3OH + hv => CH3O + H:
+    CH3OH + hv = CH3O + H:
       citations:
       - nm-range: 92.5 - 251.6
         citation: Kevin Zahnle
@@ -279,12 +279,12 @@ CH3OH:
 
 O3:
   reactions:
-    O3 + hv => O1D + O2:
+    O3 + hv = O1D + O2:
       citations:
       - nm-range: 0.06 - 900.0
         citation: Huebner and Mukherjee (2015)
         DOI: 10.1016/j.pss.2014.11.022
-    O3 + hv => O + O2:
+    O3 + hv = O + O2:
       citations:
       - nm-range: 0.06 - 900.0
         citation: Huebner and Mukherjee (2015)
@@ -298,17 +298,17 @@ O3:
 
 CH3CHO:
   reactions:
-    CH3CHO + hv => CH3CO + H:
+    CH3CHO + hv = CH3CO + H:
       citations:
       - nm-range: 92.5 - 850.0
         citation: Kevin Zahnle
         DOI:
-    CH3CHO + hv => CH3 + HCO:
+    CH3CHO + hv = CH3 + HCO:
       citations:
       - nm-range: 92.5 - 850.0
         citation: Kevin Zahnle
         DOI:
-    CH3CHO + hv => CH4 + CO:
+    CH3CHO + hv = CH4 + CO:
       citations:
       - nm-range: 92.5 - 850.0
         citation: Kevin Zahnle
@@ -322,7 +322,7 @@ CH3CHO:
 
 HOCl:
   reactions:
-    HOCl + hv => OH + Cl:
+    HOCl + hv = OH + Cl:
       citations:
       - nm-range: 176.2 - 450.0
         citation: Kevin Zahnle
@@ -336,7 +336,7 @@ HOCl:
 
 OCS:
   reactions:
-    OCS + hv => CO + S:
+    OCS + hv = CO + S:
       citations:
       - nm-range: 92.5 - 450.0
         citation: Kevin Zahnle
@@ -350,7 +350,7 @@ OCS:
 
 S8:
   reactions:
-    S8 + hv => S8L:
+    S8 + hv = S8L:
       citations:
       - nm-range: 176.2 - 450.0
         citation: Kevin Zahnle
@@ -364,17 +364,17 @@ S8:
 
 CH4:
   reactions:
-    CH4 + hv => 1CH2 + H2:
+    CH4 + hv = 1CH2 + H2:
       citations:
       - nm-range: 92.5 - 172.5
         citation: Kevin Zahnle
         DOI:
-    CH4 + hv => CH3 + H:
+    CH4 + hv = CH3 + H:
       citations:
       - nm-range: 92.5 - 172.5
         citation: Kevin Zahnle
         DOI:
-    CH4 + hv => CH + H2 + H:
+    CH4 + hv = CH + H2 + H:
       citations:
       - nm-range: 92.5 - 172.5
         citation: Kevin Zahnle
@@ -388,7 +388,7 @@ CH4:
 
 C2H4:
   reactions:
-    C2H4 + hv => C2H3 + H:
+    C2H4 + hv = C2H3 + H:
       citations:
       - nm-range: 92.5 - 251.6
         citation: Kevin Zahnle
@@ -402,7 +402,7 @@ C2H4:
 
 SO:
   reactions:
-    SO + hv => S + O:
+    SO + hv = S + O:
       citations:
       - nm-range: 176.2 - 450.0
         citation: Kevin Zahnle
@@ -416,7 +416,7 @@ SO:
 
 H2O2:
   reactions:
-    H2O2 + hv => OH + OH:
+    H2O2 + hv = OH + OH:
       citations:
       - nm-range: 176.2 - 450.0
         citation: Kevin Zahnle
@@ -430,7 +430,7 @@ H2O2:
 
 N2O:
   reactions:
-    N2O + hv => N2 + O1D:
+    N2O + hv = N2 + O1D:
       citations:
       - nm-range: 176.2 - 251.6
         citation: Kevin Zahnle
@@ -444,17 +444,17 @@ N2O:
 
 H2CO:
   reactions:
-    H2CO + hv => CO + H2:
+    H2CO + hv = CO + H2:
       citations:
       - nm-range: 0.1 - 370.0
         citation: Huebner and Mukherjee (2015)
         DOI: 10.1016/j.pss.2014.11.022
-    H2CO + hv => HCO + H:
+    H2CO + hv = HCO + H:
       citations:
       - nm-range: 0.1 - 370.0
         citation: Huebner and Mukherjee (2015)
         DOI: 10.1016/j.pss.2014.11.022
-    H2CO + hv => CO + H + H:
+    H2CO + hv = CO + H + H:
       citations:
       - nm-range: 0.1 - 370.0
         citation: Huebner and Mukherjee (2015)
@@ -468,7 +468,7 @@ H2CO:
 
 C2H2:
   reactions:
-    C2H2 + hv => C2H + H:
+    C2H2 + hv = C2H + H:
       citations:
       - nm-range: 92.5 - 251.6
         citation: Kevin Zahnle
@@ -482,7 +482,7 @@ C2H2:
 
 HCl:
   reactions:
-    HCl + hv => H + Cl:
+    HCl + hv = H + Cl:
       citations:
       - nm-range: 176.2 - 251.6
         citation: Kevin Zahnle
@@ -496,7 +496,7 @@ HCl:
 
 HS:
   reactions:
-    HS + hv => H + S:
+    HS + hv = H + S:
       citations:
       - nm-range: 176.2 - 450.0
         citation: Kevin Zahnle
@@ -510,7 +510,7 @@ HS:
 
 NO2:
   reactions:
-    NO2 + hv => NO + O:
+    NO2 + hv = NO + O:
       citations:
       - nm-range: 176.2 - 450.0
         citation: Kevin Zahnle
@@ -524,7 +524,7 @@ NO2:
 
 CS2:
   reactions:
-    CS2 + hv => CS + S:
+    CS2 + hv = CS + S:
       citations:
       - nm-range: 176.2 - 850.0
         citation: Kevin Zahnle
@@ -538,7 +538,7 @@ CS2:
 
 N2:
   reactions:
-    N2 + hv => N + N2D:
+    N2 + hv = N + N2D:
       citations:
       - nm-range: 92.5 - 172.5
         citation: Kevin Zahnle
@@ -552,12 +552,12 @@ N2:
 
 NH3:
   reactions:
-    NH3 + hv => NH2 + H:
+    NH3 + hv = NH2 + H:
       citations:
       - nm-range: 92.5 - 251.6
         citation: Kevin Zahnle
         DOI:
-    NH3 + hv => NH + H2:
+    NH3 + hv = NH + H2:
       citations:
       - nm-range: 92.5 - 251.6
         citation: Kevin Zahnle
@@ -571,7 +571,7 @@ NH3:
 
 CH3CN:
   reactions:
-    CH3CN + hv => CH3 + CN:
+    CH3CN + hv = CH3 + CN:
       citations:
       - nm-range: 92.5 - 251.6
         citation: Kevin Zahnle
@@ -585,7 +585,7 @@ CH3CN:
 
 S8L:
   reactions:
-    S8L + hv => S4 + S4:
+    S8L + hv = S4 + S4:
       citations:
       - nm-range: 176.2 - 850.0
         citation: Kevin Zahnle
@@ -599,7 +599,7 @@ S8L:
 
 Cl2:
   reactions:
-    Cl2 + hv => Cl + Cl:
+    Cl2 + hv = Cl + Cl:
       citations:
       - nm-range: 176.2 - 450.0
         citation: Kevin Zahnle
@@ -613,7 +613,7 @@ Cl2:
 
 CH2N2:
   reactions:
-    CH2N2 + hv => 1CH2 + N2:
+    CH2N2 + hv = 1CH2 + N2:
       citations:
       - nm-range: 176.2 - 850.0
         citation: Kevin Zahnle
@@ -627,7 +627,7 @@ CH2N2:
 
 HSO:
   reactions:
-    HSO + hv => HS + O:
+    HSO + hv = HS + O:
       citations:
       - nm-range: 176.2 - 251.6
         citation: Kevin Zahnle
@@ -641,12 +641,12 @@ HSO:
 
 CO2:
   reactions:
-    CO2 + hv => CO + O:
+    CO2 + hv = CO + O:
       citations:
       - nm-range: 92.5 - 251.6
         citation: Kevin Zahnle
         DOI:
-    CO2 + hv => CO + O1D:
+    CO2 + hv = CO + O1D:
       citations:
       - nm-range: 92.5 - 251.6
         citation: Kevin Zahnle
@@ -660,12 +660,12 @@ CO2:
       
 C4H4:
   reactions:
-    C4H4 + hv => C2H2 + C2H2:
+    C4H4 + hv = C2H2 + C2H2:
       citations:
       - nm-range: 160.00 - 240.00
         citation: Gladstone et al. (1996)
         DOI: 10.1006/icar.1996.0001
-    C4H4 + hv => C4H2 + H2:
+    C4H4 + hv = C4H2 + H2:
       citations:
       - nm-range: 160.00 - 240.00
         citation: Gladstone et al. (1996)
@@ -679,7 +679,7 @@ C4H4:
 
 HCCCN:
   reactions:
-    HCCCN + hv => C2H + CN:
+    HCCCN + hv = C2H + CN:
       citations:
       - nm-range: 0.10 - 200.00
         citation: Huebner and Mukherjee (2015)
@@ -693,12 +693,12 @@ HCCCN:
     
 ClO:
   reactions:
-    ClO + hv => Cl + O1D:
+    ClO + hv = Cl + O1D:
       citations:
       - nm-range: 217.63 - 318.56
         citation: Schmidt et al. (1998)
         DOI: 10.1016/S0009-2614(97)01302-X
-    ClO + hv => Cl + O:
+    ClO + hv = Cl + O:
       citations:
       - nm-range: 217.63 - 318.56
         citation: Schmidt et al. (1998)
@@ -712,7 +712,7 @@ ClO:
     
 H2SO4:
   reactions:
-    H2SO4 + hv => SO3 + H2O:
+    H2SO4 + hv = SO3 + H2O:
       citations:
       - nm-range: 118.13 - 181.29
         citation: Lane and Kjaergaard (2008)
@@ -726,12 +726,12 @@ H2SO4:
 
 NO3:
   reactions:
-    NO3 + hv => NO2 + O:
+    NO3 + hv = NO2 + O:
       citations:
       - nm-range: 0.06 - 9000.00
         citation: Huebner and Mukherjee (2015)
         DOI: 10.1016/j.pss.2014.11.022
-    NO3 + hv => NO + O2:
+    NO3 + hv = NO + O2:
       citations:
       - nm-range: 0.06 - 9000.00
         citation: Huebner and Mukherjee (2015)
@@ -745,12 +745,12 @@ NO3:
   
 OClO:
   reactions:
-    OClO + hv => ClO + O:
+    OClO + hv = ClO + O:
       citations:
       - nm-range: 0.10 - 496.00
         citation: Huebner and Mukherjee (2015)
         DOI: 10.1016/j.pss.2014.11.022
-    OClO + hv => ClO + O1D:
+    OClO + hv = ClO + O1D:
       citations:
       - nm-range: 0.10 - 496.00
         citation: Huebner and Mukherjee (2015)
@@ -764,12 +764,12 @@ OClO:
   
 HO2NO2:
   reactions:
-    HO2NO2 + hv => HO2 + NO2:
+    HO2NO2 + hv = HO2 + NO2:
       citations:
       - nm-range: 0.10 - 1340.00
         citation: Huebner and Mukherjee (2015)
         DOI: 10.1016/j.pss.2014.11.022
-    HO2NO2 + hv => OH + NO3:
+    HO2NO2 + hv = OH + NO3:
       citations:
       - nm-range: 0.10 - 1340.00
         citation: Huebner and Mukherjee (2015)
@@ -783,7 +783,7 @@ HO2NO2:
   
 SO2Cl2:
   reactions:
-    SO2Cl2 + hv => ClSO2 + Cl:
+    SO2Cl2 + hv = ClSO2 + Cl:
       citations:
       - nm-range: 190.00 - 300.00
         citation: Uthman (1978)
@@ -797,7 +797,7 @@ SO2Cl2:
   
 COCl2:
   reactions:
-    COCl2 + hv => ClCO + Cl:
+    COCl2 + hv = ClCO + Cl:
       citations:
       - nm-range: 0.0610 - 369.0000
         citation: Huebner and Mukherjee (2015)
@@ -811,7 +811,7 @@ COCl2:
   
 ClNO:
   reactions:
-    ClNO + hv => Cl + NO:
+    ClNO + hv = Cl + NO:
       citations:
       - nm-range: 0.1000 - 774.8000
         citation: Huebner and Mukherjee (2015)
@@ -825,7 +825,7 @@ ClNO:
   
 SNO:
   reactions:
-    SNO + hv => S + NO:
+    SNO + hv = S + NO:
       citations:
       - nm-range: 176.2 - 450.0
         citation: null

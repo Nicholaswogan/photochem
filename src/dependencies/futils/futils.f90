@@ -1,5 +1,5 @@
 
-module interp_tools
+module futils
   implicit none
   
   integer, parameter, private :: real_kind = kind(1.d0)
@@ -57,5 +57,33 @@ contains
     enddo
     
   end subroutine
+  
+  pure recursive function replaceStr(string,search,substitute) result(modifiedString)
+    character(len=*), intent(in)  :: string, search, substitute
+    character(len=:), allocatable :: modifiedString
+    integer                       :: i, stringLen, searchLen
+    stringLen = len(string)
+    searchLen = len(search)
+    if (stringLen==0 .or. searchLen==0) then
+      modifiedString = ""
+      return
+    elseif (stringLen<searchLen) then
+      modifiedString = string
+      return
+    end if
+    i = 1
+    do
+      if (string(i:i+searchLen-1)==search) then
+        modifiedString = string(1:i-1) // substitute // replaceStr(string(i+searchLen:stringLen),search,substitute)
+        exit
+      end if
+      if (i+searchLen>stringLen) then
+        modifiedString = string
+        exit
+      end if
+      i = i + 1
+      cycle
+    end do
+  end function replaceStr
   
 end module

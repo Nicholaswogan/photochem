@@ -3,7 +3,7 @@
 add_subdirectory(fortran-yaml-c EXCLUDE_FROM_ALL)
 
 # binning
-add_subdirectory(binning EXCLUDE_FROM_ALL)
+add_subdirectory(futils EXCLUDE_FROM_ALL)
 
 # CVODE
 set(BUILD_SHARED_LIBS OFF)

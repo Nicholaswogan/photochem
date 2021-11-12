@@ -2228,7 +2228,7 @@ contains
   ! also returns the radii of particles for that file.
   subroutine read_mie_data_file(filename, nw, wavl, &
                                  nrad_file, radii_file, w0_file, qext_file, g_file, err)
-    use interp_tools, only: addpnt, inter2
+    use futils, only: addpnt, inter2
     
     character(len=*), intent(in) :: filename
     integer, intent(in) :: nw
@@ -2443,7 +2443,7 @@ contains
   end subroutine
   
   subroutine get_photolysis_xs(photodata, photovars, err)
-    use interp_tools, only: inter2, addpnt
+    use futils, only: inter2, addpnt, replaceStr
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(in) :: photovars
     character(len=err_len), intent(out) :: err
@@ -2469,11 +2469,8 @@ contains
       j = photodata%photonums(i)
       call reaction_string(photodata,j,reaction)
       filename = reaction
-      do k = 1,len(filename)-1
-        if (filename(k:k) == ' ') then
-          filename(k:k) = '_'
-        endif
-      enddo
+      filename = replaceStr(filename, ' ', '_')
+      filename = replaceStr(filename, '>', '')
       filename = filename//'.txt'
 
       k = photodata%reactants_sp_inds(1,j)
@@ -2728,7 +2725,7 @@ contains
   end subroutine
   
   subroutine read_stellar_flux(star_file, nw, wavl, photon_flux, err)
-    use interp_tools, only: inter2, addpnt
+    use futils, only: inter2, addpnt
     use photochem_const, only: c_light, plank
     
     character(len=*), intent(in) :: star_file

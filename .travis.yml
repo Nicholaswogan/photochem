@@ -15,7 +15,7 @@ before_install:
 script:
   - cmake .. -DTRAVIS=ON
   - make
-  - ctest
+  - ./testrun
   - valgrind --error-exitcode=1 --leak-check=full ./memtest
 
 after_success:

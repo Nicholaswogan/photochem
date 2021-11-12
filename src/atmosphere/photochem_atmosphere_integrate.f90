@@ -153,8 +153,8 @@ contains
     
     ! solution vector, neq is set in the ode_mod module
     real(c_double) :: yvec(self%var%neqs)
-    integer(c_long) :: neqs_long
-    integer(c_long) :: mu, ml
+    integer(c_int64_t) :: neqs_long
+    integer(c_int64_t) :: mu, ml
     integer(c_long) :: mxsteps_
     type(SUNMatrix), pointer :: sunmat
     type(SUNLinearSolver), pointer :: sunlin
@@ -382,8 +382,8 @@ contains
     
     real(c_double) :: tstart
     integer(c_int) :: ierr       ! error flag from C functions
-    integer(c_long) :: neqs_long
-    integer(c_long) :: mu, ml
+    integer(c_int64_t) :: neqs_long
+    integer(c_int64_t) :: mu, ml
     integer(c_long) :: mxsteps_
     type(c_ptr)    :: user_data
     
