@@ -228,6 +228,15 @@ boundary-conditions:
     upper-boundary:
       veff: 0.0
       type: effusion velocity
+  - name: OCS
+    lower-boundary:
+      flux: 5.0e7
+      vdep: 3.0e-3
+      distributed-height: 10.0
+      type: deposition velocity + distributed flux
+    upper-boundary:
+      veff: 0.0
+      type: effusion velocity
   - name: HSO
     lower-boundary:
       vdep: 1.0
