@@ -864,20 +864,22 @@ contains
           call sort(tmp_arr2(1:nr))
           
           m = all(tmp_arr1(1:nr) == tmp_arr2(1:nr))
+          if (m) then
           
-          tmp_arr1(1:np) = photodata%products_sp_inds(1:np,ii)
-          tmp_arr2(1:np) = photodata%products_sp_inds(1:np,i)
+            tmp_arr1(1:np) = photodata%products_sp_inds(1:np,ii)
+            tmp_arr2(1:np) = photodata%products_sp_inds(1:np,i)
+            
+            call sort(tmp_arr1(1:np))
+            call sort(tmp_arr2(1:np))
           
-          call sort(tmp_arr1(1:np))
-          call sort(tmp_arr2(1:np))
+            l = all(tmp_arr1(1:np) == tmp_arr2(1:np))
           
-          l = all(tmp_arr1(1:np) == tmp_arr2(1:np))
-          
-          if (m .and. l) then
-            err = "IOError: This reaction is a duplicate: "
-            call reaction_string(photodata,i,rxstring)
-            err(len_trim(err)+2:) = rxstring
-            return
+            if (l) then
+              err = "IOError: This reaction is a duplicate: "
+              call reaction_string(photodata,i,rxstring)
+              err(len_trim(err)+2:) = rxstring
+              return
+            endif
           endif
         endif
       enddo
@@ -2806,8 +2808,9 @@ contains
     character(len=s_str_len) :: arr11(1000)
     character(len=s_str_len),allocatable, dimension(:) :: labels
     integer :: ind(1)
-    real(real_kind), allocatable :: temp(:)
+    real(real_kind), allocatable :: temp(:,:)
     integer :: io, i, n, nn, iii, k, j, ii
+    logical :: missing
     
     err = ''
     open(4, file=trim(atmosphere_txt),status='old',iostat=io)
@@ -2856,31 +2859,32 @@ contains
       return
     endif
     
+    ! allocate memory
     allocate(labels(n))
-    allocate(temp(n))
+    allocate(temp(n,photodata%nzf))
     rewind(4)
     read(4,'(A)') line
     read(line,*) (labels(i),i=1,n)
     
+    ! First read in all the data into big array
+    do i = 1,photodata%nzf
+      read(4,*,iostat=io) (temp(ii,i),ii=1,n)
+      if (io /= 0) then
+        err = 'Problem reading in initial atmosphere in '//trim(atmosphere_txt)
+        return
+      endif
+    enddo
+    close(4)
+    
     ! reads in mixing ratios
-    iii = 0
+    missing = .false.
     do i=1,photodata%nq
-      do j=1,n
-        if (labels(j).eq.photodata%species_names(i)) then
-          iii = iii+1
-          do k = 1,photodata%nzf
-            read(4,*,iostat=io) (temp(ii),ii=1,n)
-            if (io /= 0) then
-              err = 'Problem reading in initial atmosphere in '//trim(atmosphere_txt)
-              return
-            endif
-            photodata%usol_file(i,k) = temp(j)
-          enddo
-          rewind(4) ! rewind!
-          read(4,*) ! skip first line
-          exit
-        endif
-      enddo
+      ind = findloc(labels,photodata%species_names(i))
+      if (ind(1) /= 0) then
+        photodata%usol_file(i,:) = temp(ind(1),:)
+      else
+        missing = .true.
+      endif
     enddo
     
     photovars%no_water_profile = .false.
@@ -2891,7 +2895,7 @@ contains
       endif
     endif
     
-    if (iii.ne.photodata%nq) then
+    if (missing) then
       message = 'Warning: Did not find initial data for some species in '// &
                 trim(atmosphere_txt)//' . The program will assume initial mixing ratios of 1.0e-40'
       if (photovars%no_water_profile) then
@@ -2902,92 +2906,48 @@ contains
     endif
     
     if (photodata%there_are_particles) then
-      ! reads in particles radius
-      iii = 1
-      ! particle names
-      do i = 1,photodata%npq
+      missing = .false.
+      do i=1,photodata%npq
         ind = findloc(labels,trim(photodata%species_names(i))//"_r")
         if (ind(1) /= 0) then
-          rewind(4)
-          read(4,*)
-          do k=1,photodata%nzf
-            read(4,*,iostat = io) (temp(ii),ii=1,n)
-            if (io /= 0) then
-              err = 'Problem reading in particle radius in '//trim(atmosphere_txt)
-              return
-            endif
-            photodata%particle_radius_file(i,k) = temp(ind(1))
-          enddo
+          photodata%particle_radius_file(i,:) = temp(ind(1),:)
         else
-          ! did not find the data
-          ! will set to 0.1 micron
-          photodata%particle_radius_file(i,:) = 1.d-5
-          iii = 0
+          missing = .true.
         endif
       enddo
       
-      if (iii == 0) then
+      if (missing) then
         print*,'Warning: Did not find particle radii for some species in '//&
                 trim(atmosphere_txt)//' . The program will assume 0.1 micron raddii.'
       endif
-      
     endif
     
-    rewind(4)
-    read(4,*)
     ! reads in temperature
     ind = findloc(labels,'temp')
     if (ind(1) /= 0) then
-      do k=1,photodata%nzf
-        read(4,*,iostat = io) (temp(ii),ii=1,n)
-        if (io /= 0) then
-          err = 'Problem reading in temperature in '//trim(atmosphere_txt)
-          return
-        endif
-        photodata%T_file(k) = temp(ind(1))
-      enddo
+      photodata%T_file(:) = temp(ind(1),:)
     else
-      err = 'temp was not found in input file '//trim(atmosphere_txt)
+      err = '"temp" was not found in input file '//trim(atmosphere_txt)
       return
     endif
     
-    rewind(4)
-    read(4,*)
     ! reads in alt
     ind = findloc(labels,'alt')
     if (ind(1) /= 0) then
-      do k=1,photodata%nzf
-        read(4,*,iostat = io) (temp(ii),ii=1,n)
-        if (io /= 0) then
-          err = 'Problem reading in altitude in '//trim(atmosphere_txt)
-          return
-        endif
-        photodata%z_file(k) = temp(ind(1))*1.d5 ! conver to cm
-      enddo
+      photodata%z_file(:) = temp(ind(1),:)*1.d5 ! conver to cm
     else
       err = '"alt" was not found in input file '//trim(atmosphere_txt)
       return
     endif
-
-    rewind(4)
-    read(4,*)
-    ! reads in eddy diffusion?
+    
+    ! reads in eddy diffusion
     ind = findloc(labels,'eddy')
     if (ind(1) /= 0) then
-      do k=1,photodata%nzf
-        read(4,*,iostat = io) (temp(ii),ii=1,n)
-        if (io /= 0) then
-          err = 'Problem reading in eddy diffusion in '//trim(atmosphere_txt)
-          return
-        endif
-        photodata%edd_file(k) = temp(ind(1))
-      enddo
+      photodata%edd_file(:) = temp(ind(1),:)
     else
-      err = 'eddy was not found in input file '//trim(atmosphere_txt)
+      err = '"eddy" was not found in input file '//trim(atmosphere_txt)
       return
     endif
-    
-    close(4)
 
   end subroutine
   

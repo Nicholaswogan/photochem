@@ -1,5 +1,10 @@
 
 add_cython_target(_Photochem _Photochem.pyx)
+
+if(WIN32)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DMS_WIN64")
+endif()
+
 add_library(_Photochem MODULE ${_Photochem})
 set_source_files_properties(_Photochem.pyx
                             PROPERTIES OBJECT_DEPENDS Atmosphere.pyx PhotochemData.pyx PhotochemVars.pyx)

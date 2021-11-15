@@ -3,8 +3,31 @@ module futils
   implicit none
   
   integer, parameter, private :: real_kind = kind(1.d0)
-
+  
+  type Timer
+    integer :: cr, cm, c1, c2
+    real(real_kind) :: time
+  contains
+    procedure :: start => Timer_start
+    procedure :: finish => Timer_finish
+  end type
+  
 contains
+  
+  subroutine Timer_start(self)
+    class(Timer), intent(inout) :: self
+    call system_clock(count = self%c1, count_rate = self%cr, count_max = self%cm)
+  end subroutine
+  
+  subroutine Timer_finish(self, msg)
+    class(Timer), intent(inout) :: self
+    character(len=*), optional, intent(in) :: msg
+    call system_clock(count = self%c2)
+    self%time = (self%c2-self%c1)/real(self%cr)
+    if (present(msg)) then
+      print"(A,1x,es10.4)",trim(msg),self%time
+    endif
+  end subroutine
   
   ! binning.f90 is same as binning.f 
   ! adding to module means explicit interface to function

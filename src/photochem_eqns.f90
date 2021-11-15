@@ -4,7 +4,7 @@ module photochem_eqns
   
 contains
   
-  subroutine gravity(radius, mass, nz, z, grav)
+  pure subroutine gravity(radius, mass, nz, z, grav)
     use photochem_const, only: G_grav
     real(real_kind), intent(in) :: radius, mass ! radius in cm, mass in grams
     integer, intent(in) :: nz
@@ -20,7 +20,7 @@ contains
     
   end subroutine
   
-  subroutine vertical_grid(bottom, top, nz, z, dz)
+  pure subroutine vertical_grid(bottom, top, nz, z, dz)
     real(real_kind), intent(in) :: bottom, top
     integer, intent(in) :: nz
     real(real_kind), intent(out) :: z(nz), dz(nz)
@@ -34,7 +34,7 @@ contains
     enddo
   end subroutine
   
-  subroutine gibbs_energy_shomate(coeffs, T, gibbs)
+  pure subroutine gibbs_energy_shomate(coeffs, T, gibbs)
     real(real_kind), intent(in) :: coeffs(7)
     real(real_kind), intent(in) :: T
     real(real_kind), intent(out) :: gibbs
@@ -51,8 +51,7 @@ contains
     gibbs = enthalpy*1000.d0 - T*entropy
   end subroutine
   
-  subroutine round(in,precision)
-    implicit none
+  pure subroutine round(in,precision)
     real(real_kind), intent(inout) :: in
     integer, intent(in) :: precision
     integer :: order
@@ -60,7 +59,7 @@ contains
     in = nint(in * 10.d0**(-precision-order),8)*10.d0**(precision+order)
   end subroutine
   
-  subroutine press_and_den(nz, T, grav, Psurf, dz, &
+  pure subroutine press_and_den(nz, T, grav, Psurf, dz, &
                            mubar, pressure, density)
     use photochem_const, only: k_boltz, N_avo
   
@@ -87,7 +86,7 @@ contains
   
   end subroutine
   
-  subroutine molar_weight(nll, usol_layer, sum_usol_layer, masses, background_mu, mubar_layer)
+  pure subroutine molar_weight(nll, usol_layer, sum_usol_layer, masses, background_mu, mubar_layer)
     implicit none
     integer, intent(in) :: nll
     real(real_kind), intent(in) :: usol_layer(nll)
@@ -107,7 +106,7 @@ contains
   
   end subroutine
   
-  function saturation_pressure(T, A, B, C) result(Psat)
+  pure function saturation_pressure(T, A, B, C) result(Psat)
       real(real_kind), intent(in) :: T ! Kelvin
       real(real_kind), intent(in) :: A, B, C ! parameters
       real(real_kind) :: Psat ! saturation pressure [bar]
@@ -115,7 +114,7 @@ contains
       Psat = exp(A + B/T + C/T**2.d0)
   end function
   
-  function saturation_density(T, A, B, C) result(nsat)
+  pure function saturation_density(T, A, B, C) result(nsat)
       use photochem_const, only: k_boltz
       real(real_kind), intent(in) :: T ! Kelvin
       real(real_kind), intent(in) :: A, B, C ! parameters
@@ -123,7 +122,7 @@ contains
       nsat = saturation_pressure(T, A, B, C)*1.d6/(k_boltz*T)
   end function
   
-  function dynamic_viscosity_air(T) result(eta)
+  pure function dynamic_viscosity_air(T) result(eta)
       real(real_kind), intent(in) :: T
       real(real_kind) :: eta ! dynamic viscosity [dynes s/cm^2]
       ! parameters speceific to Modern Earth air
@@ -137,7 +136,7 @@ contains
       eta = unit_conversion*eta0*(T/T0)**(3.d0/2.d0)*(T0 + S)/(T + S)
   end function
 
-  function fall_velocity(gravity, partical_radius, particle_density, air_density, viscosity) result(wfall)
+  pure function fall_velocity(gravity, partical_radius, particle_density, air_density, viscosity) result(wfall)
     real(real_kind), intent(in) :: gravity ! cm/s^2
     real(real_kind), intent(in) :: partical_radius ! cm
     real(real_kind), intent(in) :: particle_density ! g/cm^3
@@ -151,7 +150,7 @@ contains
             (particle_density - air_density)/(viscosity)
   end function
   
-  function slip_correction_factor(partical_radius, density) result(correct_fac)
+  pure function slip_correction_factor(partical_radius, density) result(correct_fac)
     real(real_kind), intent(in) :: partical_radius ! cm
     real(real_kind), intent(in) :: density ! molecules/cm3
     real(real_kind), parameter :: area_of_molecule = 6.0d-15 ! cm2
@@ -169,7 +168,7 @@ contains
                           (1.257d0 + 0.4d0*exp((-1.1d0*partical_radius)/(mean_free_path)))
   end function
   
-  function binary_diffusion_param(mu_i, mubar, T) result(b)
+  pure function binary_diffusion_param(mu_i, mubar, T) result(b)
     real(real_kind), intent(in) :: mu_i, mubar, T
     real(real_kind) :: b
     ! Banks and Kockarts 1973, Eq 15.29
@@ -178,20 +177,20 @@ contains
     b = 1.52d18*((1.d0/mu_i+1.d0/mubar)**0.5d0)*(T**0.5d0)
   end function
   
-  function arrhenius_rate(A, b, Ea, T) result(k)
+  pure function arrhenius_rate(A, b, Ea, T) result(k)
     real(real_kind), intent(in) :: A, b, Ea, T
     real(real_kind) :: k
     k = A * T**b * exp(-Ea/T)
   end function
 
-  function falloff_rate(kinf, Pr, F) result(k)
+  pure function falloff_rate(kinf, Pr, F) result(k)
     real(real_kind), intent(in) :: kinf, Pr, F
     real(real_kind) :: k
     
     k = kinf * (Pr / (1.d0 + Pr)) * F
   end function
 
-  function Troe_noT2(A, T1, T3, T, Pr) result(F)
+  pure function Troe_noT2(A, T1, T3, T, Pr) result(F)
     real(real_kind), intent(in) :: A, T1, T3, T, Pr
     real(real_kind) :: F
     
@@ -204,7 +203,7 @@ contains
     F = 10.d0**((log10Fcent)/(1.d0 + f1**2.d0))
   end function
 
-  function Troe_withT2(A, T1, T2, T3, T, Pr) result(F)
+  pure function Troe_withT2(A, T1, T2, T3, T, Pr) result(F)
     real(real_kind), intent(in) :: A, T1, T2, T3, T, Pr
     real(real_kind) :: F
     
@@ -229,7 +228,7 @@ contains
     ! output is in dynes/cm2
   end function
   
-  function damp_condensation_rate(A, rh0, rh) result(k)
+  pure function damp_condensation_rate(A, rh0, rh) result(k)
     use photochem_const, only: pi
     real(real_kind), intent(in) :: A
     real(real_kind), intent(in) :: rh0
@@ -241,7 +240,7 @@ contains
     k = A*(2.d0/pi)*atan((rh - 1.d0)/(rh0 - 1.d0))
   end function
   
-  function henrys_law(T, A, B) result(H)
+  pure function henrys_law(T, A, B) result(H)
     real(real_kind), intent(in) :: T
     real(real_kind), intent(in) :: A
     real(real_kind), intent(in) :: B
