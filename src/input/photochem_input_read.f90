@@ -2912,6 +2912,9 @@ contains
         if (ind(1) /= 0) then
           photodata%particle_radius_file(i,:) = temp(ind(1),:)
         else
+          ! did not find the data
+          ! will set to 0.1 micron
+          photodata%particle_radius_file(i,:) = 1.d-5
           missing = .true.
         endif
       enddo

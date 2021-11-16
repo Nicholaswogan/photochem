@@ -39,11 +39,11 @@ contains
     gt = gt/(1.d0+gt)
 
     ! Quadrature Two-Stream coefficients (Table 1)
-    gam1 = dsqrt(3.d0)*(2.d0-w0*(1+gt))/2.d0
-    gam2 = dsqrt(3.d0)*w0*(1.d0-gt)/2.d0
-    gam3 = (1.d0-dsqrt(3.d0)*gt*u0)/2.d0
+    gam1 = sqrt(3.d0)*(2.d0-w0*(1+gt))/2.d0
+    gam2 = sqrt(3.d0)*w0*(1.d0-gt)/2.d0
+    gam3 = (1.d0-sqrt(3.d0)*gt*u0)/2.d0
     gam4 = 1.d0 - gam3
-    u1 = 1.d0/dsqrt(3.d0)
+    u1 = 1.d0/sqrt(3.d0)
 
     ! lambda, and capital Gamma (Equations 21, 22)
     lambda = (gam1**2.d0 - gam2**2.d0)**(0.5d0)
@@ -52,7 +52,7 @@ contains
     
     ! e's (Equation 44)
     do i = 1,nz
-      wrk_real = dexp(-lambda(i)*tau(i))
+      wrk_real = exp(-lambda(i)*tau(i))
       e1(i) = 1.d0 + cap_gam(i)*wrk_real
       e2(i) = 1.d0 - cap_gam(i)*wrk_real
       e3(i) = cap_gam(i) + wrk_real
@@ -73,8 +73,8 @@ contains
       
       facp = w0(i)*Fs_pi*((gam1(i)-1.d0/u0)*gam3(i)+gam4(i)*gam2(i))
       facm = w0(i)*Fs_pi*((gam1(i)+1.d0/u0)*gam4(i)+gam2(i)*gam3(i)) 
-      et0 = dexp(-tauc(i)/u0)
-      etb = et0*dexp(-tau(i)/u0)!*pi
+      et0 = exp(-tauc(i)/u0)
+      etb = et0*exp(-tau(i)/u0)!*pi
       denom = lambda(i)**2.d0 - 1.d0/(u0**2.d0)
 
       direct(i+1) = u0*Fs_pi*etb
@@ -157,7 +157,7 @@ contains
     
     ! surface radiance (Ranjan and Sasselov 2017). photons actually hitting the ground (i think)
     i = nz
-    surface_radiance = (y1(i)*e3(i)+y2(i)*e4(i)+cmb(i))/u1 + dexp(-tauc(i+1)/u0)
+    surface_radiance = (y1(i)*e3(i)+y2(i)*e4(i)+cmb(i))/u1 + exp(-tauc(i+1)/u0)
 
   end subroutine
   

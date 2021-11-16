@@ -44,7 +44,7 @@ cdef class Atmosphere:
     allocate_atmosphere(&self._ptr)
     
     # convert strings to char
-    cdef bytes data_dir_b = pystring2cstring(os.path.dirname(os.path.realpath(__file__))+'/../data')
+    cdef bytes data_dir_b = pystring2cstring(os.path.dirname(os.path.realpath(__file__))+'/data')
     cdef char *data_dir_c = data_dir_b
     cdef bytes mechanism_file_b = pystring2cstring(mechanism_file)
     cdef char *mechanism_file_c = mechanism_file_b
