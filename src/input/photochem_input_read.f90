@@ -93,6 +93,7 @@ contains
     logical :: reverse
     ! all_species causes a small memory leak. Not sure how to free the memory properly
     type(type_list) :: all_species, all_reactions ! will include particles
+    logical, allocatable :: duplicate(:)
 
     err = ''
 
@@ -477,6 +478,7 @@ contains
     photodata%nrT = photodata%nrR + photodata%nrF
     
     ! allocate stuff and loop through reactions again
+    allocate(duplicate(photodata%nrT))
     allocate(photodata%nreactants(photodata%nrT))
     allocate(photodata%nproducts(photodata%nrT))
     allocate(photodata%reactants_sp_inds(photodata%max_num_reactants,photodata%nrT))
@@ -520,6 +522,11 @@ contains
                                  photodata%natoms, photodata%nsp, &
                                  photodata%reactants_sp_inds(:,j), photodata%products_sp_inds(:,j), err)
         if (len_trim(err)>0) return
+        
+        ! check if duplicate
+        duplicate(j) = element%get_logical("duplicate",default=.false.,error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        
         if (reverse) then
           ! reaction has a reverse
           i = photodata%nrF + k
@@ -527,6 +534,8 @@ contains
           photodata%reverse_info(i) = j ! the reaction number of the forward reaction
           photodata%nreactants(i) = photodata%nproducts(j)
           photodata%nproducts(i) = photodata%nreactants(j)
+          
+          duplicate(i) = duplicate(j)
 
           kk = photodata%nreactants(i)
           l = photodata%nreactants(j)
@@ -619,7 +628,7 @@ contains
       photodata%reaction_equations(i) = rxstring
     enddo
     
-    call check_for_duplicates(photodata,err)
+    call check_for_duplicates(photodata, duplicate, err)
     if (len(trim(err)) > 0) return
     !!! end reactions !!!
     
@@ -816,9 +825,10 @@ contains
   end subroutine
   
   
-  subroutine check_for_duplicates(photodata,err)
+  subroutine check_for_duplicates(photodata, duplicate, err)
     use sorting, only: sort
     type(PhotochemData), intent(in) :: photodata
+    logical, intent(in) :: duplicate(:)
     character(len=err_len), intent(out) :: err
     character(len=:), allocatable :: rxstring
     
@@ -839,6 +849,10 @@ contains
     
     do i = 1,photodata%nrT-1
       do ii = i+1,photodata%nrT
+        
+        ! if not designated as duplicates then check if they are
+        ! duplicates
+        if (.not.(duplicate(i) .and. duplicate(ii))) then
         
         ! check the same num of reactants and products
         nr = photodata%nreactants(i)
@@ -881,6 +895,8 @@ contains
               return
             endif
           endif
+        endif
+        
         endif
       enddo
     enddo
