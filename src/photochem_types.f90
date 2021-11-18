@@ -27,6 +27,13 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: xs_temps(:) ! (n_temps)
   end type
   
+  type :: ParticleXsections
+    logical :: ThereIsData
+    real(real_kind), allocatable :: w0(:,:) ! (nz,nw) or (nrad_file, nw)
+    real(real_kind), allocatable :: qext(:,:)
+    real(real_kind), allocatable :: gt(:,:)
+  end type
+  
   type :: PhotochemData
     ! molecules
     integer :: nq
@@ -102,10 +109,10 @@ module photochem_types ! make a giant IO object
     
     ! particle radiative transfer
     integer :: nrad_file
-    real(real_kind), allocatable  :: radii_file(:,:) 
-    real(real_kind), allocatable  :: w0_file(:,:,:)
-    real(real_kind), allocatable  :: qext_file(:,:,:) 
-    real(real_kind), allocatable  :: g_file(:,:,:) 
+    real(real_kind), allocatable  :: radii_file(:,:) ! particle radii in optical data files
+    ! We use array of types for particle xs because we want the option
+    ! to exclude optical properties, but not take up a ton of dead memory.
+    type(ParticleXsections), allocatable :: part_xs_file(:) ! np in length
     
     ! initial conditions  
     integer :: nzf
@@ -194,9 +201,7 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: usol_init(:,:)
     real(real_kind), allocatable :: particle_radius(:,:)
     real(real_kind), allocatable :: xs_x_qy(:,:,:)
-    real(real_kind), allocatable :: w0_particles(:,:,:)
-    real(real_kind), allocatable :: qext_particles(:,:,:)
-    real(real_kind), allocatable :: gt_particles(:,:,:)
+    type(ParticleXsections), allocatable :: particle_xs(:)
     
     ! output
     logical :: at_photo_equilibrium = .false.

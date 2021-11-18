@@ -868,7 +868,6 @@ particles:
   saturation-type: H2SO4
   composition: {H: 2, S: 1, O: 4}
   optical-properties: none
-  optical-type: mie
 - name: C2H2aer
   formation: saturation
   density: 1
@@ -876,7 +875,6 @@ particles:
   saturation-parameters: {A: 10.7, B: -2070.0, C: 13300.0}
   composition: {C: 2, H: 2}
   optical-properties: none
-  optical-type: mie
 - name: C2H4aer
   formation: saturation
   density: 1
@@ -884,7 +882,6 @@ particles:
   saturation-parameters: {A: 8.41, B: -1130.0, C: -47100.0}
   composition: {C: 2, H: 4}
   optical-properties: none
-  optical-type: mie
 - name: C2H6aer
   formation: saturation
   density: 1
@@ -892,7 +889,6 @@ particles:
   saturation-parameters: {A: 10.3, B: -1800.0, C: -14300.0}
   composition: {C: 2, H: 6}
   optical-properties: none
-  optical-type: mie
 - name: HCNaer
   formation: saturation
   density: 1
@@ -900,7 +896,6 @@ particles:
   saturation-parameters: {A: 10.4, B: -2930.0, C: -52600.0}
   composition: {H: 1, C: 1, N: 1}
   optical-properties: none
-  optical-type: mie
 - name: C4H4aer
   formation: saturation
   density: 1
@@ -908,7 +903,6 @@ particles:
   saturation-parameters: {A: -25.1, B: 9000.0, C: -912000.0}
   composition: {C: 4, H: 4}
   optical-properties: none
-  optical-type: mie
 - name: CH3CNaer
   formation: saturation
   density: 1
@@ -916,7 +910,6 @@ particles:
   saturation-parameters: {A: 3.31, B: -484.0, C: -397000.0}
   composition: {C: 2, H: 3, N: 1}
   optical-properties: none
-  optical-type: mie
 - name: HCCCNaer
   formation: saturation
   density: 1.0
@@ -924,7 +917,6 @@ particles:
   saturation-parameters: {A: 1.68e+01, B: -5.09e+03, C: -9.79e-04}
   composition: {H: 1, C: 3, N: 1}
   optical-properties: none
-  optical-type: mie
 - name: N2Oaer
   formation: saturation
   density: 1.0
@@ -932,13 +924,11 @@ particles:
   saturation-parameters: {A: 1.62e+01, B: -2.97e+03, C: -7.01e-04}
   composition: {O: 1, N: 2}
   optical-properties: none
-  optical-type: mie
 - name: S8aer
   formation: reaction
   density: 1.0
   composition: {S: 8}
   optical-properties: none
-  optical-type: mie
   equation: S4 + S4 (+ M) => S8aer (+ M)
   type: falloff
   low-P-rate-constant: {A: 9.0e-26, b: -2.0, Ea: 0.0}

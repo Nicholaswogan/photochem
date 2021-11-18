@@ -501,19 +501,24 @@ contains
       do k = 1,var%nz
         n = var%nz+1-k
         do i = 1,dat%np
-          taup_1 = var%qext_particles(i,k,l)*pi*var%particle_radius(i,j)**2*densities(i,k)*var%dz(k)
-          taup(n) = taup(n) + taup_1
-          tausp_1(i,n) = var%w0_particles(i,k,l)*taup_1
-          tausp(n) = tausp(n) + tausp_1(i,n)
+          if (var%particle_xs(i)%ThereIsData) then
+            taup_1 = var%particle_xs(i)%qext(k,l)*pi*var%particle_radius(i,j)**2 &
+                     *densities(i,k)*var%dz(k)
+            taup(n) = taup(n) + taup_1
+            tausp_1(i,n) = var%particle_xs(i)%w0(k,l)*taup_1
+            tausp(n) = tausp(n) + tausp_1(i,n)
+          endif
         enddo
       enddo
       gt = 0.d0
       do k = 1,var%nz
         n = nz+1-k
         gt_1 = 0.d0
-        do i = 1,dat%np
-          gt_1 = gt_1 + var%gt_particles(i,k,l)*tausp_1(i,n) &
-                  /(tausp(n)+tausg(n))
+        do i = 1,dat%np    
+          if (var%particle_xs(i)%ThereIsData) then
+            gt_1 = gt_1 + var%particle_xs(i)%gt(k,l)*tausp_1(i,n) &
+                    /(tausp(n)+tausg(n))
+          endif
         enddo
         gt(n) = min(gt_1,0.999999d0)
       enddo

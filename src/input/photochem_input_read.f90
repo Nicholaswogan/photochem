@@ -172,16 +172,21 @@ contains
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           photodata%particle_optical_prop(j) = element%get_string("optical-properties",error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          tmpchar = element%get_string("optical-type",error = io_err)
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          if (trim(tmpchar) == "mie") then
-            photodata%particle_optical_type(j) = 0
-          elseif  (trim(tmpchar) == "fractal") then
-            err = "IOError: 'fractal' is not an optional optical type for "//trim(photodata%particle_names(j))
-            return
-          else
-            err = "IOError: "//trim(tmpchar)//" is not an optional optical type for "//trim(photodata%particle_names(j))
-            return
+          ! only require optical type if not "none"
+          if (photodata%particle_optical_prop(j) /= 'none') then
+            tmpchar = element%get_string("optical-type",error = io_err)
+            if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+            if (trim(tmpchar) == "mie") then
+              photodata%particle_optical_type(j) = 0
+            elseif  (trim(tmpchar) == "fractal") then
+              err = "IOError: 'fractal' is not an optional optical type for "// &
+                    trim(photodata%particle_names(j))
+              return
+            else
+              err = "IOError: "//trim(tmpchar)//" is not an optional optical type for "// &
+                    trim(photodata%particle_names(j))
+              return
+            endif
           endif
   
           if (photodata%particle_formation_method(j) == 1) then
@@ -2424,12 +2429,23 @@ contains
     xsroot = trim(photovars%data_dir)//"/aerosol_xsections/"
     
     allocate(photodata%radii_file(nrad_fixed,photodata%np))
-    allocate(photodata%w0_file(nrad_fixed, photodata%np, photodata%nw))
-    allocate(photodata%qext_file(nrad_fixed, photodata%np, photodata%nw))
-    allocate(photodata%g_file(nrad_fixed, photodata%np, photodata%nw))
+    allocate(photodata%part_xs_file(photodata%np))
+    
     photodata%nrad_file = nrad_fixed
     
     do i = 1,photodata%np
+      
+      if (photodata%particle_optical_prop(i) == 'none') then
+        ! there is no optical data, so we skip
+        photodata%part_xs_file(i)%ThereIsData = .false.
+        cycle
+      else
+        ! there is optical data, so we allocate and get it
+        photodata%part_xs_file(i)%ThereIsData = .true.
+        allocate(photodata%part_xs_file(i)%w0(nrad_fixed,photodata%nw))
+        allocate(photodata%part_xs_file(i)%qext(nrad_fixed,photodata%nw))
+        allocate(photodata%part_xs_file(i)%gt(nrad_fixed,photodata%nw))
+      endif
       
       if (photodata%particle_optical_type(i) == 0) then
         filename = xsroot//trim(photodata%particle_optical_prop(i))// &
@@ -2452,10 +2468,10 @@ contains
       endif
       
       photodata%radii_file(:,i) = radii/1.d4 ! convert from micron to cm
-      photodata%w0_file(:,i,:) = w0
-      photodata%qext_file(:,i,:) = qext
-      photodata%g_file(:,i,:) = g
-      
+      photodata%part_xs_file(i)%w0 = w0
+      photodata%part_xs_file(i)%qext = qext
+      photodata%part_xs_file(i)%gt = g
+
     enddo
     
   end subroutine
@@ -2825,7 +2841,7 @@ contains
     character(len=s_str_len),allocatable, dimension(:) :: labels
     integer :: ind(1)
     real(real_kind), allocatable :: temp(:,:)
-    integer :: io, i, n, nn, iii, k, j, ii
+    integer :: io, i, n, nn, ii
     logical :: missing
     
     err = ''

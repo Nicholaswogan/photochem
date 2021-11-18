@@ -108,50 +108,69 @@ contains
     if (dat%there_are_particles) then
       do j = 1,var%nz
         do k = 1,dat%np
-          if (var%particle_radius(k,j) <= dat%radii_file(1,k)) then
-            err = "There is not any optical data for the "// &
-                  "particle radii specified in the atmosphere."
-            return
+          ! if there is optical data, then check that the
+          ! data covers the particle radii in the atmosphere.
+          if (dat%part_xs_file(k)%ThereIsData) then
+          
+            if (var%particle_radius(k,j) <= dat%radii_file(1,k)) then
+              err = "There is not any optical data for the "// &
+                    "particle radii specified in the atmosphere."
+              return
+            endif
+            if (var%particle_radius(k,j) >= dat%radii_file(dat%nrad_file,k)) then
+              err = "There is not any optical data for the "// &
+                    "particle radii specified in the atmosphere."
+              return
+            endif
+            
           endif
-          if (var%particle_radius(k,j) >= dat%radii_file(dat%nrad_file,k)) then
-            err = "There is not any optical data for the "// &
-                  "particle radii specified in the atmosphere."
-            return
-          endif
+          
         enddo
       enddo
       do i = 1,dat%nw
         do j = 1,var%nz
           do k = 1,dat%np
+            
+          ! if there is particle optical data, then linearly interpolate
+          ! it to to the particle radii in the atmosphere.
+          if (dat%part_xs_file(k)%ThereIsData) then
+            
             do jj = 1,dat%nrad_file-1
               if (var%particle_radius(k,j) >= dat%radii_file(jj,k) .and. &
                   var%particle_radius(k,j) < dat%radii_file(jj+1,k)) then
     
                 dr = dat%radii_file(jj+1,k) - dat%radii_file(jj,k)
     
-                slope = (dat%w0_file(jj+1,k,i) - dat%w0_file(jj,k,i))/dr
-                intercept = dat%w0_file(jj,k,i) - dat%radii_file(jj,k)*slope
-                var%w0_particles(k,j,i) = slope*var%particle_radius(k,j) + intercept
+                slope = (dat%part_xs_file(k)%w0(jj+1,i) - dat%part_xs_file(k)%w0(jj,i))/dr
+                intercept = dat%part_xs_file(k)%w0(jj,i) - dat%radii_file(jj,k)*slope
+                var%particle_xs(k)%w0(j,i) = slope*var%particle_radius(k,j) + intercept
+                
+                slope = (dat%part_xs_file(k)%qext(jj+1,i) - dat%part_xs_file(k)%qext(jj,i))/dr
+                intercept = dat%part_xs_file(k)%qext(jj,i) - dat%radii_file(jj,k)*slope
+                var%particle_xs(k)%qext(j,i) = slope*var%particle_radius(k,j) + intercept
     
-                slope = (dat%qext_file(jj+1,k,i) - dat%qext_file(jj,k,i))/dr
-                intercept = dat%qext_file(jj,k,i) - dat%radii_file(jj,k)*slope
-                var%qext_particles(k,j,i) = slope*var%particle_radius(k,j) + intercept
-    
-                slope = (dat%g_file(jj+1,k,i) - dat%g_file(jj,k,i))/dr
-                intercept = dat%g_file(jj,k,i) - dat%radii_file(jj,k)*slope
-                var%gt_particles(k,j,i) = slope*var%particle_radius(k,j) + intercept
+                slope = (dat%part_xs_file(k)%gt(jj+1,i) - dat%part_xs_file(k)%gt(jj,i))/dr
+                intercept = dat%part_xs_file(k)%gt(jj,i) - dat%radii_file(jj,k)*slope
+                var%particle_xs(k)%gt(j,i) = slope*var%particle_radius(k,j) + intercept
               endif
             enddo
+          
+          endif 
+            
           enddo
         enddo
       enddo
     endif
+    
+    
 
   end subroutine
   
   subroutine allocate_nz_vars(photodata, vars)
     type(PhotochemData), intent(in) :: photodata
     type(PhotochemVars), intent(inout) :: vars
+    
+    integer :: i
     
     vars%neqs = photodata%nq*vars%nz
 
@@ -164,9 +183,19 @@ contains
     allocate(vars%particle_radius(photodata%npq,vars%nz))
     allocate(vars%xs_x_qy(vars%nz,photodata%kj,photodata%nw))
     allocate(vars%usol_out(photodata%nq,vars%nz))
-    allocate(vars%w0_particles(photodata%np,vars%nz,photodata%nw))
-    allocate(vars%qext_particles(photodata%np,vars%nz,photodata%nw))
-    allocate(vars%gt_particles(photodata%np,vars%nz,photodata%nw))
+    
+    allocate(vars%particle_xs(photodata%np))
+    do i = 1,photodata%np
+      ! only allocate space if there is data
+      if (photodata%part_xs_file(i)%ThereIsData) then
+        vars%particle_xs(i)%ThereIsData = .true.
+        allocate(vars%particle_xs(i)%w0(vars%nz,photodata%nw))
+        allocate(vars%particle_xs(i)%qext(vars%nz,photodata%nw))
+        allocate(vars%particle_xs(i)%gt(vars%nz,photodata%nw))
+      else
+        vars%particle_xs(i)%ThereIsData = .false.
+      endif
+    enddo
 
   end subroutine
   
