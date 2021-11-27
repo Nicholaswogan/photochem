@@ -11,7 +11,7 @@ cdef extern void atmosphere_init_wrapper(void *ptr, char *data_dir, char *mechan
 cdef extern void atmosphere_photochemical_equilibrium_wrapper(void *ptr, bint *success, char* err)   
 cdef extern void atmosphere_out2atmosphere_txt_wrapper(void *ptr, char *filename, bint *overwrite, bint *clip, char *err)                         
 cdef extern void atmosphere_out2in_wrapper(void *ptr, char *err)
-cdef extern void atmosphere_surface_fluxes_wrapper(void *ptr, double *fluxes, char *err)
+cdef extern void atmosphere_gas_fluxes_wrapper(void *ptr, double *surf_fluxes, double *top_fluxes, char *err)
 cdef extern void atmosphere_set_lower_bc_wrapper(void *ptr, char *species, char *bc_type, 
                                                     double *vdep, double *mix, double *flux, double *height, bint *missing, char *err)
 cdef extern void atmosphere_set_upper_bc_wrapper(void *ptr, char *species, 
@@ -144,17 +144,22 @@ cdef class Atmosphere:
       out[names[i]] = usol[i,:]
     return out
     
-  def surface_fluxes(self):
-    cdef ndarray fluxes = np.empty(self.dat.nq, np.double)
+  def gas_fluxes(self):
+    cdef ndarray surf_fluxes = np.empty(self.dat.nq, np.double)
+    cdef ndarray top_fluxes = np.empty(self.dat.nq, np.double)
     cdef char err[ERR_LEN+1]
-    atmosphere_surface_fluxes_wrapper(&self._ptr, <double *>fluxes.data, err)
+    atmosphere_gas_fluxes_wrapper(&self._ptr, <double *>surf_fluxes.data, <double *>top_fluxes.data, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
-    out = {}
+    surface = {}
     names = self.dat.species_names
     for i in range(self.dat.nq):
-      out[names[i]] = fluxes[i]
-    return out
+      surface[names[i]] = surf_fluxes[i]
+    top = {}
+    names = self.dat.species_names
+    for i in range(self.dat.nq):
+      top[names[i]] = top_fluxes[i]
+    return surface, top
     
   def set_lower_bc(self, species = None, bc_type = None, vdep = None, mix = None,
                             flux = None, height = None):

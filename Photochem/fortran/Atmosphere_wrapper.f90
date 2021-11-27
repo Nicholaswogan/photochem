@@ -134,9 +134,10 @@ contains
     
   end subroutine
   
-  subroutine atmosphere_surface_fluxes_wrapper(ptr, fluxes, err) bind(c)
+  subroutine atmosphere_gas_fluxes_wrapper(ptr, surf_fluxes, top_fluxes, err) bind(c)
     type(c_ptr), intent(in) :: ptr
-    real(c_double), intent(out) :: fluxes(*)
+    real(c_double), intent(out) :: surf_fluxes(*)
+    real(c_double), intent(out) :: top_fluxes(*)
     character(kind=c_char), intent(out) :: err(err_len+1)
     
     character(len=err_len) :: err_f
@@ -144,7 +145,7 @@ contains
     
     call c_f_pointer(ptr, pc)
     err_f = ''
-    call pc%surface_fluxes(fluxes(1:pc%dat%nq),err_f)
+    call pc%gas_fluxes(surf_fluxes(1:pc%dat%nq),top_fluxes(1:pc%dat%nq),err_f)
     call copy_string_ftoc(err_f,err)
   end subroutine
   

@@ -76,8 +76,8 @@ contains
     type(PhotochemVars), intent(in) :: photovars
     character(len=err_len), intent(out) :: err
     
-    class (type_dictionary), pointer :: atoms, sat_params
-    class (type_list), pointer :: species, reactions
+    class (type_dictionary), pointer :: sat_params
+    class (type_list), pointer :: species, reactions, atoms
     class (type_list), pointer :: particles
     type (type_error), pointer :: io_err
     class (type_list_item), pointer :: item, next
@@ -97,7 +97,7 @@ contains
 
     err = ''
 
-    atoms => mapping%get_dictionary('atoms',.true.,error = io_err)
+    atoms => mapping%get_list('atoms',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     species => mapping%get_list('species',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -108,22 +108,28 @@ contains
     photodata%reverse = mapping%get_logical('reverse-reactions',.true.,error = io_err)
     
     !!! atoms !!!
-    photodata%natoms = 0
-    key_value_pair => atoms%first
-    do while (associated(key_value_pair))
-      photodata%natoms = photodata%natoms +1
-      key_value_pair => key_value_pair%next
-    enddo
+    photodata%natoms = atoms%size()
     allocate(photodata%atoms_names(photodata%natoms))
     allocate(photodata%atoms_mass(photodata%natoms))
+    allocate(photodata%atoms_redox(photodata%natoms))
+    
     j = 1
-    key_value_pair => atoms%first
-    do while (associated(key_value_pair))
-      photodata%atoms_names(j) = trim(key_value_pair%key)
-      photodata%atoms_mass(j) = atoms%get_real(trim(key_value_pair%key),error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      key_value_pair => key_value_pair%next
+    item => atoms%first
+    do while(associated(item))
+      select type (element => item%node)
+      class is (type_dictionary)
+        photodata%atoms_names(j) = element%get_string("name",error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        photodata%atoms_mass(j) = element%get_real("mass",error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        photodata%atoms_redox(j) = element%get_real("redox",error = io_err)
+        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      class default
+        err = "atoms in "//trim(infile)//" must made of dictionaries"
+        return 
+      end select
       j = j + 1
+      item => item%next
     enddo
     !!! done with atoms !!!
     
@@ -283,6 +289,7 @@ contains
     
     ! species_mass, species_composition, and species_names
     ! will include the particles, thus we allocate nsp
+    allocate(photodata%species_redox(photodata%nsp))
     allocate(photodata%species_mass(photodata%nsp))
     allocate(photodata%species_composition(photodata%natoms,photodata%nsp+2))
     photodata%species_composition = 0
@@ -350,7 +357,7 @@ contains
               dict%get_integer(photodata%atoms_names(i),0,error = io_err) ! no error possible.
         enddo
         photodata%species_mass(j) = sum(photodata%species_composition(:,j) * photodata%atoms_mass)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        photodata%species_redox(j) = sum(photodata%species_composition(:,j) * photodata%atoms_redox)
         
         if (photodata%reverse .and. (ii >= photodata%ng_1)) then
           call get_thermodata(element,photodata%species_names(j), infile,photodata%thermo_temps(:,j-photodata%npq), &
@@ -763,7 +770,7 @@ contains
       endif
     enddo
     ! set particle solubility to super high number
-    photodata%henry_data(1,1:photodata%npq) = 1.d11
+    photodata%henry_data(1,1:photodata%npq) = 7.d11
     
   end subroutine
   

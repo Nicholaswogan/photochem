@@ -47,10 +47,12 @@ module photochem_types ! make a giant IO object
     integer :: lda ! not read in 
     character(len=s_str_len), allocatable :: atoms_names(:) 
     real(real_kind), allocatable :: atoms_mass(:) 
+    real(real_kind), allocatable :: atoms_redox(:)
     character(len=s_str_len), allocatable :: SL_names(:) ! IN PHOTOSETTINGS
     character(len=s_str_len), allocatable :: species_names(:)
     integer, allocatable :: species_composition(:,:)
     real(real_kind), allocatable :: species_mass(:) 
+    real(real_kind), allocatable :: species_redox(:)
     real(real_kind), allocatable :: thermo_data(:,:,:)
     real(real_kind), allocatable :: thermo_temps(:,:)
     real(real_kind), allocatable :: henry_data(:,:)

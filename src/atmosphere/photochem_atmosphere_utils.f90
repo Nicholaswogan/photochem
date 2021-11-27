@@ -102,9 +102,10 @@ contains
     endif
   end subroutine
   
-  module subroutine surface_fluxes(self, fluxes, err)
+  module subroutine gas_fluxes(self, surf_fluxes, top_fluxes, err)
     class(Atmosphere), target, intent(inout) :: self
-    real(real_kind), intent(out) :: fluxes(:)
+    real(real_kind), intent(out) :: surf_fluxes(:)
+    real(real_kind), intent(out) :: top_fluxes(:)
     character(len=err_len), intent(out) :: err
   
     real(real_kind) :: rhs(self%var%neqs)  
@@ -122,36 +123,171 @@ contains
     var => self%var
     wrk => self%wrk
     
-    if (size(fluxes) /= dat%nq) then
-      err = "Input fluxes to surface_fluxes has the wrong dimensions"
-      return
-    endif
-    
-    if (.not. var%at_photo_equilibrium) then
-      err = "Must integrate to photochemical equilibrium before calculating surface fluxes"
+    if (size(surf_fluxes) /= dat%nq .or. size(top_fluxes) /= dat%nq) then
+      err = "Input fluxes to gas_fluxes has the wrong dimensions"
       return
     endif
   
-    call self%right_hand_side_chem(var%usol_out, rhs, err)
+    call self%right_hand_side_chem(wrk%usol, rhs, err)
     if (len_trim(err) /= 0) return
-  
+    
     ! surface flux is molecules required to sustain the lower boundary
     ! chemical production + diffusion production = total change in lower cell    
     do i = 1,dat%nq
       diffusive_production = (wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
-                              - wrk%DU(i,1)*wrk%usol(i,1)) &
+                              - wrk%DU(i,1)*wrk%usol(i,1) + wrk%ADU(i,1)*wrk%usol(i,1)) &
                               *wrk%density(1)*var%dz(1)
       chemical_production = rhs(i)*wrk%density(1)*var%dz(1)
-      fluxes(i) = -(diffusive_production + chemical_production)
+      surf_fluxes(i) = -(diffusive_production + chemical_production)
       ! We don't count chemical production for water
       if (dat%fix_water_in_trop) then
         if (i == dat%LH2O) then
-          fluxes(i) = - diffusive_production
+          surf_fluxes(i) = - diffusive_production
         endif
       endif
     enddo
-  
+    
+    ! fluxes going into or out of the top of the atmosphere.
+    do i = 1,dat%nq
+      diffusive_production = &
+         (- wrk%DL(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz) &
+          + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1)) &
+          *wrk%density(var%nz)*var%dz(var%nz)
+    
+      chemical_production = rhs(i + (var%nz-1)*dat%nq)*wrk%density(var%nz)*var%dz(var%nz)
+      top_fluxes(i) = diffusive_production + chemical_production
+    enddo
+    
   end subroutine
+  
+  module function redox_conservation(self, err) result(redox_factor)
+    class(Atmosphere), target, intent(inout) :: self
+    character(len=err_len), intent(out) :: err
+    real(real_kind) :: redox_factor
+    
+    real(real_kind) :: surf_fluxes(self%dat%nq)
+    real(real_kind) :: top_fluxes(self%dat%nq)
+    real(real_kind) :: integrated_rainout(self%dat%nq)
+    
+    real(real_kind) :: oxi_in_surf, oxi_out_surf
+    real(real_kind) :: red_in_surf, red_out_surf
+    real(real_kind) :: oxi_in_top, oxi_out_top
+    real(real_kind) :: red_in_top, red_out_top
+    real(real_kind) :: oxi_in_dist
+    real(real_kind) :: red_in_dist
+    real(real_kind) :: oxi_out_rain
+    real(real_kind) :: red_out_rain
+    
+    real(real_kind) :: oxi_in, oxi_out, red_in, red_out
+    real(real_kind) :: net_redox
+    
+    integer :: i, j
+    
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrk), pointer :: wrk
+    
+    err = ""
+    
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+    
+    call self%gas_fluxes(surf_fluxes, top_fluxes, err)
+    if (len_trim(err) /= 0) return
+    
+    oxi_in_surf = 0.d0
+    oxi_out_surf = 0.d0
+    red_in_surf = 0.d0
+    red_out_surf = 0.d0
+    oxi_in_top = 0.d0
+    oxi_out_top = 0.d0
+    red_in_top = 0.d0
+    red_out_top = 0.d0
+    oxi_in_dist = 0.d0
+    red_in_dist = 0.d0
+    oxi_out_rain = 0.d0
+    red_out_rain = 0.d0
+    
+    ! All numbers will be treated as positive.
+    ! Later on, we implement signs
+    
+    ! boundary fluxes
+    do i = 1,dat%nq
+      if (dat%species_redox(i) > 0) then
+        
+        if (surf_fluxes(i) > 0) then
+          oxi_in_surf = oxi_in_surf + surf_fluxes(i)*dat%species_redox(i)
+        else
+          oxi_out_surf = oxi_out_surf + (-1.d0)*surf_fluxes(i)*dat%species_redox(i)
+        endif
+        
+        if (top_fluxes(i) > 0) then
+          oxi_out_top = oxi_out_top + top_fluxes(i)*dat%species_redox(i)
+        else
+          oxi_in_top = oxi_in_top + (-1.d0)*top_fluxes(i)*dat%species_redox(i)
+        endif
+        
+      elseif (dat%species_redox(i) < 0) then
+        
+        if (surf_fluxes(i) > 0) then
+          red_in_surf = red_in_surf + surf_fluxes(i)*dat%species_redox(i)*(-1.d0)
+        else
+          red_out_surf = red_out_surf + (-1.d0)*surf_fluxes(i)*dat%species_redox(i)*(-1.d0)
+        endif
+        
+        if (top_fluxes(i) > 0) then
+          red_out_top = red_out_top + top_fluxes(i)*dat%species_redox(i)*(-1.d0)
+        else
+          red_in_top = red_in_top + (-1.d0)*top_fluxes(i)*dat%species_redox(i)*(-1.d0)
+        endif
+        
+      endif
+    enddo
+    
+    ! distributed fluxes
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == 3) then
+        if (dat%species_redox(i) > 0) then
+          oxi_in_dist = oxi_in_dist + var%lower_flux(i)*dat%species_redox(i)
+        elseif (dat%species_redox(i) < 0) then
+          red_in_dist = red_in_dist + var%lower_flux(i)*dat%species_redox(i)*(-1.d0)
+        endif
+      endif
+    enddo
+    
+    ! rainout
+    if (var%gas_rainout) then
+      integrated_rainout = 0.d0
+      ! rhs_chem already got layer 1. So
+      ! we start at layer 2
+      do j = 1,var%trop_ind
+        do i = 1,dat%nq
+          integrated_rainout(i) = integrated_rainout(i) + &
+                wrk%rainout_rates(i,j)*wrk%usol(i,j)*wrk%density(j)*var%dz(j)
+        enddo
+      enddo
+      
+      do i = 1,dat%nq
+        if (dat%species_redox(i) > 0) then
+          oxi_out_rain = oxi_out_rain + integrated_rainout(i)*dat%species_redox(i)
+        elseif (dat%species_redox(i) < 0) then
+          red_out_rain = red_out_rain + integrated_rainout(i)*dat%species_redox(i)*(-1.d0)
+        endif
+      enddo
+    endif
+    
+    ! total fluxes going in and out
+    oxi_in = oxi_in_surf + oxi_in_top + oxi_in_dist
+    red_in = red_in_surf + red_in_top + red_in_dist
+    oxi_out = oxi_out_surf + oxi_out_top + oxi_out_rain
+    red_out = red_out_surf + red_out_top + red_out_rain
+    ! Net redox. Should be close to zero
+    net_redox = oxi_in - red_in - oxi_out + red_out
+    ! compute how close net_redox is to zero, relative to redox fluxes going in and out
+    redox_factor = abs(net_redox/maxval([oxi_in, red_in, oxi_out, red_out]))
+
+  end function
   
   module subroutine set_lower_bc(self, species, bc_type, vdep, mix, flux, height, err)
     class(Atmosphere), intent(inout) :: self

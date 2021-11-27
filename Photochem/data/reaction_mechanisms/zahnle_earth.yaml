@@ -1,10 +1,10 @@
 atoms:
-  H: 1.00797
-  N: 14.0067
-  O: 15.9994
-  C: 12.011
-  S: 32.06
-  Cl: 35.453
+- {name: H, mass: 1.00797, redox: -0.5}
+- {name: N, mass: 14.0067, redox: 0}
+- {name: O, mass: 15.9994, redox: 1}
+- {name: C, mass: 12.011, redox: -2}
+- {name: S, mass: 32.06, redox: -2}
+- {name: Cl, mass: 35.453, redox: -1}
 
 species:
 - name: H

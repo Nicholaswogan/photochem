@@ -28,7 +28,8 @@ module photochem_atmosphere
     procedure :: destroy_stepper
     procedure :: out2atmosphere_txt
     procedure :: out2in
-    procedure :: surface_fluxes
+    procedure :: gas_fluxes
+    procedure :: redox_conservation
     procedure :: set_lower_bc
     procedure :: set_upper_bc
     
@@ -172,11 +173,18 @@ module photochem_atmosphere
       character(len=err_len), intent(out) :: err
     end subroutine
     
-    module subroutine surface_fluxes(self, fluxes, err)
+    module subroutine gas_fluxes(self, surf_fluxes, top_fluxes, err)
       class(Atmosphere), target, intent(inout) :: self
-      real(real_kind), intent(out) :: fluxes(:)
+      real(real_kind), intent(out) :: surf_fluxes(:)
+      real(real_kind), intent(out) :: top_fluxes(:)
       character(len=err_len), intent(out) :: err
     end subroutine
+    
+    module function redox_conservation(self, err) result(redox_factor)
+      class(Atmosphere), target, intent(inout) :: self
+      character(len=err_len), intent(out) :: err
+      real(real_kind) :: redox_factor
+    end function
     
     module subroutine set_lower_bc(self, species, bc_type, vdep, mix, flux, height, err)
       class(Atmosphere), intent(inout) :: self

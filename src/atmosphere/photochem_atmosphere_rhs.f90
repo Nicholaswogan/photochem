@@ -385,7 +385,7 @@ contains
         call chempl(self, nz, nsp, nrT, densities, rx_rates, i, xp, xl)
         do j = 1,var%nz
           k = i + (j - 1) * nq
-          rhs(k) = (xp(j) - xl(j))/density(j)
+          rhs(k) = rhs(k) + (xp(j) - xl(j))/density(j)
         enddo
       enddo
     
@@ -416,10 +416,10 @@ contains
               ! in particles/cm3/s
               dn_particle_dt = - dn_gas_dt/density(j)
               ! add to rhs vector, convert to moles/cm3/s
-              rhs(k) = dn_particle_dt
+              rhs(k) = rhs(k) + dn_particle_dt
             else
               ! particles don't change!
-              rhs(k) = 0.d0
+              rhs(k) = rhs(k) + 0.d0
             endif
           endif          
         enddo
@@ -771,13 +771,15 @@ contains
     real(real_kind), intent(out) :: VH2_esc, VH_esc
     
     real(real_kind) :: eddav_p, eddav_m, denav_p, denav_m, tav_p, tav_m
-    real(real_kind) :: bx1x2_p, bx1x2_m, bx1x2_pp, bx1x2_mm, zeta_pp, zeta_mm
+    real(real_kind) :: bx1x2_p, bx1x2_m, zeta_p, zeta_m
+    real(real_kind) :: grav_p, grav_m, mubar_p, mubar_m
     real(real_kind) :: bx1x2
     
     ! for particles
-    real(real_kind) :: air_density_pp, air_density_mm
-    real(real_kind) :: wfall_pp, wfall_mm
-    real(real_kind) :: viscosity_pp, viscosity_mm
+    real(real_kind) :: air_density_p, air_density_m
+    real(real_kind) :: wfall_p, wfall_m
+    real(real_kind) :: viscosity_p, viscosity_m
+    real(real_kind) :: radius_p, radius_m
     
     integer :: i, j
     type(PhotochemData), pointer :: dat
@@ -786,136 +788,159 @@ contains
     dat => self%dat
     var => self%var
     
-    do i = 1,var%nz
-      do j = 1,dat%npq
-        air_density_mm = (den(i)/N_avo)*mubar(i)
-        viscosity_mm = dynamic_viscosity_air(var%temperature(i))
-        wfall(j,i) = fall_velocity(var%grav(i), var%particle_radius(j,i), &
-                                   dat%particle_density(j), air_density_mm, viscosity_mm) &
-                     *slip_correction_factor(var%particle_radius(j,i), den(i))
-      enddo
-    enddo
-  
+    ! eddy diffusion. particles and gases
+    ! middle
     do i = 2,var%nz-1
       eddav_p = sqrt(var%edd(i)*var%edd(i+1))
       eddav_m = sqrt(var%edd(i)*var%edd(i-1))
       denav_p = sqrt(den(i)*den(i+1))
       denav_m = sqrt(den(i)*den(i-1))
+      do j = 1,dat%nq
+        DU(j,i) = (eddav_p*denav_p)/(den(i)*var%dz(i)**2.d0)
+        DL(j,i) = (eddav_m*denav_m)/(den(i)*var%dz(i)**2.d0)
+        DD(j,i) = - DU(j,i) - DL(j,i)
+      enddo
+    enddo
+    ! top and bottom
+    eddav_p = sqrt(var%edd(1)*var%edd(2))
+    eddav_m = sqrt(var%edd(var%nz)*var%edd(var%nz-1))
+    denav_p = sqrt(den(1)*den(2))
+    denav_m = sqrt(den(var%nz)*den(var%nz-1))
+    do j = 1,dat%nq
+      DU(j,1) = (eddav_p*denav_p)/(den(1)*var%dz(1)**2.d0)
+      DL(j,var%nz) = (eddav_m*denav_m)/(den(var%nz)*var%dz(var%nz)**2.d0)
+    enddo
+    
+    ! Molecular diffusion. Only gas species
+    ! middle
+    do i = 2,var%nz-1
       tav_p = sqrt(var%temperature(i)*var%temperature(i+1))
       tav_m = sqrt(var%temperature(i)*var%temperature(i-1))
-      
-      ! gases
-      do j = dat%ng_1,dat%nq
-        ! Equation B.4 in Catling and Kasting (2017)
-        bx1x2_p = binary_diffusion_param(dat%species_mass(j), mubar(i), tav_p)
-        bx1x2_m = binary_diffusion_param(dat%species_mass(j), mubar(i), tav_m)
-  
-        DU(j,i) = (eddav_p*denav_p + bx1x2_p)/(var%dz(i)**2.d0*den(i))
-        DL(j,i) = (eddav_m*denav_m + bx1x2_m)/(var%dz(i)**2.d0*den(i))
+      grav_p = sqrt(var%grav(i)*var%grav(i+1))
+      grav_m = sqrt(var%grav(i)*var%grav(i-1))
+      mubar_p = sqrt(mubar(i)*mubar(i+1))
+      mubar_m = sqrt(mubar(i)*mubar(i-1))
+      do j = dat%ng_1, dat%nq
+        bx1x2_p = binary_diffusion_param(dat%species_mass(j), mubar_p, tav_p)
+        bx1x2_m = binary_diffusion_param(dat%species_mass(j), mubar_m, tav_m)
+        
+        DU(j,i) = DU(j,i) + bx1x2_p/(var%dz(i)**2.d0*den(i))
+        DL(j,i) = DL(j,i) + bx1x2_m/(var%dz(i)**2.d0*den(i))
         DD(j,i) = - DU(j,i) - DL(j,i)
         
-        bx1x2_pp = binary_diffusion_param(dat%species_mass(j), mubar(i+1), var%temperature(i+1))
-        bx1x2_mm = binary_diffusion_param(dat%species_mass(j), mubar(i-1), var%temperature(i-1))
-        
-        zeta_pp =  bx1x2_pp*((dat%species_mass(j)*var%grav(i+1))/(k_boltz*var%temperature(i+1)*N_avo) &
-                           - (mubar(i+1)*var%grav(i+1))/(k_boltz*var%temperature(i+1)*N_avo) &
-                           + 0.d0) ! zeroed out thermal diffusion    
-        zeta_mm =  bx1x2_mm*((dat%species_mass(j)*var%grav(i-1))/(k_boltz*var%temperature(i-1)*N_avo) &
-                           - (mubar(i-1)*var%grav(i-1))/(k_boltz*var%temperature(i-1)*N_avo) &
-                           + 0.d0) ! zeroed out thermal diffusion
-      
-        ADU(j,i) = zeta_pp/(2.d0*var%dz(i)*den(i)) 
-        ADL(j,i) = - zeta_mm/(2.d0*var%dz(i)*den(i))
-      enddo
-      ! ! particles
-      do j = 1,dat%npq
-      
-        DU(j,i) = (eddav_p*denav_p)/(var%dz(i)**2.d0*den(i))
-        DL(j,i) = (eddav_m*denav_m)/(var%dz(i)**2.d0*den(i))
-        DD(j,i) = - DU(j,i) - DL(j,i)
-      
-        air_density_pp = (den(i+1)/N_avo)*mubar(i+1)
-        viscosity_pp = dynamic_viscosity_air(var%temperature(i+1))
-        wfall_pp = fall_velocity(var%grav(i+1), var%particle_radius(j,i+1), &
-                                 dat%particle_density(j), air_density_pp, viscosity_pp) &
-                   *slip_correction_factor(var%particle_radius(j,i+1), den(i+1))
-      
-        air_density_mm = (den(i-1)/N_avo)*mubar(i-1)
-        viscosity_mm = dynamic_viscosity_air(var%temperature(i-1))
-        wfall_mm = fall_velocity(var%grav(i-1), var%particle_radius(j,i-1), &
-                                 dat%particle_density(j), air_density_mm, viscosity_mm) &
-                   *slip_correction_factor(var%particle_radius(j,i-1), den(i-1))
-      
-        ADU(j,i) = wfall_pp*den(i+1)/(2.d0*var%dz(i)*den(i))
-        ADL(j,i) = -wfall_mm*den(i-1)/(2.d0*var%dz(i)*den(i))
-      
+        zeta_p =  bx1x2_p*((dat%species_mass(j)*grav_p)/(k_boltz*tav_p*N_avo) &
+                           - (mubar_p*grav_p)/(k_boltz*tav_p*N_avo) &
+                           + 0.d0) ! zeroed out thermal diffusion   
+        zeta_m =  bx1x2_m*((dat%species_mass(j)*grav_m)/(k_boltz*tav_m*N_avo) &
+                          - (mubar_m*grav_m)/(k_boltz*tav_m*N_avo) &
+                          + 0.d0) ! zeroed out thermal diffusion
+                          
+        ADU(j,i) = zeta_p/(2.d0*var%dz(i)*den(i)) 
+        ADL(j,i) = - zeta_m/(2.d0*var%dz(i)*den(i))
       enddo
     enddo
-
-    ! surface layer
-    eddav_p = sqrt(var%edd(1)*var%edd(2))
-    denav_p = sqrt(den(1)*den(2))
+    ! top and bottom
     tav_p = sqrt(var%temperature(1)*var%temperature(2))
-    do j = dat%ng_1,dat%nq
-      bx1x2_p = binary_diffusion_param(dat%species_mass(j), mubar(1), tav_p)
-      DU(j,1) = (eddav_p*denav_p + bx1x2_p)/(var%dz(1)**2.d0*den(1))
-      DD(j,1) = - DU(j,1)
-      ! DL(j,1) = 0.d0
-            
-      bx1x2_pp = binary_diffusion_param(dat%species_mass(j), mubar(2), var%temperature(2))
-      zeta_pp =  bx1x2_pp*((dat%species_mass(j)*var%grav(2))/(k_boltz*var%temperature(2)*N_avo) &
-                         - (mubar(2)*var%grav(2))/(k_boltz*var%temperature(2)*N_avo) &
-                         + 0.d0) ! zeroed out thermal diffusion    
-      ADU(j,1) = zeta_pp/(2.d0*var%dz(1)*den(1)) 
-      ! ADL(j,1) = 0.d0
-    enddo
-    ! particles
-    do j = 1,dat%npq
-      DU(j,1) = (eddav_p*denav_p)/(var%dz(1)**2.d0*den(1))
-      DD(j,1) = - DU(j,1)
-      
-      air_density_pp = (den(2)/N_avo)*mubar(2)
-      viscosity_pp = dynamic_viscosity_air(var%temperature(2))
-      wfall_pp = fall_velocity(var%grav(2), var%particle_radius(j,2), &
-                               dat%particle_density(j), air_density_pp, viscosity_pp) &
-                  *slip_correction_factor(var%particle_radius(j,2), den(2))
-      
-      ADU(j,1) = wfall_pp*den(2)/(2.d0*var%dz(1)*den(1))
-    enddo
-    
-
-    ! top layer
-    eddav_m = sqrt(var%edd(var%nz)*var%edd(var%nz-1))
-    denav_m = sqrt(den(var%nz)*den(var%nz-1))
     tav_m = sqrt(var%temperature(var%nz)*var%temperature(var%nz-1))
-    do j = dat%ng_1,dat%nq      
-      bx1x2_m = binary_diffusion_param(dat%species_mass(j), mubar(var%nz), tav_m)
-      
-      ! DU(j,nz) = 0.d0
-      DL(j,var%nz) = (eddav_m*denav_m + bx1x2_m)/(var%dz(var%nz)**2.d0*den(var%nz))
-      DD(j,var%nz) = - DL(j,var%nz)
-            
-      bx1x2_mm = binary_diffusion_param(dat%species_mass(j), mubar(var%nz-1), var%temperature(var%nz-1))
-      zeta_mm =  bx1x2_mm*((dat%species_mass(j)*var%grav(var%nz-1))/(k_boltz*var%temperature(var%nz-1)*N_avo) &
-                         - (mubar(var%nz-1)*var%grav(var%nz-1))/(k_boltz*var%temperature(var%nz-1)*N_avo) &
-                         + 0.d0) ! zeroed out thermal diffusion    
-      ADL(j,var%nz) = - zeta_mm/(2.d0*var%dz(var%nz)*den(var%nz))
-      ! ADU(j,nz) = 0.d0
+    grav_p = sqrt(var%grav(1)*var%grav(2))
+    grav_m = sqrt(var%grav(var%nz)*var%grav(var%nz-1))
+    mubar_p = sqrt(mubar(1)*mubar(2))
+    mubar_m = sqrt(mubar(var%nz)*mubar(var%nz-1))
+    ! lower boundary
+    i = 1
+    do j = dat%ng_1, dat%nq
+      bx1x2_p = binary_diffusion_param(dat%species_mass(j), mubar_p, tav_p)
+      DU(j,i) = DU(j,i) + bx1x2_p/(var%dz(i)**2.d0*den(i))
+      zeta_p =  bx1x2_p*((dat%species_mass(j)*grav_p)/(k_boltz*tav_p*N_avo) &
+                         - (mubar_p*grav_p)/(k_boltz*tav_p*N_avo) &
+                         + 0.d0) ! zeroed out thermal diffusion   
+      ADU(j,i) = zeta_p/(2.d0*var%dz(i)*den(i)) 
     enddo
-    ! particles
-    do j = 1,dat%npq
-      DL(j,var%nz) = (eddav_m*denav_m)/(var%dz(var%nz)**2.d0*den(var%nz))
-      DD(j,var%nz) = - DL(j,var%nz)
+    ! upper boundary
+    i = var%nz
+    do j = dat%ng_1, dat%nq
+      bx1x2_m = binary_diffusion_param(dat%species_mass(j), mubar_m, tav_m)
       
-      air_density_mm = (den(var%nz-1)/N_avo)*mubar(var%nz-1)
-      viscosity_mm = dynamic_viscosity_air(var%temperature(var%nz-1))
-      wfall_mm = fall_velocity(var%grav(var%nz-1), var%particle_radius(j,var%nz-1), &
-                               dat%particle_density(j), air_density_mm, viscosity_mm) &
-                  *slip_correction_factor(var%particle_radius(j,var%nz-1), den(var%nz-1))
+      DL(j,i) = DL(j,i) + bx1x2_m/(var%dz(i)**2.d0*den(i))
+      
+      zeta_m =  bx1x2_m*((dat%species_mass(j)*grav_m)/(k_boltz*tav_m*N_avo) &
+                        - (mubar_m*grav_m)/(k_boltz*tav_m*N_avo) &
+                        + 0.d0) ! zeroed out thermal diffusion
+                        
+      ADL(j,i) = - zeta_m/(2.d0*var%dz(i)*den(i))
+    enddo
     
-      ADL(j,var%nz) = -wfall_mm*den(var%nz-1)/(2.d0*var%dz(var%nz)*den(var%nz))
-    enddo
+    ! Falling particles. Only particles
+    ! middle
+    do i = 2,var%nz-1
+      denav_p = sqrt(den(i)*den(i+1))
+      denav_m = sqrt(den(i)*den(i-1))
+      tav_p = sqrt(var%temperature(i)*var%temperature(i+1))
+      tav_m = sqrt(var%temperature(i)*var%temperature(i-1))
+      grav_p = sqrt(var%grav(i)*var%grav(i+1))
+      grav_m = sqrt(var%grav(i)*var%grav(i-1))
+      mubar_p = sqrt(mubar(i)*mubar(i+1))
+      mubar_m = sqrt(mubar(i)*mubar(i-1))
+      do j = 1,dat%npq
+        
+        radius_p = sqrt(var%particle_radius(j,i)*var%particle_radius(j,i+1))
+        radius_m = sqrt(var%particle_radius(j,i)*var%particle_radius(j,i-1))
+        
+        air_density_p = (denav_p/N_avo)*mubar_p
+        viscosity_p = dynamic_viscosity_air(tav_p)
+        
+        wfall_p = fall_velocity(grav_p, radius_p, &
+                                dat%particle_density(j), air_density_p, viscosity_p) &
+                   *slip_correction_factor(radius_p, denav_p)
 
+        air_density_m = (denav_m/N_avo)*mubar_m
+        viscosity_m = dynamic_viscosity_air(tav_m)
+        wfall_m = fall_velocity(grav_m, radius_m, &
+                                 dat%particle_density(j), air_density_m, viscosity_m) &
+                   *slip_correction_factor(radius_m, denav_m)
+      
+        ADU(j,i) = wfall_p*denav_p/(2.d0*var%dz(i)*den(i))
+        ADL(j,i) = - wfall_m*denav_m/(2.d0*var%dz(i)*den(i))
+      enddo
+    enddo
+    ! top and bottom
+    denav_p = sqrt(den(1)*den(2))
+    denav_m = sqrt(den(var%nz)*den(var%nz-1))
+    tav_p = sqrt(var%temperature(1)*var%temperature(2))
+    tav_m = sqrt(var%temperature(var%nz)*var%temperature(var%nz-1))
+    grav_p = sqrt(var%grav(1)*var%grav(2))
+    grav_m = sqrt(var%grav(var%nz)*var%grav(var%nz-1))
+    mubar_p = sqrt(mubar(1)*mubar(2))
+    mubar_m = sqrt(mubar(var%nz)*mubar(var%nz-1))
+    ! lower boundary
+    i = 1
+    do j = 1,dat%npq
+      radius_p = sqrt(var%particle_radius(j,i)*var%particle_radius(j,i+1))
+      
+      air_density_p = (denav_p/N_avo)*mubar_p
+      viscosity_p = dynamic_viscosity_air(tav_p)
+      
+      wfall_p = fall_velocity(grav_p, radius_p, &
+                              dat%particle_density(j), air_density_p, viscosity_p) &
+                 *slip_correction_factor(radius_p, denav_p)
+    
+      ADU(j,i) = wfall_p*denav_p/(2.d0*var%dz(i)*den(i))
+    enddo
+    ! Upper boundary
+    i = var%nz
+    do j = 1,dat%npq
+      
+      radius_m = sqrt(var%particle_radius(j,i)*var%particle_radius(j,i-1))
+
+      air_density_m = (denav_m/N_avo)*mubar_m
+      viscosity_m = dynamic_viscosity_air(tav_m)
+      wfall_m = fall_velocity(grav_m, radius_m, &
+                               dat%particle_density(j), air_density_m, viscosity_m) &
+                 *slip_correction_factor(radius_m, denav_m)
+    
+      ADL(j,i) = - wfall_m*denav_m/(2.d0*var%dz(i)*den(i))
+    enddo
+    
     ! H2 escape
     if (dat%diff_H_escape) then
       if (dat%back_gas_name /= "H2") then
@@ -927,7 +952,18 @@ contains
       VH_esc = bx1x2/den(var%nz)*(-(dat%species_mass(dat%LH)*var%grav(var%nz))/(k_boltz*var%temperature(var%nz)*N_avo) &
                               + (mubar(var%nz)*var%grav(var%nz))/(k_boltz*var%temperature(var%nz)*N_avo))
     endif
-      
+    
+    ! wfall in center of grid cells. For boundary fluxes
+    do i = 1,var%nz
+      do j = 1,dat%npq
+        air_density_m = (den(i)/N_avo)*mubar(i)
+        viscosity_m = dynamic_viscosity_air(var%temperature(i))
+        wfall(j,i) = fall_velocity(var%grav(i), var%particle_radius(j,i), &
+                                   dat%particle_density(j), air_density_m, viscosity_m) &
+                     *slip_correction_factor(var%particle_radius(j,i), den(i))
+      enddo
+    enddo
+    
   end subroutine
   
   subroutine rainout(self, nq, nz, trop_ind, usol, den, rainout_rates)
@@ -1080,7 +1116,7 @@ contains
     if (dat%there_are_particles) then
       do i = 1,dat%np
         wrk%lower_vdep_copy(i) = wrk%lower_vdep_copy(i) + wrk%wfall(i,1)
-        wrk%upper_veff_copy(i) = wrk%upper_veff_copy(i) + wrk%wfall(i,var%nz)
+        ! wrk%upper_veff_copy(i) = wrk%upper_veff_copy(i) + wrk%wfall(i,var%nz)
       enddo
   
       ! compute The saturation density
@@ -1187,7 +1223,7 @@ contains
       do i = 1,dat%nq
         k = i + (j-1)*dat%nq
         rhs(k) = rhs(k) + wrk%DU(i,j)*wrk%usol(i,j+1) + wrk%ADU(i,j)*wrk%usol(i,j+1) &
-                        + wrk%DD(i,j)*wrk%usol(i,j) &
+                        + wrk%DD(i,j)*wrk%usol(i,j) + (wrk%ADU(i,j) + wrk%ADL(i,j))*wrk%usol(i,j) &
                         + wrk%DL(i,j)*wrk%usol(i,j-1) + wrk%ADL(i,j)*wrk%usol(i,j-1)
       enddo
     enddo
@@ -1196,22 +1232,20 @@ contains
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == 0 .or. var%lowerboundcond(i) == 3) then
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
-                        - wrk%DU(i,1)*wrk%usol(i,1) &
+                        - wrk%DU(i,1)*wrk%usol(i,1) + wrk%ADU(i,1)*wrk%usol(i,1) &
                         - wrk%lower_vdep_copy(i)*wrk%usol(i,1)/var%dz(1)
       elseif (var%lowerboundcond(i) == 1) then
-        ! rhs(i) = 0.d0
         rhs(i) = 0.d0
-        ! rhs(i) = - 1.d-5*atan((usol(i,1) - lower_fix_mr(i)))
       elseif (var%lowerboundcond(i) == 2) then
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
-                        - wrk%DU(i,1)*wrk%usol(i,1) &
+                        - wrk%DU(i,1)*wrk%usol(i,1) + wrk%ADU(i,1)*wrk%usol(i,1) &
                         + var%lower_flux(i)/(wrk%density(1)*var%dz(1))
       ! Moses (2001) boundary condition for gas giants
       ! A deposition velocity controled by how quickly gases
       ! turbulantly mix vertically
       elseif (var%lowerboundcond(i) == -1) then
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
-                        - wrk%DU(i,1)*wrk%usol(i,1) &
+                        - wrk%DU(i,1)*wrk%usol(i,1) + wrk%ADU(i,1)*wrk%usol(i,1) &
                         - (var%edd(1)/wrk%surface_scale_height)*wrk%usol(i,1)/var%dz(1)
       endif
     enddo
@@ -1220,11 +1254,11 @@ contains
     do i = 1,dat%nq
       k = i + (var%nz-1)*dat%nq
       if (var%upperboundcond(i) == 0) then
-        rhs(k) = rhs(k) - wrk%DL(i,var%nz)*wrk%usol(i,var%nz) &
+        rhs(k) = rhs(k) - wrk%DL(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz) &
                         + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
                         - wrk%upper_veff_copy(i)*wrk%usol(i,var%nz)/var%dz(var%nz)    
       elseif (var%upperboundcond(i) == 2) then
-        rhs(k) = rhs(k) - wrk%DL(i,var%nz)*wrk%usol(i,var%nz) &
+        rhs(k) = rhs(k) - wrk%DL(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz) &
                         + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
                         - var%upper_flux(i)/(wrk%density(var%nz)*var%dz(var%nz))
       endif
@@ -1341,7 +1375,7 @@ contains
       do i = 1,dat%nq
         k = i + (j-1)*dat%nq      
         djac(dat%ku,k+dat%nq) = wrk%DU(i,j) + wrk%ADU(i,j)
-        djac(dat%kd,k)    = djac(dat%kd,k)    + wrk%DD(i,j)        
+        djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,j) + (wrk%ADU(i,j) + wrk%ADL(i,j))     
         djac(dat%kl,k-dat%nq) = wrk%DL(i,j) + wrk%ADL(i,j)
       enddo
     enddo
@@ -1349,14 +1383,11 @@ contains
     ! Lower boundary
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == 0 .or. var%lowerboundcond(i) == 3) then
-        ! rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
-        !                 - DU(i,1)*usol(i,1) &
-        !                 - lower_vdep(i)*usol(i,1)/dz(1)
-  
+
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
-        djac(dat%kd,i)    = djac(dat%kd,i)    - wrk%DU(i,1) - wrk%lower_vdep_copy(i)/var%dz(1)
+        djac(dat%kd,i) = djac(dat%kd,i) - wrk%DU(i,1) + wrk%ADU(i,1) - wrk%lower_vdep_copy(i)/var%dz(1)
       elseif (var%lowerboundcond(i) == 1) then
-        ! rhs(i) = - atan((usol(i,1) - lower_fix_mr(i)))
+
         do m=1,dat%nq
           mm = dat%kd + i - m
           djac(mm,m) = 0.d0
@@ -1366,19 +1397,13 @@ contains
         ! much happier. I will keep it. Jacobians don't need to be perfect.
         djac(dat%kd,i) = - wrk%DU(i,1)
   
-        ! djac(kd,i) = 1.d0/((lower_fix_mr(i) - usol(i,1))**2.d0 + 1.d0)
-  
       elseif (var%lowerboundcond(i) == 2) then
-        ! rhs(i) = rhs(i) + DU(i,1)*usol(i,2) + ADU(i,1)*usol(i,2) &
-        !                 - DU(i,1)*usol(i,1) &
-        !                 + lower_flux(i)/(density(1)*dz(1))
-  
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
-        djac(dat%kd,i)    = djac(dat%kd,i)    - wrk%DU(i,1)
+        djac(dat%kd,i) = djac(dat%kd,i) - wrk%DU(i,1) + wrk%ADU(i,1)
       elseif (var%lowerboundcond(i) == -1) then
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
-        djac(dat%kd,i)    = djac(dat%kd,i)    - wrk%DU(i,1) - &
-                            (var%edd(1)/wrk%surface_scale_height)/var%dz(1)
+        djac(dat%kd,i) = djac(dat%kd,i) - wrk%DU(i,1) + wrk%ADU(i,1) - &
+                         (var%edd(1)/wrk%surface_scale_height)/var%dz(1)
       endif
     enddo
   
@@ -1390,10 +1415,11 @@ contains
         !                 + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
         !                 - upper_veff(i)*usol(i,nz)/dz(nz)    
   
-        djac(dat%kd,k) = djac(dat%kd,k) - wrk%DL(i,var%nz) - wrk%upper_veff_copy(i)/var%dz(var%nz) 
+        djac(dat%kd,k) = djac(dat%kd,k) - wrk%DL(i,var%nz) + wrk%ADL(i,var%nz) &
+                        - wrk%upper_veff_copy(i)/var%dz(var%nz) 
         djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
       elseif (var%upperboundcond(i) == 2) then
-        djac(dat%kd,k) = djac(dat%kd,k) - wrk%DL(i,var%nz)
+        djac(dat%kd,k) = djac(dat%kd,k) - wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
         djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
       endif
     enddo
