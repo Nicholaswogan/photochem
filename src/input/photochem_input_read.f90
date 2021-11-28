@@ -2146,7 +2146,7 @@ contains
     ! mixing-ratio = mixing-ratio
     ! flux = flux
     ! deposition velocity + distributed flux = vdep + flux + distributed-height
-    if (bctype == "deposition velocity") then
+    if (bctype == "vdep") then
       lowercond = 0
       Lvdep = tmpdict%get_real("vdep",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -2154,12 +2154,12 @@ contains
       Lflux = 0.d0
       LdistH = 0.d0
       Lmr = 0.d0 
-    elseif (bctype == "mixing-ratio") then
+    elseif (bctype == "mix") then
       lowercond = 1
       Lvdep = 0.d0
       Lflux = 0.d0
       LdistH = 0.d0
-      Lmr = tmpdict%get_real("mixing-ratio",error = io_err)
+      Lmr = tmpdict%get_real("mix",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
     elseif (bctype == "flux") then
@@ -2170,7 +2170,7 @@ contains
       
       LdistH = 0.d0
       Lmr = 0.d0 
-    elseif (bctype == "deposition velocity + distributed flux") then
+    elseif (bctype == "vdep + flux") then
       lowercond = 3
       Lvdep = tmpdict%get_real("vdep",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -2178,7 +2178,7 @@ contains
       Lflux = tmpdict%get_real("flux",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      LdistH = tmpdict%get_real("distributed-height",error = io_err)
+      LdistH = tmpdict%get_real("dist-height",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       Lmr = 0.d0 
@@ -2198,7 +2198,7 @@ contains
     
     ! effusion velocity = veff
     ! flux = flux
-    if (bctype == "effusion velocity") then
+    if (bctype == "veff") then
       uppercond = 0
       Uveff = tmpdict%get_real("veff",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
