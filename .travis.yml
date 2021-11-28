@@ -2,6 +2,7 @@ sudo: required
 dist: focal
 
 language: fortran
+python: 3.8
 
 before_install:
   - sudo apt-get update
@@ -13,7 +14,7 @@ before_install:
   - cd build
 
 script:
-  - cmake .. -DTRAVIS=ON -DBUILD_PYTHON_PHOTOCHEM=ON
+  - cmake .. -DTRAVIS=ON
   - make install
   - ./testrun
   - valgrind --error-exitcode=1 --leak-check=full ./memtest
