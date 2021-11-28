@@ -14,10 +14,14 @@ before_install:
   - cd build
 
 script:
-  - cmake .. -DTRAVIS=ON -DBUILD_PYTHON_PHOTOCHEM=ON
+  - cmake .. -DTRAVIS=ON
   - make install
   - ./testrun
   - valgrind --error-exitcode=1 --leak-check=full ./memtest
+  - cd ..
+  - python -m pip install . -v
+  - cd tests
+  - python test.py
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
