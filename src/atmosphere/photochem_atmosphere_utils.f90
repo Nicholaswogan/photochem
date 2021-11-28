@@ -160,6 +160,103 @@ contains
     
   end subroutine
   
+  module function atom_conservation(self, atom, err) result(con)
+    use photochem_types, only: AtomConservation
+    class(Atmosphere), target, intent(inout) :: self
+    character(len=*), intent(in) :: atom
+    character(len=err_len), intent(out) :: err
+    type(AtomConservation) :: con
+    
+    real(real_kind) :: surf_fluxes(self%dat%nq)
+    real(real_kind) :: top_fluxes(self%dat%nq)
+    real(real_kind) :: integrated_rainout(self%dat%nq)
+    
+    integer :: ind(1), i, j, kk
+    
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrk), pointer :: wrk
+    
+    err = ""
+    
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+    
+    ind = findloc(dat%atoms_names,atom)
+    kk = ind(1)
+    if (ind(1) == 0) then
+      err = "Atom "//trim(atom)//" is not in the list of atoms."
+      return
+    endif
+    if (dat%species_composition(ind(1),dat%nsp) /= 0) then
+      err = "Atom "//trim(atom)//" makes up the background gas"// &
+            " which is not conserved."
+      return 
+    endif
+    
+    if (dat%fix_water_in_trop) then
+      if (atom == "H" .or. atom == "O") then
+        err = "Atom "//trim(atom)//" is not conserved in this model because"// &
+              " H2O is fixed in the troposphere"
+        return
+      endif
+    endif
+    
+    call self%gas_fluxes(surf_fluxes, top_fluxes, err)
+    if (len_trim(err) /= 0) return
+    
+    con%in_surf = 0
+    con%in_top = 0
+    con%in_dist = 0
+    con%out_surf = 0
+    con%out_top = 0
+    con%out_rain = 0
+    
+    ! Upper and lower boundary
+    do i = 1,dat%nq
+      if (surf_fluxes(i) > 0) then
+        con%in_surf = con%in_surf + surf_fluxes(i)*dat%species_composition(kk,i)
+      else
+        con%out_surf = con%out_surf + (-1.d0)*surf_fluxes(i)*dat%species_composition(kk,i)
+      endif
+      if (top_fluxes(i) > 0) then
+        con%out_top = con%out_top + top_fluxes(i)*dat%species_composition(kk,i)
+      else
+        con%in_top = con%in_top + (-1.d0)*top_fluxes(i)*dat%species_composition(kk,i)
+      endif
+    enddo
+    
+    ! distributed fluxes
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == 3) then
+        con%in_dist = con%in_dist + var%lower_flux(i)*dat%species_composition(kk,i)
+      endif
+    enddo
+    
+    ! rainout
+    if (var%gas_rainout) then
+      integrated_rainout = 0.d0
+      do j = 1,var%trop_ind
+        do i = 1,dat%nq
+          integrated_rainout(i) = integrated_rainout(i) + &
+                wrk%rainout_rates(i,j)*wrk%usol(i,j)*wrk%density(j)*var%dz(j)
+        enddo
+      enddo
+      
+      do i = 1,dat%nq
+        con%out_rain = con%out_rain + integrated_rainout(i)*dat%species_composition(kk,i)
+      enddo
+    endif
+    
+    con%net = con%in_surf + con%in_top + con%in_dist &
+            - con%out_surf - con%out_top - con%out_rain
+    
+    con%factor = abs(con%net/maxval([con%in_surf, con%in_top, con%in_dist, &
+                                     con%out_surf, con%out_top, con%out_rain]))
+    
+  end function
+  
   module function redox_conservation(self, err) result(redox_factor)
     class(Atmosphere), target, intent(inout) :: self
     character(len=err_len), intent(out) :: err

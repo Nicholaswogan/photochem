@@ -284,4 +284,48 @@ contains
     call copy_string_ftoc(err_f, err)
   end subroutine
   
+  subroutine atmosphere_redox_conservation_wrapper(ptr, redox_factor, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: redox_factor
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    type(Atmosphere), pointer :: pc
+    character(len=err_len) :: err_f
+    
+    call c_f_pointer(ptr, pc)
+    err_f = ""
+    redox_factor = pc%redox_conservation(err_f)
+    call copy_string_ftoc(err_f, err)
+    
+  end subroutine
+  
+  subroutine atmosphere_atom_conservation_wrapper(ptr, atom, con_ptr, err) bind(c)
+    use photochem_types, only: AtomConservation
+    type(c_ptr), intent(in) :: ptr
+    character(kind=c_char), intent(in) :: atom(*)
+    type(c_ptr), intent(out) :: con_ptr
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    type(Atmosphere), pointer :: pc
+    type(AtomConservation), pointer :: con
+    character(len=err_len) :: err_f
+    character(len=:), allocatable :: atom_f
+    
+    call c_f_pointer(ptr, pc)
+    allocate(con)
+    
+    allocate(character(len=len_cstring(atom))::atom_f)
+    call copy_string_ctof(atom, atom_f)
+    
+    err_f = ""
+    con = pc%atom_conservation(atom_f, err_f)
+    if (len_trim(err_f) /= 0) then
+      deallocate(con)
+    else
+      con_ptr = c_loc(con)
+    endif
+
+    call copy_string_ftoc(err_f, err)    
+  end subroutine
+  
 end module

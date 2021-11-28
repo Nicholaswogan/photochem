@@ -1,6 +1,6 @@
 
 program main
-  use Photochem, only: Atmosphere, err_len, real_kind, ProductionLoss
+  use Photochem, only: Atmosphere, err_len, real_kind, ProductionLoss, AtomConservation
   implicit none
   character(len=err_len) :: err
   type(Atmosphere) :: pc
@@ -9,6 +9,7 @@ program main
   character(len=:), allocatable :: reaction
   integer :: i
   real(real_kind) :: tn, redox
+  type(AtomConservation) :: con
   
   err = ""
   call pc%init("../Photochem/data", &
@@ -21,7 +22,12 @@ program main
     print*,trim(err)
     stop 1
   endif
-  pc%var%atol = 1d-30
+
+
+  
+  
+  
+  ! stop 1
   
   call pc%initialize_stepper(pc%wrk%usol,err)
   if (len(trim(err)) > 0) then
@@ -40,13 +46,6 @@ program main
       
     enddo
     redox = pc%redox_conservation(err)
-    print*,redox
-    ! redox = pc%redox_conservation(err)
-    ! print*,redox,pc%wrk%usol(pc%dat%lH2,1),pc%wrk%usol(pc%dat%lH,1)
-    ! if (len(trim(err)) > 0) then
-    !   print*,trim(err)
-    !   stop 1
-    ! endif
   
   enddo
   stop 1
@@ -55,9 +54,6 @@ program main
     print*,trim(err)
     stop 1
   endif
-  
-  ! redox = pc%redox_conservation(err)
-  ! tn = pc%step(err)
   
 
 end program

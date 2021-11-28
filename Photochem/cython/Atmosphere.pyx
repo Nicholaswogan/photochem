@@ -24,6 +24,9 @@ cdef extern void atmosphere_destroy_stepper_wrapper(void *ptr, char *err)
 cdef extern void atmosphere_production_and_loss_wrapper(void *ptr, char *species, int *nq, 
                                                         int *nz, double *usol, void *pl_ptr, char *err)
 
+cdef extern void atmosphere_redox_conservation_wrapper(void *ptr, double *redox_factor, char *err)
+cdef extern void atmosphere_atom_conservation_wrapper(void *ptr, char *atom, void *con_ptr, char *err)
+
 cdef pystring2cstring(str pystring):
   # add a null c char, and convert to byes
   cdef bytes cstring = (pystring+'\0').encode('utf-8')
@@ -249,5 +252,23 @@ cdef class Atmosphere:
     pl = ProductionLoss()
     pl._ptr = pl_ptr
     return pl
-
-
+    
+  def redox_conservation(self):
+    cdef char err[ERR_LEN+1]
+    cdef double redox_factor
+    atmosphere_redox_conservation_wrapper(&self._ptr, &redox_factor, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    return redox_factor
+    
+  def atom_conservation(self, str atom):
+    cdef bytes atom_b = pystring2cstring(atom)
+    cdef char *atom_c = atom_b
+    cdef char err[ERR_LEN+1]
+    cdef void *con_ptr
+    atmosphere_atom_conservation_wrapper(&self._ptr, atom_c, &con_ptr, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    con = AtomConservation()
+    con._ptr = con_ptr
+    return con

@@ -29,6 +29,7 @@ module photochem_atmosphere
     procedure :: out2atmosphere_txt
     procedure :: out2in
     procedure :: gas_fluxes
+    procedure :: atom_conservation
     procedure :: redox_conservation
     procedure :: set_lower_bc
     procedure :: set_upper_bc
@@ -74,7 +75,7 @@ module photochem_atmosphere
       class(Atmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: species
       real(real_kind), intent(in) :: usol(:,:)
-      class(ProductionLoss), intent(out) :: pl
+      type(ProductionLoss), intent(out) :: pl
       character(len=err_len), intent(out) :: err
     end subroutine
     
@@ -179,6 +180,14 @@ module photochem_atmosphere
       real(real_kind), intent(out) :: top_fluxes(:)
       character(len=err_len), intent(out) :: err
     end subroutine
+    
+    module function atom_conservation(self, atom, err) result(con)
+      use photochem_types, only: AtomConservation
+      class(Atmosphere), target, intent(inout) :: self
+      character(len=*), intent(in) :: atom
+      character(len=err_len), intent(out) :: err
+      type(AtomConservation) :: con
+    end function
     
     module function redox_conservation(self, err) result(redox_factor)
       class(Atmosphere), target, intent(inout) :: self

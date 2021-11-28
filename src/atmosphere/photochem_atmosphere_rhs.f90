@@ -1502,7 +1502,7 @@ contains
     class(Atmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: species
     real(real_kind), intent(in) :: usol(:,:)
-    class(ProductionLoss), intent(out) :: pl
+    type(ProductionLoss), intent(out) :: pl
     character(len=err_len), intent(out) :: err
   
     real(real_kind) :: xl(self%var%nz), xp(self%var%nz)

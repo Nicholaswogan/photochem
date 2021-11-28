@@ -10,7 +10,7 @@ module photochem_types ! make a giant IO object
   implicit none
   private
   
-  public :: PhotochemData, PhotochemVars, PhotochemWrk, ProductionLoss
+  public :: PhotochemData, PhotochemVars, PhotochemWrk, ProductionLoss, AtomConservation
   
   type :: ProductionLoss
     real(real_kind), allocatable :: production(:,:)
@@ -32,6 +32,17 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: w0(:,:) ! (nz,nw) or (nrad_file, nw)
     real(real_kind), allocatable :: qext(:,:)
     real(real_kind), allocatable :: gt(:,:)
+  end type
+  
+  type :: AtomConservation
+    real(real_kind) :: in_surf
+    real(real_kind) :: in_top
+    real(real_kind) :: in_dist
+    real(real_kind) :: out_surf
+    real(real_kind) :: out_top
+    real(real_kind) :: out_rain
+    real(real_kind) :: net
+    real(real_kind) :: factor
   end type
   
   type :: PhotochemData

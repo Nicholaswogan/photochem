@@ -12,10 +12,5 @@ include "PhotochemData.pyx"
 include "PhotochemVars.pyx"
 include "PhotochemWrk.pyx"
 include "ProductionLoss.pyx"
-
-
-    
-    
-    
-    
+include "AtomConservation.pyx"
     
