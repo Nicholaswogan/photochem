@@ -24,8 +24,14 @@ cdef extern void atmosphere_destroy_stepper_wrapper(void *ptr, char *err)
 cdef extern void atmosphere_production_and_loss_wrapper(void *ptr, char *species, int *nq, 
                                                         int *nz, double *usol, void *pl_ptr, char *err)
 
+cdef extern void atmosphere_prep_atmosphere_wrapper(void *ptr, int *nq, int *nz, double *usol, char *err)
+
 cdef extern void atmosphere_redox_conservation_wrapper(void *ptr, double *redox_factor, char *err)
 cdef extern void atmosphere_atom_conservation_wrapper(void *ptr, char *atom, void *con_ptr, char *err)
+
+cdef extern void atmosphere_evolve_wrapper(void *ptr, char *filename, 
+                double *tstart, int *nq, int *nz, double *usol, 
+                int *nt, double *t_eval, bint *success, char *err)
 
 cdef pystring2cstring(str pystring):
   # add a null c char, and convert to byes
@@ -103,6 +109,8 @@ cdef class Atmosphere:
     cdef int nz = self.var.nz
     if usol_start.shape[0] != nq or usol_start.shape[1] != nz:
       raise PhotoException("Input usol_start is the wrong size.")
+    if not np.isfortran(usol_start):
+      raise PhotoException("Input usol_start must be Fortran shape")
     atmosphere_initialize_stepper_wrapper(&self._ptr, &nq, &nz,  <double *>usol_start.data, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -253,6 +261,19 @@ cdef class Atmosphere:
     pl._ptr = pl_ptr
     return pl
     
+  def prep_atmosphere(self, ndarray[double, ndim=2] usol):
+    cdef char err[ERR_LEN+1]
+    cdef int nq = self.dat.nq
+    cdef int nz = self.var.nz
+    if not np.isfortran(usol):
+      raise PhotoException("Input usol must have fortran ordering.")
+    if usol.shape[0] != nq or usol.shape[1] != nz:
+      raise PhotoException("Input usol is the wrong size.")
+      
+    atmosphere_prep_atmosphere_wrapper(&self._ptr, &nq, &nz, <double *>usol.data, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    
   def redox_conservation(self):
     cdef char err[ERR_LEN+1]
     cdef double redox_factor
@@ -272,3 +293,21 @@ cdef class Atmosphere:
     con = AtomConservation()
     con._ptr = con_ptr
     return con
+  
+  def evolve(self, str filename, double tstart, ndarray[double, ndim=2] usol, ndarray[double, ndim=1] t_eval):
+    cdef bytes filename_b = pystring2cstring(filename)
+    cdef char *filename_c = filename_b
+    cdef char err[ERR_LEN+1]
+    cdef bint success
+    cdef int nq = self.dat.nq
+    cdef int nz = self.var.nz
+    cdef int nt = t_eval.size
+    if not np.isfortran(usol):
+      raise PhotoException("Input usol must have fortran ordering.")
+    if usol.shape[0] != nq or usol.shape[1] != nz:
+      raise PhotoException("Input usol is the wrong size.")
+      
+    atmosphere_evolve_wrapper(&self._ptr, filename_c, &tstart, &nq, &nz, <double *>usol.data, &nt, <double *>t_eval.data, &success, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    return success

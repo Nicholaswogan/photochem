@@ -26,7 +26,7 @@ planet:
     relative-humidity: manabe
     gas-rainout: true
     stratospheric-condensation: true
-    cold-trap-relative-humitity: 0.1 # relative humidity at the cold trap
+    cold-trap-relative-humitity: 0.01 # relative humidity at the cold trap
     condensation-rate: {A: 1.0e-5, rh0: 1.05}
     
 particles:
@@ -223,8 +223,8 @@ boundary-conditions:
   lower-boundary:
     flux: 1.0e8
     vdep: 2.0e-2
-    dist-height: 10.0
-    type: vdep + flux
+    height: 10.0
+    type: vdep + dist flux
   upper-boundary:
     veff: 0.0
     type: veff
@@ -232,8 +232,8 @@ boundary-conditions:
   lower-boundary:
     flux: 5.0e7
     vdep: 3.0e-3
-    dist-height: 10.0
-    type: vdep + flux
+    height: 10.0
+    type: vdep + dist flux
   upper-boundary:
     veff: 0.0
     type: veff
@@ -255,8 +255,8 @@ boundary-conditions:
   lower-boundary:
     flux: 1.0e9
     vdep: 1.0
-    dist-height: 10.0
-    type: vdep + flux
+    height: 10.0
+    type: vdep + dist flux
   upper-boundary:
     veff: 0.0
     type: veff

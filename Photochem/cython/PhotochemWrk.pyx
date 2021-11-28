@@ -4,6 +4,7 @@ cdef extern void deallocate_photochemwrk(void *ptr)
 
 cdef extern void photochemwrk_usol_get_size(void *ptr, int *dim1, int *dim2)
 cdef extern void photochemwrk_usol_get(void *ptr, int *dim1, int *dim2, double *usol)
+cdef extern void photochemwrk_usol_set(void *ptr, int *dim1, int *dim2, double *usol)
 
 cdef extern void photochemwrk_pressure_get_size(void *ptr, int *dim1)
 cdef extern void photochemwrk_pressure_get(void *ptr, int *dim1, double *arr)
@@ -40,6 +41,14 @@ cdef class PhotochemWrk:
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
       photochemwrk_usol_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
+    def __set__(self, ndarray[double, ndim=2] usol_new):
+      cdef int dim1, dim2
+      photochemwrk_usol_get_size(&self._ptr, &dim1, &dim2)
+      if not np.isfortran(usol_new):
+        raise PhotoException("Input usol must have fortran ordering.")
+      if usol_new.shape[0] != dim1 or usol_new.shape[1] != dim2:
+        raise PhotoException("Input usol is the wrong size.")
+      photochemwrk_usol_set(&self._ptr, &dim1, &dim2, <double *>usol_new.data)  
   
   property pressure:
     def __get__(self):
@@ -73,11 +82,3 @@ cdef class PhotochemWrk:
       photochemwrk_surf_radiance_get(&self._ptr, &dim1, <double *>arr.data)
       return arr
   
-      
-  
-
-
-    
-    
-    
-    

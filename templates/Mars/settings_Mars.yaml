@@ -165,8 +165,8 @@ boundary-conditions:
   lower-boundary:
     flux: 1.5e6
     vdep: 2.0e-2
-    dist-height: 20.0
-    type: vdep + flux
+    height: 20.0
+    type: vdep + dist flux
   upper-boundary:
     veff: 0.0
     type: veff
@@ -195,8 +195,8 @@ boundary-conditions:
   lower-boundary:
     flux: 1.0e7
     vdep: 2.0e-2
-    dist-height: 20.0
-    type: vdep + flux
+    height: 20.0
+    type: vdep + dist flux
   upper-boundary:
     veff: 0.0
     type: veff
@@ -274,8 +274,8 @@ boundary-conditions:
   lower-boundary:
     flux: 6.0e6
     vdep: 2.0e-2
-    dist-height: 20.0
-    type: vdep + flux
+    height: 20.0
+    type: vdep + dist flux
   upper-boundary:
     veff: 0.0
     type: veff

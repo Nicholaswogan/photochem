@@ -46,6 +46,15 @@ contains
     usol = wrk%usol
   end subroutine
   
+  subroutine photochemwrk_usol_set(ptr, dim1, dim2, usol) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(in) :: usol(dim1, dim2)
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    wrk%usol = usol
+  end subroutine
+  
   subroutine photochemwrk_pressure_get_size(ptr, dim1) bind(c)
     type(c_ptr), intent(in) :: ptr
     integer(c_int), intent(out) :: dim1

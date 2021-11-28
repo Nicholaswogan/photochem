@@ -2170,7 +2170,7 @@ contains
       
       LdistH = 0.d0
       Lmr = 0.d0 
-    elseif (bctype == "vdep + flux") then
+    elseif (bctype == "vdep + dist flux") then
       lowercond = 3
       Lvdep = tmpdict%get_real("vdep",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -2178,7 +2178,7 @@ contains
       Lflux = tmpdict%get_real("flux",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      LdistH = tmpdict%get_real("dist-height",error = io_err)
+      LdistH = tmpdict%get_real("height",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       Lmr = 0.d0 

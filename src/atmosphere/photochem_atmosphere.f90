@@ -22,6 +22,7 @@ module photochem_atmosphere
     procedure :: production_and_loss
     procedure :: right_hand_side => rhs_background_gas
     procedure :: jacobian => jac_background_gas
+    procedure :: evolve
     procedure :: photochemical_equilibrium
     procedure :: initialize_stepper
     procedure :: step
@@ -33,9 +34,7 @@ module photochem_atmosphere
     procedure :: redox_conservation
     procedure :: set_lower_bc
     procedure :: set_upper_bc
-    
-    ! private
-    procedure, private :: prep_atmosphere => prep_all_background_gas
+    procedure :: prep_atmosphere => prep_all_background_gas
   end type
   
   
@@ -107,6 +106,17 @@ module photochem_atmosphere
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_atmosphere_integrate.f90 !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    module subroutine evolve(self, filename, tstart, usol_start, t_eval, success, err)
+      use, intrinsic :: iso_c_binding
+      class(Atmosphere), target, intent(inout) :: self
+      character(len=*), intent(in) :: filename
+      real(c_double), intent(in) :: tstart
+      real(real_kind), intent(in) :: usol_start(:,:)
+      real(c_double), intent(in) :: t_eval(:)
+      logical, intent(out) :: success
+      character(len=err_len), intent(out) :: err
+    end subroutine
+    
     module subroutine photochemical_equilibrium(self, success, err)
       class(Atmosphere), target, intent(inout) :: self
       logical, intent(out) :: success

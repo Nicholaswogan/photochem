@@ -119,8 +119,7 @@ contains
   
   end function
   
-  subroutine evolve_background_atm(self, tstart, usol_start, t_eval, &
-                                   solution, success, err)
+  module subroutine evolve(self, filename, tstart, usol_start, t_eval, success, err)
                                    
     use, intrinsic :: iso_c_binding
     use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSStolerances, &
@@ -137,12 +136,11 @@ contains
     
     ! in/out
     class(Atmosphere), target, intent(inout) :: self
+    character(len=*), intent(in) :: filename
     real(c_double), intent(in) :: tstart
     real(real_kind), intent(in) :: usol_start(:,:)
     ! real(c_double), intent(in) :: t_eval(num_t_eval)
     real(c_double), intent(in) :: t_eval(:)
-    ! real(real_kind), intent(out) :: solution(nq,nz,num_t_eval)
-    real(real_kind), intent(out) :: solution(:,:,:)
     logical, intent(out) :: success
     character(len=err_len), intent(out) :: err
     
@@ -185,14 +183,15 @@ contains
       err = "Problem!"
       return
     endif
-    if (size(solution,1) /= dat%nq .or. size(solution,2) /= var%nz) then
-      err = "Problem!"
-      return
-    endif
-    if (size(t_eval,1) /= size(solution, 3)) then
-      err = "Problem!"
-      return
-    endif
+    
+    ! file prep
+    open(1, file = filename, status='replace', form="unformatted")
+    write(1) dat%nq
+    write(1) var%nz
+    write(1) var%z
+    write(1) dat%species_names(1:dat%nq)
+    write(1) size(t_eval)
+    close(1)
     
     ! settings
     mxsteps_ = var%mxsteps
@@ -309,20 +308,24 @@ contains
       ierr = FCVode(wrk%cvode_mem, t_eval(ii), sunvec_y, tcur, CV_NORMAL)
       if (ierr /= 0) then
         success = .false.
+        exit
       else
         success = .true.
         do j=1,var%nz
           do i=1,dat%nq  
             k = i + (j-1)*dat%nq
-            solution(i,j,ii) = yvec(k)
+            wrk%usol(i,j) = yvec(k)
           enddo
         enddo
         
-        ! this will alter solution(:,:,ii) with proper fixed mixing ratios and H2O
-        call self%prep_atmosphere(solution(:,:,ii), err)
+        call self%prep_atmosphere(wrk%usol, err)
         if (len_trim(err) /= 0) return
-        solution(:,:,ii) = self%wrk%usol
-                                     
+        
+        open(1, file = filename, status='old', form="unformatted",position="append")
+        write(1) tcur(1)
+        write(1) wrk%usol
+        close(1)
+                               
       endif
     enddo
     
@@ -343,21 +346,45 @@ contains
     logical, intent(out) :: success
     character(len=err_len), intent(out) :: err 
     
-    real(real_kind), pointer :: solution(:,:,:)
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
+    
+    real(real_kind) :: tn
+    integer :: nsteps
     
     err = ""
     
     dat => self%dat
     var => self%var
     wrk => self%wrk
-
-    solution(1:dat%nq,1:var%nz,1:1) => var%usol_out
-    call evolve_background_atm(self, 0.d0, var%usol_init, [var%equilibrium_time],  &
-                               solution, success, err)
+    
+    call self%initialize_stepper(var%usol_init, err)
     if (len_trim(err) /= 0) return
+    
+    success = .true.
+    tn = 0
+    nsteps = 0
+    do while(tn < var%equilibrium_time)
+      tn = self%step(err)
+      if (len_trim(err) /= 0) then
+        ! If the step fails then exit
+        success = .false.
+        err = ""
+        exit
+      endif
+      nsteps = nsteps + 1
+      if (nsteps > var%mxsteps) then
+        ! If we did more steps then max steps, then exit
+        success = .false.
+        exit
+      endif
+    enddo
+    
+    var%usol_out = wrk%usol
+    call self%destroy_stepper(err)
+    if (len_trim(err) /= 0) return
+    
     var%at_photo_equilibrium = success 
     
   end subroutine
@@ -545,6 +572,10 @@ contains
     endif
     
     ierr = FCVode(self%wrk%cvode_mem, dum, self%wrk%sunvec_y, self%wrk%tcur, CV_ONE_STEP)
+    if (ierr /= 0) then
+      err = "CVODE step failed"
+      return
+    endif
     tn = self%wrk%tcur(1)
   end function
   

@@ -284,6 +284,22 @@ contains
     call copy_string_ftoc(err_f, err)
   end subroutine
   
+  subroutine atmosphere_prep_atmosphere_wrapper(ptr, nq, nz, usol, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: nq, nz
+    real(c_double), intent(in) :: usol(nq, nz)
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(len=err_len) :: err_f
+    type(Atmosphere), pointer :: pc
+    
+    call c_f_pointer(ptr, pc)
+    
+    err_f = ""
+    call pc%prep_atmosphere(usol, err_f)
+    call copy_string_ftoc(err_f, err)
+  end subroutine
+  
   subroutine atmosphere_redox_conservation_wrapper(ptr, redox_factor, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     real(c_double), intent(out) :: redox_factor
@@ -326,6 +342,31 @@ contains
     endif
 
     call copy_string_ftoc(err_f, err)    
+  end subroutine
+  
+  subroutine atmosphere_evolve_wrapper(ptr, filename, tstart, nq, nz, usol, nt, t_eval, success, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    character(kind=c_char), intent(in) :: filename(*)
+    real(c_double), intent(in) :: tstart
+    integer(c_int), intent(in) :: nq, nz
+    real(c_double), intent(in) :: usol(nq, nz)
+    integer(c_int), intent(in) :: nt
+    real(c_double), intent(in) :: t_eval(nt)
+    logical(4), intent(out) :: success
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(len=:), allocatable :: filename_f
+    character(len=err_len) :: err_f
+    type(Atmosphere), pointer :: pc
+    
+    call c_f_pointer(ptr, pc)
+    
+    allocate(character(len=len_cstring(filename))::filename_f)
+    call copy_string_ctof(filename, filename_f)
+    
+    err_f = ""
+    call pc%evolve(filename_f, tstart, usol, t_eval, success, err_f)
+    call copy_string_ftoc(err_f, err)
   end subroutine
   
 end module
