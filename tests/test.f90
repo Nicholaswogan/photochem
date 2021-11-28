@@ -28,19 +28,5 @@ program main
     print*,'Did not successfully reach equilibrium'
     stop 1
   endif
-  
-  ! require the solution doesn't change to within 10%
-  ! do j = 1, pc%var%nz
-  !   do i = 1,pc%dat%nq
-  !     if (pc%var%usol_out(i,j) > pc%var%atol) then
-  !       if (pc%var%usol_out(i,j) > pc%var%usol_init(i,j)*(1.d0 + 1.d-1) &
-  !           .or. pc%var%usol_out(i,j) < pc%var%usol_init(i,j)*(1.d0 - 1.d-1)) then
-  !         print*,'The solution changed during integration. It should not.'
-  !         print*,i,pc%var%usol_out(i,j),pc%var%usol_init(i,j)
-  !         stop 1
-  !       endif
-  !     endif
-  !   enddo
-  ! enddo
 
 end program
