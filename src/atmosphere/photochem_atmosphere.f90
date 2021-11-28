@@ -5,7 +5,7 @@ module photochem_atmosphere
   
   ! The Atmosphere type. It contains all data describing the atmosphere
   ! such as temperature profile, photon flux, chemical species, 
-  ! particles, and chemical reactions. It also contains several
+  ! particles, and chemical reactions. It also contains
   ! procedures which compute atmospheric photochemistry.
     
   private
@@ -16,17 +16,24 @@ module photochem_atmosphere
     type(PhotochemVars), allocatable :: var
     type(PhotochemWrk), allocatable :: wrk
   contains
-    ! public
+    !!! photochem_atmosphere_init.f90 !!!
     procedure :: init => Atmosphere_init
+    
+    !!! photochem_atmosphere_rhs.f90 !!!
+    procedure :: prep_atmosphere => prep_all_background_gas
     procedure :: right_hand_side_chem
     procedure :: production_and_loss
     procedure :: right_hand_side => rhs_background_gas
     procedure :: jacobian => jac_background_gas
+    
+    !!! photochem_atmosphere_integrate.f90 !!!
     procedure :: evolve
     procedure :: photochemical_equilibrium
     procedure :: initialize_stepper
     procedure :: step
     procedure :: destroy_stepper
+    
+    !!! photochem_atmosphere_utils.f90 !!!
     procedure :: out2atmosphere_txt
     procedure :: out2in
     procedure :: gas_fluxes
@@ -34,7 +41,6 @@ module photochem_atmosphere
     procedure :: redox_conservation
     procedure :: set_lower_bc
     procedure :: set_upper_bc
-    procedure :: prep_atmosphere => prep_all_background_gas
   end type
   
   
@@ -51,15 +57,21 @@ module photochem_atmosphere
       character(len=*), intent(in) :: flux_file
       character(len=*), intent(in) :: atmosphere_txt
       character(len=err_len), intent(out) :: err
+      ! initializes the Atmosphere object. Reads all files, 
+      ! allocates memry, and prepares for photochemical calculations.
     end subroutine
     
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_atmosphere_rhs.f90 !!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     module subroutine prep_all_background_gas(self, usol_in, err)
       class(Atmosphere), target, intent(inout) :: self
       real(real_kind), intent(in) :: usol_in(:,:)
       character(len=err_len), intent(out) :: err
+      ! Given usol_in, the mixing ratios of each species in the atmosphere,
+      ! this subroutine calculates reaction rates, photolysis rates, etc.
+      ! and puts this information into self%wrk. self%wrk contains all the
+      ! information needed for `dochem` to compute chemistry
     end subroutine
     
     module subroutine right_hand_side_chem(self, usol, rhs, err)
@@ -67,6 +79,8 @@ module photochem_atmosphere
       real(real_kind), intent(in) :: usol(:,:)
       real(real_kind), intent(out) :: rhs(:)
       character(len=err_len), intent(out) :: err
+      ! The right-hand-side of the ODEs describing atmospheric chemistry
+      ! but does not include transport
     end subroutine
     
     module subroutine production_and_loss(self, species, usol, pl, err)     
@@ -76,6 +90,8 @@ module photochem_atmosphere
       real(real_kind), intent(in) :: usol(:,:)
       type(ProductionLoss), intent(out) :: pl
       character(len=err_len), intent(out) :: err
+      ! Computes the production and loss of input `species`.
+      ! See ProductionLoss object in photochem_types.
     end subroutine
     
     module subroutine rhs_background_gas(self, neqs, usol_flat, rhs, err)
@@ -84,6 +100,8 @@ module photochem_atmosphere
       real(real_kind), target, intent(in) :: usol_flat(neqs)
       real(real_kind), intent(out) :: rhs(neqs)
       character(len=err_len), intent(out) :: err
+      ! Computes the right-hand-side of the ODEs describing atmospheric chemistry
+      ! and transport.
     end subroutine
     
     module subroutine jac_background_gas(self, lda_neqs, neqs, usol_flat, jac, err)
@@ -92,6 +110,7 @@ module photochem_atmosphere
       real(real_kind), target, intent(in) :: usol_flat(neqs)
       real(real_kind), intent(out), target :: jac(lda_neqs)
       character(len=err_len), intent(out) :: err
+      ! The jacobian of the rhs_background_gas.
     end subroutine
     
     module function fcn_fH2O(ptr, n, x, fvec, iflag) result(res) bind(c)
@@ -115,12 +134,14 @@ module photochem_atmosphere
       real(c_double), intent(in) :: t_eval(:)
       logical, intent(out) :: success
       character(len=err_len), intent(out) :: err
+      ! Evolve atmosphere through time, and saves output in a binary Fortran file.
     end subroutine
     
     module subroutine photochemical_equilibrium(self, success, err)
       class(Atmosphere), target, intent(inout) :: self
       logical, intent(out) :: success
       character(len=err_len), intent(out) :: err 
+      ! Integrates to photochemical equilibrium starting from self%var%usol_init
     end subroutine
     
     module subroutine initialize_stepper(self, usol_start, err)      
@@ -169,9 +190,9 @@ module photochem_atmosphere
       integer(c_int)        :: ierr
     end function
     
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_atmosphere_utils.f90 !!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
       class(Atmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: filename
