@@ -14,7 +14,7 @@ before_install:
   - cd build
 
 script:
-  - cmake .. -DTRAVIS=ON
+  - cmake .. -DTRAVIS=ON -DBUILD_PYTHON_PHOTOCHEM=ON
   - make install
   - ./testrun
   - valgrind --error-exitcode=1 --leak-check=full ./memtest
