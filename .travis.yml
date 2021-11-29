@@ -19,7 +19,7 @@ script:
   - ./testrun
   - valgrind --error-exitcode=1 --leak-check=full ./memtest
   - cd ..
-  - python -m pip install . -v
+  - python -m pip install .
   - cd tests
   - python test.py
 
