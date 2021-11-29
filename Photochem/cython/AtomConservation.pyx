@@ -8,6 +8,7 @@ cdef extern void atomconservation_in_dist_get(void *ptr, double *val)
 cdef extern void atomconservation_out_surf_get(void *ptr, double *val)
 cdef extern void atomconservation_out_top_get(void *ptr, double *val)
 cdef extern void atomconservation_out_rain_get(void *ptr, double *val)
+cdef extern void atomconservation_out_other_get(void *ptr, double *val)
 cdef extern void atomconservation_net_get(void *ptr, double *val)
 cdef extern void atomconservation_factor_get(void *ptr, double *val)
 
@@ -55,6 +56,12 @@ cdef class AtomConservation:
     def __get__(self):
       cdef double val
       atomconservation_out_rain_get(&self._ptr, &val)
+      return val
+      
+  property out_other:
+    def __get__(self):
+      cdef double val
+      atomconservation_out_other_get(&self._ptr, &val)
       return val
       
   property net:

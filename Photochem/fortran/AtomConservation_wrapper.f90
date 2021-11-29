@@ -75,6 +75,14 @@ contains
     val = con%out_rain
   end subroutine
   
+  subroutine atomconservation_out_other_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(AtomConservation), pointer :: con
+    call c_f_pointer(ptr, con)
+    val = con%out_other
+  end subroutine
+  
   subroutine atomconservation_net_get(ptr, val) bind(c)
     type(c_ptr), intent(in) :: ptr
     real(c_double), intent(out) :: val

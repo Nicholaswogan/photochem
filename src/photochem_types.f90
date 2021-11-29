@@ -41,6 +41,7 @@ module photochem_types ! make a giant IO object
     real(real_kind) :: out_surf
     real(real_kind) :: out_top
     real(real_kind) :: out_rain
+    real(real_kind) :: out_other
     real(real_kind) :: net
     real(real_kind) :: factor
   end type

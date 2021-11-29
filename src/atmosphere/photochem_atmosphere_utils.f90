@@ -161,6 +161,7 @@ contains
   end subroutine
   
   module function atom_conservation(self, atom, err) result(con)
+    use photochem_eqns, only: damp_condensation_rate
     use photochem_types, only: AtomConservation
     class(Atmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: atom
@@ -170,6 +171,7 @@ contains
     real(real_kind) :: surf_fluxes(self%dat%nq)
     real(real_kind) :: top_fluxes(self%dat%nq)
     real(real_kind) :: integrated_rainout(self%dat%nq)
+    real(real_kind) :: cond_rate
     
     integer :: ind(1), i, j, kk
     
@@ -212,6 +214,7 @@ contains
     con%out_surf = 0
     con%out_top = 0
     con%out_rain = 0
+    con%out_other = 0
     
     ! Upper and lower boundary
     do i = 1,dat%nq
@@ -249,11 +252,31 @@ contains
       enddo
     endif
     
+    if (dat%stratospheric_cond) then
+      if (dat%fix_water_in_trop) then
+        i = var%trop_ind+1
+      else
+        i = 1
+      endif
+      do j = i,var%nz
+        if (wrk%usol(dat%LH2O,j) >= var%H2O_condensation_rate(2)*wrk%H2O_sat_mix(j)) then
+          cond_rate = damp_condensation_rate(var%H2O_condensation_rate(1), &
+                                             var%H2O_condensation_rate(2), &
+                                             var%H2O_condensation_rate(3), &
+                                             wrk%usol(dat%LH2O,j)/wrk%H2O_sat_mix(j))
+          con%out_other = con%out_other + cond_rate*(wrk%usol(dat%LH2O,j)  &
+                        - var%H2O_condensation_rate(2)*wrk%H2O_sat_mix(j)) &
+                        *wrk%density(j)*var%dz(j)*dat%species_composition(kk,dat%LH2O)
+           
+        endif
+      enddo
+    endif
+    
     con%net = con%in_surf + con%in_top + con%in_dist &
-            - con%out_surf - con%out_top - con%out_rain
+            - con%out_surf - con%out_top - con%out_rain - con%out_other
     
     con%factor = abs(con%net/maxval([con%in_surf, con%in_top, con%in_dist, &
-                                     con%out_surf, con%out_top, con%out_rain]))
+                                     con%out_surf, con%out_top, con%out_rain, con%out_other]))
     
   end function
   
