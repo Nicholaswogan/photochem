@@ -22,6 +22,8 @@ contains
     if (photodata%fix_water_in_trop) then
       photovars%trop_ind = minloc(photovars%z,1, &
                           photovars%z .ge. photovars%trop_alt) - 1
+    else
+      photovars%trop_ind = 0
     endif
     call gravity(photodata%planet_radius, photodata%planet_mass, &
                  photovars%nz, photovars%z, photovars%grav)

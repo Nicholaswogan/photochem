@@ -1809,10 +1809,15 @@ contains
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photodata%fix_water_in_trop = tmp2%get_logical('fix-water-in-troposphere',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    photodata%stratospheric_cond = tmp2%get_logical('stratospheric-condensation',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     ind = findloc(photodata%species_names,'H2O')
     photodata%LH2O = ind(1)
     if (ind(1) == 0 .and. photodata%fix_water_in_trop) then
       err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
+      return
+    elseif (ind(1) == 0 .and. photodata%stratospheric_cond) then
+      err = 'IOError: H2O must be a species if stratospheric-condensation = True.'
       return
     elseif (ind(1) == 0 .and. photodata%there_are_particles) then
       if (any(photodata%particle_sat_type == 2)) then
@@ -1820,6 +1825,7 @@ contains
         return
       endif
     endif
+    
     if (photodata%fix_water_in_trop) then  
       photovars%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -1849,29 +1855,25 @@ contains
       photovars%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      photodata%stratospheric_cond = tmp2%get_logical('stratospheric-condensation',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      if (photodata%stratospheric_cond) then
-        photovars%relative_humidity_cold_trap = tmp2%get_real('cold-trap-relative-humitity',error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        
-        
-        tmp3 => tmp2%get_dictionary('condensation-rate',.true.,error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        
-        photovars%H2O_condensation_rate(1) = tmp3%get_real('A',error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        photovars%H2O_condensation_rate(2) = tmp3%get_real('rh0',error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        if (photovars%H2O_condensation_rate(2) <= 1) then
-          err = 'IOError: Rate constant "rh0" for H2O condensation must be > 1. See '//trim(infile)
-          return
-        endif
-      endif
     else
       photovars%gas_rainout = .false.
-        
+    endif
+    
+    if (photodata%stratospheric_cond) then        
+      
+      tmp3 => tmp2%get_dictionary('condensation-rate',.true.,error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      photovars%H2O_condensation_rate(1) = tmp3%get_real('A',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      photovars%H2O_condensation_rate(2) = tmp3%get_real('rhc',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      photovars%H2O_condensation_rate(3) = tmp3%get_real('rh0',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (photovars%H2O_condensation_rate(3) <= photovars%H2O_condensation_rate(2)) then
+        err = 'IOError: Rate constant "rh0" for H2O condensation must be > "rhc". See '//trim(infile)
+        return
+      endif
     endif
     
     ! particle parameters
@@ -1880,7 +1882,7 @@ contains
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
       allocate(particle_checklist(photodata%np))
-      allocate(photovars%condensation_rate(2,photodata%np))
+      allocate(photovars%condensation_rate(3,photodata%np))
       particle_checklist = .false.
       
       item => particles%first
@@ -1908,8 +1910,15 @@ contains
           
           photovars%condensation_rate(1,ind(1)) = tmp1%get_real('A',error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          photovars%condensation_rate(2,ind(1)) = tmp1%get_real('rh0',error = io_err)
+          photovars%condensation_rate(2,ind(1)) = tmp1%get_real('rhc',error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          photovars%condensation_rate(3,ind(1)) = tmp1%get_real('rh0',error = io_err)
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (photovars%condensation_rate(3,ind(1)) <= photovars%condensation_rate(2,ind(1))) then
+            err = 'IOError: Rate constant "rh0" for '//trim(temp_char) &
+                  //' condensation must be > "rhc". See '//trim(infile)
+            return
+          endif
           
         class default
           err = "IOError: Particle settings must be a list of dictionaries."

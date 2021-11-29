@@ -362,21 +362,27 @@ contains
     
     ! if stratospheric water condesation is on, then condense
     ! water in the stratosphere.
-    if (dat%fix_water_in_trop) then
-      if (dat%stratospheric_cond) then
-        do j = var%trop_ind+1,var%nz
-          k = dat%LH2O + (j - 1) * dat%nq
-          H2O_cold_trap = var%relative_humidity_cold_trap*H2O_sat_mix(j)
-          if (usol(dat%LH2O,j) >= H2O_cold_trap) then
-            
-            cond_rate = damp_condensation_rate(var%H2O_condensation_rate(1), &
-                                               var%H2O_condensation_rate(2), &
-                                               usol(dat%LH2O,j)/H2O_cold_trap)
-            rhs(k) = rhs(k) - cond_rate*(usol(dat%LH2O,j) - H2O_cold_trap)
-             
-          endif
-        enddo
+    if (dat%stratospheric_cond) then
+      if (dat%fix_water_in_trop) then
+        ! need to start above tropopause if fixing
+        ! water in troposphere
+        i = var%trop_ind+1
+      else
+        i = 1
       endif
+      do j = i,var%nz
+        k = dat%LH2O + (j - 1) * dat%nq
+        H2O_cold_trap = var%H2O_condensation_rate(2)*H2O_sat_mix(j)
+        if (usol(dat%LH2O,j) >= H2O_cold_trap) then
+          
+          cond_rate = damp_condensation_rate(var%H2O_condensation_rate(1), &
+                                             var%H2O_condensation_rate(2), &
+                                             var%H2O_condensation_rate(3), &
+                                             usol(dat%LH2O,j)/H2O_sat_mix(j))
+          rhs(k) = rhs(k) - cond_rate*(usol(dat%LH2O,j) - H2O_cold_trap)
+           
+        endif
+      enddo
     endif
     
     if (dat%there_are_particles) then
@@ -399,16 +405,17 @@ contains
             k = i + (j - 1) * dat%nq ! particle rhs index
             
             ! if the gas phase is super-saturated
-            if (densities(ii,j) >= gas_sat_den(i,j)) then
+            if (densities(ii,j) >= gas_sat_den(i,j)*var%condensation_rate(2,i)) then
               ! compute condensation rate
               cond_rate = damp_condensation_rate(var%condensation_rate(1,i), &
                                                  var%condensation_rate(2,i), &
+                                                 var%condensation_rate(3,i), &
                                                  densities(ii,j)/gas_sat_den(i,j))
             
               ! rate the gas molecules are going to particles
               ! in molecules/cm3/s
               dn_gas_dt = - cond_rate* &
-                            (densities(ii,j) - gas_sat_den(i,j))
+                            (densities(ii,j) - gas_sat_den(i,j)*var%condensation_rate(2,i))
               ! add to rhs vector, convert to change in mixing ratio/s
               rhs(kk) = rhs(kk) + dn_gas_dt/density(j)            
             
@@ -680,12 +687,14 @@ contains
       call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.d6, var%dz, &
                          mubar, pressure, density)
       
+    endif 
+    
+    if (dat%stratospheric_cond) then
       ! compute H2O saturation mixing ratio at all altitudes
       do i = 1,var%nz
         H2O_sat_mix(i) = sat_pressure_H2O(var%temperature(i))/pressure(i)
       enddo
-      
-    endif 
+    endif
     
   end subroutine
 

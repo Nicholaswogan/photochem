@@ -9,7 +9,7 @@ setup(
     name="Photochem",
     packages=['Photochem'],
     python_requires='>=3.7',
-    version="0.0.2",
+    version="0.0.3",
     license="MIT",
     install_requires=['numpy','scipy'],
     author='Nicholas Wogan',

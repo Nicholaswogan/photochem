@@ -228,16 +228,16 @@ contains
     ! output is in dynes/cm2
   end function
   
-  pure function damp_condensation_rate(A, rh0, rh) result(k)
+  pure function damp_condensation_rate(A, rhc, rh0, rh) result(k)
     use photochem_const, only: pi
     real(real_kind), intent(in) :: A
-    real(real_kind), intent(in) :: rh0
+    real(real_kind), intent(in) :: rhc, rh0
     real(real_kind), intent(in) :: rh ! the relative humidity
-    real(real_kind) :: k
-    ! k = 0 for rh = 0
+    real(real_kind) :: k 
+    ! k = 0 for rh = rhc
     ! k = A for rh = infinity, approaches asymptotically
     ! k = 0.5*A for rh = rh0
-    k = A*(2.d0/pi)*atan((rh - 1.d0)/(rh0 - 1.d0))
+    k = A*(2.d0/pi)*atan((rh - rhc)/(rh0 - rhc))
   end function
   
   pure function henrys_law(T, A, B) result(H)

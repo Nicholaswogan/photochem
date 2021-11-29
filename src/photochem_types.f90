@@ -187,8 +187,7 @@ module photochem_types ! make a giant IO object
     logical :: use_manabe ! use manabe formula
     real(real_kind) :: relative_humidity ! relative humidity if no manabe
     logical :: gas_rainout
-    real(real_kind) :: relative_humidity_cold_trap
-    real(real_kind) :: H2O_condensation_rate(2)
+    real(real_kind) :: H2O_condensation_rate(3)
     
     ! Radiative tranfer
     real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz

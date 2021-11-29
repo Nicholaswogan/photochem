@@ -28,28 +28,27 @@ planet:
     relative-humidity: manabe
     gas-rainout: true
     stratospheric-condensation: true
-    cold-trap-relative-humitity: 0.1 # relative humidity at the cold trap
-    condensation-rate: {A: 1.0e-5, rh0: 1.05} 
+    condensation-rate: {A: 1.0e-5, rhc: 0.01, rh0: 0.015}
 
 particles:
 - name: H2SO4aer
-  condensation-rate: {A: 1.0e-5, rh0: 1.05}
+  condensation-rate: {A: 1.0e-5, rhc: 1.0, rh0: 1.05}
 - name: HCNaer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: HCCCNaer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: CH3CNaer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: C2H2aer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: C2H4aer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: C2H6aer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: C4H4aer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: N2Oaer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
   
 # Assumes veff = vdep = 0 boundary condition for species not specified.
 # Assumes species is long-lived unless specified

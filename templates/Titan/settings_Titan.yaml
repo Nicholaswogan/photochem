@@ -23,231 +23,49 @@ planet:
   diff-lim-hydrogen-escape: true
   water:
     fix-water-in-troposphere: false
+    stratospheric-condensation: true
+    condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 
 particles:
 - name: H2SO4aer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-5, rhc: 1.0, rh0: 1.05}
 - name: HCNaer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: HCCCNaer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: CH3CNaer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: C2H2aer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: C2H4aer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: C2H6aer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: C4H4aer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: N2Oaer
-  condensation-rate: {A: 1.0e-8, rh0: 1.05}
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
       
 # Assumes veff = vdep = 0 boundary condition for species not specified.
 # Assumes species is long-lived unless specified
 boundary-conditions:
 - name: CH4
-  lower-boundary:
-    mix: 5e-2
-    type: mix
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: mix, mix: 5e-2}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: H2
-  lower-boundary:
-    mix: 3e-3
-    type: mix
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: S8aer
-  lower-boundary:
-    vdep: 1.0e-2
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: mix, mix: 3e-3}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: HCaer1
-  lower-boundary:
-    vdep: 1.0e-2
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 1.0e-2}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: HCaer2
-  lower-boundary:
-    vdep: 1.0e-2
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 1.0e-2}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: HCaer3
-  lower-boundary:
-    vdep: 1.0e-2
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 1.0e-2}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: O1D
   type: short lived
 - name: N2D
   type: short lived
-
-# standard stuff
-- name: O
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: H
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: OH
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: HO2
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: H2O2
-  lower-boundary:
-    vdep: 2.0e-1
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: HCO
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: H2CO
-  lower-boundary:
-    vdep: 2e-1
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: CH3
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: NO
-  lower-boundary:
-    vdep: 3.0e-4
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: NO2
-  lower-boundary:
-    vdep: 3.0e-3
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: O3
-  lower-boundary:
-    vdep: 7.0e-2
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: HNO3
-  lower-boundary:
-    vdep: 2.0e-1
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: H2S
-  lower-boundary:
-    vdep: 2.0e-2
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: HSO
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: H2SO4
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: SO2
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: HNCO
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: HCN
-  lower-boundary:
-    vdep: 7.0e-3
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: C2H2
-  lower-boundary:
-    vdep: 7.0e-3
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: HCCCN
-  lower-boundary:
-    vdep: 7.0e-3
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: NCO
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: CN
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-
-      
+  
