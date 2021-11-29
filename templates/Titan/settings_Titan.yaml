@@ -50,10 +50,7 @@ particles:
 # Assumes species is long-lived unless specified
 boundary-conditions:
 - name: CH4
-  lower-boundary: {type: mix, mix: 5e-2}
-  upper-boundary: {type: veff, veff: 0.0}
-- name: H2
-  lower-boundary: {type: mix, mix: 3e-3}
+  lower-boundary: {type: mix, mix: 1.5e-2}
   upper-boundary: {type: veff, veff: 0.0}
 - name: HCaer1
   lower-boundary: {type: vdep, vdep: 1.0e-2}

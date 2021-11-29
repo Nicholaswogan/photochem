@@ -441,17 +441,8 @@ contains
     self_ptr => self
     user_data = c_loc(self_ptr)
     
-    if (c_associated(wrk%cvode_mem)) then
-      call FN_VDestroy(wrk%sunvec_y)
-      call FCVodeFree(wrk%cvode_mem)
-      ierr = FSUNLinSolFree(wrk%sunlin)
-      if (ierr /= 0) then
-        err = "CVODE deallocation error"
-        return
-      end if
-      call FSUNMatDestroy(wrk%sunmat)
-      deallocate(wrk%yvec)
-    endif
+    call self%destroy_stepper(err)
+    if (len_trim(err) /= 0) return
     
     ! initialize solution vector
     allocate(wrk%yvec(var%neqs))
