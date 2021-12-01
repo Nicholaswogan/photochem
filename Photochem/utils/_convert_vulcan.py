@@ -165,7 +165,6 @@ def vulcan2yaml(vulcan_rx_filename, all_compose_filename, outfile, \
             thermo[sp1]['data'] = polys
             
         for i in range(len(species)):
-            print(thermo[species[i]['name']])
             species[i]['thermo'] = thermo[species[i]['name']]    
         
     atoms_list = list(set(atoms_list))

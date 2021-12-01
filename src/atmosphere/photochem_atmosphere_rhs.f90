@@ -131,32 +131,42 @@ contains
   subroutine compute_gibbs_energy(self, nz, ng, gibbs_energy, err)
     use photochem_eqns, only: gibbs_energy_shomate
     
-    class(Atmosphere), intent(in) :: self
+    class(Atmosphere), target, intent(in) :: self
     integer, intent(in) :: nz, ng
     real(real_kind), intent(out) :: gibbs_energy(nz,ng)
     character(len=err_len), intent(out) :: err
     
     integer :: i, j, k
+    logical :: found
+    
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    
+    dat => self%dat
+    var => self%var
 
     err = ''
     
-    do i = 1,self%dat%ng
-      do j = 1,self%var%nz
-        if ((self%var%temperature(j) >= self%dat%thermo_temps(1,i)) .and. &
-           (self%var%temperature(j) < self%dat%thermo_temps(2,i))) then
-           k = 1
-        elseif ((self%var%temperature(j) >= self%dat%thermo_temps(2,i)) .and. &
-              (self%var%temperature(j) <= self%dat%thermo_temps(3,i))) then
-           k = 2
-        else
+    do i = 1,dat%ng
+      do j = 1,var%nz
+        found = .false.
+        do k = 1,dat%thermo_data(i)%ntemps
+          if (var%temperature(j) >= dat%thermo_data(i)%temps(k) .and. &
+              var%temperature(j) <  dat%thermo_data(i)%temps(k+1)) then
+              
+            found = .true.
+            call gibbs_energy_shomate(dat%thermo_data(i)%data(1:7,k), var%temperature(j), gibbs_energy(j,i))
+            exit
+          endif
+        enddo
+        if (.not. found) then
           err = 'The temperature is not within the ranges '// &
-                'given for the thermodynamic data for '//trim(self%dat%species_names(i+self%dat%npq))
+                'given for the thermodynamic data for '//trim(dat%species_names(i+dat%npq))
           return
         endif
-        ! j/mol
-        call gibbs_energy_shomate(self%dat%thermo_data(1:7,k,i), self%var%temperature(j), gibbs_energy(j,i))
       enddo
     enddo
+
   end subroutine
   
   subroutine chempl(self, nz, nsp, nrT, densities, rx_rates, k, xp, xl)

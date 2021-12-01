@@ -298,8 +298,7 @@ contains
     photodata%species_names(photodata%nsp+2) = "M"
     ! we will not include particles in thermodynamic data.
     if (photodata%reverse) then
-      allocate(photodata%thermo_data(7,2,photodata%ng))
-      allocate(photodata%thermo_temps(3,photodata%ng))
+      allocate(photodata%thermo_data(photodata%ng))
     endif
     
     ! Append the species to the end of a list
@@ -360,8 +359,8 @@ contains
         photodata%species_redox(j) = sum(photodata%species_composition(:,j) * photodata%atoms_redox)
         
         if (photodata%reverse .and. (ii >= photodata%ng_1)) then
-          call get_thermodata(element,photodata%species_names(j), infile,photodata%thermo_temps(:,j-photodata%npq), &
-                              photodata%thermo_data(:,:,j-photodata%npq), err) ! get thermodynamic data
+          call get_thermodata_new(element,photodata%species_names(j), infile, &
+                              photodata%thermo_data(j-photodata%npq), err)
           if (len_trim(err) > 0) return
         endif
       class default
@@ -1067,54 +1066,57 @@ contains
     endif
   end subroutine
   
-  subroutine get_thermodata(molecule, molecule_name, infile, &
-                            thermo_temps_entry, thermo_data_entry, err)
+  subroutine get_thermodata_new(molecule, molecule_name, infile, &
+                            thermo, err)
+    use photochem_types, only: ThermodynamicData
     class(type_dictionary), intent(in) :: molecule
     character(len=*), intent(in) :: molecule_name
     character(len=*), intent(in) :: infile
     
-    real(real_kind), intent(out) :: thermo_temps_entry(3)
-    real(real_kind), intent(out) :: thermo_data_entry(7,2)
+    type(ThermodynamicData), intent(out) :: thermo
     character(len=err_len), intent(out) :: err
     
     type (type_error), pointer :: io_err
     class(type_dictionary), pointer :: tmpdict
     class(type_list), pointer :: tmplist
     class(type_list_item), pointer :: item, item1
+    character(len=:), allocatable :: model
     logical :: success
     
-    integer :: j, i, k
+    integer :: j, k
     
     err = ''
-    thermo_temps_entry = -1.d0
-    thermo_data_entry = -1.d0
     
     tmpdict => molecule%get_dictionary("thermo",.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
-    
     ! check thermodynamic model
-    if (tmpdict%get_string("model",error = io_err) /= "Shomate") then
+    model = tmpdict%get_string("model",error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (model == "Shomate") then
+      thermo%dtype = 1
+    else
       err = "IOError: Thermodynamic data must be in Shomate format for "//trim(molecule_name)
       return
     endif
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    
     
     ! get temperature ranges
     tmplist =>tmpdict%get_list("temperature-ranges",.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+    thermo%ntemps = tmplist%size() - 1
+    if (thermo%ntemps /= 1 .and. thermo%ntemps /= 2) then
+      err = "IOError: Problem reading thermodynamic data for  "//trim(molecule_name)
+      return
+    endif
+    allocate(thermo%temps(thermo%ntemps + 1))
     
     j = 1
     item => tmplist%first
     do while (associated(item))
       select type (listitem => item%node)
       class is (type_scalar)
-        if (j > 3) then
-          err = "IOError: Too many temperature ranges for "//trim(molecule_name)
-          return
-        endif
-        thermo_temps_entry(j) = listitem%to_real(-1.d0,success)
+        thermo%temps(j) = listitem%to_real(-1.d0,success)
         if (.not. success) then
           err = "IOError: Problem reading thermodynamic data for  "//trim(molecule_name)
           return
@@ -1127,36 +1129,38 @@ contains
       j = j + 1
     enddo
     
-    ! check amount of thermodynamic data
-    if (thermo_temps_entry(3) < -0.5d0) then
-      i = 1
-    else
-      i = 2
-    endif
-    
     ! get data
     tmplist => tmpdict%get_list("data",.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
+    if (tmplist%size() /= thermo%ntemps) then
+      err = "IOError: Problem reading thermodynamic data for "//trim(molecule_name)
+      return
+    endif
+    
+    if (thermo%dtype == 1) then
+      ! Shomate
+      allocate(thermo%data(7,thermo%ntemps))
+    endif
+    
     k = 1
     item => tmplist%first
     do while (associated(item))
-      if (k > i) then
-        err = "IOError: Too much thermodynamic data for "//trim(molecule_name)
-        return
-      endif
       select type (listitem => item%node)
       class is (type_list)
+        
+        if (listitem%size() /= size(thermo%data,1)) then
+          err = "IOError: Too much or too little thermodynamic data for "//trim(molecule_name)
+          return
+        endif
+        
         j = 1
         item1 => listitem%first
         do while (associated(item1)) 
           select type (listitem1 => item1%node)
           class is (type_scalar)
-            if (j > 7) then
-              err = "IOError: Too much thermodynamic data for "//trim(molecule_name)
-              return
-            endif
-            thermo_data_entry(j, k) = listitem1%to_real(-1.d0,success)
+
+            thermo%data(j, k) = listitem1%to_real(-1.d0,success)
             if (.not.success) then
               err = "IOError: Problem reading thermodynamic data for "//trim(molecule_name)
               return
@@ -1168,22 +1172,14 @@ contains
         item1 => item1%next
         j = j + 1
         enddo
-        if (j-1 /= 7) then
-          err = "IOError: Missing thermodynamic data for "//trim(molecule_name)
-          return
-        endif
       class default
         err = "IOError: Problem reading thermodynamic data for "//trim(molecule_name)
         return
       end select
       item => item%next
       k = k + 1
-    enddo
-    if (k - 1 /= i) then
-      err = "IOError: More temperature ranges than thermodynamic data for "//trim(molecule_name)
-      return
-    endif
-    
+    enddo          
+                            
   end subroutine
   
   subroutine get_rateparams(reaction, infile, rxtype, falloff_type, rateparam, err)

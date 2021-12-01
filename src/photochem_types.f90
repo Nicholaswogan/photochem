@@ -10,7 +10,8 @@ module photochem_types ! make a giant IO object
   implicit none
   private
   
-  public :: PhotochemData, PhotochemVars, PhotochemWrk, ProductionLoss, AtomConservation
+  public :: PhotochemData, PhotochemVars, PhotochemWrk
+  public :: ProductionLoss, AtomConservation, ThermodynamicData
   
   type :: ProductionLoss
     real(real_kind), allocatable :: production(:,:)
@@ -32,6 +33,13 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: w0(:,:) ! (nz,nw) or (nrad_file, nw)
     real(real_kind), allocatable :: qext(:,:)
     real(real_kind), allocatable :: gt(:,:)
+  end type
+  
+  type :: ThermodynamicData
+    integer :: dtype ! shomate = 1
+    integer :: ntemps
+    real(real_kind), allocatable :: temps(:)
+    real(real_kind), allocatable :: data(:,:)
   end type
   
   type :: AtomConservation
@@ -65,8 +73,7 @@ module photochem_types ! make a giant IO object
     integer, allocatable :: species_composition(:,:)
     real(real_kind), allocatable :: species_mass(:) 
     real(real_kind), allocatable :: species_redox(:)
-    real(real_kind), allocatable :: thermo_data(:,:,:)
-    real(real_kind), allocatable :: thermo_temps(:,:)
+    type(ThermodynamicData), allocatable :: thermo_data(:)
     real(real_kind), allocatable :: henry_data(:,:)
     
     ! particles
