@@ -359,7 +359,7 @@ contains
         photodata%species_redox(j) = sum(photodata%species_composition(:,j) * photodata%atoms_redox)
         
         if (photodata%reverse .and. (ii >= photodata%ng_1)) then
-          call get_thermodata_new(element,photodata%species_names(j), infile, &
+          call get_thermodata(element,photodata%species_names(j), infile, &
                               photodata%thermo_data(j-photodata%npq), err)
           if (len_trim(err) > 0) return
         endif
@@ -1066,7 +1066,7 @@ contains
     endif
   end subroutine
   
-  subroutine get_thermodata_new(molecule, molecule_name, infile, &
+  subroutine get_thermodata(molecule, molecule_name, infile, &
                             thermo, err)
     use photochem_types, only: ThermodynamicData
     class(type_dictionary), intent(in) :: molecule
@@ -1095,6 +1095,8 @@ contains
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     if (model == "Shomate") then
       thermo%dtype = 1
+    elseif (model == "NASA9") then
+      thermo%dtype = 2
     else
       err = "IOError: Thermodynamic data must be in Shomate format for "//trim(molecule_name)
       return
@@ -1141,6 +1143,9 @@ contains
     if (thermo%dtype == 1) then
       ! Shomate
       allocate(thermo%data(7,thermo%ntemps))
+    elseif (thermo%dtype == 2) then
+      ! NASA9
+      allocate(thermo%data(9,thermo%ntemps))
     endif
     
     k = 1

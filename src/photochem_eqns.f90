@@ -51,6 +51,27 @@ contains
     gibbs = enthalpy*1000.d0 - T*entropy
   end subroutine
   
+  pure subroutine gibbs_energy_nasa9(coeffs, T, gibbs)
+    use photochem_const, only: Rgas
+    real(real_kind), intent(in) :: coeffs(9)
+    real(real_kind), intent(in) :: T
+    real(real_kind), intent(out) :: gibbs
+    
+    real(real_kind) :: enthalpy, entropy
+    
+    enthalpy = (- coeffs(1)*T**(-2.d0) + coeffs(2)*log(T)/T &
+                + coeffs(3) + coeffs(4)*T/2.d0 + coeffs(5)*T**(2.d0)/3.d0 &
+                + coeffs(6)*T**(3.d0)/4.d0 + coeffs(7)*T**(4.d0)/5.d0 &
+                + coeffs(8)/T)*T*Rgas
+             
+    entropy = (- coeffs(1)*T**(-2.d0)/2.d0 - coeffs(2)*T**(-1.d0) &
+               + coeffs(3)*log(T) + coeffs(4)*T + coeffs(5)*T**(2.d0)/2.d0 &
+               + coeffs(6)*T**(3.d0)/3.d0 + coeffs(7)*T**(4.d0)/4.d0 &
+               + coeffs(9))*Rgas
+               
+    gibbs = enthalpy - T*entropy
+  end subroutine
+  
   pure subroutine round(in,precision)
     real(real_kind), intent(inout) :: in
     integer, intent(in) :: precision

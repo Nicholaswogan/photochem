@@ -8,17 +8,17 @@ program main
   
   err = ""
   call pc%init("../Photochem/data", &
-               "../Photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-               "../templates/ModernEarth/settings_ModernEarth.yaml", &
+               "../test.yaml", &
+               "../settings_test.yaml", &
                "../templates/ModernEarth/Sun_now.txt", &
-               "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
+               "../atmosphere_test.txt", &
                err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop 1
   endif
 
-  call pc%evolve("../test.dat", 0.d0, pc%var%usol_init, [1.d0,1.d17], success, err)
+  call pc%photochemical_equilibrium(success, err)
   if (len(trim(err)) > 0) then
     print*,trim(err)
     stop 1

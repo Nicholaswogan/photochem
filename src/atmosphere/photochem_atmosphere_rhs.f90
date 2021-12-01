@@ -129,7 +129,7 @@ contains
   end subroutine
   
   subroutine compute_gibbs_energy(self, nz, ng, gibbs_energy, err)
-    use photochem_eqns, only: gibbs_energy_shomate
+    use photochem_eqns, only: gibbs_energy_shomate, gibbs_energy_nasa9
     
     class(Atmosphere), target, intent(in) :: self
     integer, intent(in) :: nz, ng
@@ -155,7 +155,11 @@ contains
               var%temperature(j) <  dat%thermo_data(i)%temps(k+1)) then
               
             found = .true.
-            call gibbs_energy_shomate(dat%thermo_data(i)%data(1:7,k), var%temperature(j), gibbs_energy(j,i))
+            if (dat%thermo_data(i)%dtype == 1) then
+              call gibbs_energy_shomate(dat%thermo_data(i)%data(1:7,k), var%temperature(j), gibbs_energy(j,i))
+            elseif (dat%thermo_data(i)%dtype == 2) then
+              call gibbs_energy_nasa9(dat%thermo_data(i)%data(1:9,k), var%temperature(j), gibbs_energy(j,i))          
+            endif
             exit
           endif
         enddo

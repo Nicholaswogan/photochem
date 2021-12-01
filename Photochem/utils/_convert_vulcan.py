@@ -157,7 +157,8 @@ def vulcan2yaml(vulcan_rx_filename, all_compose_filename, outfile, \
         for i,sp in enumerate(vulcan_sp_list):
             polys = np.loadtxt(vulcan_nasa9_data_folder+ '/'+ sp + '.txt')
             polys = polys.flatten()
-            polys = [[float(a) for a in polys[:10]],[float(a) for a in polys[10:20]]]
+            polys = [[float(a) for i,a in enumerate(polys[:10]) if i != 7], \
+                     [float(a) for i,a in enumerate(polys[10:20]) if i != 7]]
             sp1 = sp_list[i]
             thermo[sp1] = {}
             thermo[sp1]['model'] = 'NASA9'

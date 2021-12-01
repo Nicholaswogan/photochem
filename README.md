@@ -5,7 +5,7 @@
 ## Installation
 
 **Requirements:**
-- Python >= 3.7
+- Python >= 3.6
 - Fortran and C compiler. I suggest the GNU compiler collection (includes `gfortran`, `gcc`, etc.). If you are using a Mac, install it with Homebrew: `brew install gcc.`
 
 **Python Module:** 

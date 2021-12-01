@@ -8,10 +8,10 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 setup(
     name="Photochem",
     packages=['Photochem'],
-    python_requires='>=3.7',
-    version="0.0.4",
+    python_requires='>=3.6',
+    version="0.0.5",
     license="MIT",
-    install_requires=['numpy','scipy'],
+    install_requires=['numpy','scipy','pyyaml'],
     author='Nicholas Wogan',
     author_email = 'nicholaswogan@gmail.com',
     description = "Photochemical model of planet's atmospheres.",
