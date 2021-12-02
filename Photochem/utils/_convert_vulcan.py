@@ -4,7 +4,7 @@ from ._format import FormatReactions_main, MyDumper, Loader, yaml
 from ._convert_utils import AtomData, compare2reactions, \
                             generate_photo_yaml_entries, sort_photos
                             
-def vulcan2yaml(vulcan_rx_filename, all_compose_filename, outfile, \
+def vulcan2yaml(vulcan_rx_filename, all_compose_filename, outfile = None, \
                 rename_species = True, photo_database = "Photochem", vulcan_nasa9_data_folder = None):
     
     # get composition of each species
@@ -83,6 +83,11 @@ def vulcan2yaml(vulcan_rx_filename, all_compose_filename, outfile, \
         for rep in to_replace:
             if rep[0] in rx_str:
                 rx_str = rx_str.replace(rep[0],rep[1])
+        if "M" not in rx_str.split(rx_arrow)[0]:
+            rx_str = rx_str.split(rx_arrow)[0] + "+ M "+rx_arrow+rx_str.split(rx_arrow)[1]
+        if "M" not in rx_str.split(rx_arrow)[1]:
+            rx_str = rx_str.split(rx_arrow)[0]+rx_arrow+rx_str.split(rx_arrow)[1]+ "+ M "
+            
         A0, b0, Ea0, Ainf, binf, Eainf = [float(a) for a in line.split(']')[1].split()[:6]]
         rx = {}
         rx['equation'] = rx_str
@@ -101,6 +106,10 @@ def vulcan2yaml(vulcan_rx_filename, all_compose_filename, outfile, \
         for rep in to_replace:
             if rep[0] in rx_str:
                 rx_str = rx_str.replace(rep[0],rep[1])
+        if "M" not in rx_str.split(rx_arrow)[0]:
+            rx_str = rx_str.split(rx_arrow)[0] + "+ M "+rx_arrow+rx_str.split(rx_arrow)[1]
+        if "M" not in rx_str.split(rx_arrow)[1]:
+            rx_str = rx_str.split(rx_arrow)[0]+rx_arrow+rx_str.split(rx_arrow)[1]+ "+ M "
         A, b, Ea = [float(a) for a in line.split(']')[1].split()[:3]]
         rx = {}
         rx['equation'] = rx_str
@@ -191,6 +200,9 @@ def vulcan2yaml(vulcan_rx_filename, all_compose_filename, outfile, \
     else:
         raise Exception('"Photochem" and "Vulcan" are the only options for photo_database')
     out = FormatReactions_main(out)
+    
+    if outfile == None:
+        outfile = vulcan_rx_filename.replace('.txt','.yaml')
     
     # save
     fil = open(outfile,'w')

@@ -104,14 +104,21 @@ def FormatSettings(infile, outfile):
     fil = open(infile,'r')
     data = yaml.load(fil,Loader=Loader)
     fil.close()
+    data = FormatSettings_main(data)
+    fil = open(outfile,'w')
+    yaml.dump(data,fil,Dumper=MyDumper,sort_keys=False,width=70)
+    fil.close()
+    
+def FormatSettings_main(data):
     
     if "condensation-rate" in data['planet']['water'].keys():
         data['planet']['water']['condensation-rate'] = flowmap(data['planet']['water']['condensation-rate'])
     
-    for i in range(len(data['particles'])):
-        if "condensation-rate" in data['particles'][i]:
-            data['particles'][i]["condensation-rate"] = \
-            flowmap(data['particles'][i]["condensation-rate"])
+    if 'particles' in data:
+        for i in range(len(data['particles'])):
+            if "condensation-rate" in data['particles'][i]:
+                data['particles'][i]["condensation-rate"] = \
+                flowmap(data['particles'][i]["condensation-rate"])
 
     for i in range(len(data['boundary-conditions'])):
         if "lower-boundary" in data['boundary-conditions'][i]:
@@ -133,8 +140,6 @@ def FormatSettings(infile, outfile):
 
             data['boundary-conditions'][i]['upper-boundary'] = flowmap(data['boundary-conditions'][i]['upper-boundary'])
         
-    fil = open(outfile,'w')
-    yaml.dump(data,fil,Dumper=MyDumper,sort_keys=False,width=70)
-    fil.close()
+    return data
     
     
