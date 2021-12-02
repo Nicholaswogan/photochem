@@ -1,0 +1,3 @@
+module photochem_version
+   character(len=100), parameter :: version = "@Photochem_VERSION@"
+end module

@@ -1,11 +1,13 @@
 
 program main
-  use photochem, only: Atmosphere, err_len
+  use photochem, only: Atmosphere, err_len, version
   implicit none
   character(len=err_len) :: err
   type(Atmosphere) :: pc
   logical :: success
   integer :: i, j
+  
+  print*,'Photochem version == ',trim(version)
 
   call pc%init("../Photochem/data", &
                "../Photochem/data/reaction_mechanisms/zahnle_earth.yaml", &

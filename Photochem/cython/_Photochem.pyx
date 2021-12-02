@@ -13,4 +13,14 @@ include "PhotochemVars.pyx"
 include "PhotochemWrk.pyx"
 include "ProductionLoss.pyx"
 include "AtomConservation.pyx"
+
+# version
+cdef extern void photochem_version_get(char *version_c)
+  
+def _photochem_version():
+  cdef char version_c[100+1]
+  photochem_version_get(version_c)
+  return version_c.decode("utf-8").strip()
+  
+__version__ = _photochem_version()
     

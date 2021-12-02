@@ -27,6 +27,7 @@ set(PHOTOCHEM_SOURCES
 
 # libphotochem.a
 add_library(photochem 
+            ${CMAKE_BINARY_DIR}/photochem_version.f90
             ${PHOTOCHEM_SOURCES})
 target_link_libraries(photochem fortran-yaml-c sundials_fcvode_mod sundials_cvode cminpack futils)
 target_include_directories(photochem PUBLIC

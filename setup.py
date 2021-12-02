@@ -5,12 +5,19 @@ this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
+with open("CMakeLists.txt",'r') as fil:
+    lines = fil.readlines()
+    for line in lines:
+        if line.startswith("project(Photochem"):
+            version = line.split('"')[1]
+            break
+            
 setup(
     name="Photochem",
     packages=['Photochem','Photochem.utils'],
     python_requires='>=3.6',
-    version="0.0.6",
-    license="MIT",
+    version=version,
+    license="GNU General Public License v3.0",
     install_requires=['numpy','scipy','pyyaml'],
     author='Nicholas Wogan',
     author_email = 'nicholaswogan@gmail.com',
@@ -21,7 +28,7 @@ setup(
     include_package_data=True,
     cmake_args=['-DSKBUILD=ON',\
                 '-DBUILD_PYTHON_PHOTOCHEM=ON',\
-                '-DBUILD_STATIC_PHOTOCHEM=OFF']
+                '-DBUILD_EXECUTABLES=OFF']
 )
 
 

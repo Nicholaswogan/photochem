@@ -6,6 +6,16 @@ module atmosphere_wrapper
   
 contains
   
+  !!!!!!!!!!!!!!!
+  !!! version !!!
+  !!!!!!!!!!!!!!!
+  
+  subroutine photochem_version_get(version_c) bind(c)
+    use photochem, only: version 
+    character(kind=c_char), intent(out) :: version_c(100+1)
+    call copy_string_ftoc(version, version_c)
+  end subroutine
+  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! allocator and destroyer !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

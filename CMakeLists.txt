@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION "3.12")
-project(photochem LANGUAGES Fortran C)
+project(Photochem LANGUAGES Fortran C VERSION "0.0.7")
 
 include(FortranCInterface)
 FortranCInterface_VERIFY()
@@ -9,11 +9,14 @@ and OFF of being build by regular cmake" OFF)
 
 option(TRAVIS "Should be ON if it is a TravisCI build" OFF)
 
-option(BUILD_STATIC_PHOTOCHEM "if ON, then will build the
-static library libphotochem.a" ON)
+option(BUILD_EXECUTABLES "if ON, then will build the
+Fortran executables" ON)
 
 option(BUILD_PYTHON_PHOTOCHEM "if ON, then will build a python
 version with f2py" OFF)
+
+# version
+configure_file(src/photochem_version.f90.in photochem_version.f90)
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
@@ -39,7 +42,7 @@ message (STATUS "Building with OpenMP multi-threading = ${BUILD_WITH_OPENMP}")
 
 add_subdirectory(src)
 
-if (BUILD_STATIC_PHOTOCHEM)
+if (BUILD_EXECUTABLES)
 
   # the main executable
   add_executable(photorun ${CMAKE_SOURCE_DIR}/src/main.f90)
@@ -54,9 +57,7 @@ if (BUILD_STATIC_PHOTOCHEM)
   add_executable(memtest ${CMAKE_SOURCE_DIR}/tests/memtest.f90)
   target_link_libraries(memtest photochem)
   target_include_directories(memtest PRIVATE ${CMAKE_BINARY_DIR}/modules)
-
-  enable_testing()
-  add_test(equilibrium_run testrun)
+  
 endif()
 
 if (BUILD_PYTHON_PHOTOCHEM)
