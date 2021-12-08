@@ -52,82 +52,38 @@ particles:
 # Assumes species is long-lived unless specified
 boundary-conditions:
 - name: O2
-  lower-boundary:
-    mix: 0.21
-    type: mix
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: mix, mix: 0.21}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: H2
-  lower-boundary:
-    mix: 5.3E-07
-    type: mix
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: mix, mix: 5.3e-07}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: CO2
-  lower-boundary:
-    mix: 3.6E-4
-    type: mix
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: mix, mix: 0.00036}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: CH4
-  lower-boundary:
-    mix: 1.8e-6
-    type: mix
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: mix, mix: 1.8e-06}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: CO
-  lower-boundary:
-    mix: 1.1e-7
-    type: mix
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: mix, mix: 1.1e-07}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: N2O
-  lower-boundary:
-    mix: 3.1e-7
-    type: mix
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: mix, mix: 3.1e-07}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: H2SO4aer
-  lower-boundary:
-    vdep: 1.0e-2
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 0.01}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: S8aer
-  lower-boundary:
-    vdep: 1.0e-2
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 0.01}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: HCaer1
-  lower-boundary:
-    vdep: 1.0e-2
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 0.01}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: HCaer2
-  lower-boundary:
-    vdep: 1.0e-2
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 0.01}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: HCaer3
-  lower-boundary:
-    vdep: 1.0e-2
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 0.01}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: O1D
   type: short lived
 - name: N2D
@@ -135,164 +91,69 @@ boundary-conditions:
 
 # standard stuff
 - name: O
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: H
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: OH
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: HO2
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: H2O2
-  lower-boundary:
-    vdep: 2.0e-1
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 0.2}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: HCO
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: H2CO
-  lower-boundary:
-    vdep: 2e-1
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 2e-1}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: CH3
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-- name: NO
-  lower-boundary:
-    vdep: 3.0e-4
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: "NO"
+  lower-boundary: {type: vdep, vdep: 0.0003}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: NO2
-  lower-boundary:
-    vdep: 3.0e-3
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 0.003}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: O3
-  lower-boundary:
-    vdep: 7.0e-2
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 0.07}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: HNO3
-  lower-boundary:
-    vdep: 2.0e-1
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 0.2}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: H2S
-  lower-boundary:
-    flux: 1.0e8
-    vdep: 2.0e-2
-    height: 10.0
-    type: vdep + dist flux
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep + dist flux, vdep: 0.02, flux: 1.0e8, height: 10.0}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: OCS
-  lower-boundary:
-    flux: 5.0e7
-    vdep: 3.0e-3
-    height: 10.0
-    type: vdep + dist flux
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep + dist flux, vdep: 0.003, flux: 5.0e7, height: 10.0}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: HSO
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: H2SO4
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: SO2
-  lower-boundary:
-    flux: 1.0e9
-    vdep: 1.0
-    height: 10.0
-    type: vdep + dist flux
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep + dist flux, vdep: 1.0, flux: 1.0e9, height: 10.0}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: HNCO
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: HCN
-  lower-boundary:
-    vdep: 7.0e-3
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 0.007}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: HCCCN
-  lower-boundary:
-    vdep: 7.0e-3
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 0.007}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: NCO
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: CN
-  lower-boundary:
-    vdep: 1.0
-    type: vdep
-  upper-boundary:
-    veff: 0.0
-    type: veff
-
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
       
