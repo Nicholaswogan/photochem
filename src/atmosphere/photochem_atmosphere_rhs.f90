@@ -23,7 +23,6 @@ contains
     character(len=err_len), intent(out) :: err
     
     integer :: i, j, k, n, l, m
-    real(real_kind) :: gibbs_energy(nz,self%dat%ng)
     real(real_kind) :: eff_den(nz), F(nz), k0, kinf(nz), Pr(nz)
     real(real_kind) :: gibbR_forward, gibbP_forward
     real(real_kind) :: Dg_forward
@@ -99,9 +98,6 @@ contains
     enddo ! end loop over forward reactions
 
     if (self%dat%reverse) then ! if there are reverse reactions
-      ! compute gibbs energy at all altitudes
-      call compute_gibbs_energy(self, self%var%nz, self%dat%ng, gibbs_energy, err)
-      if (len_trim(err) /= 0) return
       ! compute reverse rate
       do i = self%dat%nrF+1,self%dat%nrT
         
@@ -111,11 +107,13 @@ contains
         do j = 1,self%var%nz
           gibbR_forward = 0.d0
           do k = 1,l
-            gibbR_forward = gibbR_forward + gibbs_energy(j,self%dat%reactants_sp_inds(k,n)-self%dat%npq)
+            gibbR_forward = gibbR_forward + &
+                            self%var%gibbs_energy(j,self%dat%reactants_sp_inds(k,n)-self%dat%npq)
           enddo
           gibbP_forward = 0.d0
           do k = 1,m
-            gibbP_forward = gibbP_forward + gibbs_energy(j,self%dat%products_sp_inds(k,n)-self%dat%npq)
+            gibbP_forward = gibbP_forward +  &
+                            self%var%gibbs_energy(j,self%dat%products_sp_inds(k,n)-self%dat%npq)
           enddo
           Dg_forward = gibbP_forward - gibbR_forward ! DG of the forward reaction (J/mol)
           ! compute the reverse rate
@@ -125,51 +123,6 @@ contains
         enddo
       enddo
     endif
-
-  end subroutine
-  
-  subroutine compute_gibbs_energy(self, nz, ng, gibbs_energy, err)
-    use photochem_eqns, only: gibbs_energy_shomate, gibbs_energy_nasa9
-    
-    class(Atmosphere), target, intent(in) :: self
-    integer, intent(in) :: nz, ng
-    real(real_kind), intent(out) :: gibbs_energy(nz,ng)
-    character(len=err_len), intent(out) :: err
-    
-    integer :: i, j, k
-    logical :: found
-    
-    type(PhotochemData), pointer :: dat
-    type(PhotochemVars), pointer :: var
-    
-    dat => self%dat
-    var => self%var
-
-    err = ''
-    
-    do i = 1,dat%ng
-      do j = 1,var%nz
-        found = .false.
-        do k = 1,dat%thermo_data(i)%ntemps
-          if (var%temperature(j) >= dat%thermo_data(i)%temps(k) .and. &
-              var%temperature(j) <  dat%thermo_data(i)%temps(k+1)) then
-              
-            found = .true.
-            if (dat%thermo_data(i)%dtype == 1) then
-              call gibbs_energy_shomate(dat%thermo_data(i)%data(1:7,k), var%temperature(j), gibbs_energy(j,i))
-            elseif (dat%thermo_data(i)%dtype == 2) then
-              call gibbs_energy_nasa9(dat%thermo_data(i)%data(1:9,k), var%temperature(j), gibbs_energy(j,i))          
-            endif
-            exit
-          endif
-        enddo
-        if (.not. found) then
-          err = 'The temperature is not within the ranges '// &
-                'given for the thermodynamic data for '//trim(dat%species_names(i+dat%npq))
-          return
-        endif
-      enddo
-    enddo
 
   end subroutine
   

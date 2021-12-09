@@ -222,6 +222,7 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: particle_radius(:,:)
     real(real_kind), allocatable :: xs_x_qy(:,:,:)
     type(ParticleXsections), allocatable :: particle_xs(:)
+    real(real_kind), allocatable :: gibbs_energy(:,:)
     
     ! output
     logical :: at_photo_equilibrium = .false.

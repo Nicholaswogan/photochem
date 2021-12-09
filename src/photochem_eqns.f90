@@ -72,6 +72,36 @@ contains
     gibbs = enthalpy - T*entropy
   end subroutine
   
+  subroutine gibbs_energy_eval(thermo, T, found, gibbs_energy)
+    use photochem_types, only: ThermodynamicData
+    
+    type(ThermodynamicData), intent(in) :: thermo
+    real(real_kind), intent(in) :: T
+    logical, intent(out) :: found
+    real(real_kind), intent(out) :: gibbs_energy
+    
+    integer :: k
+    
+    found = .false.
+    do k = 1,thermo%ntemps
+      if (T >= thermo%temps(k) .and. &
+          T <  thermo%temps(k+1)) then
+          
+        found = .true.
+        if (thermo%dtype == 1) then
+          call gibbs_energy_shomate(thermo%data(1:7,k), T, gibbs_energy)
+        elseif (thermo%dtype == 2) then
+          call gibbs_energy_nasa9(thermo%data(1:9,k), T, gibbs_energy)          
+        endif
+        
+        ! we exit
+        exit
+        
+      endif
+    enddo
+
+  end subroutine
+  
   pure subroutine round(in,precision)
     real(real_kind), intent(inout) :: in
     integer, intent(in) :: precision

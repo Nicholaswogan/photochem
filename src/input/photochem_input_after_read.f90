@@ -34,6 +34,11 @@ contains
     call interp2xsdata(photodata, photovars, err)
     if (len_trim(err) /= 0) return
     
+    if (photodata%reverse) then
+      call compute_gibbs_energy(photodata, photovars, err)
+      if (len_trim(err) /= 0) return
+    endif
+    
   end subroutine
   
   subroutine interp2atmosfile(dat, var, err)
@@ -76,6 +81,32 @@ contains
     if (var%z(var%nz) > dat%z_file(dat%nzf)) then
       print*,'Warning: vertical grid is being extrapolated above where there is input data.'
     endif
+
+  end subroutine
+  
+  subroutine compute_gibbs_energy(dat, var, err)
+    use photochem_eqns, only: gibbs_energy_eval
+    
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    character(len=err_len), intent(out) :: err
+    
+    integer :: i, j
+    logical :: found
+
+    err = ''
+    
+    do i = 1,dat%ng
+      do j = 1,var%nz
+        call gibbs_energy_eval(dat%thermo_data(i), var%temperature(j), &
+                               found, var%gibbs_energy(j,i))
+        if (.not. found) then
+          err = 'The temperature is not within the ranges '// &
+                'given for the thermodynamic data for '//trim(dat%species_names(i+dat%npq))
+          return
+        endif
+      enddo
+    enddo
 
   end subroutine
   
@@ -198,6 +229,10 @@ contains
         vars%particle_xs(i)%ThereIsData = .false.
       endif
     enddo
+    
+    if (photodata%reverse) then
+      allocate(vars%gibbs_energy(vars%nz,photodata%ng))
+    endif
 
   end subroutine
   

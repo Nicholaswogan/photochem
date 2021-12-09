@@ -18,17 +18,21 @@ set(PHOTOCHEM_ATMOSPHERE
     atmosphere/photochem_atmosphere_rhs.f90
     atmosphere/photochem_atmosphere_integrate.f90
     atmosphere/photochem_atmosphere_utils.f90)
+    
+set(PHOTOCHEM_THERMODYNAMICS
+thermo/photochem_thermo.f90)
 
 set(PHOTOCHEM_SOURCES 
   ${PHOTOCHEM_MODULES}
   ${PHOTOCHEM_INPUT}
   ${PHOTOCHEM_ATMOSPHERE}
+  ${PHOTOCHEM_THERMODYNAMICS}
   photochem.f90)
 
 # libphotochem.a
 add_library(photochem 
             ${CMAKE_BINARY_DIR}/photochem_version.f90
             ${PHOTOCHEM_SOURCES})
-target_link_libraries(photochem fortran-yaml-c sundials_fcvode_mod sundials_cvode cminpack futils)
+target_link_libraries(photochem fortran-yaml-c sundials_fcvode_mod sundials_cvode cminpack futils ${LAPACK_LIBRARIES})
 target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules")

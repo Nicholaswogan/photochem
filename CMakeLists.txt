@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION "3.12")
-project(Photochem LANGUAGES Fortran C VERSION "0.0.7")
+project(Photochem LANGUAGES Fortran C VERSION "0.0.8")
 
 include(FortranCInterface)
 FortranCInterface_VERIFY()
@@ -39,6 +39,8 @@ if (BUILD_WITH_OPENMP)
   find_package(OpenMP REQUIRED)
 endif()
 message (STATUS "Building with OpenMP multi-threading = ${BUILD_WITH_OPENMP}")
+
+find_package(LAPACK REQUIRED)
 
 add_subdirectory(src)
 
