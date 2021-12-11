@@ -19,24 +19,25 @@ contains
     ! set up the atmosphere grid
     call vertical_grid(photovars%bottom_atmos, photovars%top_atmos, &
                        photovars%nz, photovars%z, photovars%dz)
-    if (photodata%fix_water_in_trop) then
-      photovars%trop_ind = minloc(photovars%z,1, &
-                          photovars%z .ge. photovars%trop_alt) - 1
-    else
-      photovars%trop_ind = 0
-    endif
     call gravity(photodata%planet_radius, photodata%planet_mass, &
                  photovars%nz, photovars%z, photovars%grav)
     call interp2atmosfile(photodata, photovars, err)
     if (len_trim(err) /= 0) return
     
-    ! lets do xsections
+    ! all below depends on Temperature
     call interp2xsdata(photodata, photovars, err)
     if (len_trim(err) /= 0) return
     
     if (photodata%reverse) then
       call compute_gibbs_energy(photodata, photovars, err)
       if (len_trim(err) /= 0) return
+    endif
+    
+    if (photodata%fix_water_in_trop) then
+      photovars%trop_ind = minloc(photovars%z,1, &
+                          photovars%z .ge. photovars%trop_alt) - 1
+    else
+      photovars%trop_ind = 0
     endif
     
   end subroutine
@@ -84,7 +85,7 @@ contains
 
   end subroutine
   
-  subroutine compute_gibbs_energy(dat, var, err)
+  module subroutine compute_gibbs_energy(dat, var, err)
     use photochem_eqns, only: gibbs_energy_eval
     
     type(PhotochemData), intent(in) :: dat
@@ -110,7 +111,7 @@ contains
 
   end subroutine
   
-  subroutine interp2xsdata(dat, var, err)
+  module subroutine interp2xsdata(dat, var, err)
     use futils, only: interp
     use photochem_const, only: smaller_real
     type(PhotochemData), intent(in) :: dat

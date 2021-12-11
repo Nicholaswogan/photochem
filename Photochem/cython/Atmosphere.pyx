@@ -33,6 +33,9 @@ cdef extern void atmosphere_evolve_wrapper(void *ptr, char *filename,
                 double *tstart, int *nq, int *nz, double *usol, 
                 int *nt, double *t_eval, bint *success, char *err)
 
+cdef extern void atmosphere_set_temperature_wrapper(void *ptr, int *nz, double *temperature, 
+                                                    double *trop_alt, bint *trop_alt_present, char *err)
+
 cdef pystring2cstring(str pystring):
   # add a null c char, and convert to byes
   cdef bytes cstring = (pystring+'\0').encode('utf-8')
@@ -311,3 +314,23 @@ cdef class Atmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     return success
+    
+  def set_temperature(self, ndarray[double, ndim=1] temperature, trop_alt = None):
+    
+    cdef char err[ERR_LEN+1]
+    cdef int nz = temperature.size
+    
+    cdef double trop_alt_ = 0.0
+    cdef bint trop_alt_present = False
+    if trop_alt != None:
+      trop_alt_present = True
+      trop_alt_ = trop_alt
+      
+    atmosphere_set_temperature_wrapper(&self._ptr, &nz, <double *>temperature.data, 
+                                       &trop_alt_, &trop_alt_present, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+           
+                                       
+                                       
+                                       

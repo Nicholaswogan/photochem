@@ -544,4 +544,75 @@ contains
   
   end subroutine
   
+  module subroutine set_temperature(self, temperature, trop_alt, err)
+    use photochem_input, only: interp2xsdata, compute_gibbs_energy
+    
+    class(Atmosphere), target, intent(inout) :: self
+    real(real_kind), intent(in) :: temperature(:)
+    real(real_kind), optional, intent(in) :: trop_alt
+    character(len=err_len), intent(out) :: err
+    
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemVars) :: var_save
+    type(PhotochemWrk) :: wrk_save
+    
+    err = ""
+    
+    dat => self%dat
+    var => self%var
+    
+    if (size(temperature) /= var%nz) then
+      err = "temperature has the wrong input dimension"
+      return
+    endif
+    
+    ! save in case there is an issue
+    var_save = var
+    wrk_save = self%wrk
+    
+    var%temperature = temperature
+    
+    ! xsections and gibbs energy needs updating
+    call interp2xsdata(dat, var, err)
+    if (len_trim(err) /= 0) then
+      var = var_save
+      return
+    endif
+    if (dat%reverse) then
+      call compute_gibbs_energy(dat, var, err)
+      if (len_trim(err) /= 0) then
+        var = var_save
+        return
+      endif
+    endif
+    
+    ! if water is fixed in troposhere, and trop_alt present
+    ! then we need to change trop_ind, reallocate some stuff
+    ! in wrk, then we will re-prep the atmosphere
+    if (dat%fix_water_in_trop .and. present(trop_alt)) then
+      if (trop_alt < var%bottom_atmos .or. trop_alt > var%top_atmos) then
+        var = var_save
+        err = "trop_alt is above or bellow the atmosphere!"
+        return
+      endif
+      
+      var%trop_alt = trop_alt
+      var%trop_ind = minloc(var%z,1, &
+                      var%z .ge. var%trop_alt) - 1
+                      
+      call self%wrk%init(self%dat%nsp, self%dat%np, self%dat%nq, &
+                         self%var%nz, self%dat%nrT, self%dat%kj, &
+                         self%dat%nw, self%var%trop_ind)
+                         
+      call self%prep_atmosphere(self%var%usol_init, err)
+      if (len_trim(err) /= 0) then
+        var = var_save
+        self%wrk = wrk_save
+        return
+      endif
+    endif
+    
+  end subroutine
+  
 end submodule

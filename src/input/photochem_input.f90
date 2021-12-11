@@ -7,7 +7,7 @@ module photochem_input
   implicit none
   private 
 
-  public :: setup
+  public :: setup, interp2xsdata, compute_gibbs_energy
   
   interface
     module subroutine after_read_setup(photodata, photovars, err)
@@ -27,6 +27,19 @@ module photochem_input
       type(PhotochemVars), intent(inout) :: photovars
       character(len=err_len), intent(out) :: err
     end subroutine
+    
+    module subroutine interp2xsdata(dat, var, err)
+      type(PhotochemData), intent(in) :: dat
+      type(PhotochemVars), intent(inout) :: var
+      character(len=err_len), intent(out) :: err
+    end subroutine
+    
+    module subroutine compute_gibbs_energy(dat, var, err)
+      type(PhotochemData), intent(in) :: dat
+      type(PhotochemVars), intent(inout) :: var
+      character(len=err_len), intent(out) :: err
+    end subroutine
+    
   end interface
     
 contains

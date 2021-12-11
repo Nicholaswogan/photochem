@@ -40,8 +40,6 @@ if (BUILD_WITH_OPENMP)
 endif()
 message (STATUS "Building with OpenMP multi-threading = ${BUILD_WITH_OPENMP}")
 
-find_package(LAPACK REQUIRED)
-
 add_subdirectory(src)
 
 if (BUILD_EXECUTABLES)

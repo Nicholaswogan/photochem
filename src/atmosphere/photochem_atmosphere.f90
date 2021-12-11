@@ -41,6 +41,7 @@ module photochem_atmosphere
     procedure :: redox_conservation
     procedure :: set_lower_bc
     procedure :: set_upper_bc
+    procedure :: set_temperature
   end type
   
   
@@ -234,6 +235,13 @@ module photochem_atmosphere
       character(len=*), intent(in) :: bc_type
       real(real_kind), optional, intent(in) :: veff
       real(real_kind), optional, intent(in) :: flux
+      character(len=err_len), intent(out) :: err
+    end subroutine
+    
+    module subroutine set_temperature(self, temperature, trop_alt, err)
+      class(Atmosphere), target, intent(inout) :: self
+      real(real_kind), intent(in) :: temperature(:)
+      real(real_kind), optional, intent(in) :: trop_alt
       character(len=err_len), intent(out) :: err
     end subroutine
     
