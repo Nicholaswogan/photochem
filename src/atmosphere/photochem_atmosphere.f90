@@ -113,15 +113,6 @@ module photochem_atmosphere
       ! The jacobian of the rhs_background_gas.
     end subroutine
     
-    module function fcn_fH2O(ptr, n, x, fvec, iflag) result(res) bind(c)
-      use, intrinsic :: iso_c_binding, only : c_ptr  
-      type(c_ptr) :: ptr
-      integer, value :: n, iflag
-      real(real_kind), intent(in) :: x(n)
-      real(real_kind), intent(out) :: fvec(n)
-      integer :: res
-    end function  
-    
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_atmosphere_integrate.f90 !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
