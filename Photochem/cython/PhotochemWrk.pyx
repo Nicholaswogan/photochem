@@ -12,8 +12,14 @@ cdef extern void photochemwrk_pressure_get(void *ptr, int *dim1, double *arr)
 cdef extern void photochemwrk_density_get_size(void *ptr, int *dim1)
 cdef extern void photochemwrk_density_get(void *ptr, int *dim1, double *arr)
 
+cdef extern void photochemwrk_mubar_get_size(void *ptr, int *dim1)
+cdef extern void photochemwrk_mubar_get(void *ptr, int *dim1, double *arr)
+
 cdef extern void photochemwrk_prates_get_size(void *ptr, int *dim1, int *dim2)
 cdef extern void photochemwrk_prates_get(void *ptr, int *dim1, int *dim2, double *arr)
+
+cdef extern void photochemwrk_amean_grd_get_size(void *ptr, int *dim1, int *dim2)
+cdef extern void photochemwrk_amean_grd_get(void *ptr, int *dim1, int *dim2, double *arr)
 
 cdef extern void photochemwrk_surf_radiance_get_size(void *ptr, int *dim1)
 cdef extern void photochemwrk_surf_radiance_get(void *ptr, int *dim1, double *arr)
@@ -66,12 +72,28 @@ cdef class PhotochemWrk:
       photochemwrk_density_get(&self._ptr, &dim1, <double *>arr.data)
       return arr
       
+  property mubar:
+    def __get__(self):
+      cdef int dim1
+      photochemwrk_mubar_get_size(&self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      photochemwrk_mubar_get(&self._ptr, &dim1, <double *>arr.data)
+      return arr
+      
   property prates:
     def __get__(self):
       cdef int dim1, dim2
       photochemwrk_prates_get_size(&self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
       photochemwrk_prates_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+  
+  property amean_grd:
+    def __get__(self):
+      cdef int dim1, dim2
+      photochemwrk_amean_grd_get_size(&self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      photochemwrk_amean_grd_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
       
   property surf_radiance:

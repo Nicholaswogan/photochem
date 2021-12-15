@@ -147,6 +147,22 @@ contains
     z = var%z
   end subroutine
   
+  subroutine photochemvars_surface_pressure_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%surface_pressure
+  end subroutine
+  
+  subroutine photochemvars_surface_pressure_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%surface_pressure = val
+  end subroutine
+  
   subroutine photochemvars_rtol_get(ptr, val) bind(c)
     type(c_ptr), intent(in) :: ptr
     real(c_double), intent(out) :: val

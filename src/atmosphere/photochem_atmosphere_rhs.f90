@@ -404,9 +404,8 @@ contains
   end subroutine
   
   subroutine photorates(self, nz, nsp, kj, nw, densities, &
-                        prates, surf_radiance,err)
+                        prates, surf_radiance, amean_grd, err)
     use photochem_radtran, only: two_stream
-    !$ use photochem_eqns, only: round
     use photochem_const, only: pi
     ! input
     class(Atmosphere), target, intent(in) :: self
@@ -416,6 +415,7 @@ contains
     ! output
     real(real_kind), intent(out) :: prates(nz,kj)
     real(real_kind), intent(out) :: surf_radiance(nw)
+    real(real_kind) :: amean_grd(nz,nw)
     character(len=err_len), intent(out) :: err
     
     ! local
@@ -423,7 +423,6 @@ contains
     real(real_kind) :: tausg(nz), taua(nz), tau(nz), w0(nz), gt(nz)
     real(real_kind) :: taup(nz), tausp(nz)
     real(real_kind) :: amean(nz+1), surf_rad, flx
-    real(real_kind) :: amean_grd(nz)
     real(real_kind) :: taup_1, gt_1, tausp_1(self%dat%np,nz)
     real(real_kind) :: u0
     integer :: l, i, j, jj, k, n, ie, ierr, ierrs
@@ -441,7 +440,7 @@ contains
     !$omp parallel private(l, i, j, jj, k, n, ie, ierr, partial_prates, &
     !$omp& taup, taup_1, tausp, tausp_1, tausg, taua, tau, w0, gt, gt_1, &
     !$omp& amean, surf_rad, &
-    !$omp& amean_grd, flx)
+    !$omp& flx)
     ierr = 0
     partial_prates = 0.d0
     !$omp do
@@ -517,14 +516,14 @@ contains
       ! convert amean to photolysis grid
       do i = 1,var%nz
         n = var%nz+1-i
-        amean_grd(i) = sqrt(amean(n)*amean(n+1))        
+        amean_grd(i,l) = sqrt(amean(n)*amean(n+1))        
       enddo
       
       flx = var%photon_flux(l)*var%diurnal_fac*var%photon_scale_factor ! photons/cm2/s
       
       do i=1,dat%kj
         do j=1,var%nz
-          partial_prates(j,i) = partial_prates(j,i) + flx*amean_grd(j)*var%xs_x_qy(j,i,l)
+          partial_prates(j,i) = partial_prates(j,i) + flx*amean_grd(j,l)*var%xs_x_qy(j,i,l)
         enddo
       enddo
       
@@ -540,13 +539,6 @@ contains
       err = 'Tridagiagonal linear solve in two stream radiative transfer failed.'
       return
     endif
-    
-    ! if openmp is used, we must round precision for reproducibility
-    !$ do i=1,dat%kj
-    !$   do j=1,var%nz
-    !$     call round(prates(j,i),-8)
-    !$   enddo
-    !$ enddo
     
   end subroutine
   
@@ -1135,7 +1127,7 @@ contains
     if (len_trim(err) /= 0) return
   
     call photorates(self, var%nz, dat%nsp, dat%kj, dat%nw, wrk%densities, &
-                    wrk%prates, wrk%surf_radiance, err)
+                    wrk%prates, wrk%surf_radiance, wrk%amean_grd, err)
     if (len_trim(err) /= 0) return
   
     do i = 1,dat%kj

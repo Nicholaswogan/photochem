@@ -3,6 +3,12 @@ cdef extern void allocate_photochemdata(void *ptr)
 cdef extern void deallocate_photochemdata(void *ptr)
 
 cdef extern void photochemdata_nq_get(void *ptr, int *nq)
+cdef extern void photochemdata_np_get(void *ptr, int *nq)
+cdef extern void photochemdata_nsp_get(void *ptr, int *nq)
+cdef extern void photochemdata_ng_get(void *ptr, int *nq)
+cdef extern void photochemdata_nsl_get(void *ptr, int *nq)
+cdef extern void photochemdata_nll_get(void *ptr, int *nq)
+cdef extern void photochemdata_nw_get(void *ptr, int *nq)
 
 cdef extern void photochemdata_species_names_get_size(void *ptr, int *dim1)
 cdef extern void photochemdata_species_names_get(void *ptr, int *dim1, char* species_names)
@@ -41,6 +47,42 @@ cdef class PhotochemData:
       photochemdata_nq_get(&self._ptr, &nq)
       return nq
       
+  property np:
+    def __get__(self):
+      cdef int val
+      photochemdata_np_get(&self._ptr, &val)
+      return val
+      
+  property ng:
+    def __get__(self):
+      cdef int val
+      photochemdata_ng_get(&self._ptr, &val)
+      return val
+
+  property nsl:
+    def __get__(self):
+      cdef int val
+      photochemdata_nsl_get(&self._ptr, &val)
+      return val
+      
+  property nll:
+    def __get__(self):
+      cdef int val
+      photochemdata_nll_get(&self._ptr, &val)
+      return val
+      
+  property nsp:
+    def __get__(self):
+      cdef int val
+      photochemdata_nsp_get(&self._ptr, &val)
+      return val
+      
+  property nw:
+    def __get__(self):
+      cdef int val
+      photochemdata_nw_get(&self._ptr, &val)
+      return val
+
   property species_names:
     def __get__(self):
       cdef int dim1

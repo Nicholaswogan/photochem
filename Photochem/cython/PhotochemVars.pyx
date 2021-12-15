@@ -24,6 +24,9 @@ cdef extern void photochemvars_grav_get(void *ptr, int *dim1, double *arr)
 cdef extern void photochemvars_z_get_size(void *ptr, int *dim1)
 cdef extern void photochemvars_z_get(void *ptr, int *dim1, double *z)
 
+cdef extern void photochemvars_surface_pressure_get(void *ptr, double *val)
+cdef extern void photochemvars_surface_pressure_set(void *ptr, double *val)
+
 cdef extern void photochemvars_rtol_get(void *ptr, double *val)
 cdef extern void photochemvars_rtol_set(void *ptr, double *val)
 
@@ -115,6 +118,15 @@ cdef class PhotochemVars:
       photochemvars_at_photo_equilibrium_get(&self._ptr, &at_photo_equilibrium)
       return at_photo_equilibrium
       
+  property surface_pressure:
+    def __get__(self):
+      cdef double val
+      photochemvars_surface_pressure_get(&self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      photochemvars_surface_pressure_set(&self._ptr, &val)
+  
+  
   property rtol:
     def __get__(self):
       cdef double val

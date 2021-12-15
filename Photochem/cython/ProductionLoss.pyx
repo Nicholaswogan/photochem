@@ -23,7 +23,8 @@ cdef extern void productionloss_loss_rx_get(void *ptr, int *dim1, char *names)
 cdef class ProductionLoss:
   cdef void *_ptr
 
-  def __cinit__(self, bint alloc = False):
+  def __cinit__(self):
+    # never allocate. Only allow creation by functions.
     pass
 
   def __dealloc__(self):

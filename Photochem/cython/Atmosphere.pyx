@@ -330,7 +330,4 @@ cdef class Atmosphere:
                                        &trop_alt_, &trop_alt_present, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
-           
-                                       
-                                       
-                                       
+

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION "3.12")
-project(Photochem LANGUAGES Fortran C VERSION "0.0.8")
+project(Photochem LANGUAGES Fortran C VERSION "0.1.0")
 
 include(FortranCInterface)
 FortranCInterface_VERIFY()
@@ -13,7 +13,7 @@ option(BUILD_EXECUTABLES "if ON, then will build the
 Fortran executables" ON)
 
 option(BUILD_PYTHON_PHOTOCHEM "if ON, then will build a python
-version with f2py" OFF)
+version via Cython" OFF)
 
 # version
 configure_file(src/photochem_version.f90.in photochem_version.f90)
@@ -76,9 +76,6 @@ if (BUILD_PYTHON_PHOTOCHEM)
   else()
     install(TARGETS _Photochem  DESTINATION ${CMAKE_SOURCE_DIR}/Photochem)
   endif()
-
-                    
+                
 endif()
-
-
 

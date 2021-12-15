@@ -36,6 +36,54 @@ contains
     nq = dat%nq
   end subroutine
   
+  subroutine photochemdata_np_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    val = dat%np
+  end subroutine
+  
+  subroutine photochemdata_nsp_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    val = dat%nsp
+  end subroutine
+  
+  subroutine photochemdata_ng_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    val = dat%ng
+  end subroutine
+  
+  subroutine photochemdata_nsl_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    val = dat%nsl
+  end subroutine
+  
+  subroutine photochemdata_nll_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    val = dat%nll
+  end subroutine
+  
+  subroutine photochemdata_nw_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    val = dat%nw
+  end subroutine
+  
   subroutine photochemdata_species_names_get_size(ptr, dim1) bind(c)
     type(c_ptr), intent(in) :: ptr
     integer(c_int), intent(out) :: dim1

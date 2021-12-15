@@ -1743,7 +1743,7 @@ contains
     
     photovars%surface_pressure = tmp1%get_real('surface-pressure',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photovars%surface_pressure < 0.d0) then
+    if (photovars%surface_pressure <= 0.d0) then
       err = 'IOError: Planet surface pressure must be greater than zero.'
       return
     endif

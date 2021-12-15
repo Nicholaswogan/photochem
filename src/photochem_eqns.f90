@@ -34,10 +34,10 @@ contains
     enddo
   end subroutine
   
-  pure subroutine gibbs_energy_shomate(coeffs, T, gibbs)
+  pure function gibbs_energy_shomate(coeffs, T) result(gibbs)
     real(real_kind), intent(in) :: coeffs(7)
     real(real_kind), intent(in) :: T
-    real(real_kind), intent(out) :: gibbs
+    real(real_kind) :: gibbs
     
     real(real_kind) :: enthalpy, entropy, TT
     
@@ -49,13 +49,13 @@ contains
             + (coeffs(3)*TT**2)/2.d0 + (coeffs(4)*TT**3)/3.d0 &
             - coeffs(5)/(2.d0 * TT**2) + coeffs(7)
     gibbs = enthalpy*1000.d0 - T*entropy
-  end subroutine
+  end function
   
-  pure subroutine gibbs_energy_nasa9(coeffs, T, gibbs)
+  pure function gibbs_energy_nasa9(coeffs, T) result(gibbs)
     use photochem_const, only: Rgas
     real(real_kind), intent(in) :: coeffs(9)
     real(real_kind), intent(in) :: T
-    real(real_kind), intent(out) :: gibbs
+    real(real_kind) :: gibbs
     
     real(real_kind) :: enthalpy, entropy
     
@@ -70,9 +70,9 @@ contains
                + coeffs(9))*Rgas
                
     gibbs = enthalpy - T*entropy
-  end subroutine
+  end function
   
-  subroutine gibbs_energy_eval(thermo, T, found, gibbs_energy)
+  pure subroutine gibbs_energy_eval(thermo, T, found, gibbs_energy)
     use photochem_types, only: ThermodynamicData
     
     type(ThermodynamicData), intent(in) :: thermo
@@ -89,27 +89,18 @@ contains
           
         found = .true.
         if (thermo%dtype == 1) then
-          call gibbs_energy_shomate(thermo%data(1:7,k), T, gibbs_energy)
+          gibbs_energy = gibbs_energy_shomate(thermo%data(1:7,k), T)
         elseif (thermo%dtype == 2) then
-          call gibbs_energy_nasa9(thermo%data(1:9,k), T, gibbs_energy)          
+          gibbs_energy = gibbs_energy_nasa9(thermo%data(1:9,k), T)          
         endif
         
-        ! we exit
         exit
         
       endif
     enddo
 
   end subroutine
-  
-  pure subroutine round(in,precision)
-    real(real_kind), intent(inout) :: in
-    integer, intent(in) :: precision
-    integer :: order
-    order = nint(log10(abs(in)))
-    in = nint(in * 10.d0**(-precision-order),8)*10.d0**(precision+order)
-  end subroutine
-  
+
   pure subroutine press_and_den(nz, T, grav, Psurf, dz, &
                            mubar, pressure, density)
     use photochem_const, only: k_boltz, N_avo
@@ -267,7 +258,7 @@ contains
     F = 10.d0**((log10Fcent)/(1.d0 + f1**2.d0))
   end function
   
-  function sat_pressure_H2O(T) result(p_H2O)
+  pure function sat_pressure_H2O(T) result(p_H2O)
     real(real_kind), intent(in) :: T ! temperature in K
     real(real_kind) :: p_H2O
     real(real_kind), parameter :: lc = 2.5d6 ! specific enthalpy of H2O vaporization
