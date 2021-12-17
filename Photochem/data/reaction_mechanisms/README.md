@@ -23,3 +23,16 @@ I would like to follow Loison et al.'s advice, but our model is missing two thin
 1. Radiative association reactions: A + B => AB + hv. These reactions are important for some speices in Titan's atmosphere (Vuitton et al. 2012)
 2. We do not have C2H4CN in the network.
 
+# 12/16/21
+
+I added
+
+```yaml
+- equation: Cl + O3 <=> ClO + O2
+  rate-constant: {A: 2.8e-11, b: 0.0, Ea: 250}
+```
+
+From Atkinson et al. (2007). Full citation:
+
+> R. Atkinson, D. L. Baulch, R. A. Cox, J. N. Crowley, R. F. Hampson, et al.. Evaluated kinetic and photochemical data for atmospheric chemistry: Volume III ? reactions of inorganic halogens. Atmospheric Chemistry and Physics Discussions, European Geosciences Union, 2006, 6 (2), pp.2281-2702. ⟨hal-00301101⟩
+

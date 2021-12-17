@@ -22,11 +22,11 @@ planet:
   solar-zenith-angle: 50.0
   diff-lim-hydrogen-escape: true
   water:
-    fix-water-in-troposphere: true
-    tropopause-altitude: 1.5e6
-    relative-humidity: 0.05
+    fix-water-in-troposphere: false
+    # relative-humidity: 0.05
     gas-rainout: false
-    stratospheric-condensation: true
+    tropopause-altitude: 1.5e6
+    water-condensation: true
     condensation-rate: {A: 1.0e-05, rhc: 0.01, rh0: 0.0105}
 
 particles:
@@ -50,6 +50,9 @@ particles:
   condensation-rate: {A: 1.0e-08, rhc: 1.0, rh0: 1.05}
 
 boundary-conditions:
+- name: H2O
+  lower-boundary: {type: mix, mix: 1e-4}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: N2
   lower-boundary: {type: mix, mix: 0.026}
   upper-boundary: {type: veff, veff: 0.0}

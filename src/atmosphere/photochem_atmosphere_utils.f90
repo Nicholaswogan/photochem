@@ -238,7 +238,7 @@ contains
     enddo
     
     ! rainout
-    if (var%gas_rainout) then
+    if (dat%gas_rainout) then
       integrated_rainout = 0.d0
       do j = 1,var%trop_ind
         do i = 1,dat%nq
@@ -252,7 +252,7 @@ contains
       enddo
     endif
     
-    if (dat%stratospheric_cond) then
+    if (dat%water_cond) then
       if (dat%fix_water_in_trop) then
         i = var%trop_ind+1
       else
@@ -377,7 +377,7 @@ contains
     enddo
     
     ! rainout
-    if (var%gas_rainout) then
+    if (dat%gas_rainout) then
       integrated_rainout = 0.d0
       ! rhs_chem already got layer 1. So
       ! we start at layer 2
@@ -587,10 +587,10 @@ contains
       endif
     endif
     
-    ! if water is fixed in troposhere, and trop_alt present
+    ! if water is fixed in troposhere or gas rainout, and trop_alt present
     ! then we need to change trop_ind, reallocate some stuff
     ! in wrk, then we will re-prep the atmosphere
-    if (dat%fix_water_in_trop .and. present(trop_alt)) then
+    if ((dat%fix_water_in_trop .or. dat%gas_rainout) .and. present(trop_alt)) then
       if (trop_alt < var%bottom_atmos .or. trop_alt > var%top_atmos) then
         var = var_save
         err = "trop_alt is above or bellow the atmosphere!"
@@ -604,13 +604,7 @@ contains
       call self%wrk%init(self%dat%nsp, self%dat%np, self%dat%nq, &
                          self%var%nz, self%dat%nrT, self%dat%kj, &
                          self%dat%nw, self%var%trop_ind)
-                         
-      call self%prep_atmosphere(self%var%usol_init, err)
-      if (len_trim(err) /= 0) then
-        var = var_save
-        self%wrk = wrk_save
-        return
-      endif
+
     endif
     
   end subroutine

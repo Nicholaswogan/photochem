@@ -33,7 +33,8 @@ contains
       if (len_trim(err) /= 0) return
     endif
     
-    if (photodata%fix_water_in_trop) then
+    if (photodata%fix_water_in_trop .or. photodata%gas_rainout) then
+      ! we have a tropopause
       photovars%trop_ind = minloc(photovars%z,1, &
                           photovars%z .ge. photovars%trop_alt) - 1
     else

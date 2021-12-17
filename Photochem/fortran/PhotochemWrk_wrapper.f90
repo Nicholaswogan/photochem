@@ -142,6 +142,24 @@ contains
     arr = wrk%amean_grd
   end subroutine
   
+  subroutine photochemwrk_optical_depth_get_size(ptr, dim1, dim2) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1, dim2
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    dim1 = size(wrk%optical_depth,1)
+    dim2 = size(wrk%optical_depth,2)
+  end subroutine
+  
+  subroutine photochemwrk_optical_depth_get(ptr, dim1, dim2, arr) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(out) :: arr(dim1, dim2)
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    arr = wrk%optical_depth
+  end subroutine
+  
   subroutine photochemwrk_surf_radiance_get_size(ptr, dim1) bind(c)
     type(c_ptr), intent(in) :: ptr
     integer(c_int), intent(out) :: dim1

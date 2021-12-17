@@ -1810,15 +1810,20 @@ contains
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photodata%fix_water_in_trop = tmp2%get_logical('fix-water-in-troposphere',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photodata%stratospheric_cond = tmp2%get_logical('stratospheric-condensation',error = io_err)
+    photodata%water_cond = tmp2%get_logical('water-condensation',error = io_err)
+    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    photodata%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     ind = findloc(photodata%species_names,'H2O')
     photodata%LH2O = ind(1)
     if (ind(1) == 0 .and. photodata%fix_water_in_trop) then
       err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
       return
-    elseif (ind(1) == 0 .and. photodata%stratospheric_cond) then
-      err = 'IOError: H2O must be a species if stratospheric-condensation = True.'
+    elseif (ind(1) == 0 .and. photodata%water_cond) then
+      err = 'IOError: H2O must be a species if water-condensation = True.'
+      return
+    elseif (ind(1) == 0 .and. photodata%gas_rainout) then
+      err = 'IOError: H2O must be a species if gas-rainout = True.'
       return
     elseif (ind(1) == 0 .and. photodata%there_are_particles) then
       if (any(photodata%particle_sat_type == 2)) then
@@ -1828,13 +1833,6 @@ contains
     endif
     
     if (photodata%fix_water_in_trop) then  
-      photovars%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      if ((photovars%trop_alt < photovars%bottom_atmos) .or. &
-          (photovars%trop_alt > photovars%top_atmos)) then
-          err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
-          return
-      endif
       
       temp_char = tmp2%get_string('relative-humidity',error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -1853,14 +1851,29 @@ contains
         photovars%use_manabe = .false.
       endif
       
-      photovars%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-    else
-      photovars%gas_rainout = .false.
     endif
     
-    if (photodata%stratospheric_cond) then        
+    if (photodata%gas_rainout) then
+      photovars%rainfall_rate = tmp2%get_real('rainfall-rate',error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    endif
+    
+    if (photodata%fix_water_in_trop .or. photodata%gas_rainout) then
+      ! we need a tropopause altitude
+      photovars%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
+      if (associated(io_err)) then
+        err = "tropopause-altitude must be specified if fix-water-in-troposphere = true, or gas-rainout = true"
+        return
+      endif
+      if ((photovars%trop_alt < photovars%bottom_atmos) .or. &
+          (photovars%trop_alt > photovars%top_atmos)) then
+          err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
+          return
+      endif
+      
+    endif
+    
+    if (photodata%water_cond) then        
       
       tmp3 => tmp2%get_dictionary('condensation-rate',.true.,error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif

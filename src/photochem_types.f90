@@ -165,7 +165,8 @@ module photochem_types ! make a giant IO object
     real(real_kind) :: planet_radius ! cm
     logical :: fix_water_in_trop ! True if fixing water in troposphere
     integer :: LH2O ! index of H2O
-    logical :: stratospheric_cond ! True if water should condense out of the atmosphere
+    logical :: water_cond ! True if water should condense out of the atmosphere
+    logical :: gas_rainout ! True if gas rains out
     logical :: diff_H_escape ! True of diffusion limited H escape
     integer :: LH2 ! H2 index
     integer :: LH ! H index
@@ -203,11 +204,11 @@ module photochem_types ! make a giant IO object
     real(real_kind) :: surface_albedo
     real(real_kind) :: diurnal_fac ! normally 0.5 cuz planets spin around.
     real(real_kind) :: solar_zenith 
-    real(real_kind) :: trop_alt ! cm (only for fix_water_in_trop == true)
-    integer :: trop_ind ! index of troposphere (only for fix_water_in_trop == true)
+    real(real_kind) :: trop_alt ! cm (only for fix_water_in_trop == true or gas_rainout == true)
+    real(real_kind) :: rainfall_rate ! relative to modern Earth's average rainfall rate of 1.1e17 molecules/cm2/s
+    integer :: trop_ind ! index of troposphere (only for fix_water_in_trop == true or gas_rainout == true)
     logical :: use_manabe ! use manabe formula
     real(real_kind) :: relative_humidity ! relative humidity if no manabe
-    logical :: gas_rainout ! True if gas rains out
     real(real_kind) :: H2O_condensation_rate(3) 
     
     ! Radiative tranfer
@@ -280,6 +281,7 @@ module photochem_types ! make a giant IO object
     real(real_kind), allocatable :: prates(:,:) ! (nz,kj)
     real(real_kind), allocatable :: surf_radiance(:) ! (nw)
     real(real_kind), allocatable :: amean_grd(:,:) ! (nz,nw)
+    real(real_kind), allocatable :: optical_depth(:,:) ! (nz,nw)
     real(real_kind), allocatable :: upper_veff_copy(:) ! (nq)
     real(real_kind), allocatable :: lower_vdep_copy(:) ! (nq)
     real(real_kind), allocatable :: xp(:) ! (nz)
@@ -324,6 +326,7 @@ contains
       deallocate(self%prates)
       deallocate(self%surf_radiance)
       deallocate(self%amean_grd)
+      deallocate(self%optical_depth)
       deallocate(self%xp)
       deallocate(self%xl)
       deallocate(self%DU)
@@ -351,6 +354,7 @@ contains
     allocate(self%prates(nz,kj))
     allocate(self%surf_radiance(nw))
     allocate(self%amean_grd(nz,nw))
+    allocate(self%optical_depth(nz,nw))
     allocate(self%xp(nz))
     allocate(self%xl(nz))
     allocate(self%DU(nq,nz))

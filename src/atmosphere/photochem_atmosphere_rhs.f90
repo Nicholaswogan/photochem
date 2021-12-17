@@ -317,7 +317,7 @@ contains
       enddo
     enddo
     
-    if (var%gas_rainout) then
+    if (dat%gas_rainout) then
       ! rainout rates
       do j = 1,var%trop_ind
         do i = 1,dat%nq
@@ -329,7 +329,7 @@ contains
     
     ! if stratospheric water condesation is on, then condense
     ! water in the stratosphere.
-    if (dat%stratospheric_cond) then
+    if (dat%water_cond) then
       if (dat%fix_water_in_trop) then
         ! need to start above tropopause if fixing
         ! water in troposphere
@@ -404,7 +404,7 @@ contains
   end subroutine
   
   subroutine photorates(self, nz, nsp, kj, nw, densities, &
-                        prates, surf_radiance, amean_grd, err)
+                        prates, surf_radiance, amean_grd, optical_depth, err)
     use photochem_radtran, only: two_stream
     use photochem_const, only: pi
     ! input
@@ -416,6 +416,7 @@ contains
     real(real_kind), intent(out) :: prates(nz,kj)
     real(real_kind), intent(out) :: surf_radiance(nw)
     real(real_kind) :: amean_grd(nz,nw)
+    real(real_kind) :: optical_depth(nz,nw)
     character(len=err_len), intent(out) :: err
     
     ! local
@@ -498,6 +499,7 @@ contains
       
       ! sum of all contributions
       tau = tausg + taua + taup + tausp
+      optical_depth(:,l) = tau
       do i = 1,var%nz
         w0(i) = min(0.99999d0,(tausg(i) + tausp(i))/tau(i))
       enddo
@@ -639,7 +641,7 @@ contains
       
     endif 
     
-    if (dat%stratospheric_cond) then
+    if (dat%water_cond) then
       ! compute H2O saturation mixing ratio at all altitudes
       do i = 1,var%nz
         H2O_sat_mix(i) = sat_pressure_H2O(var%temperature(i))/pressure(i)
@@ -945,6 +947,7 @@ contains
     integer :: i, j
     
     real(real_kind) :: wH2O(trop_ind)
+    real(real_kind) :: total_rainfall ! molecules/cm2/s
     real(real_kind) :: slope, intercept
     real(real_kind) :: denav_p, eddav_p, denav_m, eddav_m
     real(real_kind) :: scale_factor
@@ -995,10 +998,11 @@ contains
     if (wH2O(var%trop_ind) < 0.d0) then
       wH2O(var%trop_ind) = 1.d-20
     endif
-    ! Earth's globally averaged rainfall is 1.1e+17 molecules/cm2/s (Giorgi+1985)
-    ! here we rescale the raining rate so that the total integrated value is
-    ! the same as Earth's.
-    scale_factor = earth_rainfall_rate/sum(wH2O*var%dz(1))
+    ! Here we re-scale the rainfall rate so that is the the same as what
+    ! is perscribed in the settings file. This means that distribution of
+    ! raining is controlled by H2O vs z, but magnitude is fixed.
+    total_rainfall = var%rainfall_rate*earth_rainfall_rate
+    scale_factor = total_rainfall/sum(wH2O*var%dz(1))
     wH2O = wH2O*scale_factor
     !!!!!!! end calculate raining rate !!!!!!!
     
@@ -1127,7 +1131,7 @@ contains
     if (len_trim(err) /= 0) return
   
     call photorates(self, var%nz, dat%nsp, dat%kj, dat%nw, wrk%densities, &
-                    wrk%prates, wrk%surf_radiance, wrk%amean_grd, err)
+                    wrk%prates, wrk%surf_radiance, wrk%amean_grd, wrk%optical_depth, err)
     if (len_trim(err) /= 0) return
   
     do i = 1,dat%kj
@@ -1136,7 +1140,7 @@ contains
     enddo 
   
     ! rainout rates
-    if (var%gas_rainout) then
+    if (dat%gas_rainout) then
       call rainout(self, dat%nq, var%nz, var%trop_ind, wrk%usol, wrk%density, wrk%rainout_rates)
     endif
   

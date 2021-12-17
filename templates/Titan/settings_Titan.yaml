@@ -23,7 +23,8 @@ planet:
   diff-lim-hydrogen-escape: true
   water:
     fix-water-in-troposphere: false
-    stratospheric-condensation: true
+    gas-rainout: false
+    water-condensation: true
     condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 
 particles:

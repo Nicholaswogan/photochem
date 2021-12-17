@@ -21,6 +21,9 @@ cdef extern void photochemwrk_prates_get(void *ptr, int *dim1, int *dim2, double
 cdef extern void photochemwrk_amean_grd_get_size(void *ptr, int *dim1, int *dim2)
 cdef extern void photochemwrk_amean_grd_get(void *ptr, int *dim1, int *dim2, double *arr)
 
+cdef extern void photochemwrk_optical_depth_get_size(void *ptr, int *dim1, int *dim2)
+cdef extern void photochemwrk_optical_depth_get(void *ptr, int *dim1, int *dim2, double *arr)
+
 cdef extern void photochemwrk_surf_radiance_get_size(void *ptr, int *dim1)
 cdef extern void photochemwrk_surf_radiance_get(void *ptr, int *dim1, double *arr)
 
@@ -94,6 +97,14 @@ cdef class PhotochemWrk:
       photochemwrk_amean_grd_get_size(&self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
       photochemwrk_amean_grd_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+      
+  property optical_depth:
+    def __get__(self):
+      cdef int dim1, dim2
+      photochemwrk_optical_depth_get_size(&self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      photochemwrk_optical_depth_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
       
   property surf_radiance:
