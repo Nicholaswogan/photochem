@@ -18,7 +18,5 @@ set(BUILD_IDA OFF)
 set(BUILD_KINSOL OFF)
 add_subdirectory(cvode-5.7.0 EXCLUDE_FROM_ALL)
 
-add_library(minpack 
-minpack/src/minpack.f90 
-minpack/src/minpack_kinds.f90)
+add_subdirectory(cminpack EXCLUDE_FROM_ALL)
 

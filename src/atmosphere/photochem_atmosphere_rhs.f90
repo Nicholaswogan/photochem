@@ -547,6 +547,8 @@ contains
   subroutine prep_atm_background_gas(self, nq, nz, trop_ind, sum_usol, usol, &
                                      density, mubar, pressure, fH2O, H2O_sat_mix, err)
     use photochem_eqns, only: sat_pressure_H2O, molar_weight, press_and_den
+    use, intrinsic :: iso_c_binding, only : c_loc, c_ptr
+    use cminpack2fort, only: hybrd1 ! interface to hybrd1 from cminpack
     
     class(Atmosphere), target, intent(inout) :: self
     integer, intent(in) :: nq, nz, trop_ind
@@ -560,6 +562,7 @@ contains
     integer :: i
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
+    type(Atmosphere), pointer :: self_ptr
     
     ! hybrd1 varibles for cminpack
     integer :: info
@@ -567,6 +570,7 @@ contains
     integer :: lwa
     real(real_kind), allocatable :: fvec(:)
     real(real_kind), allocatable :: wa(:)
+    type(c_ptr) :: ptr ! void c pointer for cminpack
     ! end hybrd1 varibles
     
     err = ''
@@ -611,10 +615,15 @@ contains
         fH2O(i) = rel*sat_pressure_H2O(var%temperature(i))/pressure(i)
       enddo
       ! Here we compute self-consistent water profile.
+      ! hybrd1 is nonlinear solver from cminpack. Takes negligable time.
+      self_ptr => self
+      ptr = c_loc(self_ptr) ! void pointer to usol. Be careful!!!
       lwa = (var%trop_ind*(3*var%trop_ind+13))/2 + 2
       allocate(fvec(trop_ind))
       allocate(wa(lwa))
-      call solve_fH2O(self, fH2O, fvec, tol, info, wa, lwa)
+      ! Call hybrd1 from cminpack (c re-write of minpack). I wrote a fortran
+      ! interface to cminpack. We pass usol, the atmosphere, via a pointer.
+      call hybrd1(fcn_fH2O, ptr, var%trop_ind, fH2O, fvec, tol, info, wa, lwa)
       if (info /= 1) then
         err = "Non-linear solve for water profile failed."
         return
@@ -650,78 +659,70 @@ contains
     
   end subroutine
   
-  subroutine solve_fH2O(self, fH2O_, fvec_, tol_, info_, wa_, lwa_)
-    use minpack_module, only: hybrd1
+  module function fcn_fH2O(ptr, n, x, fvec, iflag) result(res) bind(c)
+    use photochem_eqns, only: sat_pressure_H2O, molar_weight, press_and_den
+    use, intrinsic :: iso_c_binding, only : c_f_pointer, c_ptr
+  
+    type(c_ptr) :: ptr ! void pointer. Be careful!
+    integer, value :: n, iflag ! n == trop_ind
+    real(real_kind), intent(in) :: x(n) ! x == fH2O
+    real(real_kind), intent(out) :: fvec(n) ! fvec == residual
+    integer :: res
+  
+    real(real_kind) :: fH2O(n)
+    real(real_kind), pointer :: usol(:,:)
+    real(real_kind), pointer :: sum_usol(:) 
+    real(real_kind), pointer :: mubar(:)
+    real(real_kind), pointer :: density(:)
+    real(real_kind), pointer :: pressure(:)
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(Atmosphere), pointer :: self
+  
+    integer :: i
+    real(real_kind) :: rel
+  
+    ! dereferences the pointer. Takes the void ptr, then
+    ! declares it to be pointing to a usol shaped array of doubles.
+    call c_f_pointer(ptr, self)
     
-    type(Atmosphere), target, intent(inout) :: self
-    real(real_kind), intent(out) :: fH2O_(self%var%trop_ind)
-    real(real_kind), intent(out) :: fvec_(self%var%trop_ind)
-    real(real_kind), intent(in) :: tol_
-    integer, intent(inout) :: info_
-    real(real_kind), intent(inout) :: wa_(lwa_)
-    integer, intent(in) :: lwa_
-    
-    call hybrd1(fcn, self%var%trop_ind, fH2O_, fvec_, tol_, info_, wa_, lwa_)
-    
-  contains
-    subroutine fcn(n, x, fvec, iflag)
-      use photochem_eqns, only: sat_pressure_H2O, molar_weight, press_and_den
-    
-      integer, intent(in) :: n ! n == trop_ind
-      real(real_kind), intent(in) :: x(n) ! x == fH2O
-      real(real_kind), intent(out) :: fvec(n) ! fvec == residual
-      integer, intent(inout) :: iflag
-    
-      real(real_kind) :: fH2O(n)
-      real(real_kind), pointer :: usol(:,:)
-      real(real_kind), pointer :: sum_usol(:) 
-      real(real_kind), pointer :: mubar(:)
-      real(real_kind), pointer :: density(:)
-      real(real_kind), pointer :: pressure(:)
-      type(PhotochemData), pointer :: dat
-      type(PhotochemVars), pointer :: var
-    
-      integer :: i
-      real(real_kind) :: rel
-      
-      dat => self%dat
-      var => self%var
-      sum_usol => self%wrk%sum_usol
-      mubar => self%wrk%mubar
-      density => self%wrk%density
-      pressure => self%wrk%pressure
-      usol => self%wrk%usol
-    
-      do i = 1,n
-        usol(dat%LH2O,i) = x(i)
-      enddo
-    
-      do i = 1,var%nz
-        sum_usol(i) = sum(usol(dat%ng_1:,i))
-      enddo
-    
-      do i = 1,var%nz
-        call molar_weight(dat%nll, usol(dat%ng_1:,i), sum_usol(i), &
-                          dat%species_mass(dat%ng_1:), dat%back_gas_mu, mubar(i))
-      enddo
-    
-      call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.d6, var%dz, &
-                         mubar, pressure, density)
-    
-      do i = 1,n
-        if (var%use_manabe) then
-          ! manabe formula ()
-          rel = 0.77d0*(pressure(i)/pressure(1)-0.02d0)/0.98d0
-        else
-          rel = var%relative_humidity 
-        endif
-        fH2O(i) = rel*sat_pressure_H2O(var%temperature(i))/pressure(i)
-      enddo  
-    
-      fvec = x - fH2O
-    end subroutine
-    
-  end subroutine
+    dat => self%dat
+    var => self%var
+    sum_usol => self%wrk%sum_usol
+    mubar => self%wrk%mubar
+    density => self%wrk%density
+    pressure => self%wrk%pressure
+    usol => self%wrk%usol
+  
+    do i = 1,n
+      usol(dat%LH2O,i) = x(i)
+    enddo
+  
+    do i = 1,var%nz
+      sum_usol(i) = sum(usol(dat%ng_1:,i))
+    enddo
+  
+    do i = 1,var%nz
+      call molar_weight(dat%nll, usol(dat%ng_1:,i), sum_usol(i), &
+                        dat%species_mass(dat%ng_1:), dat%back_gas_mu, mubar(i))
+    enddo
+  
+    call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.d6, var%dz, &
+                       mubar, pressure, density)
+  
+    do i = 1,n
+      if (var%use_manabe) then
+        ! manabe formula ()
+        rel = 0.77d0*(pressure(i)/pressure(1)-0.02d0)/0.98d0
+      else
+        rel = var%relative_humidity 
+      endif
+      fH2O(i) = rel*sat_pressure_H2O(var%temperature(i))/pressure(i)
+    enddo  
+  
+    fvec = x - fH2O
+    res = 0
+  end function
   
   subroutine diffusion_coefficients(self, nq, npq, nz, den, mubar, &
                                     DU, DD, DL, ADU, ADL, wfall, VH2_esc, VH_esc)
