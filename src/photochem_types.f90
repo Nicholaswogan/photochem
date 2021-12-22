@@ -244,7 +244,7 @@ module photochem_types ! make a giant IO object
     
     ! other 
     real(c_double) :: rtol = 1.d-3 ! integration relative tolerance
-    real(c_double) :: atol = 1.d-25 ! integration absolute tolerance
+    real(c_double) :: atol = 1.d-27 ! integration absolute tolerance
     integer :: mxsteps = 10000 ! max number of steps before integrator will give up.
     ! seconds. atomsphere considered in equilibrium if integrations reaches this time.
     real(real_kind) :: equilibrium_time = 1.d17 

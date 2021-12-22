@@ -218,4 +218,21 @@ contains
     arr = dat%species_mass
   end subroutine
   
+  subroutine photochemdata_species_redox_get_size(ptr, dim1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    dim1 = size(dat%species_redox,1)
+  end subroutine
+  
+  subroutine photochemdata_species_redox_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    arr = dat%species_redox
+  end subroutine
+  
 end module

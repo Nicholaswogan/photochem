@@ -22,3 +22,15 @@ assert con < 1e-6
 con = pc.atom_conservation('S').factor
 print('S conservation = '+'%.2e'%con)
 assert con < 1e-6
+
+con = pc.atom_conservation('H').factor
+print('H conservation = '+'%.2e'%con)
+assert con < 1e-6
+
+con = pc.atom_conservation('O').factor
+print('O conservation = '+'%.2e'%con)
+assert con < 1e-6
+
+con = pc.atom_conservation('Cl').factor
+print('Cl conservation = '+'%.2e'%con)
+assert con < 1e-6
