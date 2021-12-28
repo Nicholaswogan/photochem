@@ -910,6 +910,14 @@ contains
       ADL(j,i) = - wfall_m*denav_m/(2.d0*var%dz(i)*den(i))
     enddo
     
+    ! option to turn off everything but eddy diffusion
+    do i = 1,dat%nq
+      if (var%only_eddy(i)) then
+        ADL(i,:) = 0.d0
+        ADU(i,:) = 0.d0
+      endif
+    enddo
+    
     ! H2 escape
     if (dat%diff_H_escape) then
       if (dat%back_gas_name /= "H2") then

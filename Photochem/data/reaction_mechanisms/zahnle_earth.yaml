@@ -5,8 +5,18 @@ atoms:
 - {name: C, mass: 12.011, redox: -2}
 - {name: S, mass: 32.06, redox: -2}
 - {name: Cl, mass: 35.453, redox: -1}
+- {name: He, mass: 4.002602, redox: 0}
 
 species:
+- name: He
+  composition: {He: 1}
+  thermo:
+    model: Shomate
+    temperature-ranges: [0.0, 6000.0]
+    data:
+    - [20.78603, 4.850638e-10, -1.582916e-10, 1.525102e-11,
+       3.196347e-11, -6.197341, 151.3064]
+  note: From the NIST database
 - name: H
   composition: {H: 1}
   thermo:
@@ -924,6 +934,13 @@ particles:
   saturation-parameters: {A: 1.62e+01, B: -2.97e+03, C: -7.01e-04}
   composition: {O: 1, N: 2}
   optical-properties: none
+- name: NH3aer
+  formation: saturation
+  density: 1.0
+  gas-phase: NH3
+  saturation-parameters: {A: 14.8, B: -5420.0, C: 0.000711}
+  composition: {N: 1, H: 3}
+  optical-properties: none
 - name: S8aer
   formation: reaction
   density: 1.0
@@ -1605,7 +1622,7 @@ reactions:
 - equation: O + S2 <=> SO + S
   rate-constant: {A: 1.1e-11, b: 0.0, Ea: 0.0}
 - equation: S + O2 <=> SO + O
-  rate-constant: {A: 8.899496e-19, b: 2.11, Ea: 730.0}
+  rate-constant: {A: 1.6e-12, b: 0, Ea: -100.0}
 - equation: S3 + O <=> S2 + SO
   rate-constant: {A: 2.0e-11, b: 0.0, Ea: 500.0}
 - equation: S4 + O <=> S3 + SO

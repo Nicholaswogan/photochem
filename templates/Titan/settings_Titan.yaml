@@ -46,7 +46,9 @@ particles:
   condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: N2Oaer
   condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
-      
+- name: NH3aer
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}  
+
 # Assumes veff = vdep = 0 boundary condition for species not specified.
 # Assumes species is long-lived unless specified
 boundary-conditions:

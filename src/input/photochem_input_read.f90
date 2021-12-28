@@ -1970,11 +1970,13 @@ contains
     allocate(photovars%upperboundcond(photodata%nq))
     allocate(photovars%upper_veff(photodata%nq))
     allocate(photovars%upper_flux(photodata%nq))
+    allocate(photovars%only_eddy(photodata%nq))
     ! default boundary conditions
     photovars%lowerboundcond = default_lowerboundcond
     photovars%lower_vdep = 0.d0
     photovars%upperboundcond = 0
     photovars%upper_veff = 0.d0
+    photovars%only_eddy = .false.
       
     ! determine number of short lived species. 
     allocate(dups(photodata%nsp))
@@ -2032,6 +2034,9 @@ contains
                                  photovars%upperboundcond(i), photovars%upper_veff(i), &
                                  photovars%upper_flux(i), err)
           if (len_trim(err) /= 0) return
+          
+          photovars%only_eddy(i) = element%get_logical("only-eddy",default=.false., error = io_err)
+          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         else
           err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
           return

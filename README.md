@@ -5,8 +5,11 @@
 ## Installation
 
 **Requirements:**
-- Python >= 3.6
-- Fortran and C compiler. I suggest the GNU compiler collection (includes `gfortran`, `gcc`, etc.). If you are using a Mac, install it with Homebrew: `brew install gcc.`
+- python >= 3.6, numpy, scipy, cython, pyyaml, Fortran compiler (`gfortran>=9.3` works), C compiler (`clang` works), cmake. Install all with `conda`:
+
+```sh
+conda install -c conda-forge python numpy scipy cython pyyaml gfortran clang cmake
+```
 
 **Python Module:** 
 - Clone or download the Github repository.
@@ -14,7 +17,7 @@
 
 **Fortran library:** 
 
-If you prefer to use the code exclusively in Fortran, that is OK too. You can build `libphotochem` with CMake. Download or clone this repository, then from the root directory of the repository run
+You can build `libphotochem` with CMake. Download or clone this repository, then from the root directory of the repository run
 
 ```sh
 mkdir build

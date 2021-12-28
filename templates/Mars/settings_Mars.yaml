@@ -48,6 +48,8 @@ particles:
   condensation-rate: {A: 1.0e-08, rhc: 1.0, rh0: 1.05}
 - name: N2Oaer
   condensation-rate: {A: 1.0e-08, rhc: 1.0, rh0: 1.05}
+- name: NH3aer
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}  
 
 boundary-conditions:
 - name: H2O

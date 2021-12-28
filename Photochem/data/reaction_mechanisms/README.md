@@ -36,3 +36,15 @@ From Atkinson et al. (2007). Full citation:
 
 > R. Atkinson, D. L. Baulch, R. A. Cox, J. N. Crowley, R. F. Hampson, et al.. Evaluated kinetic and photochemical data for atmospheric chemistry: Volume III ? reactions of inorganic halogens. Atmospheric Chemistry and Physics Discussions, European Geosciences Union, 2006, 6 (2), pp.2281-2702. ⟨hal-00301101⟩
 
+# 12/23/21
+
+I updated the following reaction. Rate from JPL-15
+
+```yaml
+- equation: S + O2 <=> SO + O
+  rate-constant: {A: 1.6e-12, b: 0, Ea: -100.0}
+```
+
+Also added NH3aer and He.
+
+

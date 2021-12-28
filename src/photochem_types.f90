@@ -195,6 +195,7 @@ module photochem_types ! make a giant IO object
     integer, allocatable :: upperboundcond(:) ! 0 or 2
     real(real_kind), allocatable :: upper_veff(:)
     real(real_kind), allocatable :: upper_flux(:)
+    logical, allocatable :: only_eddy(:) ! True if only use eddy
     
     ! Atmospheres structure
     real(real_kind) :: bottom_atmos ! cm
