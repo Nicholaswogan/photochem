@@ -5,10 +5,28 @@ from ._convert_utils import compare2reactions, generate_photo_yaml_entries, sort
     
 root_dir = os.path.dirname(os.path.realpath(__file__))
 
-def atmos2yaml(rx_file, species_file, outfile):
+def atmos2yaml(rx_file, species_file, outfile, photo_database = "Photochem"):
+    """Converts Atmos reactions to .yaml format compatable with Photochem
+
+    Parameters
+    ----------
+    rx_file : str
+        Path to Atmos reactions file (e.g. reactions.rx)
+    species_file : str
+        Path to Atmos species file (e.g. species.dat)
+    outfile : str
+        Name of output .yaml file in photochem format
+    photo_database : str
+        Options are "Photochem" or "Atmos". If "Photochem", then will use all
+        possible photolysis reactions given the cross section data contained
+        within Photochem. If "Atmos", then will photolysis reactions in
+        rx_file that are possible, given Photochem cross section data.
+        
+
+    """
     data = rx2dict(rx_file)
     species, particles = get_species(species_file)
-    out = make_rx_yaml(species, particles, data)
+    out = make_rx_yaml(species, particles, data, photo_database = photo_database)
     out = FormatReactions_main(out)
     fil = open(outfile,'w')
     yaml.dump(out,fil,Dumper=MyDumper,sort_keys=False,width=70)
@@ -27,6 +45,9 @@ def rx2dict(filename, with_citations = False):
 
     for line in lines:
         
+        if line.startswith("REACTANTS"):
+            continue
+        
         if "HCAER" in line or "S8AER" in line:
             continue
             
@@ -38,16 +59,22 @@ def rx2dict(filename, with_citations = False):
             citation = line[ind+1:].strip() 
         else:
             citation = None
+            
+        rx_type = line[48:53]
+        if " " in rx_type:
+            # UGH!
+            rx_type = line[50:55]
+            rx = line[:50]
+            rates = line[55:95]
+        else:
+            rx = line[:48]
+            rates = line[53:93]
 
-        rx = line[:48]
         rx = rx.replace('HV','hv').replace('L','l')
-
         react = rx[:20]
         prod = rx[20:].replace('hv','')
         rx_list = react.split() + prod.split()
         rx_name = ' + '.join(react.split())+" => "+' + '.join(prod.split())
-        rx_type = line[48:53]
-        rates = line[53:93]
 
         if 'M' in rx and rx_type == '2BODY':
             rx_type = 'three-body'
@@ -129,7 +156,7 @@ def rx2dict(filename, with_citations = False):
             if with_citations:
                 reaction['citation'] = citation
             
-        elif rx_type == "PHOTO" or rx_type == "PHOTX" or rx_type == "PHOTP":
+        elif rx_type == "PHOTO" or rx_type[:-1] == "PHOT":
             reaction['equation'] = rx_name
             reaction['type'] = 'photolysis'
             if with_citations:
@@ -188,7 +215,7 @@ def get_species(filename):
                 species[-1]['composition'] = comp
     return species, particles
 
-def make_rx_yaml(species, particles, rx):
+def make_rx_yaml(species, particles, rx, photo_database = "Photochem"):
     out = {}
     out['reverse-reactions'] = False
     out['atoms'] = []
@@ -206,13 +233,18 @@ def make_rx_yaml(species, particles, rx):
     for part in particles:
         out['particles'].append(atmos_particles[particle_index[part]])
     
-    possible_photo = generate_photo_yaml_entries([sp['name'] for sp in species])
-    missing, not_missing = sort_photos(rx['photolysis'], possible_photo)
+    possible_photos = generate_photo_yaml_entries([sp['name'] for sp in species])
+    missing, not_missing = sort_photos(rx['photolysis'], possible_photos)
     
-    out['reactions'] = rx['reactions'] + not_missing
+    if photo_database == "Photochem":
+        out['reactions'] = rx['reactions'] + possible_photos
+        out['missing'] = rx['weird']
+    elif photo_database == "Atmos":
+        out['reactions'] = rx['reactions'] + not_missing
+        out['missing'] = rx['weird'] + missing
+    else:
+        raise Exception('"Photochem" and "Atmos" are the only options for photo_database')
         
-    out['missing'] = rx['weird'] + missing
-
     return out
 
 atmos_particles_str = """

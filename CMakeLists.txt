@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION "3.12")
-project(Photochem LANGUAGES Fortran C VERSION "0.1.4")
+project(Photochem LANGUAGES Fortran C VERSION "0.1.5")
 
 include(FortranCInterface)
 FortranCInterface_VERIFY()
@@ -37,6 +37,9 @@ endif()
 option(BUILD_WITH_OPENMP "Compile with muli-threading" OFF)
 if (BUILD_WITH_OPENMP)
   find_package(OpenMP REQUIRED)
+  if (OpenMP_Fortran_FOUND)
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
+  endif()
 endif()
 message (STATUS "Building with OpenMP multi-threading = ${BUILD_WITH_OPENMP}")
 

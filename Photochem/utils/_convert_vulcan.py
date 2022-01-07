@@ -6,6 +6,27 @@ from ._convert_utils import AtomData, compare2reactions, \
                             
 def vulcan2yaml(vulcan_rx_filename, all_compose_filename, outfile = None, \
                 rename_species = True, photo_database = "Photochem", vulcan_nasa9_data_folder = None):
+    """Converts Vulcan reactions to .yaml format compatable with Photochem
+
+    Parameters
+    ----------
+    vulcan_rx_filename : str
+        Path to Vulcan input reactions file
+    all_compose_filename : str
+        Path to Vulcan "all_compose.txt".
+    outfile : str
+        Name of output .yaml file in photochem format
+    photo_database : str
+        Options are "Photochem" or "Atmos". If "Photochem", then will use all
+        possible photolysis reactions given the cross section data contained
+        within Photochem. If "Atmos", then will photolysis reactions in
+        rx_file that are possible, given Photochem cross section data.
+    vulcan_nasa9_data_folder : str
+        Path to Vulcan folder containing nasa9 thermodynamic data. If provided, then
+        will use thermodynamic data to reverse all reactions. If not provided, then
+        no reactions will be reversed.
+
+    """
     
     # get composition of each species
     fil = open(all_compose_filename,'r')

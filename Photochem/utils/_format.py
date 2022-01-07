@@ -24,6 +24,16 @@ class MyDumper(yaml.Dumper):
 
 
 def FormatReactions(filename, outfile):
+    """Formats .yaml chemical reaction network
+
+    Parameters
+    ----------
+    filename : str
+        Path of input reaction network file.
+    outfile : str
+        Path of output formated reaction network file.
+
+    """
     fil = open(filename,'r')
     data = yaml.load(fil,Loader=Loader)
     fil.close()
@@ -86,7 +96,7 @@ def FormatReactions_main(data):
     # Reactions
     if 'reactions' in data:
         for i in range(len(data['reactions'])):
-            order = ['equation','type','rate-constant','low-P-rate-constant','high-P-rate-constant','duplicate','efficiencies']
+            order = ['equation','type','rate-constant','low-P-rate-constant','high-P-rate-constant','duplicate','efficiencies','JPL']
             copy = data['reactions'][i].copy()
             data['reactions'][i].clear()
             for key in order:
@@ -101,6 +111,16 @@ def FormatReactions_main(data):
     return data
     
 def FormatSettings(infile, outfile):
+    """Formats a photochem settings file (e.g. settings_ModernEarth.yaml)
+
+    Parameters
+    ----------
+    infile : str
+        Path to input settings file.
+    outfile : str
+        Path of output formatted settings file.
+
+    """
     fil = open(infile,'r')
     data = yaml.load(fil,Loader=Loader)
     fil.close()
