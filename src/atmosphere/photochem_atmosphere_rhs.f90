@@ -1487,7 +1487,7 @@ contains
     real(real_kind) :: xl(self%var%nz), xp(self%var%nz)
     integer, allocatable :: prod_inds(:), loss_inds(:)
     integer :: ind(1), sp_ind
-    integer :: i, j, k, np, nl
+    integer :: i, j, k, np, nl, nlT
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
@@ -1515,11 +1515,13 @@ contains
   
     np = self%dat%nump(sp_ind)
     nl = self%dat%numl(sp_ind)
+    nlT = nl + 1 ! + 1 for rainout
+    
     allocate(pl%production(var%nz,np))
-    allocate(pl%loss(var%nz,nl))
-    allocate(pl%integrated_production(np), pl%integrated_loss(nl))
-    allocate(pl%loss_rx(nl),pl%production_rx(np))
-    allocate(prod_inds(np), loss_inds(nl))
+    allocate(pl%loss(var%nz,nlT))
+    allocate(pl%integrated_production(np), pl%integrated_loss(nlT))
+    allocate(pl%loss_rx(nlT),pl%production_rx(np))
+    allocate(prod_inds(np), loss_inds(nlT))
   
     do j = 1,var%nz
       do k = 1,dat%np
@@ -1555,11 +1557,23 @@ contains
       pl%loss_rx(i) = dat%reaction_equations(k)
     enddo
     
+    ! rainout
+    pl%loss_rx(nl+1) = "rainout"
+    pl%loss(:,nl+1) = 0.d0
+    pl%integrated_loss(nl+1) = 0.d0
+    if (dat%gas_rainout .and. sp_ind <= dat%nq) then
+      pl%loss(1:var%trop_ind,nl+1) = &
+          wrk%rainout_rates(sp_ind,1:var%trop_ind)*wrk%densities(sp_ind,1:var%trop_ind)
+      pl%integrated_loss(nl+1) = sum(pl%loss(:,nl+1)*var%dz)
+    endif
+    
+    ! ignoring condensation, and fluxes
+    
     ! sort 
     prod_inds = argsort(pl%integrated_production)
     loss_inds = argsort(pl%integrated_loss)
     prod_inds = prod_inds(np:1:-1)
-    loss_inds = loss_inds(nl:1:-1)
+    loss_inds = loss_inds(nlT:1:-1)
   
     pl%integrated_production = pl%integrated_production(prod_inds)
     pl%integrated_loss = pl%integrated_loss(loss_inds)

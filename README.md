@@ -5,10 +5,10 @@
 ## Installation
 
 **Requirements:**
-- python >= 3.6, numpy, scipy, cython, pyyaml, Fortran compiler (`gfortran>=9.3` works), C compiler (`clang` works), cmake. Install all with `conda`:
+- python >= 3.6, numpy, scipy, pyyaml, Fortran compiler (`gfortran>=9.3` works), C compiler (`clang` works), cmake, cython. Install all with `conda`:
 
 ```sh
-conda install -c conda-forge python numpy scipy cython pyyaml gfortran clang cmake
+conda install -c conda-forge python numpy scipy cython pyyaml gfortran clang cmake cython
 ```
 
 **Python Module:** 
