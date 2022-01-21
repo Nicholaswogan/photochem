@@ -506,9 +506,9 @@ contains
     allocate(photodata%efficiencies(maxval(photodata%num_efficient),photodata%nrF))
     allocate(photodata%eff_sp_inds(maxval(photodata%num_efficient),photodata%nrF))
     allocate(photodata%def_eff(photodata%nrF))
-    photodata%efficiencies = -huge(1.d0) ! so everything blows up if we make a mistake
+    photodata%efficiencies = -huge(1.0_dp) ! so everything blows up if we make a mistake
     photodata%eff_sp_inds = -huge(0)
-    photodata%def_eff = 1.d0 ! default is 1
+    photodata%def_eff = 1.0_dp ! default is 1
     
     j = 1
     k = 1
@@ -656,9 +656,9 @@ contains
     type(linear_interp_2d), intent(out) :: s2
     character(len=err_len), intent(out) :: err
     
-    real(real_kind), allocatable :: H2O(:)
-    real(real_kind), allocatable :: Temp(:)
-    real(real_kind), allocatable :: H2SO4(:,:)
+    real(dp), allocatable :: H2O(:)
+    real(dp), allocatable :: Temp(:)
+    real(dp), allocatable :: H2SO4(:,:)
     integer :: io
     integer :: nT, nH2O
     character(len=:), allocatable :: filename
@@ -694,7 +694,7 @@ contains
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(in) :: photovars
     character(len=s_str_len), allocatable, intent(out) :: henry_names(:)
-    real(real_kind), allocatable, intent(out) :: henry_data(:,:)
+    real(dp), allocatable, intent(out) :: henry_data(:,:)
     character(len=*), intent(out) :: err
   
     type (type_error), pointer :: io_err
@@ -739,7 +739,7 @@ contains
     integer :: j, ind(1), i
     
     character(len=s_str_len), allocatable :: henry_names(:)
-    real(real_kind), allocatable :: henry_data(:,:)
+    real(dp), allocatable :: henry_data(:,:)
     
     err = ''
 
@@ -760,7 +760,7 @@ contains
     if (len_trim(err) /= 0) return
     
     allocate(photodata%henry_data(2,photodata%nsp))
-    photodata%henry_data = 0.d0
+    photodata%henry_data = 0.0_dp
     do j = 1,size(henry_names)
       ind = findloc(photodata%species_names,henry_names(j))
       if (ind(1) /= 0) then
@@ -769,7 +769,7 @@ contains
       endif
     enddo
     ! set particle solubility to super high number
-    photodata%henry_data(1,1:photodata%npq) = 7.d11
+    photodata%henry_data(1,1:photodata%npq) = 7.e11_dp
     
   end subroutine
   
@@ -808,7 +808,7 @@ contains
       enddo
     endif
     
-    photodata%def_eff(rxn) = reaction%get_real("default-efficiency",1.d0,error = io_err)
+    photodata%def_eff(rxn) = reaction%get_real("default-efficiency",1.0_dp,error = io_err)
 
   end subroutine
   
@@ -1118,7 +1118,7 @@ contains
     do while (associated(item))
       select type (listitem => item%node)
       class is (type_scalar)
-        thermo%temps(j) = listitem%to_real(-1.d0,success)
+        thermo%temps(j) = listitem%to_real(-1.0_dp,success)
         if (.not. success) then
           err = "IOError: Problem reading thermodynamic data for  "//trim(molecule_name)
           return
@@ -1165,7 +1165,7 @@ contains
           select type (listitem1 => item1%node)
           class is (type_scalar)
 
-            thermo%data(j, k) = listitem1%to_real(-1.d0,success)
+            thermo%data(j, k) = listitem1%to_real(-1.0_dp,success)
             if (.not.success) then
               err = "IOError: Problem reading thermodynamic data for "//trim(molecule_name)
               return
@@ -1192,7 +1192,7 @@ contains
     character(len=*), intent(in) :: infile
     integer, intent(out) :: rxtype
     integer, intent(out) :: falloff_type
-    real(real_kind), intent(out) :: rateparam(10)
+    real(dp), intent(out) :: rateparam(10)
     character(len=err_len), intent(out) :: err
     
     type (type_error), pointer :: io_err
@@ -1200,7 +1200,7 @@ contains
     character(len=str_len) :: rxtype_str
     logical :: use_jpl
     err = ''
-    rateparam = 0.d0
+    rateparam = 0.0_dp
     ! no error possible
     rxtype_str = reaction%get_string("type"," ",error = io_err) 
     if (rxtype_str == 'photolysis') then
@@ -1725,7 +1725,7 @@ contains
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     endif
     ! scale factor for photon flux. Its optional
-    photovars%photon_scale_factor = tmp1%get_real('photon-scale-factor', 1.d0,error = io_err)
+    photovars%photon_scale_factor = tmp1%get_real('photon-scale-factor', 1.0_dp,error = io_err)
     
     ! atmosphere grid
     tmp1 => mapping%get_dictionary('atmosphere-grid',.true.,error = io_err)
@@ -1743,38 +1743,38 @@ contains
     
     photovars%surface_pressure = tmp1%get_real('surface-pressure',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photovars%surface_pressure <= 0.d0) then
+    if (photovars%surface_pressure <= 0.0_dp) then
       err = 'IOError: Planet surface pressure must be greater than zero.'
       return
     endif
     photodata%planet_mass = tmp1%get_real('planet-mass',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photodata%planet_mass < 0.d0) then
+    if (photodata%planet_mass < 0.0_dp) then
       err = 'IOError: Planet mass must be greater than zero.'
       return
     endif
     photodata%planet_radius = tmp1%get_real('planet-radius',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photodata%planet_radius < 0.d0) then
+    if (photodata%planet_radius < 0.0_dp) then
       err = 'IOError: Planet radius must be greater than zero.'
       return
     endif
     photovars%surface_albedo = tmp1%get_real('surface-albedo',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photovars%surface_albedo < 0.d0) then
+    if (photovars%surface_albedo < 0.0_dp) then
       err = 'IOError: Surface albedo must be greater than zero.'
       return
     endif
     photovars%diurnal_fac = tmp1%get_real('diurnal-averaging-factor',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photovars%diurnal_fac < 0.d0 .or. photovars%diurnal_fac > 1.d0) then
+    if (photovars%diurnal_fac < 0.0_dp .or. photovars%diurnal_fac > 1.0_dp) then
       err = 'IOError: diurnal-averaging-factor must be between 0 and 1.'
       return
     endif
     
     photovars%solar_zenith = tmp1%get_real('solar-zenith-angle',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photovars%solar_zenith < 0.d0 .or. photovars%solar_zenith > 90.d0) then
+    if (photovars%solar_zenith < 0.0_dp .or. photovars%solar_zenith > 90.0_dp) then
       err = 'IOError: solar zenith must be between 0 and 90.'
       return
     endif
@@ -1973,9 +1973,9 @@ contains
     allocate(photovars%only_eddy(photodata%nq))
     ! default boundary conditions
     photovars%lowerboundcond = default_lowerboundcond
-    photovars%lower_vdep = 0.d0
+    photovars%lower_vdep = 0.0_dp
     photovars%upperboundcond = 0
-    photovars%upper_veff = 0.d0
+    photovars%upper_veff = 0.0_dp
     photovars%only_eddy = .false.
       
     ! determine number of short lived species. 
@@ -2153,9 +2153,9 @@ contains
     character(len=*), intent(in) :: infile
     
     integer, intent(out) :: lowercond
-    real(real_kind), intent(out) :: Lvdep, Lflux, LdistH, Lmr
+    real(dp), intent(out) :: Lvdep, Lflux, LdistH, Lmr
     integer, intent(out) :: uppercond
-    real(real_kind), intent(out) :: Uveff, Uflux
+    real(dp), intent(out) :: Uveff, Uflux
     character(len=err_len), intent(out) :: err
     
     type (type_error), pointer :: io_err
@@ -2179,25 +2179,25 @@ contains
       Lvdep = tmpdict%get_real("vdep",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      Lflux = 0.d0
-      LdistH = 0.d0
-      Lmr = 0.d0 
+      Lflux = 0.0_dp
+      LdistH = 0.0_dp
+      Lmr = 0.0_dp 
     elseif (bctype == "mix") then
       lowercond = 1
-      Lvdep = 0.d0
-      Lflux = 0.d0
-      LdistH = 0.d0
+      Lvdep = 0.0_dp
+      Lflux = 0.0_dp
+      LdistH = 0.0_dp
       Lmr = tmpdict%get_real("mix",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
     elseif (bctype == "flux") then
       lowercond = 2
-      Lvdep = 0.d0
+      Lvdep = 0.0_dp
       Lflux = tmpdict%get_real("flux",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      LdistH = 0.d0
-      Lmr = 0.d0 
+      LdistH = 0.0_dp
+      Lmr = 0.0_dp 
     elseif (bctype == "vdep + dist flux") then
       lowercond = 3
       Lvdep = tmpdict%get_real("vdep",error = io_err)
@@ -2209,7 +2209,7 @@ contains
       LdistH = tmpdict%get_real("height",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      Lmr = 0.d0 
+      Lmr = 0.0_dp 
     elseif (bctype == "Moses") then
       lowercond = -1
     else
@@ -2231,10 +2231,10 @@ contains
       Uveff = tmpdict%get_real("veff",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      Uflux = 0.d0
+      Uflux = 0.0_dp
     elseif (bctype == "flux") then
       uppercond = 2
-      Uveff = 0.d0
+      Uveff = 0.0_dp
       Uflux = tmpdict%get_real("flux",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
@@ -2290,19 +2290,19 @@ contains
     
     character(len=*), intent(in) :: filename
     integer, intent(in) :: nw
-    real(real_kind), intent(in) :: wavl(nw+1)
+    real(dp), intent(in) :: wavl(nw+1)
     
     integer, intent(out) :: nrad_file
-    real(real_kind), allocatable, intent(out) :: radii_file(:)
-    real(real_kind), allocatable, intent(out) :: w0_file(:,:), qext_file(:,:), g_file(:,:)
+    real(dp), allocatable, intent(out) :: radii_file(:)
+    real(dp), allocatable, intent(out) :: w0_file(:,:), qext_file(:,:), g_file(:,:)
     character(len=err_len), intent(out) :: err
     
-    real(real_kind), allocatable :: wavl_tmp(:)
-    real(real_kind), allocatable :: w0_tmp(:,:), qext_tmp(:,:), g_tmp(:,:)
-    real(real_kind), allocatable :: temp_data(:), temp_wavelength(:)
+    real(dp), allocatable :: wavl_tmp(:)
+    real(dp), allocatable :: w0_tmp(:,:), qext_tmp(:,:), g_tmp(:,:)
+    real(dp), allocatable :: temp_data(:), temp_wavelength(:)
     
     integer :: nw_tmp
-    real(real_kind) :: dum
+    real(dp) :: dum
     integer :: i, j, io, ierr
     
     err = ''
@@ -2391,8 +2391,8 @@ contains
       temp_data(1:nw_tmp) = w0_tmp(1:nw_tmp,i)
       temp_wavelength(1:nw_tmp) =  wavl_tmp(1:nw_tmp)
       j = nw_tmp
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.d0, w0_tmp(1,i), ierr)
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.d0), w0_tmp(nw_tmp,i), ierr)
+      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.0_dp, w0_tmp(1,i), ierr)
+      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.0_dp), w0_tmp(nw_tmp,i), ierr)
       if (ierr /= 0) then
         err = "Problems interpolating mie data from file "//trim(filename)// &
               " to the wavelength grid"
@@ -2410,8 +2410,8 @@ contains
       temp_data(1:nw_tmp) = qext_tmp(1:nw_tmp,i)
       temp_wavelength(1:nw_tmp) =  wavl_tmp(1:nw_tmp)
       j = nw_tmp
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.d0, qext_tmp(1,i), ierr)
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.d0), qext_tmp(nw_tmp,i), ierr)
+      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.0_dp, qext_tmp(1,i), ierr)
+      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.0_dp), qext_tmp(nw_tmp,i), ierr)
       if (ierr /= 0) then
         err = "Problems interpolating mie data from file "//trim(filename)// &
               " to the wavelength grid"
@@ -2429,8 +2429,8 @@ contains
       temp_data(1:nw_tmp) = g_tmp(1:nw_tmp,i)
       temp_wavelength(1:nw_tmp) =  wavl_tmp(1:nw_tmp)
       j = nw_tmp
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.d0, g_tmp(1,i), ierr)
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.d0), g_tmp(nw_tmp,i), ierr)
+      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.0_dp, g_tmp(1,i), ierr)
+      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.0_dp), g_tmp(nw_tmp,i), ierr)
       if (ierr /= 0) then
         err = "Problems interpolating mie data from file "//trim(filename)// &
               " to the wavelength grid"
@@ -2455,8 +2455,8 @@ contains
     
     integer :: nrad
     integer, parameter :: nrad_fixed = 50
-    real(real_kind), allocatable :: radii(:)
-    real(real_kind), allocatable :: w0(:,:), qext(:,:), g(:,:)
+    real(dp), allocatable :: radii(:)
+    real(dp), allocatable :: w0(:,:), qext(:,:), g(:,:)
     character(len=:), allocatable :: xsroot
     character(len=:), allocatable :: filename
     integer :: i
@@ -2502,7 +2502,7 @@ contains
         return
       endif
       
-      photodata%radii_file(:,i) = radii/1.d4 ! convert from micron to cm
+      photodata%radii_file(:,i) = radii/1.e4_dp ! convert from micron to cm
       photodata%part_xs_file(i)%w0 = w0
       photodata%part_xs_file(i)%qext = qext
       photodata%part_xs_file(i)%gt = g
@@ -2522,9 +2522,9 @@ contains
     character(len=:), allocatable :: filename, xsfilename, reaction
     character(len=str_len) :: line
     character(len=100) :: tmp(maxcols), tmp1
-    real(real_kind), allocatable :: file_xs(:,:), file_qy(:,:), file_wav(:), file_wav_save(:), file_line(:)
-    real(real_kind), allocatable :: dumby(:,:)
-    real(real_kind), parameter :: rdelta = 1.d-4
+    real(dp), allocatable :: file_xs(:,:), file_qy(:,:), file_wav(:), file_wav_save(:), file_line(:)
+    real(dp), allocatable :: dumby(:,:)
+    real(dp), parameter :: rdelta = 1.d-4
     
     integer :: i, j, k, l, m, io, kk, ierr
     err = ''
@@ -2602,10 +2602,10 @@ contains
       ierr = 0
       do l = 1, photodata%xs_data(i)%n_temps
         kk = k
-        call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(1)*(1.d0-rdelta), 0.d0, ierr)
-        call addpnt(file_wav, file_qy(:,l), kk+4, k, 0.d0, 0.d0, ierr)
-        call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(k)*(1.d0+rdelta), 0.d0, ierr)
-        call addpnt(file_wav, file_qy(:,l), kk+4, k, huge(rdelta), 0.d0, ierr)
+        call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(1)*(1.0_dp-rdelta), 0.0_dp, ierr)
+        call addpnt(file_wav, file_qy(:,l), kk+4, k, 0.0_dp, 0.0_dp, ierr)
+        call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(k)*(1.0_dp+rdelta), 0.0_dp, ierr)
+        call addpnt(file_wav, file_qy(:,l), kk+4, k, huge(rdelta), 0.0_dp, ierr)
         if (ierr /= 0) then
           err = 'IOError: Problem interpolating quantum yield data to photolysis grid for reaction '// &
                 trim(reaction)
@@ -2658,10 +2658,10 @@ contains
       ierr = 0
       do l = 1, photodata%xs_data(i)%n_temps
         kk = k
-        call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(1)*(1.d0-rdelta), 0.d0,ierr)
-        call addpnt(file_wav, file_xs(:,l), kk+4, k, 0.d0, 0.d0,ierr)
-        call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(k)*(1.d0+rdelta), 0.d0,ierr)
-        call addpnt(file_wav, file_xs(:,l), kk+4, k, huge(rdelta), 0.d0,ierr)
+        call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(1)*(1.0_dp-rdelta), 0.0_dp,ierr)
+        call addpnt(file_wav, file_xs(:,l), kk+4, k, 0.0_dp, 0.0_dp,ierr)
+        call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(k)*(1.0_dp+rdelta), 0.0_dp,ierr)
+        call addpnt(file_wav, file_xs(:,l), kk+4, k, huge(rdelta), 0.0_dp,ierr)
         if (ierr /= 0) then
           err = 'IOError: Problem interpolating xs data to photolysis grid for reaction '// &
                 trim(reaction)
@@ -2692,7 +2692,7 @@ contains
     type(PhotochemVars), intent(in) :: photovars
     character(len=err_len), intent(out) :: err
     
-    real(real_kind), allocatable :: A(:), B(:), Delta(:)
+    real(dp), allocatable :: A(:), B(:), Delta(:)
     character(len=str_len) :: rayleigh_file
 
     character(error_length) :: error
@@ -2738,7 +2738,7 @@ contains
     class (type_key_value_pair), pointer :: key_value_pair
     class (type_dictionary), pointer :: tmp1, tmp2
     type (type_error), pointer :: io_err
-    real(real_kind), allocatable, intent(out) :: A(:), B(:), Delta(:)
+    real(dp), allocatable, intent(out) :: A(:), B(:), Delta(:)
     integer, allocatable, intent(out) :: raynums(:)
     
     integer :: j, ind(1)  
@@ -2784,12 +2784,12 @@ contains
   end subroutine
   
   subroutine rayleigh_vardavas(A, B, Delta, lambda, sigray)
-    real(real_kind), intent(in) :: A, B, Delta, lambda
-    real(real_kind), intent(out) :: sigray
+    real(dp), intent(in) :: A, B, Delta, lambda
+    real(dp), intent(out) :: sigray
     
-    sigray = 4.577d-21*((6.d0+3.d0*Delta)/(6.d0-7.d0*Delta)) * &
-            (A*(1.d0+B/(lambda*1.d-3)**2.d0))**2.d0 * &
-            (1.d0/(lambda*1.d-3)**4.d0)
+    sigray = 4.577e-21_dp*((6.0_dp+3.0_dp*Delta)/(6.0_dp-7.0_dp*Delta)) * &
+            (A*(1.0_dp+B/(lambda*1.d-3)**2.0_dp))**2.0_dp * &
+            (1.0_dp/(lambda*1.d-3)**4.0_dp)
 
   end subroutine
   
@@ -2799,15 +2799,15 @@ contains
     
     character(len=*), intent(in) :: star_file
     integer, intent(in) :: nw
-    real(real_kind), intent(in) :: wavl(nw+1)
-    real(real_kind), intent(out) :: photon_flux(nw)
+    real(dp), intent(in) :: wavl(nw+1)
+    real(dp), intent(out) :: photon_flux(nw)
     character(len=err_len), intent(out) :: err
     
-    real(real_kind), allocatable :: file_wav(:), file_flux(:)
-    real(real_kind) :: flux(nw)
-    real(real_kind) :: dum1, dum2
+    real(dp), allocatable :: file_wav(:), file_flux(:)
+    real(dp) :: flux(nw)
+    real(dp) :: dum1, dum2
     integer :: io, i, n, ierr
-    real(real_kind), parameter :: rdelta = 1.d-4
+    real(dp), parameter :: rdelta = 1.d-4
     
     open(1,file=star_file,status='old',iostat=io)
     if (io /= 0) then
@@ -2839,10 +2839,10 @@ contains
     
     i = n
     ! interpolate 
-    call addpnt(file_wav, file_flux, n+4, i, file_wav(1)*(1.d0-rdelta), 0.d0, ierr)
-    call addpnt(file_wav, file_flux, n+4, i, 0.d0, 0.d0, ierr)
-    call addpnt(file_wav, file_flux, n+4, i, file_wav(i)*(1.d0+rdelta), 0.d0,ierr)
-    call addpnt(file_wav, file_flux, n+4, i, huge(rdelta), 0.d0,ierr)
+    call addpnt(file_wav, file_flux, n+4, i, file_wav(1)*(1.0_dp-rdelta), 0.0_dp, ierr)
+    call addpnt(file_wav, file_flux, n+4, i, 0.0_dp, 0.0_dp, ierr)
+    call addpnt(file_wav, file_flux, n+4, i, file_wav(i)*(1.0_dp+rdelta), 0.0_dp,ierr)
+    call addpnt(file_wav, file_flux, n+4, i, huge(rdelta), 0.0_dp,ierr)
     if (ierr /= 0) then
       err = "Problem interpolating "//trim(star_file)
       return
@@ -2856,8 +2856,8 @@ contains
     
     ! now convert to photons/cm2/s
     do i = 1,nw
-      photon_flux(i) = (1/(plank*c_light*1.d16))*flux(i)*(wavl(i+1)-wavl(i))* &
-                       ((wavl(i+1)+wavl(i))/2.d0)
+      photon_flux(i) = (1/(plank*c_light*1.e16_dp))*flux(i)*(wavl(i+1)-wavl(i))* &
+                       ((wavl(i+1)+wavl(i))/2.0_dp)
     enddo
     
   end subroutine
@@ -2875,7 +2875,7 @@ contains
     character(len=s_str_len) :: arr11(1000)
     character(len=s_str_len),allocatable, dimension(:) :: labels
     integer :: ind(1)
-    real(real_kind), allocatable :: temp(:,:)
+    real(dp), allocatable :: temp(:,:)
     integer :: io, i, n, nn, ii
     logical :: missing
     
@@ -2898,9 +2898,9 @@ contains
     allocate(photodata%T_file(photodata%nzf))
     allocate(photodata%edd_file(photodata%nzf))
     allocate(photodata%usol_file(photodata%nq, photodata%nzf))
-    photodata%z_file = 0.d0
-    photodata%T_file = 0.d0
-    photodata%edd_file = 0.d0
+    photodata%z_file = 0.0_dp
+    photodata%T_file = 0.0_dp
+    photodata%edd_file = 0.0_dp
     photodata%usol_file = 1.d-40
     if (photodata%there_are_particles) then
       allocate(photodata%particle_radius_file(photodata%npq, photodata%nzf))
@@ -3004,7 +3004,7 @@ contains
     ! reads in alt
     ind = findloc(labels,'alt')
     if (ind(1) /= 0) then
-      photodata%z_file(:) = temp(ind(1),:)*1.d5 ! conver to cm
+      photodata%z_file(:) = temp(ind(1),:)*1.e5_dp ! conver to cm
     else
       err = '"alt" was not found in input file '//trim(atmosphere_txt)
       return

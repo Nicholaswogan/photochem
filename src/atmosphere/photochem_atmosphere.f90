@@ -1,5 +1,5 @@
 module photochem_atmosphere
-  use photochem_const, only: err_len, real_kind
+  use photochem_const, only: err_len, dp
   use photochem_types, only : PhotochemData, PhotochemVars, PhotochemWrk
   implicit none
   
@@ -67,7 +67,7 @@ module photochem_atmosphere
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     module subroutine prep_all_background_gas(self, usol_in, err)
       class(Atmosphere), target, intent(inout) :: self
-      real(real_kind), intent(in) :: usol_in(:,:)
+      real(dp), intent(in) :: usol_in(:,:)
       character(len=err_len), intent(out) :: err
       ! Given usol_in, the mixing ratios of each species in the atmosphere,
       ! this subroutine calculates reaction rates, photolysis rates, etc.
@@ -77,8 +77,8 @@ module photochem_atmosphere
     
     module subroutine right_hand_side_chem(self, usol, rhs, err)
       class(Atmosphere), target, intent(inout) :: self
-      real(real_kind), intent(in) :: usol(:,:)
-      real(real_kind), intent(out) :: rhs(:)
+      real(dp), intent(in) :: usol(:,:)
+      real(dp), intent(out) :: rhs(:)
       character(len=err_len), intent(out) :: err
       ! The right-hand-side of the ODEs describing atmospheric chemistry
       ! but does not include transport
@@ -88,7 +88,7 @@ module photochem_atmosphere
       use photochem_types, only: ProductionLoss
       class(Atmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: species
-      real(real_kind), intent(in) :: usol(:,:)
+      real(dp), intent(in) :: usol(:,:)
       type(ProductionLoss), intent(out) :: pl
       character(len=err_len), intent(out) :: err
       ! Computes the production and loss of input `species`.
@@ -98,8 +98,8 @@ module photochem_atmosphere
     module subroutine rhs_background_gas(self, neqs, usol_flat, rhs, err)
       class(Atmosphere), target, intent(inout) :: self
       integer, intent(in) :: neqs
-      real(real_kind), target, intent(in) :: usol_flat(neqs)
-      real(real_kind), intent(out) :: rhs(neqs)
+      real(dp), target, intent(in) :: usol_flat(neqs)
+      real(dp), intent(out) :: rhs(neqs)
       character(len=err_len), intent(out) :: err
       ! Computes the right-hand-side of the ODEs describing atmospheric chemistry
       ! and transport.
@@ -108,8 +108,8 @@ module photochem_atmosphere
     module subroutine jac_background_gas(self, lda_neqs, neqs, usol_flat, jac, err)
       class(Atmosphere), target, intent(inout) :: self
       integer, intent(in) :: lda_neqs, neqs
-      real(real_kind), target, intent(in) :: usol_flat(neqs)
-      real(real_kind), intent(out), target :: jac(lda_neqs)
+      real(dp), target, intent(in) :: usol_flat(neqs)
+      real(dp), intent(out), target :: jac(lda_neqs)
       character(len=err_len), intent(out) :: err
       ! The jacobian of the rhs_background_gas.
     end subroutine
@@ -118,8 +118,8 @@ module photochem_atmosphere
       use, intrinsic :: iso_c_binding, only : c_ptr  
       type(c_ptr) :: ptr
       integer, value :: n, iflag
-      real(real_kind), intent(in) :: x(n)
-      real(real_kind), intent(out) :: fvec(n)
+      real(dp), intent(in) :: x(n)
+      real(dp), intent(out) :: fvec(n)
       integer :: res
     end function  
     
@@ -131,7 +131,7 @@ module photochem_atmosphere
       class(Atmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: filename
       real(c_double), intent(in) :: tstart
-      real(real_kind), intent(in) :: usol_start(:,:)
+      real(dp), intent(in) :: usol_start(:,:)
       real(c_double), intent(in) :: t_eval(:)
       logical, intent(out) :: success
       character(len=err_len), intent(out) :: err
@@ -147,14 +147,14 @@ module photochem_atmosphere
     
     module subroutine initialize_stepper(self, usol_start, err)      
       class(Atmosphere), target, intent(inout) :: self
-      real(real_kind), intent(in) :: usol_start(:,:)
+      real(dp), intent(in) :: usol_start(:,:)
       character(len=err_len), intent(out) :: err
     end subroutine
     
     module function step(self, err) result(tn)
       class(Atmosphere), target, intent(inout) :: self
       character(len=err_len), intent(out) :: err
-      real(real_kind) :: tn
+      real(dp) :: tn
     end function
     
     module subroutine destroy_stepper(self, err)
@@ -208,8 +208,8 @@ module photochem_atmosphere
     
     module subroutine gas_fluxes(self, surf_fluxes, top_fluxes, err)
       class(Atmosphere), target, intent(inout) :: self
-      real(real_kind), intent(out) :: surf_fluxes(:)
-      real(real_kind), intent(out) :: top_fluxes(:)
+      real(dp), intent(out) :: surf_fluxes(:)
+      real(dp), intent(out) :: top_fluxes(:)
       character(len=err_len), intent(out) :: err
     end subroutine
     
@@ -224,17 +224,17 @@ module photochem_atmosphere
     module function redox_conservation(self, err) result(redox_factor)
       class(Atmosphere), target, intent(inout) :: self
       character(len=err_len), intent(out) :: err
-      real(real_kind) :: redox_factor
+      real(dp) :: redox_factor
     end function
     
     module subroutine set_lower_bc(self, species, bc_type, vdep, mix, flux, height, err)
       class(Atmosphere), intent(inout) :: self
       character(len=*), intent(in) :: species
       character(len=*), intent(in) :: bc_type
-      real(real_kind), optional, intent(in) :: vdep
-      real(real_kind), optional, intent(in) :: mix
-      real(real_kind), optional, intent(in) :: flux
-      real(real_kind), optional, intent(in) :: height
+      real(dp), optional, intent(in) :: vdep
+      real(dp), optional, intent(in) :: mix
+      real(dp), optional, intent(in) :: flux
+      real(dp), optional, intent(in) :: height
       character(len=err_len), intent(out) :: err
     end subroutine
     
@@ -242,15 +242,15 @@ module photochem_atmosphere
       class(Atmosphere), intent(inout) :: self
       character(len=*), intent(in) :: species
       character(len=*), intent(in) :: bc_type
-      real(real_kind), optional, intent(in) :: veff
-      real(real_kind), optional, intent(in) :: flux
+      real(dp), optional, intent(in) :: veff
+      real(dp), optional, intent(in) :: flux
       character(len=err_len), intent(out) :: err
     end subroutine
     
     module subroutine set_temperature(self, temperature, trop_alt, err)
       class(Atmosphere), target, intent(inout) :: self
-      real(real_kind), intent(in) :: temperature(:)
-      real(real_kind), optional, intent(in) :: trop_alt
+      real(dp), intent(in) :: temperature(:)
+      real(dp), optional, intent(in) :: trop_alt
       character(len=err_len), intent(out) :: err
     end subroutine
     

@@ -58,14 +58,14 @@ contains
     
     call interp(var%nz, dat%nzf, var%z, dat%z_file, dlog10(dabs(dat%edd_file)), var%edd, err)
     if (len_trim(err) /= 0) return
-    var%edd = 10.d0**var%edd
+    var%edd = 10.0_dp**var%edd
     
     do i = 1,dat%nq
       call interp(var%nz, dat%nzf, var%z, dat%z_file,&
                   dlog10(dabs(dat%usol_file(i,:))), var%usol_init(i,:), err)
       if (len_trim(err) /= 0) return
     enddo
-    var%usol_init = 10.d0**var%usol_init
+    var%usol_init = 10.0_dp**var%usol_init
     
     if (dat%there_are_particles) then
       do i = 1,dat%npq
@@ -73,7 +73,7 @@ contains
                     log10(abs(dat%particle_radius_file(i,:))), var%particle_radius(i,:), err)
         if (len_trim(err) /= 0) return
       enddo
-      var%particle_radius = 10.d0**var%particle_radius
+      var%particle_radius = 10.0_dp**var%particle_radius
     endif
     
     if (var%z(1) < dat%z_file(1)) then
@@ -121,8 +121,8 @@ contains
     character(len=err_len), intent(out) :: err
     
     integer :: i, j, k, jj
-    real(real_kind) :: val(1), T_temp(1)
-    real(real_kind) :: dr, slope, intercept
+    real(dp) :: val(1), T_temp(1)
+    real(dp) :: dr, slope, intercept
     
     err = ''
 
@@ -134,7 +134,7 @@ contains
           call interp(1, dat%xs_data(i)%n_temps, T_temp, dat%xs_data(i)%xs_temps, &
                       log10(abs(dat%xs_data(i)%xs(:,k))+smaller_real), val, err)
                       
-          var%xs_x_qy(j,i,k) = 10.d0**val(1)
+          var%xs_x_qy(j,i,k) = 10.0_dp**val(1)
         enddo
       enddo
     enddo

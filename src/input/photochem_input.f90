@@ -3,7 +3,7 @@ module photochem_input
   use yaml_types, only : type_node, type_dictionary, type_list, type_error, &
                          type_list_item, type_scalar, type_key_value_pair
   use photochem_types, only : PhotochemData, PhotochemVars
-  use photochem_const, only: real_kind, str_len, err_len, s_str_len
+  use photochem_const, only: dp, str_len, err_len, s_str_len
   implicit none
   private 
 
