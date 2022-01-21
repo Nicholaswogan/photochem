@@ -1,13 +1,13 @@
 
 
 module photochem_const
+  use, intrinsic :: iso_fortran_env, only : dp => real64
   implicit none
   ! public
   integer, parameter :: err_len = 1024
   integer, parameter :: str_len = 1024
   integer, parameter :: m_str_len = 100
   integer, parameter :: s_str_len = 20
-  integer, parameter :: dp = kind(1.0d0)
   real(dp), parameter :: Rgas = 8.31446261815324e0_dp ! ideal gas constant (j/(mol*K))
   real(dp), parameter :: k_boltz = 1.380649e-16_dp ! boltzmann's constant cgs units (egs/K)
   real(dp), parameter :: G_grav = 6.67430e-11_dp ! gravitational constant (N * m2 / kg)
