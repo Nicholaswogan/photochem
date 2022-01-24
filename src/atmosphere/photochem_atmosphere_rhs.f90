@@ -11,117 +11,128 @@ submodule(photochem_atmosphere) photochem_atmosphere_rhs
   
 contains
   
-  subroutine reaction_rates(self, nsp, nz, nrT, density, densities, rx_rates, err)
+  subroutine reaction_rates(self, density, densities, rx_rates, err)
+    use photochem_types, only: ElementaryRate, ThreeBodyRate, FalloffRate
     use photochem_eqns, only: arrhenius_rate, Troe_noT2, Troe_withT2, falloff_rate
     use photochem_const, only: Rgas, k_boltz, smallest_real ! constants
     
-    class(Atmosphere), intent(in) :: self
-    integer, intent(in) :: nsp, nz, nrT
-    real(dp), intent(in) :: density(nz)
-    real(dp), intent(in) :: densities(nsp+1,nz)
-    real(dp), intent(out) :: rx_rates(nz, nrT)
+    class(Atmosphere), intent(in), target :: self
+    real(dp), intent(in) :: density(:)
+    real(dp), intent(in) :: densities(:,:)
+    real(dp), intent(out) :: rx_rates(:,:)
     character(len=err_len), intent(out) :: err
     
     integer :: i, j, k, n, l, m
-    real(dp) :: eff_den(nz), F(nz), k0, kinf(nz), Pr(nz)
+    real(dp) :: eff_den(self%var%nz), F(self%var%nz)
+    real(dp) :: k0, kinf(self%var%nz), Pr(self%var%nz)
     real(dp) :: gibbR_forward, gibbP_forward
     real(dp) :: Dg_forward
-    err = ''
     
-    do i = 1,self%dat%nrF
-      if (self%dat%rxtypes(i) == 1) then ! elementary        
-        do j = 1,nz 
-          rx_rates(j,i) = arrhenius_rate(self%dat%rateparams(1,i), self%dat%rateparams(2,i), &
-                                         self%dat%rateparams(3,i), self%var%temperature(j))
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrk), pointer :: wrk
+    
+    err = ""
+    
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+    
+    do i = 1,dat%nrF
+      select type(rp => dat%rx(i)%rp)
+      class is (ElementaryRate)
+        do j = 1,var%nz 
+          rx_rates(j,i) = arrhenius_rate(rp%A, rp%b, &
+                                         rp%Ea, var%temperature(j))
           
-        enddo        
-      elseif (self%dat%rxtypes(i) == 2) then ! three-body
-        n = self%dat%num_efficient(i)
-        do j = 1,self%var%nz
-          eff_den(j) = density(j) * self%dat%def_eff(i)
+        enddo       
+      class is (ThreeBodyRate)
+        n = rp%eff%n_eff
+        do j = 1,var%nz
+          eff_den(j) = density(j)*rp%eff%def_eff
           ! subtract the default efficiency, then add the perscribed one
           do k = 1,n ! if n is 0 then it will be skipped
-            l = self%dat%eff_sp_inds(k,i)
-            eff_den(j) = eff_den(j) - self%dat%def_eff(i)*densities(l,j) &
-                                    + self%dat%efficiencies(k,i)*densities(l,j)
+            l = rp%eff%eff_sp_inds(k)
+            eff_den(j) = eff_den(j) - rp%eff%def_eff*densities(l,j) &
+                                    + rp%eff%efficiencies(k)*densities(l,j)
           enddo
-          rx_rates(j,i) = arrhenius_rate(self%dat%rateparams(1,i), self%dat%rateparams(2,i), &
-                                         self%dat%rateparams(3,i), self%var%temperature(j)) &
+          rx_rates(j,i) = arrhenius_rate(rp%A, rp%b, &
+                                         rp%Ea, var%temperature(j)) &
                                          * eff_den(j) ! we multiply density here
+          
         enddo
         
-      
-      elseif (self%dat%rxtypes(i) == 3) then ! falloff
-        ! compute eff_den, kinf, and Pr at all altitudes
-        n = self%dat%num_efficient(i)
-        do j = 1,nz
-          eff_den(j) = density(j) * self%dat%def_eff(i)
+      class is (FalloffRate)
+        n = rp%eff%n_eff
+        do j = 1,var%nz
+          eff_den(j) = density(j)*rp%eff%def_eff
           ! subtract the default efficiency, then add the perscribed one
-          do k = 1,n
-            l = self%dat%eff_sp_inds(k,i)
-            eff_den(j) = eff_den(j) - self%dat%def_eff(i)*densities(l,j) &
-                                    + self%dat%efficiencies(k,i)*densities(l,j)
+          do k = 1,n ! if n is 0 then it will be skipped
+            l = rp%eff%eff_sp_inds(k)
+            eff_den(j) = eff_den(j) - rp%eff%def_eff*densities(l,j) &
+                                    + rp%eff%efficiencies(k)*densities(l,j)
           enddo
-          k0  = arrhenius_rate(self%dat%rateparams(1,i), self%dat%rateparams(2,i), &
-                               self%dat%rateparams(3,i), self%var%temperature(j))
-          kinf(j) = arrhenius_rate(self%dat%rateparams(4,i), self%dat%rateparams(5,i), &
-                                   self%dat%rateparams(6,i), self%var%temperature(j))
+          
+          k0  = arrhenius_rate(rp%A0, rp%b0, &
+                               rp%Ea0, var%temperature(j))         
+          kinf(j) = arrhenius_rate(rp%Ainf, rp%binf, &
+                                   rp%Eainf, var%temperature(j))
           kinf(j) = max(kinf(j),smallest_real)
-          Pr(j) = k0*eff_den(j)/kinf(j)                        
+          Pr(j) = k0*eff_den(j)/kinf(j)                 
         enddo
         
         ! compute falloff function
-        if (self%dat%falloff_type(i) == 0) then ! no falloff function
+        if (rp%falloff_type == 0) then ! no falloff function
           F = 1.0_dp
-        elseif (self%dat%falloff_type(i) == 1) then ! Troe falloff without T2
-          do j = 1,nz
-            F(j) = Troe_noT2(self%dat%rateparams(7,i), self%dat%rateparams(8,i), &
-                             self%dat%rateparams(10,i), self%var%temperature(j), Pr(j))
+        elseif (rp%falloff_type == 1) then ! Troe falloff without T2
+          do j = 1,var%nz
+            F(j) = Troe_noT2(rp%A_t, rp%T1, rp%T3, var%temperature(j), Pr(j))
           enddo
-        elseif (self%dat%falloff_type(i) == 2) then ! Troe falloff with T2
-          do j = 1,nz
-            F(j) = Troe_withT2(self%dat%rateparams(7,i), self%dat%rateparams(8,i), self%dat%rateparams(9,i), &
-                               self%dat%rateparams(10,i), self%var%temperature(j), Pr(j))
+        elseif (rp%falloff_type == 2) then ! Troe falloff with T2
+          do j = 1,var%nz
+            F(j) = Troe_withT2(rp%A_t, rp%T1, rp%T2, rp%T3, var%temperature(j), Pr(j))
           enddo
-        elseif (self%dat%falloff_type(i) == 3) then ! JPL falloff function
-          do j = 1,nz
-            F(j) = 0.6e0_dp**(1.0_dp/(1.0_dp + (log10(Pr(j)))**2.0_dp ))
+        elseif (rp%falloff_type == 3) then ! JPL falloff function
+          do j = 1,var%nz
+            F(j) = 0.6_dp**(1.0_dp/(1.0_dp + (log10(Pr(j)))**2.0_dp ))
           enddo
         endif
         
         ! compute rate
-        do j = 1,nz
+        do j = 1,var%nz
           rx_rates(j,i) = falloff_rate(kinf(j), Pr(j), F(j))
         enddo
-    
-      endif
-    enddo ! end loop over forward reactions
 
-    if (self%dat%reverse) then ! if there are reverse reactions
+      end select
+      
+    enddo ! end loop over forward reactions
+    
+    if (dat%reverse) then ! if there are reverse reactions
       ! compute reverse rate
-      do i = self%dat%nrF+1,self%dat%nrT
+      do i = dat%nrF+1,dat%nrT
         
-        n = self%dat%reverse_info(i) ! Reaction number of the forward
-        l = self%dat%nreactants(n) ! number of reactants for the forward reaction
-        m = self%dat%nproducts(n) ! number of products for the forward reaction
-        do j = 1,self%var%nz
+        n = dat%rx(i)%reverse_info ! Reaction number of the forward
+        l = dat%rx(n)%nreact ! number of reactants for the forward reaction
+        m = dat%rx(n)%nprod ! number of products for the forward reaction
+        do j = 1,var%nz
           gibbR_forward = 0.0_dp
           do k = 1,l
             gibbR_forward = gibbR_forward + &
-                            self%var%gibbs_energy(j,self%dat%reactants_sp_inds(k,n)-self%dat%npq)
+                            var%gibbs_energy(j,dat%rx(n)%react_sp_inds(k)-dat%npq)
           enddo
           gibbP_forward = 0.0_dp
           do k = 1,m
             gibbP_forward = gibbP_forward +  &
-                            self%var%gibbs_energy(j,self%dat%products_sp_inds(k,n)-self%dat%npq)
+                            var%gibbs_energy(j,dat%rx(n)%prod_sp_inds(k)-dat%npq)
           enddo
           Dg_forward = gibbP_forward - gibbR_forward ! DG of the forward reaction (J/mol)
           ! compute the reverse rate
           rx_rates(j,i) = rx_rates(j,n) * &
-                          (1.0_dp/exp(-Dg_forward/(Rgas * self%var%temperature(j)))) * &
-                          (k_boltz*self%var%temperature(j)/1.e6_dp)**(m-l)
+                          (1.0_dp/exp(-Dg_forward/(Rgas * var%temperature(j)))) * &
+                          (k_boltz*var%temperature(j)/1.e6_dp)**(m-l)
         enddo
       enddo
+      
     endif
 
   end subroutine
@@ -129,7 +140,7 @@ contains
   subroutine chempl(self, nz, nsp, nrT, densities, rx_rates, k, xp, xl)
     
     ! input
-    class(Atmosphere), intent(in) :: self
+    class(Atmosphere), intent(in), target :: self
     integer, intent(in) :: nz, nsp, nrT
     real(dp), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
     real(dp), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
@@ -140,35 +151,40 @@ contains
     
     ! local
     real(dp) :: DD
-    integer :: np, nl
     integer :: i, ii, iii, m, l, j
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    
+    dat => self%dat
+    var => self%var
+    
     xp = 0.0_dp
     xl = 0.0_dp
     
-    np = self%dat%nump(k) ! k is a species
-    ! np is number of reactions that produce species k
-    do i=1,np
-      m = self%dat%iprod(i,k) ! m is reaction number
-      l = self%dat%nreactants(m) ! l is the number of reactants
-      do j = 1,self%var%nz
+    ! k is a species
+    ! nump is number of reactions that produce species k
+    do i = 1,dat%pl(k)%nump
+      m = dat%pl(k)%iprod(i) ! m is reaction number
+      l = dat%rx(m)%nreact ! l is the number of reactants
+      do j = 1,var%nz
         DD = 1.0_dp
         do ii = 1,l
-          iii = self%dat%reactants_sp_inds(ii,m)
+          iii = dat%rx(m)%react_sp_inds(ii)
           DD = DD * densities(iii,j)
         enddo
         xp(j) = xp(j) + rx_rates(j,m) * DD
       enddo
     enddo
     
-    nl = self%dat%numl(k) ! k is a species
-    ! nl is number of reactions that destroy species k
-    do i=1,nl
-      m = self%dat%iloss(i,k) ! This will JUST be reaction number
-      l = self%dat%nreactants(m) ! number of reactants
-      do j = 1,self%var%nz
+    ! k is a species
+    ! numl is number of reactions that destroy species k
+    do i=1,dat%pl(k)%numl
+      m = dat%pl(k)%iloss(i) ! This will JUST be reaction number
+      l = dat%rx(m)%nreact ! number of reactants
+      do j = 1,var%nz
         DD = 1.0_dp
         do ii = 1,l
-          iii = self%dat%reactants_sp_inds(ii,m)
+          iii = dat%rx(m)%react_sp_inds(ii)
           DD = DD * densities(iii,j)
         enddo
         xl(j) = xl(j) + rx_rates(j,m) * DD
@@ -180,7 +196,7 @@ contains
   subroutine chempl_sl(self, nz, nsp, nrT, densities, rx_rates, k, xp, xl)
     
     ! input
-    class(Atmosphere), intent(in) :: self
+    class(Atmosphere), intent(in), target :: self
     integer, intent(in) :: nz, nsp, nrT
     real(dp), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
     real(dp), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
@@ -191,35 +207,40 @@ contains
     
     ! local
     real(dp) :: DD
-    integer :: np, nl
     integer :: i, ii, iii, m, l, j
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    
+    dat => self%dat
+    var => self%var
+    
     xp = 0.0_dp
     xl = 0.0_dp
     
-    np = self%dat%nump(k) ! k is a species
-    ! np is number of reactions that produce species k
-    do i=1,np
-      m = self%dat%iprod(i,k) ! m is reaction number
-      l = self%dat%nreactants(m) ! l is the number of reactants
-      do j = 1,self%var%nz
+    ! k is a species
+    ! nump is number of reactions that produce species k
+    do i = 1,dat%pl(k)%nump
+      m = dat%pl(k)%iprod(i) ! m is reaction number
+      l = dat%rx(m)%nreact ! l is the number of reactants
+      do j = 1,var%nz
         DD = 1.0_dp
         do ii = 1,l
-          iii = self%dat%reactants_sp_inds(ii,m)
+          iii = dat%rx(m)%react_sp_inds(ii)
           DD = DD * densities(iii,j)
         enddo
         xp(j) = xp(j) + rx_rates(j,m) * DD
       enddo
     enddo
     
-    nl = self%dat%numl(k) ! k is a species
-    ! nl is number of reactions that destroy species k
-    do i=1,nl
-      m = self%dat%iloss(i,k) ! This will JUST be reaction number
-      l = self%dat%nreactants(m) ! number of reactants
-      do j = 1,self%var%nz
+    ! k is a species
+    ! numl is number of reactions that destroy species k
+    do i=1,dat%pl(k)%numl
+      m = dat%pl(k)%iloss(i) ! This will JUST be reaction number
+      l = dat%rx(m)%nreact ! number of reactants
+      do j = 1,var%nz
         DD = 1.0_dp
         do ii = 1,l
-          iii = self%dat%reactants_sp_inds(ii,m)
+          iii = dat%rx(m)%react_sp_inds(ii)
           ! We skip the short-lived species.
           if (iii /= k) then
             DD = DD * densities(iii,j)
@@ -461,7 +482,7 @@ contains
       taua = 0.0_dp
       do i = 1,dat%kj
         jj = dat%photonums(i)
-        j = dat%reactants_sp_inds(1,jj)
+        j = dat%rx(jj)%react_sp_inds(1)
         do k = 1,var%nz
           n = var%nz+1-k
           taua(n) = taua(n) + var%xs_x_qy(k,i,l)*densities(j,k)*var%dz(k)
@@ -1135,8 +1156,7 @@ contains
       wrk%densities(dat%nsp+1,j) = 1.0_dp ! for hv
     enddo
     
-    call reaction_rates(self, dat%nsp, var%nz, dat%nrT, wrk%density, &
-                        wrk%densities, wrk%rx_rates, err)
+    call reaction_rates(self, wrk%density, wrk%densities, wrk%rx_rates, err)
     if (len_trim(err) /= 0) return
   
     call photorates(self, var%nz, dat%nsp, dat%kj, dat%nw, wrk%densities, &
@@ -1421,56 +1441,62 @@ contains
     endif
   
   end subroutine
-  
+
   subroutine chempl_t(self, nz, nsp, nrT, np, nl, densities, rx_rates, k, xpT, xlT)
-  
+    
     ! input
-    class(Atmosphere), intent(in) :: self
+    class(Atmosphere), intent(in), target :: self
     integer, intent(in) :: nz, nsp, nrT
     integer, intent(in) :: np, nl
     real(dp), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
     real(dp), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
     integer, intent(in) :: k ! species number
-  
+    
     ! output
-    real(dp), intent(out) :: xpT(nz,np), xlT(nz,nl) ! molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
-  
+    real(dp), intent(out) :: xpT(nz,np), xlT(nz,nl) ! molecules/cm3/s.
+      
     ! local
     real(dp) :: DD
     integer :: i, ii, iii, m, l, j
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    
+    dat => self%dat
+    var => self%var
+    
     xpT = 0.0_dp
     xlT = 0.0_dp
-  
-    ! np = self%dat%nump(k) ! k is a species
-    ! np is number of reactions that produce species k
-    do i=1,np
-      m = self%dat%iprod(i,k) ! m is reaction number
-      l = self%dat%nreactants(m) ! l is the number of reactants
-      do j = 1,self%var%nz
+    
+    ! k is a species
+    ! nump is number of reactions that produce species k
+    do i = 1,dat%pl(k)%nump
+      m = dat%pl(k)%iprod(i) ! m is reaction number
+      l = dat%rx(m)%nreact ! l is the number of reactants
+      do j = 1,var%nz
         DD = 1.0_dp
         do ii = 1,l
-          iii = self%dat%reactants_sp_inds(ii,m)
+          iii = dat%rx(m)%react_sp_inds(ii)
           DD = DD * densities(iii,j)
         enddo
         xpT(j,i) = rx_rates(j,m) * DD
       enddo
     enddo
-  
-    ! nl = self%dat%numl(k) ! k is a species
-    ! nl is number of reactions that destroy species k
-    do i=1,nl
-      m = self%dat%iloss(i,k) ! This will JUST be reaction number
-      l = self%dat%nreactants(m) ! number of reactants
-      do j = 1,self%var%nz
+    
+    ! k is a species
+    ! numl is number of reactions that destroy species k
+    do i=1,dat%pl(k)%numl
+      m = dat%pl(k)%iloss(i) ! This will JUST be reaction number
+      l = dat%rx(m)%nreact ! number of reactants
+      do j = 1,var%nz
         DD = 1.0_dp
         do ii = 1,l
-          iii = self%dat%reactants_sp_inds(ii,m)
+          iii = dat%rx(m)%react_sp_inds(ii)
           DD = DD * densities(iii,j)
         enddo
         xlT(j,i) = rx_rates(j,m) * DD
       enddo
     enddo
-  
+    
   end subroutine
   
   module subroutine production_and_loss(self, species, usol, pl, err)     
@@ -1513,8 +1539,8 @@ contains
     call self%prep_atmosphere(usol, err)
     if (len_trim(err) /= 0) return
   
-    np = self%dat%nump(sp_ind)
-    nl = self%dat%numl(sp_ind)
+    np = dat%pl(sp_ind)%nump
+    nl = dat%pl(sp_ind)%numl
     nlT = nl + 1 ! + 1 for rainout
     
     allocate(pl%production(var%nz,np))
@@ -1548,12 +1574,12 @@ contains
   
     do i = 1,np
       pl%integrated_production(i) = sum(pl%production(:,i)*var%dz)
-      k = dat%iprod(i,sp_ind) ! reaction number
+      k = dat%pl(sp_ind)%iprod(i) ! reaction number
       pl%production_rx(i) = dat%reaction_equations(k)
     enddo
     do i = 1,nl
       pl%integrated_loss(i) = sum(pl%loss(:,i)*var%dz)
-      k = dat%iloss(i,sp_ind) ! reaction number
+      k = dat%pl(sp_ind)%iloss(i) ! reaction number
       pl%loss_rx(i) = dat%reaction_equations(k)
     enddo
     

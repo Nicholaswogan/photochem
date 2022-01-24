@@ -12,6 +12,8 @@ module photochem_types ! make a giant IO object
   
   public :: PhotochemData, PhotochemVars, PhotochemWrk
   public :: ProductionLoss, AtomConservation, ThermodynamicData
+  public :: Reaction, Efficiencies, BaseRate, PhotolysisRate
+  public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
   
   type :: ProductionLoss
     real(dp), allocatable :: production(:,:)
@@ -53,6 +55,71 @@ module photochem_types ! make a giant IO object
     real(dp) :: net
     real(dp) :: factor
   end type
+  
+  !!!!!!!!!!!!!!!!!
+  !!! Reactions !!!
+  !!!!!!!!!!!!!!!!!
+  
+  type :: Efficiencies
+    integer :: n_eff
+    real(dp) :: def_eff
+    real(dp), allocatable :: efficiencies(:)
+    integer, allocatable :: eff_sp_inds(:)
+  end type
+  
+  type, abstract :: BaseRate
+    integer :: rxtype ! 0 is photolysis, 1 is elementary, 2 is three-body, 3 is falloff
+  end type
+  
+  type, extends(BaseRate) :: PhotolysisRate
+  end type
+  
+  type, extends(BaseRate) :: ElementaryRate
+    real(dp) :: A
+    real(dp) :: b
+    real(dp) :: Ea
+  end type
+  
+  type, extends(ElementaryRate) :: ThreeBodyRate
+    type(Efficiencies) :: eff
+  end type
+  
+  type, extends(BaseRate) :: FalloffRate
+    real(dp) :: A0
+    real(dp) :: b0
+    real(dp) :: Ea0
+    real(dp) :: Ainf
+    real(dp) :: binf
+    real(dp) :: Eainf
+    
+    integer :: falloff_type
+    real(dp), allocatable :: A_T
+    real(dp), allocatable :: T1
+    real(dp), allocatable :: T2
+    real(dp), allocatable :: T3
+    
+    type(Efficiencies) :: eff
+  end type
+  
+  type :: Reaction
+    integer :: nreact
+    integer :: nprod
+    integer, allocatable :: react_sp_inds(:)
+    integer, allocatable :: prod_sp_inds(:)
+    integer, allocatable :: reverse_info ! if
+    class(BaseRate), allocatable :: rp
+  end type
+  
+  type :: ProdLoss
+    integer :: nump ! size(iprod)
+    integer :: numl ! size(iloss)
+    integer, allocatable :: iprod(:) ! returns reaction # of production mechanism for sp
+    integer, allocatable :: iloss(:) ! returns reaction # of loss mechanism for sp
+  end type
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!! Data, Vars, and Wrk !!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!
   
   type :: PhotochemData
     ! PhotochemData contains information that is never changed
@@ -102,29 +169,9 @@ module photochem_types ! make a giant IO object
     integer :: nrF ! number of forward reactions
     integer :: nrR ! number of reverse reactions
     integer :: nrT ! number of total reactions
-    integer :: max_num_reactants
-    integer :: max_num_products
+    type(Reaction), allocatable :: rx(:) ! array of reaction objects
     character(len=m_str_len), allocatable :: reaction_equations(:)
-    character(len=s_str_len), allocatable :: reactants_names(:,:)
-    character(len=s_str_len), allocatable :: products_names(:,:)
-    ! reactants_sp_inds(1:nreactants(i),i) are the species indicies for reaction i
-    integer, allocatable :: reactants_sp_inds(:,:) ! (max_num_reactants, nrT)
-    ! same idea as reactants_sp_inds
-    integer, allocatable :: products_sp_inds(:,:) ! (max_num_products, nrT)
-    integer, allocatable :: nreactants(:) ! (nrT) number of reactants
-    integer, allocatable :: nproducts(:) ! (nrT) number of products
-    integer, allocatable :: reverse_info(:) ! (nrT) indexs between forward and reverse reactions
-    integer, allocatable :: rxtypes(:) ! (nrT) 0 is photolysis, 1 is elementary, 2 is three-body, 3 is falloff
-    real(dp), allocatable :: rateparams(:,:) ! (10, nrF)
-    real(dp), allocatable :: efficiencies(:,:) ! (maxval(num_efficient), nrF)
-    integer, allocatable :: eff_sp_inds(:,:) ! (maxval(num_efficient), nrF)
-    integer, allocatable :: num_efficient(:) ! number of efficiencies for each reaction
-    real(dp), allocatable :: def_eff(:) ! default efficiency
-    integer, allocatable :: falloff_type(:) ! type of falloff function (0 = none, 1 = Troe without T2,..)
-    integer, allocatable :: nump(:) ! number of production mechanisms (rxns) for each sp
-    integer, allocatable :: numl(:) ! number of loss mechanisms (rxns) for each sp
-    integer, allocatable :: iprod(:,:) ! (nmax,nsp) returns reaction # of production mechanism for sp
-    integer, allocatable :: iloss(:,:) ! (nmax,nsp) returns reaction # of loss mechanism for sp
+    type(ProdLoss), allocatable :: pl(:)
     integer :: kj ! number of photolysis reactions
     integer, allocatable :: photonums(:) ! (kj) the reaction number of each photolysis reaction
 

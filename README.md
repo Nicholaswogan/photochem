@@ -4,16 +4,18 @@
 
 ## Installation
 
-**Requirements:**
-- python >= 3.6, numpy, scipy, pyyaml, Fortran compiler (`gfortran>=9.3` works), C compiler (`clang` works), cmake, cython. Install all with `conda`:
+Create a `conda` environment with all dependencies
 
 ```sh
-conda install -c conda-forge python numpy scipy cython pyyaml gfortran clang cmake cython
+conda create -n photochem -c conda-forge python numpy scipy pyyaml setuptools wheel scikit-build cmake ninja cython gfortran clang
 ```
 
-**Python Module:** 
-- Clone or download the Github repository.
-- Navigate to the root directory, then install with `python -m pip install .`
+Clone or download the Github repository. Navigate to the root directory with a terminal, activate the `conda` environment, then install with setup.py:
+
+```sh
+conda activate photochem
+python setup.py install
+```
 
 **Fortran library:** 
 
