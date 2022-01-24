@@ -61,20 +61,23 @@ module photochem_types ! make a giant IO object
   !!!!!!!!!!!!!!!!!
   
   type :: Efficiencies
-    integer :: n_eff
-    real(dp) :: def_eff
-    real(dp), allocatable :: efficiencies(:)
-    integer, allocatable :: eff_sp_inds(:)
+    integer :: n_eff ! number of efficiencies
+    real(dp) :: def_eff ! default efficiency
+    real(dp), allocatable :: efficiencies(:) ! 3-body efficiencies
+    integer, allocatable :: eff_sp_inds(:) ! species indices for each efficiency
   end type
   
   type, abstract :: BaseRate
-    integer :: rxtype ! 0 is photolysis, 1 is elementary, 2 is three-body, 3 is falloff
+    integer :: rxtype 
+    ! 0 is PhotolysisRate, 1 is ElementaryRate, 2 is ThreeBodyRate, 3 is FalloffRate
   end type
   
-  type, extends(BaseRate) :: PhotolysisRate
+  type, extends(BaseRate) :: PhotolysisRate 
+    ! no rate parameters. calculated via radiative transfer
   end type
   
   type, extends(BaseRate) :: ElementaryRate
+    ! rate = A*T^b*exp(-Ea/T)
     real(dp) :: A
     real(dp) :: b
     real(dp) :: Ea
@@ -102,19 +105,20 @@ module photochem_types ! make a giant IO object
   end type
   
   type :: Reaction
-    integer :: nreact
-    integer :: nprod
-    integer, allocatable :: react_sp_inds(:)
-    integer, allocatable :: prod_sp_inds(:)
-    integer, allocatable :: reverse_info ! if
-    class(BaseRate), allocatable :: rp
+    integer :: nreact ! number of reactants
+    integer :: nprod ! number of projects
+    integer, allocatable :: react_sp_inds(:) ! (nreact) species indexes for reactants
+    integer, allocatable :: prod_sp_inds(:) ! (nprod) species indexes for products
+    integer, allocatable :: reverse_info ! if a reversed reaction, 
+                                         ! then it is the index of the forward
+    class(BaseRate), allocatable :: rp ! rate parameters
   end type
   
   type :: ProdLoss
     integer :: nump ! size(iprod)
     integer :: numl ! size(iloss)
-    integer, allocatable :: iprod(:) ! returns reaction # of production mechanism for sp
-    integer, allocatable :: iloss(:) ! returns reaction # of loss mechanism for sp
+    integer, allocatable :: iprod(:) ! reaction #s of production mechanism for sp
+    integer, allocatable :: iloss(:) ! reaction #s of loss mechanism for sp
   end type
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -169,9 +173,9 @@ module photochem_types ! make a giant IO object
     integer :: nrF ! number of forward reactions
     integer :: nrR ! number of reverse reactions
     integer :: nrT ! number of total reactions
-    type(Reaction), allocatable :: rx(:) ! array of reaction objects
-    character(len=m_str_len), allocatable :: reaction_equations(:)
-    type(ProdLoss), allocatable :: pl(:)
+    type(Reaction), allocatable :: rx(:) ! (nrT) array of reaction objects
+    character(len=m_str_len), allocatable :: reaction_equations(:) ! (nrT)
+    type(ProdLoss), allocatable :: pl(:) ! (nsp) reactions producing and destroying each species
     integer :: kj ! number of photolysis reactions
     integer, allocatable :: photonums(:) ! (kj) the reaction number of each photolysis reaction
 

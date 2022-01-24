@@ -4,28 +4,36 @@
 
 ## Installation
 
+You need a Fortran compiler (`gfortran>=9.30`, [install instructions here](https://fortran-lang.org/learn/os_setup/install_gfortran)) and C compiler (e.g. install with `conda install -c conda-forge clang`)
+
 Create a `conda` environment with all dependencies
 
 ```sh
-conda create -n photochem -c conda-forge python numpy scipy pyyaml setuptools wheel scikit-build cmake ninja cython gfortran clang
+conda create -n photochem -c conda-forge python numpy scipy pyyaml scikit-build cython
 ```
 
-Clone or download the Github repository. Navigate to the root directory with a terminal, activate the `conda` environment, then install with setup.py:
+Recursively clone this Gitub repository: 
+
+```sh
+git clone --recursive --depth=1 https://github.com/Nicholaswogan/Photochem.git
+```
+
+Navigate to the root directory with a terminal, activate your new `conda` environment, then install with setup.py:
 
 ```sh
 conda activate photochem
 python setup.py install
 ```
 
-**Fortran library:** 
+**Fortran library only:** 
 
-You can build `libphotochem` with CMake. Download or clone this repository, then from the root directory of the repository run
+You can build `libphotochem` with CMake (install CMake with `conda install -c anaconda cmake`). Download or clone this repository, then from the root directory of the repository run
 
 ```sh
 mkdir build
 cd build
 cmake ..
-make -j
+cmake --build . -j
 ```
 
 ## Examples/Tutorial
