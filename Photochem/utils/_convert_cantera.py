@@ -1,5 +1,5 @@
 
-from Photochem.utils._format import yaml, MyDumper, Loader, blockseqtrue, flowmap, FormatReactions_main
+from ._format import yaml, MyDumper, Loader, blockseqtrue, flowmap, FormatReactions_main
 
 def photochem2cantera(infile, outfile):
     """Generates .yaml file compatible with Cantera from a Photochem reactions file.

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION "3.12")
-project(Photochem LANGUAGES Fortran C VERSION "0.1.7")
+project(Photochem LANGUAGES Fortran C VERSION "0.1.8")
 
 include(FortranCInterface)
 FortranCInterface_VERIFY()
@@ -72,12 +72,12 @@ if (BUILD_PYTHON_PHOTOCHEM)
   find_package(NumPy REQUIRED)
   find_package(Cython REQUIRED)
   
-  add_subdirectory(Photochem)
+  add_subdirectory(photochem)
   
   if (SKBUILD)
-    install(TARGETS _Photochem  DESTINATION Photochem)
+    install(TARGETS _photochem  DESTINATION photochem)
   else()
-    install(TARGETS _Photochem  DESTINATION ${CMAKE_SOURCE_DIR}/Photochem)
+    install(TARGETS _photochem  DESTINATION ${CMAKE_SOURCE_DIR}/photochem)
   endif()
                 
 endif()

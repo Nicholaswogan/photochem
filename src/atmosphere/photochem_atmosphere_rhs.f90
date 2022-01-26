@@ -30,13 +30,11 @@ contains
     
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrk), pointer :: wrk
     
     err = ""
     
     dat => self%dat
     var => self%var
-    wrk => self%wrk
     
     do i = 1,dat%nrF
       select type(rp => dat%rx(i)%rp)

@@ -13,8 +13,8 @@ with open("CMakeLists.txt",'r') as fil:
             break
             
 setup(
-    name="Photochem",
-    packages=['Photochem','Photochem.utils'],
+    name="photochem",
+    packages=['photochem','photochem.utils'],
     python_requires='>=3.6',
     version=version,
     license="GNU General Public License v3.0",
