@@ -418,48 +418,16 @@ contains
       item => item%next
     enddo
 
-    photodata%nrF = 0 ! count forward reactions
-    item => all_reactions%first
-    do while (associated(item))
-      item => item%next
-      photodata%nrF = photodata%nrF + 1
-    enddo
-    
-    allocate(photodata%rateparams(10,photodata%nrF))
-    allocate(photodata%rxtypes(photodata%nrF))
-    allocate(photodata%falloff_type(photodata%nrF))
-    allocate(photodata%num_efficient(photodata%nrF))
-    photodata%falloff_type = - huge(1)
-    ! determine which reactions to reverse. 
-    ! Determine maximum number of reactants, and productants
-    photodata%max_num_reactants = 1
-    photodata%max_num_products = 1
+    photodata%nrF = all_reactions%size()
     photodata%nrR = 0
-    photodata%kj = 0
-    j = 1
     item => all_reactions%first
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
         tmp = trim(element%get_string("equation",error = io_err))
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        
-        call get_rateparams(element, infile, photodata%rxtypes(j), &
-                            photodata%falloff_type(j), photodata%rateparams(:,j), err)
-        if (len_trim(err) > 0) return        
-        
-        call parse_reaction(tmp, reverse, eqr, eqp, err)
-        if (len_trim(err) > 0) return
-        
-        call compare_rxtype_string(tmp, eqr, eqp, reverse, photodata%rxtypes(j),err)
-        if (len_trim(err) > 0) return
-        
-        size_eqp = size(eqp)
-        size_eqr = size(eqr)
-        if ((photodata%rxtypes(j) == 2) .or. (photodata%rxtypes(j) == 3)) then ! if threebody or falloff
-          size_eqr = size_eqr - 1 ! remove the M
-          size_eqp = size_eqp - 1
-        endif
+        reverse = is_rx_reverse(tmp, err)
+        if (len_trim(err) /= 0) return 
         
         if (reverse) then
           if (.not.photodata%reverse) then
@@ -468,47 +436,19 @@ contains
             return
           endif
           photodata%nrR = photodata%nrR + 1
-          if (size_eqr > photodata%max_num_products) photodata%max_num_products = size_eqr
-          if (size_eqp > photodata%max_num_reactants) photodata%max_num_reactants = size_eqp
         endif
-        if (size_eqr > photodata%max_num_reactants) photodata%max_num_reactants = size_eqr
-        if (size_eqp > photodata%max_num_products) photodata%max_num_products = size_eqp
-        
-        call count_efficiencies(element, photodata%num_efficient(j))
-        
-        if (photodata%rxtypes(j) == 0) then ! if photolysis reaction
-          photodata%kj = photodata%kj + 1
-        endif
+
       class default
         err = "IOError: Problem with reaction number "//char(j)//" in the input file."
         return
       end select
       item => item%next
-      j = j+1
     enddo
     photodata%nrT = photodata%nrR + photodata%nrF
     
     ! allocate stuff and loop through reactions again
     allocate(duplicate(photodata%nrT))
-    allocate(photodata%nreactants(photodata%nrT))
-    allocate(photodata%nproducts(photodata%nrT))
-    allocate(photodata%reactants_sp_inds(photodata%max_num_reactants,photodata%nrT))
-    allocate(photodata%products_sp_inds(photodata%max_num_products,photodata%nrT))
-    photodata%reactants_sp_inds = huge(1)
-    photodata%products_sp_inds = huge(1)
-    if (photodata%reverse) then
-      allocate(photodata%reverse_info(photodata%nrT))
-      photodata%reverse_info = 0 ! initialize
-    endif
-    allocate(photodata%reactants_names(photodata%max_num_reactants,photodata%nrF))
-    allocate(photodata%products_names(photodata%max_num_products,photodata%nrF))
-    ! efficiency stuff
-    allocate(photodata%efficiencies(maxval(photodata%num_efficient),photodata%nrF))
-    allocate(photodata%eff_sp_inds(maxval(photodata%num_efficient),photodata%nrF))
-    allocate(photodata%def_eff(photodata%nrF))
-    photodata%efficiencies = -huge(1.d0) ! so everything blows up if we make a mistake
-    photodata%eff_sp_inds = -huge(0)
-    photodata%def_eff = 1.d0 ! default is 1
+    allocate(photodata%rx(photodata%nrT))
     
     j = 1
     k = 1
@@ -519,20 +459,10 @@ contains
         tmp = trim(element%get_string("equation",error = io_err))
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
-        call get_efficient(element, j, infile, photodata, err)
-        if (len_trim(err)>0) return
-        
-        call get_reaction_chars(tmp, photodata%max_num_reactants, photodata%max_num_products, &
-                            photodata%nreactants(j), photodata%nproducts(j), &
-                            photodata%reactants_names(:,j), photodata%products_names(:,j), reverse, err)
-        if (len_trim(err)>0) return
-        
-        call get_reaction_sp_nums(tmp, photodata%max_num_reactants, photodata%max_num_products, &
-                                 photodata%reactants_names(:,j), photodata%products_names(:,j), &
-                                 photodata%species_names, photodata%species_composition, &
-                                 photodata%natoms, photodata%nsp, &
-                                 photodata%reactants_sp_inds(:,j), photodata%products_sp_inds(:,j), err)
-        if (len_trim(err)>0) return
+        call get_rateparams(photodata, element, infile, photodata%rx(j), err)
+        if (len_trim(err) /= 0) return
+        call get_reaction_sp_nums(photodata, tmp, photodata%rx(j), reverse, err)
+        if (len_trim(err) /= 0) return
         
         ! check if duplicate
         duplicate(j) = element%get_logical("duplicate",default=.false.,error = io_err)
@@ -541,18 +471,18 @@ contains
         if (reverse) then
           ! reaction has a reverse
           i = photodata%nrF + k
-          photodata%reverse_info(j) = i ! the reaction number of reversed reaction
-          photodata%reverse_info(i) = j ! the reaction number of the forward reaction
-          photodata%nreactants(i) = photodata%nproducts(j)
-          photodata%nproducts(i) = photodata%nreactants(j)
-          
           duplicate(i) = duplicate(j)
+          allocate(photodata%rx(j)%reverse_info)
+          allocate(photodata%rx(i)%reverse_info)
+          photodata%rx(j)%reverse_info = i
+          photodata%rx(i)%reverse_info = j
+          photodata%rx(i)%nreact = photodata%rx(j)%nprod
+          photodata%rx(i)%nprod = photodata%rx(j)%nreact
+          allocate(photodata%rx(i)%react_sp_inds(photodata%rx(i)%nreact))
+          allocate(photodata%rx(i)%prod_sp_inds(photodata%rx(i)%nprod))
+          photodata%rx(i)%react_sp_inds = photodata%rx(j)%prod_sp_inds
+          photodata%rx(i)%prod_sp_inds = photodata%rx(j)%react_sp_inds
 
-          kk = photodata%nreactants(i)
-          l = photodata%nreactants(j)
-          
-          photodata%reactants_sp_inds(1:kk,i) = photodata%products_sp_inds(1:kk,j)
-          photodata%products_sp_inds(1:l,i) = photodata%reactants_sp_inds(1:l,j)
           k = k + 1
         endif
       class default
@@ -571,62 +501,63 @@ contains
     end do
     nullify(all_reactions%first)
     
-
-    ! nump, numl, iprod, iloss
-    ! first find nump and numl then allocate iprod and iloss
-    allocate(photodata%nump(photodata%nsp))
-    allocate(photodata%numl(photodata%nsp))
-    photodata%numl = 0
-    photodata%nump = 0
+    ! production and loss mechanisms for each species
+    allocate(photodata%pl(photodata%nsp))
+    do i = 1,photodata%nsp
+      photodata%pl(i)%nump = 0
+      photodata%pl(i)%numl = 0
+    enddo
     do j = 1,photodata%nrT
-      k = photodata%nreactants(j)
-      do i = 1,k
-        kk = photodata%reactants_sp_inds(i,j)
-        if ((kk /= photodata%nsp+1) .and. (kk /= photodata%nsp+2)) then
-          photodata%numl(kk) = photodata%numl(kk) + 1
+      do i = 1,photodata%rx(j)%nreact
+        kk = photodata%rx(j)%react_sp_inds(i)
+        if (kk <= photodata%nsp) then
+          photodata%pl(kk)%numl = photodata%pl(kk)%numl + 1
         endif
       enddo
-      k = photodata%nproducts(j)
-      do i = 1,k
-        kk = photodata%products_sp_inds(i,j)
-        if ((kk /= photodata%nsp+1) .and. (kk /= photodata%nsp+2)) then
-          photodata%nump(kk) = photodata%nump(kk) + 1
+      do i = 1,photodata%rx(j)%nprod
+        kk = photodata%rx(j)%prod_sp_inds(i)
+        if (kk <= photodata%nsp) then
+          photodata%pl(kk)%nump = photodata%pl(kk)%nump + 1
         endif
       enddo
     enddo
-    allocate(photodata%iprod(maxval(photodata%nump),photodata%nsp))
-    allocate(photodata%iloss(maxval(photodata%numl),photodata%nsp))
-    photodata%iprod = 0
-    photodata%iloss = 0
-    photodata%numl = 0
-    photodata%nump = 0
-    ! loop again and get iprod and iloss
+    do i = 1,photodata%nsp
+      allocate(photodata%pl(i)%iprod(photodata%pl(i)%nump))
+      allocate(photodata%pl(i)%iloss(photodata%pl(i)%numl))
+      photodata%pl(i)%nump = 0
+      photodata%pl(i)%numl = 0
+    enddo
+
     do j = 1,photodata%nrT
-      k = photodata%nreactants(j)
-      do i = 1,k
-        kk = photodata%reactants_sp_inds(i,j)
-        if ((kk /= photodata%nsp+1) .and. (kk /= photodata%nsp+2)) then
-          photodata%numl(kk) = photodata%numl(kk) + 1
-          l = photodata%numl(kk)
-          photodata%iloss(l,kk) = j
+      do i = 1,photodata%rx(j)%nreact
+        kk = photodata%rx(j)%react_sp_inds(i)
+        if (kk <= photodata%nsp) then
+          photodata%pl(kk)%numl = photodata%pl(kk)%numl + 1
+          l = photodata%pl(kk)%numl
+          photodata%pl(kk)%iloss(l) = j
         endif
       enddo
-      k = photodata%nproducts(j)
-      do i = 1,k
-        kk = photodata%products_sp_inds(i,j)
-        if ((kk /= photodata%nsp+1) .and. (kk /= photodata%nsp+2)) then
-          photodata%nump(kk) = photodata%nump(kk) + 1
-          l = photodata%nump(kk)
-          photodata%iprod(l,kk) = j
+      do i = 1,photodata%rx(j)%nprod
+        kk = photodata%rx(j)%prod_sp_inds(i)
+        if (kk <= photodata%nsp) then
+          photodata%pl(kk)%nump = photodata%pl(kk)%nump + 1
+          l = photodata%pl(kk)%nump
+          photodata%pl(kk)%iprod(l) = j
         endif
       enddo
     enddo
     
     ! photolysis
+    photodata%kj = 0
+    do i = 1, photodata%nrF
+      if (photodata%rx(i)%rp%rxtype == 0) then
+        photodata%kj = photodata%kj + 1
+      endif
+    enddo
     allocate(photodata%photonums(photodata%kj))
     j = 1
     do i = 1, photodata%nrF
-      if (photodata%rxtypes(i) == 0) then
+      if (photodata%rx(i)%rp%rxtype == 0) then
         photodata%photonums(j) = i
         j = j + 1
       endif
@@ -656,9 +587,9 @@ contains
     type(linear_interp_2d), intent(out) :: s2
     character(len=err_len), intent(out) :: err
     
-    real(real_kind), allocatable :: H2O(:)
-    real(real_kind), allocatable :: Temp(:)
-    real(real_kind), allocatable :: H2SO4(:,:)
+    real(dp), allocatable :: H2O(:)
+    real(dp), allocatable :: Temp(:)
+    real(dp), allocatable :: H2SO4(:,:)
     integer :: io
     integer :: nT, nH2O
     character(len=:), allocatable :: filename
@@ -694,7 +625,7 @@ contains
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(in) :: photovars
     character(len=s_str_len), allocatable, intent(out) :: henry_names(:)
-    real(real_kind), allocatable, intent(out) :: henry_data(:,:)
+    real(dp), allocatable, intent(out) :: henry_data(:,:)
     character(len=*), intent(out) :: err
   
     type (type_error), pointer :: io_err
@@ -739,7 +670,7 @@ contains
     integer :: j, ind(1), i
     
     character(len=s_str_len), allocatable :: henry_names(:)
-    real(real_kind), allocatable :: henry_data(:,:)
+    real(dp), allocatable :: henry_data(:,:)
     
     err = ''
 
@@ -760,7 +691,7 @@ contains
     if (len_trim(err) /= 0) return
     
     allocate(photodata%henry_data(2,photodata%nsp))
-    photodata%henry_data = 0.d0
+    photodata%henry_data = 0.0_dp
     do j = 1,size(henry_names)
       ind = findloc(photodata%species_names,henry_names(j))
       if (ind(1) /= 0) then
@@ -769,76 +700,13 @@ contains
       endif
     enddo
     ! set particle solubility to super high number
-    photodata%henry_data(1,1:photodata%npq) = 7.d11
+    photodata%henry_data(1,1:photodata%npq) = 7.e11_dp
     
-  end subroutine
+  end subroutine  
   
-  subroutine get_efficient(reaction, rxn, infile, photodata, err)
-    class(type_dictionary), intent(in) :: reaction
-    integer, intent(in) :: rxn
-    character(len=*), intent(in) :: infile
-    type(PhotochemData), intent(inout) :: photodata
-    character(len=*), intent(out) :: err
-    
-    class(type_dictionary), pointer :: tmpdict
-    class (type_key_value_pair), pointer :: key_value_pair
-    type (type_error), pointer :: io_err
-    character(len=s_str_len) :: rxn_str
-    integer :: ind(1), j
-    
-    tmpdict => reaction%get_dictionary("efficiencies",.false.,error = io_err)
-    
-    if (associated(tmpdict)) then
-      j = 1
-      key_value_pair => tmpdict%first
-      do while (associated(key_value_pair))
-        
-        ind = findloc(photodata%species_names,trim(key_value_pair%key))
-        if (ind(1) == 0) then
-          write(rxn_str,*) rxn
-          err = 'IOError: Reaction number '//trim(adjustl(rxn_str))//' has efficiencies for species that are'// &
-          ' not in the list of species'
-        endif
-        photodata%eff_sp_inds(j,rxn) = ind(1)
-        photodata%efficiencies(j,rxn) = tmpdict%get_real(trim(key_value_pair%key),error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-
-        key_value_pair => key_value_pair%next
-        j = j + 1
-      enddo
-    endif
-    
-    photodata%def_eff(rxn) = reaction%get_real("default-efficiency",1.d0,error = io_err)
-
-  end subroutine
-  
-  
-  subroutine count_efficiencies(reaction, numeff)
-    class(type_dictionary), intent(in) :: reaction
-    integer, intent(out) :: numeff
-    
-    class(type_dictionary), pointer :: tmpdict
-    class (type_key_value_pair), pointer :: key_value_pair
-    type (type_error), pointer :: io_err
-    
-    tmpdict => reaction%get_dictionary("efficiencies",.false.,error = io_err)
-    
-    numeff = 0
-    if (associated(tmpdict)) then
-      ! how many?
-      key_value_pair => tmpdict%first
-      do while (associated(key_value_pair))
-        numeff = numeff + 1
-        key_value_pair => key_value_pair%next
-      enddo
-    endif
-    
-  end subroutine
-  
-  
-  subroutine check_for_duplicates(photodata, duplicate, err)
+  subroutine check_for_duplicates(dat, duplicate, err)
     use sorting, only: sort
-    type(PhotochemData), intent(in) :: photodata
+    type(PhotochemData), intent(in) :: dat
     logical, intent(in) :: duplicate(:)
     character(len=err_len), intent(out) :: err
     character(len=:), allocatable :: rxstring
@@ -850,58 +718,59 @@ contains
     
     err = ''
     
-    if (photodata%max_num_reactants > photodata%max_num_products) then
-      allocate(tmp_arr1(photodata%max_num_reactants))
-      allocate(tmp_arr2(photodata%max_num_reactants))
-    else
-      allocate(tmp_arr1(photodata%max_num_products))
-      allocate(tmp_arr2(photodata%max_num_products))
-    endif
-    
-    do i = 1,photodata%nrT-1
-      do ii = i+1,photodata%nrT
+    do i = 1,dat%nrT-1
+      do ii = i+1,dat%nrT
         
         ! if not designated as duplicates then check if they are
         ! duplicates
         if (.not.(duplicate(i) .and. duplicate(ii))) then
         
         ! check the same num of reactants and products
-        nr = photodata%nreactants(i)
-        np = photodata%nproducts(i)
-        if (i > photodata%nrF) then
-          j = photodata%reverse_info(i)
+        nr = dat%rx(i)%nreact
+        np = dat%rx(i)%nprod
+        if (i > dat%nrF) then
+          j = dat%rx(i)%reverse_info
         else
           j = i
         endif
-        if (ii > photodata%nrF) then
-          jj = photodata%reverse_info(ii)
+        if (ii > dat%nrF) then
+          jj = dat%rx(ii)%reverse_info
         else
           jj = ii
         endif
-        rxt = photodata%rxtypes(j)
-        rxt_ii = photodata%rxtypes(jj)
-        if (nr == photodata%nreactants(ii) .and. np == photodata%nproducts(ii) &
+        rxt = dat%rx(j)%rp%rxtype
+        rxt_ii = dat%rx(jj)%rp%rxtype
+        if (nr == dat%rx(ii)%nreact .and. np == dat%rx(ii)%nprod &
             .and. rxt == rxt_ii) then
-          tmp_arr1(1:nr) = photodata%reactants_sp_inds(1:nr,ii)
-          tmp_arr2(1:nr) = photodata%reactants_sp_inds(1:nr,i)
+          if (allocated(tmp_arr1)) then
+            deallocate(tmp_arr1, tmp_arr2)
+          endif
+          allocate(tmp_arr1(nr), tmp_arr2(nr))
           
-          call sort(tmp_arr1(1:nr))
-          call sort(tmp_arr2(1:nr))
+          tmp_arr1 = dat%rx(ii)%react_sp_inds
+          tmp_arr2 = dat%rx(i)%react_sp_inds
           
-          m = all(tmp_arr1(1:nr) == tmp_arr2(1:nr))
+          call sort(tmp_arr1)
+          call sort(tmp_arr2)
+          
+          m = all(tmp_arr1 == tmp_arr2)
           if (m) then
+            if (allocated(tmp_arr1)) then
+              deallocate(tmp_arr1, tmp_arr2)
+            endif
+            allocate(tmp_arr1(np), tmp_arr2(np))
           
-            tmp_arr1(1:np) = photodata%products_sp_inds(1:np,ii)
-            tmp_arr2(1:np) = photodata%products_sp_inds(1:np,i)
+            tmp_arr1 = dat%rx(ii)%prod_sp_inds
+            tmp_arr2 = dat%rx(i)%prod_sp_inds
             
-            call sort(tmp_arr1(1:np))
-            call sort(tmp_arr2(1:np))
+            call sort(tmp_arr1)
+            call sort(tmp_arr2)
           
-            l = all(tmp_arr1(1:np) == tmp_arr2(1:np))
+            l = all(tmp_arr1 == tmp_arr2)
           
             if (l) then
               err = "IOError: This reaction is a duplicate: "
-              call reaction_string(photodata,i,rxstring)
+              call reaction_string(dat, i, rxstring)
               err(len_trim(err)+2:) = rxstring
               return
             endif
@@ -914,37 +783,37 @@ contains
     
   end subroutine
   
-  subroutine reaction_string(photodata,rxn,rxstring)
-    type(PhotochemData), intent(in) :: photodata
+  subroutine reaction_string(dat,rxn,rxstring)
+    type(PhotochemData), intent(in) :: dat
     integer, intent(in) :: rxn
     character(len=:), allocatable, intent(out) :: rxstring
     integer j, k, i
     rxstring = ''
-    if (rxn > photodata%nrF) then
-      i = photodata%reverse_info(rxn)
+    if (rxn > dat%nrF) then
+      i = dat%rx(rxn)%reverse_info
     else
       i = rxn
     endif
-    do j = 1,photodata%nreactants(rxn)-1
-      k = photodata%reactants_sp_inds(j,rxn)
-      rxstring = rxstring //(trim(photodata%species_names(k))//' + ')
+    do j = 1,dat%rx(rxn)%nreact-1
+      k = dat%rx(rxn)%react_sp_inds(j)
+      rxstring = rxstring //(trim(dat%species_names(k))//' + ')
     enddo
     
-    k = photodata%reactants_sp_inds(photodata%nreactants(rxn),rxn)
-    rxstring = rxstring // trim(photodata%species_names(k))//' => '
+    k = dat%rx(rxn)%react_sp_inds(dat%rx(rxn)%nreact)
+    rxstring = rxstring // trim(dat%species_names(k))//' => '
     
-    if ((photodata%rxtypes(i) == 2) .or.(photodata%rxtypes(i) == 3)) then
+    if (dat%rx(i)%rp%rxtype == 2 .or. dat%rx(i)%rp%rxtype == 3) then
       rxstring = rxstring(1:len(rxstring)-4) //(' + M'//' => ')
     endif
     
-    do j = 1,photodata%nproducts(rxn)-1
-      k = photodata%products_sp_inds(j,rxn)
-      rxstring = rxstring // trim(photodata%species_names(k))//' + '
+    do j = 1,dat%rx(rxn)%nprod-1
+      k = dat%rx(rxn)%prod_sp_inds(j)
+      rxstring = rxstring // trim(dat%species_names(k))//' + '
     enddo
-    k = photodata%products_sp_inds(photodata%nproducts(rxn),rxn)
-    rxstring = rxstring // trim(photodata%species_names(k))
+    k = dat%rx(rxn)%prod_sp_inds(dat%rx(rxn)%nprod)
+    rxstring = rxstring // trim(dat%species_names(k))
     
-    if ((photodata%rxtypes(i) == 2) .or.(photodata%rxtypes(i) == 3)) then
+    if (dat%rx(i)%rp%rxtype == 2 .or. dat%rx(i)%rp%rxtype == 3) then
       rxstring = rxstring //' + M'
     endif
   end subroutine
@@ -1118,7 +987,7 @@ contains
     do while (associated(item))
       select type (listitem => item%node)
       class is (type_scalar)
-        thermo%temps(j) = listitem%to_real(-1.d0,success)
+        thermo%temps(j) = listitem%to_real(-1.0_dp,success)
         if (.not. success) then
           err = "IOError: Problem reading thermodynamic data for  "//trim(molecule_name)
           return
@@ -1165,7 +1034,7 @@ contains
           select type (listitem1 => item1%node)
           class is (type_scalar)
 
-            thermo%data(j, k) = listitem1%to_real(-1.d0,success)
+            thermo%data(j, k) = listitem1%to_real(-1.0_dp,success)
             if (.not.success) then
               err = "IOError: Problem reading thermodynamic data for "//trim(molecule_name)
               return
@@ -1187,112 +1056,281 @@ contains
                             
   end subroutine
   
-  subroutine get_rateparams(reaction, infile, rxtype, falloff_type, rateparam, err)
-    class(type_dictionary), intent(in) :: reaction
-    character(len=*), intent(in) :: infile
-    integer, intent(out) :: rxtype
-    integer, intent(out) :: falloff_type
-    real(real_kind), intent(out) :: rateparam(10)
+  subroutine get_reaction_sp_nums(dat, rx_str, rx, reverse, err)
+    use photochem_types, only: Reaction
+    type(PhotochemData), intent(in) :: dat
+    character(len=*), intent(in) :: rx_str
+    type(Reaction), intent(inout) :: rx ! already has rate parameters
+    logical, intent(out) :: reverse
     character(len=err_len), intent(out) :: err
     
+    character(len=s_str_len), allocatable :: eqr(:), eqp(:), eqr1(:), eqp1(:)
+    integer :: reactant_atoms(dat%natoms), product_atoms(dat%natoms)
+    integer :: ind(1), i
+    
+    err = ""
+    
+    call parse_reaction(rx_str, reverse, eqr1, eqp1, err)
+    if (len_trim(err) /= 0) return
+    call compare_rxtype_string(rx_str, eqr1, eqp1, reverse, rx%rp%rxtype, err)
+    if (len_trim(err) /= 0) return
+    
+    if (rx%rp%rxtype == 2 .or. rx%rp%rxtype == 3) then
+      ! remove the M
+      eqr = eqr1(1:size(eqr1)-1)
+      eqp = eqp1(1:size(eqp1)-1)
+    else
+      eqr = eqr1
+      eqp = eqp1
+    endif
+    
+    rx%nreact = size(eqr)
+    rx%nprod = size(eqp)
+    allocate(rx%react_sp_inds(rx%nreact))
+    allocate(rx%prod_sp_inds(rx%nprod))
+    
+    do i = 1,rx%nreact
+      ind = findloc(dat%species_names,eqr(i))
+      rx%react_sp_inds(i) = ind(1)
+      if (ind(1) == 0) then
+        err = "IOError: "// & 
+               "Species "//trim(eqr(i))//" in reaction "//trim(rx_str)// &
+               " is not in the list of species."
+        return
+      endif
+    enddo
+    
+    do i = 1,rx%nprod
+      ind = findloc(dat%species_names,eqp(i))
+      rx%prod_sp_inds(i) = ind(1)
+      if (ind(1) == 0) then
+        err = "IOError: "// & 
+               "Species "//trim(eqp(i))//" in reaction "//trim(rx_str)// &
+               " is not in the list of species."
+        return
+      endif
+    enddo
+    
+    reactant_atoms = 0
+    product_atoms = 0
+    do i=1,rx%nreact
+      reactant_atoms = reactant_atoms + dat%species_composition(:,rx%react_sp_inds(i))
+    enddo
+    do i=1,rx%nprod
+      product_atoms = product_atoms + dat%species_composition(:,rx%prod_sp_inds(i))
+    enddo
+    if (.not. all(reactant_atoms == product_atoms)) then
+      err = "IOError: "//& 
+             'Bad mass balance in reaction "'//trim(rx_str)// &
+             '". You could have messed up how many atoms one of the species has.'
+      return
+    endif
+    
+  end subroutine
+  
+  function is_rx_reverse(rx_string, err) result(reverse)
+    character(len=*), intent(in) :: rx_string
+    logical :: reverse
+    character(len=err_len), intent(out) :: err
+    
+    err = ""
+    
+    if (index(rx_string, "<=>") /= 0) then
+      reverse = .true.
+    elseif (index(rx_string, " =>") /= 0) then
+      reverse = .false.
+    else
+      err = "IOError: Invalid reaction arrow in reaction "//trim(rx_string)// &
+            '. Note, forward reactions must have a space before the arrow, like " =>"'
+      return
+    endif
+    
+  end function
+  
+  subroutine get_rateparams(dat, reaction_d, infile, rx, err)
+    use photochem_types, only: Reaction, BaseRate, ElementaryRate, ThreeBodyRate, FalloffRate, PhotolysisRate
+    type(PhotochemData), intent(in) :: dat
+    class(type_dictionary), intent(in) :: reaction_d
+    character(len=*), intent(in) :: infile
+    type(Reaction), target, intent(out) :: rx
+    character(len=err_len), intent(out) :: err
+    
+    class(BaseRate), pointer :: rp
     type (type_error), pointer :: io_err
-    class(type_dictionary), pointer :: tmpdict
     character(len=str_len) :: rxtype_str
+    type(type_dictionary), pointer :: dict
     logical :: use_jpl
-    err = ''
-    rateparam = 0.d0
-    ! no error possible
-    rxtype_str = reaction%get_string("type"," ",error = io_err) 
+    real(dp) :: T2
+    
+    err = ""
+    
+    rxtype_str = reaction_d%get_string("type", default="elementary", error = io_err) 
+    
     if (rxtype_str == 'photolysis') then
-      rxtype = 0
-    elseif ((rxtype_str == 'elementary') .or. (len_trim(rxtype_str) == 0)) then
-      rxtype = 1
-      rxtype_str = 'elementary'
+      allocate(PhotolysisRate::rx%rp)
+      rx%rp%rxtype = 0
+    elseif (rxtype_str == 'elementary') then
+      allocate(ElementaryRate::rx%rp)
+      rx%rp%rxtype = 1
     elseif (rxtype_str == 'three-body') then
-      rxtype = 2
+      allocate(ThreeBodyRate::rx%rp)
+      rx%rp%rxtype = 2
     elseif (rxtype_str == 'falloff') then
-      rxtype = 3
+      allocate(FalloffRate::rx%rp)
+      rx%rp%rxtype = 3
     else
       err = 'IOError: reaction type '//trim(rxtype_str)//' is not a valid reaction type.'
       return
     endif
-    falloff_type = -huge(1)
     
-    ! get params
-    if ((rxtype_str == 'elementary') .or. (rxtype_str == 'three-body')) then
-      tmpdict => reaction%get_dictionary('rate-constant',.true.,error = io_err)
+    rp => rx%rp
+    
+    select type (rp)
+    class is (PhotolysisRate)
+      ! No rate info
+    class is (ElementaryRate)
+      dict => reaction_d%get_dictionary('rate-constant',.true.,error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      rateparam(1) = tmpdict%get_real('A',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      rateparam(2) = tmpdict%get_real('b',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      rateparam(3) = tmpdict%get_real('Ea',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-    elseif (rxtype_str == 'falloff') then
-      tmpdict => reaction%get_dictionary('low-P-rate-constant',.true.,error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      rateparam(1) = tmpdict%get_real('A',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      rateparam(2) = tmpdict%get_real('b',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      rateparam(3) = tmpdict%get_real('Ea',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      tmpdict => reaction%get_dictionary('high-P-rate-constant',.true.,error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      rateparam(4) = tmpdict%get_real('A',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      rateparam(5) = tmpdict%get_real('b',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      rateparam(6) = tmpdict%get_real('Ea',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      call get_arrhenius(dict, rp%A, rp%b, rp%Ea, err)
+      if (len_trim(err) /= 0) return
         
-      use_jpl = reaction%get_logical('JPL',default=.false.,error = io_err)
-      if (use_jpl) then
-        falloff_type = 3
-      else
-        falloff_type = 0
+    class is (ThreeBodyRate)
+      dict => reaction_d%get_dictionary('rate-constant',.true.,error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      call get_arrhenius(dict, rp%A, rp%b, rp%Ea, err)
+      if (len_trim(err) /= 0) return
+      
+      call get_efficiencies(dat, reaction_d, rp%eff, err)
+      if (len_trim(err) /= 0) return
+      
+    class is (FalloffRate)
+      
+      dict => reaction_d%get_dictionary('low-P-rate-constant',.true.,error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      call get_arrhenius(dict, rp%A0, rp%b0, rp%Ea0, err)
+      if (len_trim(err) /= 0) return
+        
+      dict => reaction_d%get_dictionary('high-P-rate-constant',.true.,error = io_err)
+      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      
+      call get_arrhenius(dict, rp%Ainf, rp%binf, rp%Eainf, err)
+      if (len_trim(err) /= 0) return
+      
+      call get_efficiencies(dat, reaction_d, rp%eff, err)
+      if (len_trim(err) /= 0) return
+      
+      ! get falloff stuff
+      use_jpl = reaction_d%get_logical('JPL',default=.false.,error = io_err)
+      nullify(dict)
+      dict => reaction_d%get_dictionary('Troe',required=.false.,error = io_err)
+      if (associated(dict) .and. use_jpl) then
+        err = "Both 'Troe' and 'JPL' falloff types are specified for reaction "// &
+              trim(reaction_d%get_string("equation",error = io_err))//". Only one is allowed"
+        return
       endif
-
-      nullify(tmpdict)
-      tmpdict => reaction%get_dictionary('Troe',.false.,error = io_err)
-      if (associated(tmpdict)) then
-        if (use_jpl) then
-          err = "Both 'Troe' and 'JPL' falloff types are specified for reaction "// &
-                trim(reaction%get_string("equation",error = io_err))//". Only one is allowed"
-          return
-        endif
+      
+      rp%falloff_type = 0
+      
+      if (use_jpl) then
+        rp%falloff_type = 3
+      endif
+      
+      if (associated(dict)) then
+        allocate(rp%A_T)
+        allocate(rp%T1)
+        allocate(rp%T3)
         
-        rateparam(7) = tmpdict%get_real('A',error = io_err)
+        rp%A_T = dict%get_real('A',error = io_err)
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        rateparam(8) = tmpdict%get_real('T1',error = io_err)
+        rp%T1 = dict%get_real('T1',error = io_err)
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-
-        rateparam(9) = tmpdict%get_real('T2',error = io_err)
+        
+        T2 = dict%get_real('T2',error = io_err)
         if (associated(io_err)) then ! T2 is not there
-          falloff_type = 1
+          rp%falloff_type = 1
           nullify(io_err)
         else ! T2 is there
-          falloff_type = 2
+          rp%falloff_type = 2
+          allocate(rp%T2)
+          rp%T2 = T2
         endif
         
-        rateparam(10) = tmpdict%get_real('T3',error = io_err)
+        rp%T3 = dict%get_real('T3',error = io_err)
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      else
-        falloff_type = 0 ! no falloff function
       endif
+      
         
+    end select
+    
+  end subroutine
+  
+  subroutine get_efficiencies(dat, rx, eff, err)
+    use photochem_types, only: Efficiencies
+    type(PhotochemData), intent(in) :: dat
+    type(type_dictionary), intent(in) :: rx
+    type(Efficiencies), intent(out) :: eff
+    character(len=err_len), intent(out) :: err
+    
+    type (type_error), pointer :: io_err
+    type (type_key_value_pair), pointer :: key_value_pair
+    type(type_dictionary), pointer :: d
+    integer :: ind(1), j
+    
+    err = ""
+    
+    eff%def_eff = rx%get_real("default-efficiency",default=1.0_dp,error = io_err)
+  
+    eff%n_eff = 0
+    d => rx%get_dictionary("efficiencies",required=.false.,error = io_err)
+    
+    if (associated(d)) then
+      eff%n_eff = d%size()
+      allocate(eff%efficiencies(eff%n_eff))
+      allocate(eff%eff_sp_inds(eff%n_eff))
+      
+      j = 1
+      key_value_pair => d%first
+      do while (associated(key_value_pair))
+        ind = findloc(dat%species_names,trim(key_value_pair%key))
+        if (ind(1) == 0) then
+          err = 'IOError: Reaction '//trim(rx%get_string("equation",error = io_err))//&
+                ' has efficiencies for species that are'// &
+                ' not in the list of species'
+          return 
+        endif
+        
+        eff%eff_sp_inds(j) = ind(1)
+        eff%efficiencies(j) = d%get_real(trim(key_value_pair%key),error = io_err)
+        if (associated(io_err)) then; err = trim(io_err%message); return; endif
+        
+        key_value_pair => key_value_pair%next
+        j = j + 1
+      enddo
+      
     endif
+    
+  end subroutine
+  
+  subroutine get_arrhenius(d, A, b, Ea, err)
+    type(type_dictionary), intent(in) :: d
+    real(dp), intent(out) :: A, b, Ea
+    character(len=err_len), intent(out) :: err
+    
+    type (type_error), pointer :: io_err
+    
+    err = ""
+    
+    A = d%get_real('A',error = io_err)
+    if (associated(io_err)) then; err = trim(io_err%message); return; endif
+    
+    b = d%get_real('b',error = io_err)
+    if (associated(io_err)) then; err = trim(io_err%message); return; endif
+    
+    Ea = d%get_real('Ea',error = io_err)
+    if (associated(io_err)) then; err = trim(io_err%message); return; endif
     
   end subroutine
 
@@ -1438,101 +1476,6 @@ contains
     str = str(1:i)
   end subroutine
     
-  subroutine get_reaction_chars(instring, max_num_react, max_num_prod, numr, nump, &
-                                    outreact, outprod, reverse, err)
-    character(len=*), intent(in) :: instring
-    integer, intent(in) :: max_num_react, max_num_prod
-    
-    integer, intent(out) :: numr, nump
-    character(len=*), intent(out) :: outreact(max_num_react), outprod(max_num_prod)
-    logical, intent(out) :: reverse
-    character(len=err_len), intent(out) :: err
-    
-    character(len=s_str_len), allocatable :: eqr(:), eqp(:)
-    integer :: i
-    
-    call parse_reaction(instring, reverse, eqr, eqp, err)
-    if (len_trim(err) > 0) return
-    
-    numr = size(eqr)
-    nump = size(eqp)
-
-    if (eqr(size(eqr)) == 'M') then
-      numr = numr - 1
-      nump = nump - 1
-    endif
-    
-    outreact = ''
-    outprod = ''
-    do i=1,numr
-      outreact(i) = eqr(i)
-    enddo
-    do i=1,nump
-      outprod(i) = eqp(i)
-    enddo
-  end subroutine
-    
-  subroutine get_reaction_sp_nums(reaction, max_num_react, max_num_prod, reacts, prods, &
-                                  species_names, species_composition, natoms, nsp, &
-                                  react_sp_nums, prod_sp_nums, err)
-    character(len=*), intent(in) :: reaction
-    integer, intent(in) :: max_num_react, max_num_prod
-    character(len=*), intent(in) :: reacts(max_num_react)
-    character(len=*), intent(in) :: prods(max_num_prod)
-    integer, intent(in) :: nsp, natoms
-    character(len=*), intent(in) :: species_names(nsp+2)
-    integer, intent(in) :: species_composition(natoms,nsp+2)
-    
-    integer, intent(out) :: react_sp_nums(max_num_react)
-    integer, intent(out) :: prod_sp_nums(max_num_prod)
-    character(len=err_len), intent(out) :: err
-    
-    integer :: i, ind(1)
-    integer :: reactant_atoms(natoms), product_atoms(natoms)
-    err = ''
-    reactant_atoms = 0
-    product_atoms = 0
-    
-    do i = 1,max_num_react
-      ind = findloc(species_names,reacts(i))
-      react_sp_nums(i) = ind(1)
-      if ((reacts(i) /= '') .and. (ind(1) == 0)) then
-        err = "IOError: "// & 
-               "Species "//trim(reacts(i))//" in reaction "//trim(reaction)// &
-               " is not in the list of species."
-        return
-      endif
-    enddo
-    
-    do i = 1,max_num_prod
-      ind = findloc(species_names,prods(i))
-      prod_sp_nums(i) = ind(1)
-      if ((prods(i) /= '') .and. (ind(1) == 0)) then
-        err = "IOError: "// & 
-               "Species "//trim(prods(i))//" in reaction "//trim(reaction)// &
-               "is not in the list of species."
-        return
-      endif
-    enddo
-  
-    do i=1,max_num_react
-      if (react_sp_nums(i) /= 0) then
-        reactant_atoms = reactant_atoms + species_composition(:,react_sp_nums(i))
-      endif
-    enddo
-    do i=1,max_num_prod
-      if (prod_sp_nums(i) /= 0) then
-        product_atoms = product_atoms + species_composition(:,prod_sp_nums(i))
-      endif
-    enddo
-    if (.not. all(reactant_atoms == product_atoms)) then
-      err = "IOError: "//& 
-             'Bad mass balance in reaction "'//trim(reaction)// &
-             '". You could have messed up how many atoms one of the species has.'
-      return
-    endif
-  end subroutine
-  
   subroutine SL_and_background(root, infile, photodata, err)
     class (type_dictionary), intent(in) :: root
     character(len=*), intent(in) :: infile
@@ -1725,7 +1668,7 @@ contains
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     endif
     ! scale factor for photon flux. Its optional
-    photovars%photon_scale_factor = tmp1%get_real('photon-scale-factor', 1.d0,error = io_err)
+    photovars%photon_scale_factor = tmp1%get_real('photon-scale-factor', 1.0_dp,error = io_err)
     
     ! atmosphere grid
     tmp1 => mapping%get_dictionary('atmosphere-grid',.true.,error = io_err)
@@ -1743,38 +1686,38 @@ contains
     
     photovars%surface_pressure = tmp1%get_real('surface-pressure',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photovars%surface_pressure <= 0.d0) then
+    if (photovars%surface_pressure <= 0.0_dp) then
       err = 'IOError: Planet surface pressure must be greater than zero.'
       return
     endif
     photodata%planet_mass = tmp1%get_real('planet-mass',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photodata%planet_mass < 0.d0) then
+    if (photodata%planet_mass < 0.0_dp) then
       err = 'IOError: Planet mass must be greater than zero.'
       return
     endif
     photodata%planet_radius = tmp1%get_real('planet-radius',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photodata%planet_radius < 0.d0) then
+    if (photodata%planet_radius < 0.0_dp) then
       err = 'IOError: Planet radius must be greater than zero.'
       return
     endif
     photovars%surface_albedo = tmp1%get_real('surface-albedo',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photovars%surface_albedo < 0.d0) then
+    if (photovars%surface_albedo < 0.0_dp) then
       err = 'IOError: Surface albedo must be greater than zero.'
       return
     endif
     photovars%diurnal_fac = tmp1%get_real('diurnal-averaging-factor',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photovars%diurnal_fac < 0.d0 .or. photovars%diurnal_fac > 1.d0) then
+    if (photovars%diurnal_fac < 0.0_dp .or. photovars%diurnal_fac > 1.0_dp) then
       err = 'IOError: diurnal-averaging-factor must be between 0 and 1.'
       return
     endif
     
     photovars%solar_zenith = tmp1%get_real('solar-zenith-angle',error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photovars%solar_zenith < 0.d0 .or. photovars%solar_zenith > 90.d0) then
+    if (photovars%solar_zenith < 0.0_dp .or. photovars%solar_zenith > 90.0_dp) then
       err = 'IOError: solar zenith must be between 0 and 90.'
       return
     endif
@@ -1973,9 +1916,9 @@ contains
     allocate(photovars%only_eddy(photodata%nq))
     ! default boundary conditions
     photovars%lowerboundcond = default_lowerboundcond
-    photovars%lower_vdep = 0.d0
+    photovars%lower_vdep = 0.0_dp
     photovars%upperboundcond = 0
-    photovars%upper_veff = 0.d0
+    photovars%upper_veff = 0.0_dp
     photovars%only_eddy = .false.
       
     ! determine number of short lived species. 
@@ -2073,38 +2016,52 @@ contains
     
   end subroutine
   
-  subroutine check_sl(photodata, err)
-    type(PhotochemData), intent(in) :: photodata
+  subroutine check_sl(dat, err)
+    use photochem_types, only: ThreeBodyRate, FalloffRate
+    type(PhotochemData), intent(in) :: dat
     character(len=err_len), intent(out) :: err
     
     integer :: i, j, l, k, kk, m, mm, n, nn, ind(1), counter
     character(len=:), allocatable :: reaction
     err = ''
     
-    do i = 1, photodata%nsl
-      j = photodata%nq + i
+    do i = 1, dat%nsl
+      
+      j = dat%nq + i
       ! can not be an efficiency.
-      do k = 1,photodata%nrF
-        if ((photodata%rxtypes(k) == 2) .or. (photodata%rxtypes(k) == 3)) then ! if three body or falloff
-          ind = findloc(photodata%eff_sp_inds(:,k),j)
-          if (ind(1) /= 0) then
-            call reaction_string(photodata,k,reaction)
-            err = 'IOError: Reaction "'//reaction//'" has short-lived species collision efficiencies.' // &
-            ' This is not allowed. Either remove the efficiencies, or change the species to long lived.'
-            return
+      do k = 1,dat%nrF
+        select type(rp => dat%rx(k)%rp)        
+        class is (ThreeBodyRate)
+          if (rp%eff%n_eff > 0) then
+            ind = findloc(rp%eff%eff_sp_inds,j)
+            if (ind(1) /= 0) then
+              call reaction_string(dat,k,reaction)
+              err = 'IOError: Reaction "'//reaction//'" has short-lived species collision efficiencies.' // &
+              ' This is not allowed. Either remove the efficiencies, or change the species to long lived.'
+              return
+            endif
           endif
-        endif
+        class is (FalloffRate)
+          if (rp%eff%n_eff > 0) then
+            ind = findloc(rp%eff%eff_sp_inds, j)
+            if (ind(1) /= 0) then
+              call reaction_string(dat,k,reaction)
+              err = 'IOError: Reaction "'//reaction//'" has short-lived species collision efficiencies.' // &
+              ' This is not allowed. Either remove the efficiencies, or change the species to long lived.'
+              return
+            endif
+          endif
+        end select
       enddo
       
-      l = photodata%nump(j)
+      l = dat%pl(j)%nump
       do k = 1,l
-        kk = photodata%iprod(k,j)
-        call reaction_string(photodata,kk,reaction)
-        m = photodata%nreactants(kk)
-        do mm = 1, m
+        kk = dat%pl(j)%iprod(k)
+        do mm = 1, dat%rx(kk)%nreact
           ! are SL species produced by other SL species?
-          do n = photodata%nq+1,photodata%nq + photodata%nsl
-            if (n == photodata%reactants_sp_inds(mm,kk)) then
+          do n = dat%nq+1,dat%nq + dat%nsl
+            if (n == dat%rx(kk)%react_sp_inds(mm)) then
+              call reaction_string(dat, kk, reaction)
               err = 'IOError: Reaction "'//reaction//'" has short-lived species as reactants'// &
               ' and products. This is not allowed. Change one or both of the species to long-lived.'
               return
@@ -2113,34 +2070,35 @@ contains
         enddo
       enddo
 
-      l = photodata%numl(j)
+      l = dat%pl(j)%numl
       do k = 1,l
-        kk = photodata%iloss(k,j)
-        call reaction_string(photodata,kk,reaction)
-        m = photodata%nreactants(kk)
-        
+        kk = dat%pl(j)%iloss(k)     
         counter = 0
-        do mm = 1, m
-          n = photodata%reactants_sp_inds(mm,kk)
-          do nn = photodata%nq+1,photodata%nq + photodata%nsl
-            if ((nn == n) .and. (n == j)) then
+        do mm = 1, dat%rx(kk)%nreact
+          n = dat%rx(kk)%react_sp_inds(mm)
+          do nn = dat%nq+1,dat%nq + dat%nsl
+            if (nn == n .and. n == j) then
               counter = counter + 1
               if (counter > 1) then
+                call reaction_string(dat, kk, reaction)   
                 err = 'IOError: Reaction "'//reaction//'" short lived species react'// &
                 ' with themselves. This is not allowed. Change the species to long lived.'
                 return
               endif
-            elseif ((nn == n) .and. (n /= j)) then
+            elseif (nn == n .and. n /= j) then
+              call reaction_string(dat, kk, reaction)   
               err = 'IOError: Reaction "'//reaction//'" short lived species react'// &
               ' with other short lived species. This is not allowed.'
               return
-            elseif (photodata%species_names(n) == 'hv') then
+            elseif (dat%species_names(n) == 'hv') then
+              call reaction_string(dat, kk, reaction)   
               err = 'IOError: Photolysis reaction "'//reaction//'" can not have short lived species.'
               return
             endif
           enddo
         enddo
       enddo
+      
     enddo
     
   end subroutine
@@ -2153,9 +2111,9 @@ contains
     character(len=*), intent(in) :: infile
     
     integer, intent(out) :: lowercond
-    real(real_kind), intent(out) :: Lvdep, Lflux, LdistH, Lmr
+    real(dp), intent(out) :: Lvdep, Lflux, LdistH, Lmr
     integer, intent(out) :: uppercond
-    real(real_kind), intent(out) :: Uveff, Uflux
+    real(dp), intent(out) :: Uveff, Uflux
     character(len=err_len), intent(out) :: err
     
     type (type_error), pointer :: io_err
@@ -2179,25 +2137,25 @@ contains
       Lvdep = tmpdict%get_real("vdep",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      Lflux = 0.d0
-      LdistH = 0.d0
-      Lmr = 0.d0 
+      Lflux = 0.0_dp
+      LdistH = 0.0_dp
+      Lmr = 0.0_dp 
     elseif (bctype == "mix") then
       lowercond = 1
-      Lvdep = 0.d0
-      Lflux = 0.d0
-      LdistH = 0.d0
+      Lvdep = 0.0_dp
+      Lflux = 0.0_dp
+      LdistH = 0.0_dp
       Lmr = tmpdict%get_real("mix",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
     elseif (bctype == "flux") then
       lowercond = 2
-      Lvdep = 0.d0
+      Lvdep = 0.0_dp
       Lflux = tmpdict%get_real("flux",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      LdistH = 0.d0
-      Lmr = 0.d0 
+      LdistH = 0.0_dp
+      Lmr = 0.0_dp 
     elseif (bctype == "vdep + dist flux") then
       lowercond = 3
       Lvdep = tmpdict%get_real("vdep",error = io_err)
@@ -2209,7 +2167,7 @@ contains
       LdistH = tmpdict%get_real("height",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      Lmr = 0.d0 
+      Lmr = 0.0_dp 
     elseif (bctype == "Moses") then
       lowercond = -1
     else
@@ -2231,10 +2189,10 @@ contains
       Uveff = tmpdict%get_real("veff",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      Uflux = 0.d0
+      Uflux = 0.0_dp
     elseif (bctype == "flux") then
       uppercond = 2
-      Uveff = 0.d0
+      Uveff = 0.0_dp
       Uflux = tmpdict%get_real("flux",error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
@@ -2290,19 +2248,19 @@ contains
     
     character(len=*), intent(in) :: filename
     integer, intent(in) :: nw
-    real(real_kind), intent(in) :: wavl(nw+1)
+    real(dp), intent(in) :: wavl(nw+1)
     
     integer, intent(out) :: nrad_file
-    real(real_kind), allocatable, intent(out) :: radii_file(:)
-    real(real_kind), allocatable, intent(out) :: w0_file(:,:), qext_file(:,:), g_file(:,:)
+    real(dp), allocatable, intent(out) :: radii_file(:)
+    real(dp), allocatable, intent(out) :: w0_file(:,:), qext_file(:,:), g_file(:,:)
     character(len=err_len), intent(out) :: err
     
-    real(real_kind), allocatable :: wavl_tmp(:)
-    real(real_kind), allocatable :: w0_tmp(:,:), qext_tmp(:,:), g_tmp(:,:)
-    real(real_kind), allocatable :: temp_data(:), temp_wavelength(:)
+    real(dp), allocatable :: wavl_tmp(:)
+    real(dp), allocatable :: w0_tmp(:,:), qext_tmp(:,:), g_tmp(:,:)
+    real(dp), allocatable :: temp_data(:), temp_wavelength(:)
     
     integer :: nw_tmp
-    real(real_kind) :: dum
+    real(dp) :: dum
     integer :: i, j, io, ierr
     
     err = ''
@@ -2391,8 +2349,8 @@ contains
       temp_data(1:nw_tmp) = w0_tmp(1:nw_tmp,i)
       temp_wavelength(1:nw_tmp) =  wavl_tmp(1:nw_tmp)
       j = nw_tmp
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.d0, w0_tmp(1,i), ierr)
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.d0), w0_tmp(nw_tmp,i), ierr)
+      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.0_dp, w0_tmp(1,i), ierr)
+      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.0_dp), w0_tmp(nw_tmp,i), ierr)
       if (ierr /= 0) then
         err = "Problems interpolating mie data from file "//trim(filename)// &
               " to the wavelength grid"
@@ -2410,8 +2368,8 @@ contains
       temp_data(1:nw_tmp) = qext_tmp(1:nw_tmp,i)
       temp_wavelength(1:nw_tmp) =  wavl_tmp(1:nw_tmp)
       j = nw_tmp
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.d0, qext_tmp(1,i), ierr)
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.d0), qext_tmp(nw_tmp,i), ierr)
+      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.0_dp, qext_tmp(1,i), ierr)
+      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.0_dp), qext_tmp(nw_tmp,i), ierr)
       if (ierr /= 0) then
         err = "Problems interpolating mie data from file "//trim(filename)// &
               " to the wavelength grid"
@@ -2429,8 +2387,8 @@ contains
       temp_data(1:nw_tmp) = g_tmp(1:nw_tmp,i)
       temp_wavelength(1:nw_tmp) =  wavl_tmp(1:nw_tmp)
       j = nw_tmp
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.d0, g_tmp(1,i), ierr)
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.d0), g_tmp(nw_tmp,i), ierr)
+      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.0_dp, g_tmp(1,i), ierr)
+      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.0_dp), g_tmp(nw_tmp,i), ierr)
       if (ierr /= 0) then
         err = "Problems interpolating mie data from file "//trim(filename)// &
               " to the wavelength grid"
@@ -2455,8 +2413,8 @@ contains
     
     integer :: nrad
     integer, parameter :: nrad_fixed = 50
-    real(real_kind), allocatable :: radii(:)
-    real(real_kind), allocatable :: w0(:,:), qext(:,:), g(:,:)
+    real(dp), allocatable :: radii(:)
+    real(dp), allocatable :: w0(:,:), qext(:,:), g(:,:)
     character(len=:), allocatable :: xsroot
     character(len=:), allocatable :: filename
     integer :: i
@@ -2502,7 +2460,7 @@ contains
         return
       endif
       
-      photodata%radii_file(:,i) = radii/1.d4 ! convert from micron to cm
+      photodata%radii_file(:,i) = radii/1.e4_dp ! convert from micron to cm
       photodata%part_xs_file(i)%w0 = w0
       photodata%part_xs_file(i)%qext = qext
       photodata%part_xs_file(i)%gt = g
@@ -2522,9 +2480,9 @@ contains
     character(len=:), allocatable :: filename, xsfilename, reaction
     character(len=str_len) :: line
     character(len=100) :: tmp(maxcols), tmp1
-    real(real_kind), allocatable :: file_xs(:,:), file_qy(:,:), file_wav(:), file_wav_save(:), file_line(:)
-    real(real_kind), allocatable :: dumby(:,:)
-    real(real_kind), parameter :: rdelta = 1.d-4
+    real(dp), allocatable :: file_xs(:,:), file_qy(:,:), file_wav(:), file_wav_save(:), file_line(:)
+    real(dp), allocatable :: dumby(:,:)
+    real(dp), parameter :: rdelta = 1.0e-4_dp
     
     integer :: i, j, k, l, m, io, kk, ierr
     err = ''
@@ -2542,7 +2500,8 @@ contains
       filename = replaceStr(filename, '>', '')
       filename = filename//'.txt'
 
-      k = photodata%reactants_sp_inds(1,j)
+      k = photodata%rx(j)%react_sp_inds(1)
+      
       filename = trim(photodata%species_names(k))//'/'//filename
       xsfilename = trim(photodata%species_names(k))//'/'//trim(photodata%species_names(k))//'_xs.txt'
       open(101, file=xsroot//filename,status='old',iostat=io)
@@ -2602,10 +2561,10 @@ contains
       ierr = 0
       do l = 1, photodata%xs_data(i)%n_temps
         kk = k
-        call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(1)*(1.d0-rdelta), 0.d0, ierr)
-        call addpnt(file_wav, file_qy(:,l), kk+4, k, 0.d0, 0.d0, ierr)
-        call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(k)*(1.d0+rdelta), 0.d0, ierr)
-        call addpnt(file_wav, file_qy(:,l), kk+4, k, huge(rdelta), 0.d0, ierr)
+        call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(1)*(1.0_dp-rdelta), 0.0_dp, ierr)
+        call addpnt(file_wav, file_qy(:,l), kk+4, k, 0.0_dp, 0.0_dp, ierr)
+        call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(k)*(1.0_dp+rdelta), 0.0_dp, ierr)
+        call addpnt(file_wav, file_qy(:,l), kk+4, k, huge(rdelta), 0.0_dp, ierr)
         if (ierr /= 0) then
           err = 'IOError: Problem interpolating quantum yield data to photolysis grid for reaction '// &
                 trim(reaction)
@@ -2658,10 +2617,10 @@ contains
       ierr = 0
       do l = 1, photodata%xs_data(i)%n_temps
         kk = k
-        call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(1)*(1.d0-rdelta), 0.d0,ierr)
-        call addpnt(file_wav, file_xs(:,l), kk+4, k, 0.d0, 0.d0,ierr)
-        call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(k)*(1.d0+rdelta), 0.d0,ierr)
-        call addpnt(file_wav, file_xs(:,l), kk+4, k, huge(rdelta), 0.d0,ierr)
+        call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(1)*(1.0_dp-rdelta), 0.0_dp,ierr)
+        call addpnt(file_wav, file_xs(:,l), kk+4, k, 0.0_dp, 0.0_dp,ierr)
+        call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(k)*(1.0_dp+rdelta), 0.0_dp,ierr)
+        call addpnt(file_wav, file_xs(:,l), kk+4, k, huge(rdelta), 0.0_dp,ierr)
         if (ierr /= 0) then
           err = 'IOError: Problem interpolating xs data to photolysis grid for reaction '// &
                 trim(reaction)
@@ -2692,7 +2651,7 @@ contains
     type(PhotochemVars), intent(in) :: photovars
     character(len=err_len), intent(out) :: err
     
-    real(real_kind), allocatable :: A(:), B(:), Delta(:)
+    real(dp), allocatable :: A(:), B(:), Delta(:)
     character(len=str_len) :: rayleigh_file
 
     character(error_length) :: error
@@ -2738,7 +2697,7 @@ contains
     class (type_key_value_pair), pointer :: key_value_pair
     class (type_dictionary), pointer :: tmp1, tmp2
     type (type_error), pointer :: io_err
-    real(real_kind), allocatable, intent(out) :: A(:), B(:), Delta(:)
+    real(dp), allocatable, intent(out) :: A(:), B(:), Delta(:)
     integer, allocatable, intent(out) :: raynums(:)
     
     integer :: j, ind(1)  
@@ -2784,12 +2743,12 @@ contains
   end subroutine
   
   subroutine rayleigh_vardavas(A, B, Delta, lambda, sigray)
-    real(real_kind), intent(in) :: A, B, Delta, lambda
-    real(real_kind), intent(out) :: sigray
+    real(dp), intent(in) :: A, B, Delta, lambda
+    real(dp), intent(out) :: sigray
     
-    sigray = 4.577d-21*((6.d0+3.d0*Delta)/(6.d0-7.d0*Delta)) * &
-            (A*(1.d0+B/(lambda*1.d-3)**2.d0))**2.d0 * &
-            (1.d0/(lambda*1.d-3)**4.d0)
+    sigray = 4.577e-21_dp*((6.0_dp+3.0_dp*Delta)/(6.0_dp-7.0_dp*Delta)) * &
+            (A*(1.0_dp+B/(lambda*1.0e-3_dp)**2.0_dp))**2.0_dp * &
+            (1.0_dp/(lambda*1.0e-3_dp)**4.0_dp)
 
   end subroutine
   
@@ -2799,15 +2758,15 @@ contains
     
     character(len=*), intent(in) :: star_file
     integer, intent(in) :: nw
-    real(real_kind), intent(in) :: wavl(nw+1)
-    real(real_kind), intent(out) :: photon_flux(nw)
+    real(dp), intent(in) :: wavl(nw+1)
+    real(dp), intent(out) :: photon_flux(nw)
     character(len=err_len), intent(out) :: err
     
-    real(real_kind), allocatable :: file_wav(:), file_flux(:)
-    real(real_kind) :: flux(nw)
-    real(real_kind) :: dum1, dum2
+    real(dp), allocatable :: file_wav(:), file_flux(:)
+    real(dp) :: flux(nw)
+    real(dp) :: dum1, dum2
     integer :: io, i, n, ierr
-    real(real_kind), parameter :: rdelta = 1.d-4
+    real(dp), parameter :: rdelta = 1.0e-4_dp
     
     open(1,file=star_file,status='old',iostat=io)
     if (io /= 0) then
@@ -2839,10 +2798,10 @@ contains
     
     i = n
     ! interpolate 
-    call addpnt(file_wav, file_flux, n+4, i, file_wav(1)*(1.d0-rdelta), 0.d0, ierr)
-    call addpnt(file_wav, file_flux, n+4, i, 0.d0, 0.d0, ierr)
-    call addpnt(file_wav, file_flux, n+4, i, file_wav(i)*(1.d0+rdelta), 0.d0,ierr)
-    call addpnt(file_wav, file_flux, n+4, i, huge(rdelta), 0.d0,ierr)
+    call addpnt(file_wav, file_flux, n+4, i, file_wav(1)*(1.0_dp-rdelta), 0.0_dp, ierr)
+    call addpnt(file_wav, file_flux, n+4, i, 0.0_dp, 0.0_dp, ierr)
+    call addpnt(file_wav, file_flux, n+4, i, file_wav(i)*(1.0_dp+rdelta), 0.0_dp,ierr)
+    call addpnt(file_wav, file_flux, n+4, i, huge(rdelta), 0.0_dp,ierr)
     if (ierr /= 0) then
       err = "Problem interpolating "//trim(star_file)
       return
@@ -2856,8 +2815,8 @@ contains
     
     ! now convert to photons/cm2/s
     do i = 1,nw
-      photon_flux(i) = (1/(plank*c_light*1.d16))*flux(i)*(wavl(i+1)-wavl(i))* &
-                       ((wavl(i+1)+wavl(i))/2.d0)
+      photon_flux(i) = (1/(plank*c_light*1.e16_dp))*flux(i)*(wavl(i+1)-wavl(i))* &
+                       ((wavl(i+1)+wavl(i))/2.0_dp)
     enddo
     
   end subroutine
@@ -2875,7 +2834,7 @@ contains
     character(len=s_str_len) :: arr11(1000)
     character(len=s_str_len),allocatable, dimension(:) :: labels
     integer :: ind(1)
-    real(real_kind), allocatable :: temp(:,:)
+    real(dp), allocatable :: temp(:,:)
     integer :: io, i, n, nn, ii
     logical :: missing
     
@@ -2898,10 +2857,10 @@ contains
     allocate(photodata%T_file(photodata%nzf))
     allocate(photodata%edd_file(photodata%nzf))
     allocate(photodata%usol_file(photodata%nq, photodata%nzf))
-    photodata%z_file = 0.d0
-    photodata%T_file = 0.d0
-    photodata%edd_file = 0.d0
-    photodata%usol_file = 1.d-40
+    photodata%z_file = 0.0_dp
+    photodata%T_file = 0.0_dp
+    photodata%edd_file = 0.0_dp
+    photodata%usol_file = 1.0e-40_dp
     if (photodata%there_are_particles) then
       allocate(photodata%particle_radius_file(photodata%npq, photodata%nzf))
     endif
@@ -2981,7 +2940,7 @@ contains
         else
           ! did not find the data
           ! will set to 0.1 micron
-          photodata%particle_radius_file(i,:) = 1.d-5
+          photodata%particle_radius_file(i,:) = 1.0e-5_dp
           missing = .true.
         endif
       enddo
@@ -3004,7 +2963,7 @@ contains
     ! reads in alt
     ind = findloc(labels,'alt')
     if (ind(1) /= 0) then
-      photodata%z_file(:) = temp(ind(1),:)*1.d5 ! conver to cm
+      photodata%z_file(:) = temp(ind(1),:)*1.e5_dp ! conver to cm
     else
       err = '"alt" was not found in input file '//trim(atmosphere_txt)
       return

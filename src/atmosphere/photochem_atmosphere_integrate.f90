@@ -25,7 +25,7 @@ contains
     integer(c_long) :: nsteps(1)
     integer(c_int) :: loc_ierr
     real(c_double) :: hcur(1)
-    real(real_kind) :: tmp, mx
+    real(dp) :: tmp, mx
     integer :: k, i, j, ii
     
     type(Atmosphere), pointer :: self
@@ -51,7 +51,7 @@ contains
              
       elseif (self%var%verbose == 2) then
         ! Find the fastest changing variable
-        tmp = 0.d0
+        tmp = 0.0_dp
         mx = tmp
         k = 1
         do ii = 1,self%var%neqs
@@ -66,7 +66,7 @@ contains
         
         print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,"// &
              "'dy/dt =',es12.5,3x,' y =',es12.5,3x,a8,3x,' z =',f6.2,' km')", &
-             nsteps, tn, hcur(1),fvec(k),yvec(k),trim(self%dat%species_names(i)),self%var%z(j+1)/1.d5
+             nsteps, tn, hcur(1),fvec(k),yvec(k),trim(self%dat%species_names(i)),self%var%z(j+1)/1.e5_dp
       endif
       
       self%wrk%nsteps_previous = nsteps(1)
@@ -138,7 +138,7 @@ contains
     class(Atmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: filename
     real(c_double), intent(in) :: tstart
-    real(real_kind), intent(in) :: usol_start(:,:)
+    real(dp), intent(in) :: usol_start(:,:)
     ! real(c_double), intent(in) :: t_eval(num_t_eval)
     real(c_double), intent(in) :: t_eval(:)
     logical, intent(out) :: success
@@ -157,7 +157,7 @@ contains
     type(SUNMatrix), pointer :: sunmat
     type(SUNLinearSolver), pointer :: sunlin
     
-    ! real(real_kind) :: fH2O(self%var%trop_ind)
+    ! real(dp) :: fH2O(self%var%trop_ind)
     integer :: i, j, k, ii
     
     type(c_ptr)    :: user_data
@@ -350,7 +350,7 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
     
-    real(real_kind) :: tn
+    real(dp) :: tn
     integer :: nsteps
     
     err = ""
@@ -404,7 +404,7 @@ contains
     use fsunlinsol_band_mod, only: FSUNLinSol_Band
     
     class(Atmosphere), target, intent(inout) :: self
-    real(real_kind), intent(in) :: usol_start(:,:)
+    real(dp), intent(in) :: usol_start(:,:)
     character(len=err_len), intent(out) :: err
     
     real(c_double) :: tstart
@@ -551,10 +551,10 @@ contains
     use fcvode_mod, only: CV_ONE_STEP, FCVode
     class(Atmosphere), target, intent(inout) :: self
     character(len=err_len), intent(out) :: err
-    real(real_kind) :: tn
+    real(dp) :: tn
     
     integer(c_int) :: ierr
-    real(c_double), parameter :: dum = 0.d0
+    real(c_double), parameter :: dum = 0.0_dp
     
     err = ""
     if (.not.c_associated(self%wrk%cvode_mem)) then

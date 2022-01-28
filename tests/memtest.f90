@@ -1,10 +1,10 @@
 
 program main
-  use photochem, only: Atmosphere, err_len, real_kind
+  use photochem, only: Atmosphere, err_len, dp
   implicit none
   character(len=err_len) :: err
   type(Atmosphere) :: pc
-  real(real_kind) :: tn
+  real(dp) :: tn
 
   call pc%init("../Photochem/data", &
                "../Photochem/data/reaction_mechanisms/zahnle_earth.yaml", &

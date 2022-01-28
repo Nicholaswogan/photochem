@@ -11,117 +11,126 @@ submodule(photochem_atmosphere) photochem_atmosphere_rhs
   
 contains
   
-  subroutine reaction_rates(self, nsp, nz, nrT, density, densities, rx_rates, err)
+  subroutine reaction_rates(self, density, densities, rx_rates, err)
+    use photochem_types, only: ElementaryRate, ThreeBodyRate, FalloffRate
     use photochem_eqns, only: arrhenius_rate, Troe_noT2, Troe_withT2, falloff_rate
     use photochem_const, only: Rgas, k_boltz, smallest_real ! constants
     
-    class(Atmosphere), intent(in) :: self
-    integer, intent(in) :: nsp, nz, nrT
-    real(real_kind), intent(in) :: density(nz)
-    real(real_kind), intent(in) :: densities(nsp+1,nz)
-    real(real_kind), intent(out) :: rx_rates(nz, nrT)
+    class(Atmosphere), intent(in), target :: self
+    real(dp), intent(in) :: density(:)
+    real(dp), intent(in) :: densities(:,:)
+    real(dp), intent(out) :: rx_rates(:,:)
     character(len=err_len), intent(out) :: err
     
     integer :: i, j, k, n, l, m
-    real(real_kind) :: eff_den(nz), F(nz), k0, kinf(nz), Pr(nz)
-    real(real_kind) :: gibbR_forward, gibbP_forward
-    real(real_kind) :: Dg_forward
-    err = ''
+    real(dp) :: eff_den(self%var%nz), F(self%var%nz)
+    real(dp) :: k0, kinf(self%var%nz), Pr(self%var%nz)
+    real(dp) :: gibbR_forward, gibbP_forward
+    real(dp) :: Dg_forward
     
-    do i = 1,self%dat%nrF
-      if (self%dat%rxtypes(i) == 1) then ! elementary        
-        do j = 1,nz 
-          rx_rates(j,i) = arrhenius_rate(self%dat%rateparams(1,i), self%dat%rateparams(2,i), &
-                                         self%dat%rateparams(3,i), self%var%temperature(j))
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    
+    err = ""
+    
+    dat => self%dat
+    var => self%var
+    
+    do i = 1,dat%nrF
+      select type(rp => dat%rx(i)%rp)
+      class is (ElementaryRate)
+        do j = 1,var%nz 
+          rx_rates(j,i) = arrhenius_rate(rp%A, rp%b, &
+                                         rp%Ea, var%temperature(j))
           
-        enddo        
-      elseif (self%dat%rxtypes(i) == 2) then ! three-body
-        n = self%dat%num_efficient(i)
-        do j = 1,self%var%nz
-          eff_den(j) = density(j) * self%dat%def_eff(i)
+        enddo       
+      class is (ThreeBodyRate)
+        n = rp%eff%n_eff
+        do j = 1,var%nz
+          eff_den(j) = density(j)*rp%eff%def_eff
           ! subtract the default efficiency, then add the perscribed one
           do k = 1,n ! if n is 0 then it will be skipped
-            l = self%dat%eff_sp_inds(k,i)
-            eff_den(j) = eff_den(j) - self%dat%def_eff(i)*densities(l,j) &
-                                    + self%dat%efficiencies(k,i)*densities(l,j)
+            l = rp%eff%eff_sp_inds(k)
+            eff_den(j) = eff_den(j) - rp%eff%def_eff*densities(l,j) &
+                                    + rp%eff%efficiencies(k)*densities(l,j)
           enddo
-          rx_rates(j,i) = arrhenius_rate(self%dat%rateparams(1,i), self%dat%rateparams(2,i), &
-                                         self%dat%rateparams(3,i), self%var%temperature(j)) &
+          rx_rates(j,i) = arrhenius_rate(rp%A, rp%b, &
+                                         rp%Ea, var%temperature(j)) &
                                          * eff_den(j) ! we multiply density here
+          
         enddo
         
-      
-      elseif (self%dat%rxtypes(i) == 3) then ! falloff
-        ! compute eff_den, kinf, and Pr at all altitudes
-        n = self%dat%num_efficient(i)
-        do j = 1,nz
-          eff_den(j) = density(j) * self%dat%def_eff(i)
+      class is (FalloffRate)
+        n = rp%eff%n_eff
+        do j = 1,var%nz
+          eff_den(j) = density(j)*rp%eff%def_eff
           ! subtract the default efficiency, then add the perscribed one
-          do k = 1,n
-            l = self%dat%eff_sp_inds(k,i)
-            eff_den(j) = eff_den(j) - self%dat%def_eff(i)*densities(l,j) &
-                                    + self%dat%efficiencies(k,i)*densities(l,j)
+          do k = 1,n ! if n is 0 then it will be skipped
+            l = rp%eff%eff_sp_inds(k)
+            eff_den(j) = eff_den(j) - rp%eff%def_eff*densities(l,j) &
+                                    + rp%eff%efficiencies(k)*densities(l,j)
           enddo
-          k0  = arrhenius_rate(self%dat%rateparams(1,i), self%dat%rateparams(2,i), &
-                               self%dat%rateparams(3,i), self%var%temperature(j))
-          kinf(j) = arrhenius_rate(self%dat%rateparams(4,i), self%dat%rateparams(5,i), &
-                                   self%dat%rateparams(6,i), self%var%temperature(j))
+          
+          k0  = arrhenius_rate(rp%A0, rp%b0, &
+                               rp%Ea0, var%temperature(j))         
+          kinf(j) = arrhenius_rate(rp%Ainf, rp%binf, &
+                                   rp%Eainf, var%temperature(j))
           kinf(j) = max(kinf(j),smallest_real)
-          Pr(j) = k0*eff_den(j)/kinf(j)                        
+          Pr(j) = k0*eff_den(j)/kinf(j)                 
         enddo
         
         ! compute falloff function
-        if (self%dat%falloff_type(i) == 0) then ! no falloff function
-          F = 1.d0
-        elseif (self%dat%falloff_type(i) == 1) then ! Troe falloff without T2
-          do j = 1,nz
-            F(j) = Troe_noT2(self%dat%rateparams(7,i), self%dat%rateparams(8,i), &
-                             self%dat%rateparams(10,i), self%var%temperature(j), Pr(j))
+        if (rp%falloff_type == 0) then ! no falloff function
+          F = 1.0_dp
+        elseif (rp%falloff_type == 1) then ! Troe falloff without T2
+          do j = 1,var%nz
+            F(j) = Troe_noT2(rp%A_t, rp%T1, rp%T3, var%temperature(j), Pr(j))
           enddo
-        elseif (self%dat%falloff_type(i) == 2) then ! Troe falloff with T2
-          do j = 1,nz
-            F(j) = Troe_withT2(self%dat%rateparams(7,i), self%dat%rateparams(8,i), self%dat%rateparams(9,i), &
-                               self%dat%rateparams(10,i), self%var%temperature(j), Pr(j))
+        elseif (rp%falloff_type == 2) then ! Troe falloff with T2
+          do j = 1,var%nz
+            F(j) = Troe_withT2(rp%A_t, rp%T1, rp%T2, rp%T3, var%temperature(j), Pr(j))
           enddo
-        elseif (self%dat%falloff_type(i) == 3) then ! JPL falloff function
-          do j = 1,nz
-            F(j) = 0.6d0**(1.d0/(1.d0 + (log10(Pr(j)))**2.d0 ))
+        elseif (rp%falloff_type == 3) then ! JPL falloff function
+          do j = 1,var%nz
+            F(j) = 0.6_dp**(1.0_dp/(1.0_dp + (log10(Pr(j)))**2.0_dp ))
           enddo
         endif
         
         ! compute rate
-        do j = 1,nz
+        do j = 1,var%nz
           rx_rates(j,i) = falloff_rate(kinf(j), Pr(j), F(j))
         enddo
-    
-      endif
-    enddo ! end loop over forward reactions
 
-    if (self%dat%reverse) then ! if there are reverse reactions
+      end select
+      
+    enddo ! end loop over forward reactions
+    
+    if (dat%reverse) then ! if there are reverse reactions
       ! compute reverse rate
-      do i = self%dat%nrF+1,self%dat%nrT
+      do i = dat%nrF+1,dat%nrT
         
-        n = self%dat%reverse_info(i) ! Reaction number of the forward
-        l = self%dat%nreactants(n) ! number of reactants for the forward reaction
-        m = self%dat%nproducts(n) ! number of products for the forward reaction
-        do j = 1,self%var%nz
-          gibbR_forward = 0.d0
+        n = dat%rx(i)%reverse_info ! Reaction number of the forward
+        l = dat%rx(n)%nreact ! number of reactants for the forward reaction
+        m = dat%rx(n)%nprod ! number of products for the forward reaction
+        do j = 1,var%nz
+          gibbR_forward = 0.0_dp
           do k = 1,l
             gibbR_forward = gibbR_forward + &
-                            self%var%gibbs_energy(j,self%dat%reactants_sp_inds(k,n)-self%dat%npq)
+                            var%gibbs_energy(j,dat%rx(n)%react_sp_inds(k)-dat%npq)
           enddo
-          gibbP_forward = 0.d0
+          gibbP_forward = 0.0_dp
           do k = 1,m
             gibbP_forward = gibbP_forward +  &
-                            self%var%gibbs_energy(j,self%dat%products_sp_inds(k,n)-self%dat%npq)
+                            var%gibbs_energy(j,dat%rx(n)%prod_sp_inds(k)-dat%npq)
           enddo
           Dg_forward = gibbP_forward - gibbR_forward ! DG of the forward reaction (J/mol)
           ! compute the reverse rate
           rx_rates(j,i) = rx_rates(j,n) * &
-                          (1.d0/exp(-Dg_forward/(Rgas * self%var%temperature(j)))) * &
-                          (k_boltz*self%var%temperature(j)/1.d6)**(m-l)
+                          (1.0_dp/exp(-Dg_forward/(Rgas * var%temperature(j)))) * &
+                          (k_boltz*var%temperature(j)/1.e6_dp)**(m-l)
         enddo
       enddo
+      
     endif
 
   end subroutine
@@ -129,46 +138,51 @@ contains
   subroutine chempl(self, nz, nsp, nrT, densities, rx_rates, k, xp, xl)
     
     ! input
-    class(Atmosphere), intent(in) :: self
+    class(Atmosphere), intent(in), target :: self
     integer, intent(in) :: nz, nsp, nrT
-    real(real_kind), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
-    real(real_kind), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
+    real(dp), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
+    real(dp), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
     integer, intent(in) :: k ! species number
     
     ! output
-    real(real_kind), intent(out) :: xp(nz), xl(nz) ! molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
+    real(dp), intent(out) :: xp(nz), xl(nz) ! molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
     
     ! local
-    real(real_kind) :: DD
-    integer :: np, nl
+    real(dp) :: DD
     integer :: i, ii, iii, m, l, j
-    xp = 0.d0
-    xl = 0.d0
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
     
-    np = self%dat%nump(k) ! k is a species
-    ! np is number of reactions that produce species k
-    do i=1,np
-      m = self%dat%iprod(i,k) ! m is reaction number
-      l = self%dat%nreactants(m) ! l is the number of reactants
-      do j = 1,self%var%nz
-        DD = 1.d0
+    dat => self%dat
+    var => self%var
+    
+    xp = 0.0_dp
+    xl = 0.0_dp
+    
+    ! k is a species
+    ! nump is number of reactions that produce species k
+    do i = 1,dat%pl(k)%nump
+      m = dat%pl(k)%iprod(i) ! m is reaction number
+      l = dat%rx(m)%nreact ! l is the number of reactants
+      do j = 1,var%nz
+        DD = 1.0_dp
         do ii = 1,l
-          iii = self%dat%reactants_sp_inds(ii,m)
+          iii = dat%rx(m)%react_sp_inds(ii)
           DD = DD * densities(iii,j)
         enddo
         xp(j) = xp(j) + rx_rates(j,m) * DD
       enddo
     enddo
     
-    nl = self%dat%numl(k) ! k is a species
-    ! nl is number of reactions that destroy species k
-    do i=1,nl
-      m = self%dat%iloss(i,k) ! This will JUST be reaction number
-      l = self%dat%nreactants(m) ! number of reactants
-      do j = 1,self%var%nz
-        DD = 1.d0
+    ! k is a species
+    ! numl is number of reactions that destroy species k
+    do i=1,dat%pl(k)%numl
+      m = dat%pl(k)%iloss(i) ! This will JUST be reaction number
+      l = dat%rx(m)%nreact ! number of reactants
+      do j = 1,var%nz
+        DD = 1.0_dp
         do ii = 1,l
-          iii = self%dat%reactants_sp_inds(ii,m)
+          iii = dat%rx(m)%react_sp_inds(ii)
           DD = DD * densities(iii,j)
         enddo
         xl(j) = xl(j) + rx_rates(j,m) * DD
@@ -180,46 +194,51 @@ contains
   subroutine chempl_sl(self, nz, nsp, nrT, densities, rx_rates, k, xp, xl)
     
     ! input
-    class(Atmosphere), intent(in) :: self
+    class(Atmosphere), intent(in), target :: self
     integer, intent(in) :: nz, nsp, nrT
-    real(real_kind), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
-    real(real_kind), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
+    real(dp), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
+    real(dp), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
     integer, intent(in) :: k ! species number
     
     ! output
-    real(real_kind), intent(out) :: xp(nz), xl(nz) ! molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
+    real(dp), intent(out) :: xp(nz), xl(nz) ! molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
     
     ! local
-    real(real_kind) :: DD
-    integer :: np, nl
+    real(dp) :: DD
     integer :: i, ii, iii, m, l, j
-    xp = 0.d0
-    xl = 0.d0
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
     
-    np = self%dat%nump(k) ! k is a species
-    ! np is number of reactions that produce species k
-    do i=1,np
-      m = self%dat%iprod(i,k) ! m is reaction number
-      l = self%dat%nreactants(m) ! l is the number of reactants
-      do j = 1,self%var%nz
-        DD = 1.d0
+    dat => self%dat
+    var => self%var
+    
+    xp = 0.0_dp
+    xl = 0.0_dp
+    
+    ! k is a species
+    ! nump is number of reactions that produce species k
+    do i = 1,dat%pl(k)%nump
+      m = dat%pl(k)%iprod(i) ! m is reaction number
+      l = dat%rx(m)%nreact ! l is the number of reactants
+      do j = 1,var%nz
+        DD = 1.0_dp
         do ii = 1,l
-          iii = self%dat%reactants_sp_inds(ii,m)
+          iii = dat%rx(m)%react_sp_inds(ii)
           DD = DD * densities(iii,j)
         enddo
         xp(j) = xp(j) + rx_rates(j,m) * DD
       enddo
     enddo
     
-    nl = self%dat%numl(k) ! k is a species
-    ! nl is number of reactions that destroy species k
-    do i=1,nl
-      m = self%dat%iloss(i,k) ! This will JUST be reaction number
-      l = self%dat%nreactants(m) ! number of reactants
-      do j = 1,self%var%nz
-        DD = 1.d0
+    ! k is a species
+    ! numl is number of reactions that destroy species k
+    do i=1,dat%pl(k)%numl
+      m = dat%pl(k)%iloss(i) ! This will JUST be reaction number
+      l = dat%rx(m)%nreact ! number of reactants
+      do j = 1,var%nz
+        DD = 1.0_dp
         do ii = 1,l
-          iii = self%dat%reactants_sp_inds(ii,m)
+          iii = dat%rx(m)%react_sp_inds(ii)
           ! We skip the short-lived species.
           if (iii /= k) then
             DD = DD * densities(iii,j)
@@ -233,8 +252,8 @@ contains
   
   module subroutine right_hand_side_chem(self, usol, rhs, err)
     class(Atmosphere), target, intent(inout) :: self
-    real(real_kind), intent(in) :: usol(:,:)
-    real(real_kind), intent(out) :: rhs(:)
+    real(dp), intent(in) :: usol(:,:)
+    real(dp), intent(out) :: rhs(:)
     character(len=err_len), intent(out) :: err
     
     type(PhotochemData), pointer :: dat
@@ -272,16 +291,16 @@ contains
     
     class(Atmosphere), target, intent(in) :: self
     integer, intent(in) :: neqs, nsp, np, nsl, nq, nz, trop_ind, nrT
-    real(real_kind), intent(in) :: usol(nq,nz), density(nz)
-    real(real_kind), intent(in) :: rx_rates(nz,nrT)
-    real(real_kind), intent(in) :: gas_sat_den(np,nz)
-    real(real_kind), intent(in) :: molecules_per_particle(np,nz)
-    real(real_kind), intent(in) :: H2O_sat_mix(nz)
-    real(real_kind), intent(in) :: rainout_rates(nq, trop_ind)
-    real(real_kind), intent(inout) :: densities(nsp+1,nz), xp(nz), xl(nz)
-    real(real_kind), intent(out) :: rhs(neqs)
+    real(dp), intent(in) :: usol(nq,nz), density(nz)
+    real(dp), intent(in) :: rx_rates(nz,nrT)
+    real(dp), intent(in) :: gas_sat_den(np,nz)
+    real(dp), intent(in) :: molecules_per_particle(np,nz)
+    real(dp), intent(in) :: H2O_sat_mix(nz)
+    real(dp), intent(in) :: rainout_rates(nq, trop_ind)
+    real(dp), intent(inout) :: densities(nsp+1,nz), xp(nz), xl(nz)
+    real(dp), intent(out) :: rhs(neqs)
     
-    real(real_kind) :: dn_gas_dt, dn_particle_dt, H2O_cold_trap, cond_rate
+    real(dp) :: dn_gas_dt, dn_particle_dt, H2O_cold_trap, cond_rate
     integer :: i, ii, j, k, kk
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -296,8 +315,8 @@ contains
       do k = dat%ng_1,dat%nq
         densities(k,j) = usol(k,j)*density(j)
       enddo
-      densities(nsp,j) = (1.d0-sum(usol(dat%ng_1:,j)))*density(j) ! background gas
-      densities(nsp+1,j) = 1.d0 ! for hv
+      densities(nsp,j) = (1.0_dp-sum(usol(dat%ng_1:,j)))*density(j) ! background gas
+      densities(nsp+1,j) = 1.0_dp ! for hv
     enddo
     
     ! short lived
@@ -306,7 +325,7 @@ contains
       densities(k,:) = xp/xl
     enddo
     
-    rhs = 0.d0
+    rhs = 0.0_dp
     
     ! long lived              
     do i = dat%ng_1,dat%nq
@@ -393,7 +412,7 @@ contains
               rhs(k) = rhs(k) + dn_particle_dt
             else
               ! particles don't change!
-              rhs(k) = rhs(k) + 0.d0
+              rhs(k) = rhs(k) + 0.0_dp
             endif
           endif          
         enddo
@@ -410,22 +429,22 @@ contains
     ! input
     class(Atmosphere), target, intent(in) :: self
     integer, intent(in) :: nz, nsp, kj, nw
-    real(real_kind), intent(in) :: densities(nsp+1, nz)
+    real(dp), intent(in) :: densities(nsp+1, nz)
     
     ! output
-    real(real_kind), intent(out) :: prates(nz,kj)
-    real(real_kind), intent(out) :: surf_radiance(nw)
-    real(real_kind) :: amean_grd(nz,nw)
-    real(real_kind) :: optical_depth(nz,nw)
+    real(dp), intent(out) :: prates(nz,kj)
+    real(dp), intent(out) :: surf_radiance(nw)
+    real(dp) :: amean_grd(nz,nw)
+    real(dp) :: optical_depth(nz,nw)
     character(len=err_len), intent(out) :: err
     
     ! local
-    real(real_kind) :: partial_prates(nz,kj)
-    real(real_kind) :: tausg(nz), taua(nz), tau(nz), w0(nz), gt(nz)
-    real(real_kind) :: taup(nz), tausp(nz)
-    real(real_kind) :: amean(nz+1), surf_rad, flx
-    real(real_kind) :: taup_1, gt_1, tausp_1(self%dat%np,nz)
-    real(real_kind) :: u0
+    real(dp) :: partial_prates(nz,kj)
+    real(dp) :: tausg(nz), taua(nz), tau(nz), w0(nz), gt(nz)
+    real(dp) :: taup(nz), tausp(nz)
+    real(dp) :: amean(nz+1), surf_rad, flx
+    real(dp) :: taup_1, gt_1, tausp_1(self%dat%np,nz)
+    real(dp) :: u0
     integer :: l, i, j, jj, k, n, ie, ierr, ierrs
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -433,22 +452,22 @@ contains
     dat => self%dat
     var => self%var
     
-    u0 = cos(var%solar_zenith*pi/180.d0)
+    u0 = cos(var%solar_zenith*pi/180.0_dp)
 
     ierrs = 0
-    prates = 0.d0
+    prates = 0.0_dp
     err = ''
     !$omp parallel private(l, i, j, jj, k, n, ie, ierr, partial_prates, &
     !$omp& taup, taup_1, tausp, tausp_1, tausg, taua, tau, w0, gt, gt_1, &
     !$omp& amean, surf_rad, &
     !$omp& flx)
     ierr = 0
-    partial_prates = 0.d0
+    partial_prates = 0.0_dp
     !$omp do
     do l = 1,dat%nw
       
       ! rayleigh scattering
-      tausg = 0.d0
+      tausg = 0.0_dp
       do i = 1,dat%nray
         j = dat%raynums(i)
         do k = 1,var%nz
@@ -458,10 +477,10 @@ contains
       enddo
       
       ! photolysis
-      taua = 0.d0
+      taua = 0.0_dp
       do i = 1,dat%kj
         jj = dat%photonums(i)
-        j = dat%reactants_sp_inds(1,jj)
+        j = dat%rx(jj)%react_sp_inds(1)
         do k = 1,var%nz
           n = var%nz+1-k
           taua(n) = taua(n) + var%xs_x_qy(k,i,l)*densities(j,k)*var%dz(k)
@@ -469,9 +488,9 @@ contains
       enddo
       
       ! particles
-      taup = 0.d0
-      tausp = 0.d0
-      tausp_1 = 0.d0
+      taup = 0.0_dp
+      tausp = 0.0_dp
+      tausp_1 = 0.0_dp
       do k = 1,var%nz
         n = var%nz+1-k
         do i = 1,dat%np
@@ -484,24 +503,24 @@ contains
           endif
         enddo
       enddo
-      gt = 0.d0
+      gt = 0.0_dp
       do k = 1,var%nz
         n = nz+1-k
-        gt_1 = 0.d0
+        gt_1 = 0.0_dp
         do i = 1,dat%np    
           if (var%particle_xs(i)%ThereIsData) then
             gt_1 = gt_1 + var%particle_xs(i)%gt(k,l)*tausp_1(i,n) &
                     /(tausp(n)+tausg(n))
           endif
         enddo
-        gt(n) = min(gt_1,0.999999d0)
+        gt(n) = min(gt_1,0.999999e0_dp)
       enddo
       
       ! sum of all contributions
       tau = tausg + taua + taup + tausp
       optical_depth(:,l) = tau
       do i = 1,var%nz
-        w0(i) = min(0.99999d0,(tausg(i) + tausp(i))/tau(i))
+        w0(i) = min(0.99999e0_dp,(tausg(i) + tausp(i))/tau(i))
       enddo
       
       call two_stream(nz, tau, w0, gt, u0, var%surface_albedo, amean, surf_rad, ie)
@@ -512,7 +531,7 @@ contains
           ierr = ierr + 1
         endif
         amean(i) = abs(amean(i))
-        ! amean(i) = max(amean(i),0.d0)
+        ! amean(i) = max(amean(i),0.0_dp)
       enddo
       
       ! convert amean to photolysis grid
@@ -552,13 +571,13 @@ contains
     
     class(Atmosphere), target, intent(inout) :: self
     integer, intent(in) :: nq, nz, trop_ind
-    real(real_kind), intent(inout), target :: usol(nq,nz)
-    real(real_kind), intent(out) :: sum_usol(nz)
-    real(real_kind), intent(out) :: density(nz)
-    real(real_kind), intent(out) :: mubar(nz), pressure(nz), fH2O(trop_ind), H2O_sat_mix(nz)
+    real(dp), intent(inout), target :: usol(nq,nz)
+    real(dp), intent(out) :: sum_usol(nz)
+    real(dp), intent(out) :: density(nz)
+    real(dp), intent(out) :: mubar(nz), pressure(nz), fH2O(trop_ind), H2O_sat_mix(nz)
     character(len=err_len), intent(out) :: err
     
-    real(real_kind) :: rel
+    real(dp) :: rel
     integer :: i
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -566,10 +585,10 @@ contains
     
     ! hybrd1 varibles for cminpack
     integer :: info
-    real(real_kind), parameter :: tol = 1.d-8
+    real(dp), parameter :: tol = 1.d-8
     integer :: lwa
-    real(real_kind), allocatable :: fvec(:)
-    real(real_kind), allocatable :: wa(:)
+    real(dp), allocatable :: fvec(:)
+    real(dp), allocatable :: wa(:)
     type(c_ptr) :: ptr ! void c pointer for cminpack
     ! end hybrd1 varibles
     
@@ -582,13 +601,13 @@ contains
     ! This will be to get an initial guess for the non-linear solve.
     if (dat%fix_water_in_trop) then
       do i = 1,var%trop_ind
-        usol(dat%LH2O,i) = 0.d0
+        usol(dat%LH2O,i) = 0.0_dp
       enddo
     endif 
     
     do i = 1,var%nz
       sum_usol(i) = sum(usol(dat%ng_1:,i))
-      if (sum_usol(i) > 1.0d0) then
+      if (sum_usol(i) > 1.0e0_dp) then
         err = 'Mixing ratios sum to >1.0 at some altitude (should be <=1).' // &
               ' The atmosphere is probably in a run-away state'
         return
@@ -599,7 +618,7 @@ contains
       call molar_weight(dat%nll, usol(dat%ng_1:,i), sum_usol(i), dat%species_mass(dat%ng_1:), dat%back_gas_mu, mubar(i))
     enddo
     
-    call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.d6, var%dz, &
+    call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.e6_dp, var%dz, &
                        mubar, pressure, density)
                        
     if (dat%fix_water_in_trop) then
@@ -607,7 +626,7 @@ contains
       do i = 1,var%trop_ind
         if (var%use_manabe) then
           ! manabe formula
-          rel = 0.77d0*(pressure(i)/pressure(1)-0.02d0)/0.98d0
+          rel = 0.77e0_dp*(pressure(i)/pressure(1)-0.02e0_dp)/0.98e0_dp
         else
           rel = var%relative_humidity 
         endif
@@ -645,7 +664,7 @@ contains
                           dat%species_mass(dat%ng_1:), dat%back_gas_mu, mubar(i))
       enddo
       
-      call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.d6, var%dz, &
+      call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.e6_dp, var%dz, &
                          mubar, pressure, density)
       
     endif 
@@ -665,22 +684,22 @@ contains
   
     type(c_ptr) :: ptr ! void pointer. Be careful!
     integer, value :: n, iflag ! n == trop_ind
-    real(real_kind), intent(in) :: x(n) ! x == fH2O
-    real(real_kind), intent(out) :: fvec(n) ! fvec == residual
+    real(dp), intent(in) :: x(n) ! x == fH2O
+    real(dp), intent(out) :: fvec(n) ! fvec == residual
     integer :: res
   
-    real(real_kind) :: fH2O(n)
-    real(real_kind), pointer :: usol(:,:)
-    real(real_kind), pointer :: sum_usol(:) 
-    real(real_kind), pointer :: mubar(:)
-    real(real_kind), pointer :: density(:)
-    real(real_kind), pointer :: pressure(:)
+    real(dp) :: fH2O(n)
+    real(dp), pointer :: usol(:,:)
+    real(dp), pointer :: sum_usol(:) 
+    real(dp), pointer :: mubar(:)
+    real(dp), pointer :: density(:)
+    real(dp), pointer :: pressure(:)
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(Atmosphere), pointer :: self
   
     integer :: i
-    real(real_kind) :: rel
+    real(dp) :: rel
   
     ! dereferences the pointer. Takes the void ptr, then
     ! declares it to be pointing to a usol shaped array of doubles.
@@ -707,13 +726,13 @@ contains
                         dat%species_mass(dat%ng_1:), dat%back_gas_mu, mubar(i))
     enddo
   
-    call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.d6, var%dz, &
+    call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.e6_dp, var%dz, &
                        mubar, pressure, density)
   
     do i = 1,n
       if (var%use_manabe) then
         ! manabe formula ()
-        rel = 0.77d0*(pressure(i)/pressure(1)-0.02d0)/0.98d0
+        rel = 0.77e0_dp*(pressure(i)/pressure(1)-0.02e0_dp)/0.98e0_dp
       else
         rel = var%relative_humidity 
       endif
@@ -732,23 +751,23 @@ contains
     
     class(Atmosphere), target, intent(in) :: self
     integer, intent(in) :: nq, npq, nz
-    real(real_kind), intent(in) :: den(nz)
-    real(real_kind), intent(in) :: mubar(nz)
-    real(real_kind), intent(out) :: DU(nq,nz), DL(nq,nz), DD(nq,nz)
-    real(real_kind), intent(out) :: ADU(nq,nz), ADL(nq,nz)
-    real(real_kind), intent(out) :: wfall(npq,nz)
-    real(real_kind), intent(out) :: VH2_esc, VH_esc
+    real(dp), intent(in) :: den(nz)
+    real(dp), intent(in) :: mubar(nz)
+    real(dp), intent(out) :: DU(nq,nz), DL(nq,nz), DD(nq,nz)
+    real(dp), intent(out) :: ADU(nq,nz), ADL(nq,nz)
+    real(dp), intent(out) :: wfall(npq,nz)
+    real(dp), intent(out) :: VH2_esc, VH_esc
     
-    real(real_kind) :: eddav_p, eddav_m, denav_p, denav_m, tav_p, tav_m
-    real(real_kind) :: bx1x2_p, bx1x2_m, zeta_p, zeta_m
-    real(real_kind) :: grav_p, grav_m, mubar_p, mubar_m
-    real(real_kind) :: bx1x2
+    real(dp) :: eddav_p, eddav_m, denav_p, denav_m, tav_p, tav_m
+    real(dp) :: bx1x2_p, bx1x2_m, zeta_p, zeta_m
+    real(dp) :: grav_p, grav_m, mubar_p, mubar_m
+    real(dp) :: bx1x2
     
     ! for particles
-    real(real_kind) :: air_density_p, air_density_m
-    real(real_kind) :: wfall_p, wfall_m
-    real(real_kind) :: viscosity_p, viscosity_m
-    real(real_kind) :: radius_p, radius_m
+    real(dp) :: air_density_p, air_density_m
+    real(dp) :: wfall_p, wfall_m
+    real(dp) :: viscosity_p, viscosity_m
+    real(dp) :: radius_p, radius_m
     
     integer :: i, j
     type(PhotochemData), pointer :: dat
@@ -765,8 +784,8 @@ contains
       denav_p = sqrt(den(i)*den(i+1))
       denav_m = sqrt(den(i)*den(i-1))
       do j = 1,dat%nq
-        DU(j,i) = (eddav_p*denav_p)/(den(i)*var%dz(i)**2.d0)
-        DL(j,i) = (eddav_m*denav_m)/(den(i)*var%dz(i)**2.d0)
+        DU(j,i) = (eddav_p*denav_p)/(den(i)*var%dz(i)**2.0_dp)
+        DL(j,i) = (eddav_m*denav_m)/(den(i)*var%dz(i)**2.0_dp)
         DD(j,i) = - DU(j,i) - DL(j,i)
       enddo
     enddo
@@ -776,8 +795,8 @@ contains
     denav_p = sqrt(den(1)*den(2))
     denav_m = sqrt(den(var%nz)*den(var%nz-1))
     do j = 1,dat%nq
-      DU(j,1) = (eddav_p*denav_p)/(den(1)*var%dz(1)**2.d0)
-      DL(j,var%nz) = (eddav_m*denav_m)/(den(var%nz)*var%dz(var%nz)**2.d0)
+      DU(j,1) = (eddav_p*denav_p)/(den(1)*var%dz(1)**2.0_dp)
+      DL(j,var%nz) = (eddav_m*denav_m)/(den(var%nz)*var%dz(var%nz)**2.0_dp)
     enddo
     
     ! Molecular diffusion. Only gas species
@@ -793,19 +812,19 @@ contains
         bx1x2_p = binary_diffusion_param(dat%species_mass(j), mubar_p, tav_p)
         bx1x2_m = binary_diffusion_param(dat%species_mass(j), mubar_m, tav_m)
         
-        DU(j,i) = DU(j,i) + bx1x2_p/(var%dz(i)**2.d0*den(i))
-        DL(j,i) = DL(j,i) + bx1x2_m/(var%dz(i)**2.d0*den(i))
+        DU(j,i) = DU(j,i) + bx1x2_p/(var%dz(i)**2.0_dp*den(i))
+        DL(j,i) = DL(j,i) + bx1x2_m/(var%dz(i)**2.0_dp*den(i))
         DD(j,i) = - DU(j,i) - DL(j,i)
         
         zeta_p =  bx1x2_p*((dat%species_mass(j)*grav_p)/(k_boltz*tav_p*N_avo) &
                            - (mubar_p*grav_p)/(k_boltz*tav_p*N_avo) &
-                           + 0.d0) ! zeroed out thermal diffusion   
+                           + 0.0_dp) ! zeroed out thermal diffusion   
         zeta_m =  bx1x2_m*((dat%species_mass(j)*grav_m)/(k_boltz*tav_m*N_avo) &
                           - (mubar_m*grav_m)/(k_boltz*tav_m*N_avo) &
-                          + 0.d0) ! zeroed out thermal diffusion
+                          + 0.0_dp) ! zeroed out thermal diffusion
                           
-        ADU(j,i) = zeta_p/(2.d0*var%dz(i)*den(i)) 
-        ADL(j,i) = - zeta_m/(2.d0*var%dz(i)*den(i))
+        ADU(j,i) = zeta_p/(2.0_dp*var%dz(i)*den(i)) 
+        ADL(j,i) = - zeta_m/(2.0_dp*var%dz(i)*den(i))
       enddo
     enddo
     ! top and bottom
@@ -819,24 +838,24 @@ contains
     i = 1
     do j = dat%ng_1, dat%nq
       bx1x2_p = binary_diffusion_param(dat%species_mass(j), mubar_p, tav_p)
-      DU(j,i) = DU(j,i) + bx1x2_p/(var%dz(i)**2.d0*den(i))
+      DU(j,i) = DU(j,i) + bx1x2_p/(var%dz(i)**2.0_dp*den(i))
       zeta_p =  bx1x2_p*((dat%species_mass(j)*grav_p)/(k_boltz*tav_p*N_avo) &
                          - (mubar_p*grav_p)/(k_boltz*tav_p*N_avo) &
-                         + 0.d0) ! zeroed out thermal diffusion   
-      ADU(j,i) = zeta_p/(2.d0*var%dz(i)*den(i)) 
+                         + 0.0_dp) ! zeroed out thermal diffusion   
+      ADU(j,i) = zeta_p/(2.0_dp*var%dz(i)*den(i)) 
     enddo
     ! upper boundary
     i = var%nz
     do j = dat%ng_1, dat%nq
       bx1x2_m = binary_diffusion_param(dat%species_mass(j), mubar_m, tav_m)
       
-      DL(j,i) = DL(j,i) + bx1x2_m/(var%dz(i)**2.d0*den(i))
+      DL(j,i) = DL(j,i) + bx1x2_m/(var%dz(i)**2.0_dp*den(i))
       
       zeta_m =  bx1x2_m*((dat%species_mass(j)*grav_m)/(k_boltz*tav_m*N_avo) &
                         - (mubar_m*grav_m)/(k_boltz*tav_m*N_avo) &
-                        + 0.d0) ! zeroed out thermal diffusion
+                        + 0.0_dp) ! zeroed out thermal diffusion
                         
-      ADL(j,i) = - zeta_m/(2.d0*var%dz(i)*den(i))
+      ADL(j,i) = - zeta_m/(2.0_dp*var%dz(i)*den(i))
     enddo
     
     ! Falling particles. Only particles
@@ -868,8 +887,8 @@ contains
                                  dat%particle_density(j), air_density_m, viscosity_m) &
                    *slip_correction_factor(radius_m, denav_m)
       
-        ADU(j,i) = wfall_p*denav_p/(2.d0*var%dz(i)*den(i))
-        ADL(j,i) = - wfall_m*denav_m/(2.d0*var%dz(i)*den(i))
+        ADU(j,i) = wfall_p*denav_p/(2.0_dp*var%dz(i)*den(i))
+        ADL(j,i) = - wfall_m*denav_m/(2.0_dp*var%dz(i)*den(i))
       enddo
     enddo
     ! top and bottom
@@ -893,7 +912,7 @@ contains
                               dat%particle_density(j), air_density_p, viscosity_p) &
                  *slip_correction_factor(radius_p, denav_p)
     
-      ADU(j,i) = wfall_p*denav_p/(2.d0*var%dz(i)*den(i))
+      ADU(j,i) = wfall_p*denav_p/(2.0_dp*var%dz(i)*den(i))
     enddo
     ! Upper boundary
     i = var%nz
@@ -907,14 +926,14 @@ contains
                                dat%particle_density(j), air_density_m, viscosity_m) &
                  *slip_correction_factor(radius_m, denav_m)
     
-      ADL(j,i) = - wfall_m*denav_m/(2.d0*var%dz(i)*den(i))
+      ADL(j,i) = - wfall_m*denav_m/(2.0_dp*var%dz(i)*den(i))
     enddo
     
     ! option to turn off everything but eddy diffusion
     do i = 1,dat%nq
       if (var%only_eddy(i)) then
-        ADL(i,:) = 0.d0
-        ADU(i,:) = 0.d0
+        ADL(i,:) = 0.0_dp
+        ADU(i,:) = 0.0_dp
       endif
     enddo
     
@@ -949,27 +968,27 @@ contains
     
     class(Atmosphere), target, intent(in) :: self
     integer, intent(in) :: nq, nz, trop_ind
-    real(real_kind), intent(in) :: usol(nq, nz)
-    real(real_kind), intent(in) :: den(nz)
-    real(real_kind), intent(out) :: rainout_rates(nq, trop_ind)
+    real(dp), intent(in) :: usol(nq, nz)
+    real(dp), intent(in) :: den(nz)
+    real(dp), intent(out) :: rainout_rates(nq, trop_ind)
     
     integer :: i, j
     
-    real(real_kind) :: wH2O(trop_ind)
-    real(real_kind) :: total_rainfall ! molecules/cm2/s
-    real(real_kind) :: slope, intercept
-    real(real_kind) :: denav_p, eddav_p, denav_m, eddav_m
-    real(real_kind) :: scale_factor
-    real(real_kind) :: k_bar, Q_i, H_coeff
+    real(dp) :: wH2O(trop_ind)
+    real(dp) :: total_rainfall ! molecules/cm2/s
+    real(dp) :: slope, intercept
+    real(dp) :: denav_p, eddav_p, denav_m, eddav_m
+    real(dp) :: scale_factor
+    real(dp) :: k_bar, Q_i, H_coeff
     
-    real(real_kind), parameter :: earth_rainfall_rate = 1.1d17 ! molecules/cm2/s
-    real(real_kind), parameter :: fz = 0.05d0 ! fraction of the time it rains
-    real(real_kind), parameter :: gamma = 4.d5 ! average time of storm cycles (s)
-    real(real_kind), parameter :: LLL = 1.d0 ! g H2O/m3 of clouds
-    real(real_kind), parameter :: C1 = 1.d-6 !dynes/bar
-    real(real_kind), parameter :: C2 = 1.d-9 ![m3/cm3][L H2O/g H2O]
-    real(real_kind), parameter :: MH2O = 18.d0 ! g H2O/mol H2O
-    real(real_kind), parameter :: rho_H2O = 1000.d0 ! g H2O/L H2O
+    real(dp), parameter :: earth_rainfall_rate = 1.1e17_dp ! molecules/cm2/s
+    real(dp), parameter :: fz = 0.05e0_dp ! fraction of the time it rains
+    real(dp), parameter :: gamma = 4.e5_dp ! average time of storm cycles (s)
+    real(dp), parameter :: LLL = 1.0_dp ! g H2O/m3 of clouds
+    real(dp), parameter :: C1 = 1.d-6 !dynes/bar
+    real(dp), parameter :: C2 = 1.d-9 ![m3/cm3][L H2O/g H2O]
+    real(dp), parameter :: MH2O = 18.0_dp ! g H2O/mol H2O
+    real(dp), parameter :: rho_H2O = 1000.0_dp ! g H2O/L H2O
     
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -979,16 +998,16 @@ contains
     
     !!!!!!! calculate raining rate !!!!!!!
     ! middle of atmosphere
-    wH2O = 0.d0
+    wH2O = 0.0_dp
     do i = 2,var%trop_ind-1
       denav_p = sqrt(den(i+1)*den(i))
       eddav_p = sqrt(var%edd(i+1)*var%edd(i))
       denav_m = sqrt(den(i-1)*den(i))
       eddav_m = sqrt(var%edd(i-1)*var%edd(i))
-      wH2O(i) = (eddav_p*denav_p/var%dz(i)**2.d0) * usol(dat%LH2O,i+1) &
-              - (eddav_p*denav_p/var%dz(i)**2.d0 + eddav_m*denav_m/var%dz(i)**2.d0) * usol(dat%lH2O,i) &
-              + (eddav_m*denav_m/var%dz(i)**2.d0) * usol(dat%lH2O,i-1)
-      if (wH2O(i) < 0.d0) then
+      wH2O(i) = (eddav_p*denav_p/var%dz(i)**2.0_dp) * usol(dat%LH2O,i+1) &
+              - (eddav_p*denav_p/var%dz(i)**2.0_dp + eddav_m*denav_m/var%dz(i)**2.0_dp) * usol(dat%lH2O,i) &
+              + (eddav_m*denav_m/var%dz(i)**2.0_dp) * usol(dat%lH2O,i-1)
+      if (wH2O(i) < 0.0_dp) then
         wH2O(i) = 1.d-20
       endif
     enddo
@@ -997,14 +1016,14 @@ contains
     slope = (wH2O(3) - wH2O(2))/(var%dz(2))
     intercept = wH2O(2) - slope*var%z(2)
     wH2O(1) = slope*var%z(1) + intercept
-    if (wH2O(1) < 0.d0) then
+    if (wH2O(1) < 0.0_dp) then
       wH2O(1) = 1.d-20
     endif
     !!! upper boundary !!!
     slope = (wH2O(var%trop_ind-1) - wH2O(var%trop_ind-2))/(var%dz(var%trop_ind-1))
     intercept = wH2O(var%trop_ind-1) - slope*var%z(var%trop_ind-1)
     wH2O(var%trop_ind) = slope*var%z(var%trop_ind) + intercept
-    if (wH2O(var%trop_ind) < 0.d0) then
+    if (wH2O(var%trop_ind) < 0.0_dp) then
       wH2O(var%trop_ind) = 1.d-20
     endif
     ! Here we re-scale the rainfall rate so that is the the same as what
@@ -1018,13 +1037,13 @@ contains
     !!!!!!! dissolve gas in the rain !!!!!!!!!
     do j = 1,var%trop_ind
       do i = 1,dat%nq
-        H_coeff = henrys_law(max(var%temperature(j),273.15d0),dat%henry_data(1,i),dat%henry_data(2,i))*(1.d5)
+        H_coeff = henrys_law(max(var%temperature(j),273.15e0_dp),dat%henry_data(1,i),dat%henry_data(2,i))*(1.e5_dp)
         H_coeff = max(H_coeff, small_real)
         k_bar = (C1*k_boltz*var%temperature(j)*H_coeff/ &
-                (1.d0+C1*C2*N_avo*LLL*k_boltz*var%temperature(j)*H_coeff)) &
+                (1.0_dp+C1*C2*N_avo*LLL*k_boltz*var%temperature(j)*H_coeff)) &
                 * (WH2O(j)*MH2O/rho_H2O) 
-        Q_i = (1.d0-fz) + (fz/(gamma*k_bar))*(1.d0 - exp(-k_bar*gamma))
-        rainout_rates(i,j) = (1.d0/(gamma*Q_i)) * (1.d0 - exp(-k_bar*gamma))
+        Q_i = (1.0_dp-fz) + (fz/(gamma*k_bar))*(1.0_dp - exp(-k_bar*gamma))
+        rainout_rates(i,j) = (1.0_dp/(gamma*Q_i)) * (1.0_dp - exp(-k_bar*gamma))
       enddo
     enddo
     !!!!!!! end dissolve gas in the rain !!!!!!!!!
@@ -1036,14 +1055,14 @@ contains
     use photochem_const, only: pi, k_boltz, N_avo, small_real
   
     class(Atmosphere), target, intent(inout) :: self
-    real(real_kind), intent(in) :: usol_in(:,:)
+    real(dp), intent(in) :: usol_in(:,:)
     character(len=err_len), intent(out) :: err
   
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
     integer :: i, j, k
-    real(real_kind) :: P_H2SO4
+    real(dp) :: P_H2SO4
   
     err = ''
   
@@ -1055,7 +1074,7 @@ contains
     ! this will make CVODE unstable. Guard against division by zero
     do j = 1,var%nz
       do i = 1,dat%nq
-        if (usol_in(i,j) < 0.d0) then
+        if (usol_in(i,j) < 0.0_dp) then
           wrk%usol(i,j) = min(usol_in(i,j),-small_real)
         else
           wrk%usol(i,j) = max(usol_in(i,j), small_real)
@@ -1109,12 +1128,12 @@ contains
                                                    dat%particle_sat_params(3,i))
             elseif (dat%particle_sat_type(i) == 2) then ! interpolate to H2SO4 data
               call dat%H2SO4_sat%evaluate(var%temperature(j), &
-                                          log10(wrk%usol(dat%LH2O,j)*wrk%pressure(j)/1.d6),P_H2SO4)
-              P_H2SO4 = 10.d0**(P_H2SO4)
-              wrk%gas_sat_den(i,j) = (P_H2SO4*1.d6)/(k_boltz*var%temperature(j))
+                                          log10(wrk%usol(dat%LH2O,j)*wrk%pressure(j)/1.e6_dp),P_H2SO4)
+              P_H2SO4 = 10.0_dp**(P_H2SO4)
+              wrk%gas_sat_den(i,j) = (P_H2SO4*1.e6_dp)/(k_boltz*var%temperature(j))
             endif
           endif
-          wrk%molecules_per_particle(i,j) = (4.d0/3.d0)*pi*var%particle_radius(i,j)**3.d0* &
+          wrk%molecules_per_particle(i,j) = (4.0_dp/3.0_dp)*pi*var%particle_radius(i,j)**3.0_dp* &
                                             dat%particle_density(i)*(1/dat%species_mass(i))*N_avo
         enddo
       enddo
@@ -1131,12 +1150,11 @@ contains
       do i = dat%ng_1,dat%nq
         wrk%densities(i,j) = wrk%usol(i,j)*wrk%density(j)
       enddo
-      wrk%densities(dat%nsp,j) = (1.d0-wrk%sum_usol(j))*wrk%density(j) ! background gas
-      wrk%densities(dat%nsp+1,j) = 1.d0 ! for hv
+      wrk%densities(dat%nsp,j) = (1.0_dp-wrk%sum_usol(j))*wrk%density(j) ! background gas
+      wrk%densities(dat%nsp+1,j) = 1.0_dp ! for hv
     enddo
     
-    call reaction_rates(self, dat%nsp, var%nz, dat%nrT, wrk%density, &
-                        wrk%densities, wrk%rx_rates, err)
+    call reaction_rates(self, wrk%density, wrk%densities, wrk%rx_rates, err)
     if (len_trim(err) /= 0) return
   
     call photorates(self, var%nz, dat%nsp, dat%kj, dat%nw, wrk%densities, &
@@ -1161,14 +1179,14 @@ contains
     
     class(Atmosphere), target, intent(inout) :: self
     integer, intent(in) :: neqs
-    real(real_kind), target, intent(in) :: usol_flat(neqs)
-    real(real_kind), intent(out) :: rhs(neqs)
+    real(dp), target, intent(in) :: usol_flat(neqs)
+    real(dp), intent(out) :: rhs(neqs)
     character(len=err_len), intent(out) :: err
     
-    real(real_kind) :: disth, ztop, ztop1    
+    real(dp) :: disth, ztop, ztop1    
     integer :: i, k, j, jdisth
     
-    real(real_kind), pointer :: usol_in(:,:)
+    real(dp), pointer :: usol_in(:,:)
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
@@ -1214,7 +1232,7 @@ contains
                         - wrk%DU(i,1)*wrk%usol(i,1) + wrk%ADU(i,1)*wrk%usol(i,1) &
                         - wrk%lower_vdep_copy(i)*wrk%usol(i,1)/var%dz(1)
       elseif (var%lowerboundcond(i) == 1) then
-        rhs(i) = 0.d0
+        rhs(i) = 0.0_dp
       elseif (var%lowerboundcond(i) == 2) then
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
                         - wrk%DU(i,1)*wrk%usol(i,1) + wrk%ADU(i,1)*wrk%usol(i,1) &
@@ -1246,14 +1264,14 @@ contains
     ! Distributed (volcanic) sources
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == 3) then
-        disth = var%lower_dist_height(i)*1.d5        
+        disth = var%lower_dist_height(i)*1.e5_dp        
         jdisth = minloc(var%Z,1, var%Z >= disth) - 1
         jdisth = max(jdisth,2)
         ztop = var%z(jdisth)-var%z(1)
-        ztop1 = var%z(jdisth) + 0.5d0*var%dz(jdisth)
+        ztop1 = var%z(jdisth) + 0.5e0_dp*var%dz(jdisth)
         do j = 2,jdisth
           k = i + (j-1)*dat%nq
-          rhs(k) = rhs(k) + 2.d0*var%lower_flux(i)*(ztop1-var%z(j))/(wrk%density(j)*ztop**2.d0)
+          rhs(k) = rhs(k) + 2.0_dp*var%lower_flux(i)*(ztop1-var%z(j))/(wrk%density(j)*ztop**2.0_dp)
         enddo
       endif
     enddo 
@@ -1261,7 +1279,7 @@ contains
     if (dat%fix_water_in_trop) then
       do j = 1,var%trop_ind
         k = dat%LH2O + (j-1)*dat%nq
-        rhs(k) = 0.d0
+        rhs(k) = 0.0_dp
       enddo
     endif
     
@@ -1273,17 +1291,17 @@ contains
     
     class(Atmosphere), target, intent(inout) :: self
     integer, intent(in) :: lda_neqs, neqs
-    real(real_kind), target, intent(in) :: usol_flat(neqs)
-    real(real_kind), intent(out), target :: jac(lda_neqs)
+    real(dp), target, intent(in) :: usol_flat(neqs)
+    real(dp), intent(out), target :: jac(lda_neqs)
     character(len=err_len), intent(out) :: err
     
-    real(real_kind), pointer :: usol_in(:,:)
-    real(real_kind), pointer :: djac(:,:)
-    real(real_kind) :: usol_perturb(self%dat%nq,self%var%nz)
-    real(real_kind) :: R(self%var%nz)
-    real(real_kind) :: rhs(self%var%neqs)
-    real(real_kind) :: rhs_perturb(self%var%neqs)
-    real(real_kind) :: densities(self%dat%nsp+1,self%var%nz), xl(self%var%nz), xp(self%var%nz)
+    real(dp), pointer :: usol_in(:,:)
+    real(dp), pointer :: djac(:,:)
+    real(dp) :: usol_perturb(self%dat%nq,self%var%nz)
+    real(dp) :: R(self%var%nz)
+    real(dp) :: rhs(self%var%neqs)
+    real(dp) :: rhs_perturb(self%var%neqs)
+    real(dp) :: densities(self%dat%nsp+1,self%var%nz), xl(self%var%nz), xp(self%var%nz)
     ! we need these work arrays for parallel jacobian claculation.
     ! It is probably possible to use memory in "wrk", but i will ignore
     ! this for now.
@@ -1313,7 +1331,7 @@ contains
     if (len_trim(err) /= 0) return
   
     ! compute chemistry contribution to jacobian using forward differences
-    jac = 0.d0
+    jac = 0.0_dp
     call dochem(self, var%neqs, dat%nsp, dat%np, dat%nsl, dat%nq, var%nz, var%trop_ind, dat%nrT, &
                 wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
@@ -1369,9 +1387,9 @@ contains
 
         do m=1,dat%nq
           mm = dat%kd + i - m
-          djac(mm,m) = 0.d0
+          djac(mm,m) = 0.0_dp
         enddo
-        djac(dat%ku,i+dat%nq) = 0.d0
+        djac(dat%ku,i+dat%nq) = 0.0_dp
         ! For some reason this term makes the integration
         ! much happier. I will keep it. Jacobians don't need to be perfect.
         djac(dat%kd,i) = - wrk%DU(i,1)
@@ -1408,69 +1426,75 @@ contains
         k = dat%LH2O + (j-1)*dat%nq
         do m = 1,dat%nq
           mm = m - dat%LH2O + dat%kd
-          djac(mm,k) = 0.d0
+          djac(mm,k) = 0.0_dp
         enddo
         ! For some reason this term makes the integration
         ! much happier. I will keep it. Jacobians don't need to be perfect.
         djac(dat%kd,k) = - wrk%DU(dat%LH2O,j)
-        djac(dat%ku,k+dat%nq) = 0.d0
+        djac(dat%ku,k+dat%nq) = 0.0_dp
         if (j /= 1) then
-          djac(dat%kl,k-dat%nq) = 0.d0
+          djac(dat%kl,k-dat%nq) = 0.0_dp
         endif
       enddo
     endif
   
   end subroutine
-  
+
   subroutine chempl_t(self, nz, nsp, nrT, np, nl, densities, rx_rates, k, xpT, xlT)
-  
+    
     ! input
-    class(Atmosphere), intent(in) :: self
+    class(Atmosphere), intent(in), target :: self
     integer, intent(in) :: nz, nsp, nrT
     integer, intent(in) :: np, nl
-    real(real_kind), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
-    real(real_kind), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
+    real(dp), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
+    real(dp), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
     integer, intent(in) :: k ! species number
-  
+    
     ! output
-    real(real_kind), intent(out) :: xpT(nz,np), xlT(nz,nl) ! molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
-  
+    real(dp), intent(out) :: xpT(nz,np), xlT(nz,nl) ! molecules/cm3/s.
+      
     ! local
-    real(real_kind) :: DD
+    real(dp) :: DD
     integer :: i, ii, iii, m, l, j
-    xpT = 0.d0
-    xlT = 0.d0
-  
-    ! np = self%dat%nump(k) ! k is a species
-    ! np is number of reactions that produce species k
-    do i=1,np
-      m = self%dat%iprod(i,k) ! m is reaction number
-      l = self%dat%nreactants(m) ! l is the number of reactants
-      do j = 1,self%var%nz
-        DD = 1.d0
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    
+    dat => self%dat
+    var => self%var
+    
+    xpT = 0.0_dp
+    xlT = 0.0_dp
+    
+    ! k is a species
+    ! nump is number of reactions that produce species k
+    do i = 1,dat%pl(k)%nump
+      m = dat%pl(k)%iprod(i) ! m is reaction number
+      l = dat%rx(m)%nreact ! l is the number of reactants
+      do j = 1,var%nz
+        DD = 1.0_dp
         do ii = 1,l
-          iii = self%dat%reactants_sp_inds(ii,m)
+          iii = dat%rx(m)%react_sp_inds(ii)
           DD = DD * densities(iii,j)
         enddo
         xpT(j,i) = rx_rates(j,m) * DD
       enddo
     enddo
-  
-    ! nl = self%dat%numl(k) ! k is a species
-    ! nl is number of reactions that destroy species k
-    do i=1,nl
-      m = self%dat%iloss(i,k) ! This will JUST be reaction number
-      l = self%dat%nreactants(m) ! number of reactants
-      do j = 1,self%var%nz
-        DD = 1.d0
+    
+    ! k is a species
+    ! numl is number of reactions that destroy species k
+    do i=1,dat%pl(k)%numl
+      m = dat%pl(k)%iloss(i) ! This will JUST be reaction number
+      l = dat%rx(m)%nreact ! number of reactants
+      do j = 1,var%nz
+        DD = 1.0_dp
         do ii = 1,l
-          iii = self%dat%reactants_sp_inds(ii,m)
+          iii = dat%rx(m)%react_sp_inds(ii)
           DD = DD * densities(iii,j)
         enddo
         xlT(j,i) = rx_rates(j,m) * DD
       enddo
     enddo
-  
+    
   end subroutine
   
   module subroutine production_and_loss(self, species, usol, pl, err)     
@@ -1480,11 +1504,11 @@ contains
   
     class(Atmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: species
-    real(real_kind), intent(in) :: usol(:,:)
+    real(dp), intent(in) :: usol(:,:)
     type(ProductionLoss), intent(out) :: pl
     character(len=err_len), intent(out) :: err
   
-    real(real_kind) :: xl(self%var%nz), xp(self%var%nz)
+    real(dp) :: xl(self%var%nz), xp(self%var%nz)
     integer, allocatable :: prod_inds(:), loss_inds(:)
     integer :: ind(1), sp_ind
     integer :: i, j, k, np, nl, nlT
@@ -1513,8 +1537,8 @@ contains
     call self%prep_atmosphere(usol, err)
     if (len_trim(err) /= 0) return
   
-    np = self%dat%nump(sp_ind)
-    nl = self%dat%numl(sp_ind)
+    np = dat%pl(sp_ind)%nump
+    nl = dat%pl(sp_ind)%numl
     nlT = nl + 1 ! + 1 for rainout
     
     allocate(pl%production(var%nz,np))
@@ -1531,8 +1555,8 @@ contains
       do k = dat%ng_1,dat%nq
         wrk%densities(k,j) = wrk%usol(k,j)*wrk%density(j)
       enddo
-      wrk%densities(dat%nsp,j) = (1.d0-sum(wrk%usol(dat%ng_1:,j)))*wrk%density(j) ! background gas
-      wrk%densities(dat%nsp+1,j) = 1.d0 ! for hv
+      wrk%densities(dat%nsp,j) = (1.0_dp-sum(wrk%usol(dat%ng_1:,j)))*wrk%density(j) ! background gas
+      wrk%densities(dat%nsp+1,j) = 1.0_dp ! for hv
     enddo
   
     if (sp_ind <= dat%nq) then ! long lived or particle
@@ -1548,19 +1572,19 @@ contains
   
     do i = 1,np
       pl%integrated_production(i) = sum(pl%production(:,i)*var%dz)
-      k = dat%iprod(i,sp_ind) ! reaction number
+      k = dat%pl(sp_ind)%iprod(i) ! reaction number
       pl%production_rx(i) = dat%reaction_equations(k)
     enddo
     do i = 1,nl
       pl%integrated_loss(i) = sum(pl%loss(:,i)*var%dz)
-      k = dat%iloss(i,sp_ind) ! reaction number
+      k = dat%pl(sp_ind)%iloss(i) ! reaction number
       pl%loss_rx(i) = dat%reaction_equations(k)
     enddo
     
     ! rainout
     pl%loss_rx(nl+1) = "rainout"
-    pl%loss(:,nl+1) = 0.d0
-    pl%integrated_loss(nl+1) = 0.d0
+    pl%loss(:,nl+1) = 0.0_dp
+    pl%integrated_loss(nl+1) = 0.0_dp
     if (dat%gas_rainout .and. sp_ind <= dat%nq) then
       pl%loss(1:var%trop_ind,nl+1) = &
           wrk%rainout_rates(sp_ind,1:var%trop_ind)*wrk%densities(sp_ind,1:var%trop_ind)

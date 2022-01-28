@@ -1,4 +1,4 @@
-from ._Photochem import Atmosphere, sat_pressure_H2O, __version__
+from ._photochem import Atmosphere, sat_pressure_H2O, __version__
 
 import os
 zahnle_earth = os.path.dirname(os.path.realpath(__file__))+ \

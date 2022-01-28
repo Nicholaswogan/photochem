@@ -1,7 +1,7 @@
 
 module photochem_types ! make a giant IO object
   use, intrinsic :: iso_c_binding, only: c_double, c_int, c_long, c_ptr, c_null_ptr
-  use photochem_const, only: real_kind, str_len, s_str_len, m_str_len
+  use photochem_const, only: dp, str_len, s_str_len, m_str_len
   
   use linear_interpolation_module, only: linear_interp_2d
   use fsundials_nvector_mod, only: N_Vector
@@ -12,47 +12,118 @@ module photochem_types ! make a giant IO object
   
   public :: PhotochemData, PhotochemVars, PhotochemWrk
   public :: ProductionLoss, AtomConservation, ThermodynamicData
+  public :: Reaction, Efficiencies, BaseRate, PhotolysisRate
+  public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
   
   type :: ProductionLoss
-    real(real_kind), allocatable :: production(:,:)
-    real(real_kind), allocatable :: loss(:,:)
-    real(real_kind), allocatable :: integrated_production(:)
-    real(real_kind), allocatable :: integrated_loss(:)
+    real(dp), allocatable :: production(:,:)
+    real(dp), allocatable :: loss(:,:)
+    real(dp), allocatable :: integrated_production(:)
+    real(dp), allocatable :: integrated_loss(:)
     character(len=m_str_len), allocatable :: production_rx(:)
     character(len=m_str_len), allocatable :: loss_rx(:)
   end type
   
   type :: XsectionData
     integer :: n_temps
-    real(real_kind), allocatable :: xs(:,:) ! (n_temps, nw)
-    real(real_kind), allocatable :: xs_temps(:) ! (n_temps)
+    real(dp), allocatable :: xs(:,:) ! (n_temps, nw)
+    real(dp), allocatable :: xs_temps(:) ! (n_temps)
   end type
   
   type :: ParticleXsections
     logical :: ThereIsData
-    real(real_kind), allocatable :: w0(:,:) ! (nz,nw) or (nrad_file, nw)
-    real(real_kind), allocatable :: qext(:,:)
-    real(real_kind), allocatable :: gt(:,:)
+    real(dp), allocatable :: w0(:,:) ! (nz,nw) or (nrad_file, nw)
+    real(dp), allocatable :: qext(:,:)
+    real(dp), allocatable :: gt(:,:)
   end type
   
   type :: ThermodynamicData
     integer :: dtype ! shomate = 1
     integer :: ntemps
-    real(real_kind), allocatable :: temps(:)
-    real(real_kind), allocatable :: data(:,:)
+    real(dp), allocatable :: temps(:)
+    real(dp), allocatable :: data(:,:)
   end type
   
   type :: AtomConservation
-    real(real_kind) :: in_surf
-    real(real_kind) :: in_top
-    real(real_kind) :: in_dist
-    real(real_kind) :: out_surf
-    real(real_kind) :: out_top
-    real(real_kind) :: out_rain
-    real(real_kind) :: out_other
-    real(real_kind) :: net
-    real(real_kind) :: factor
+    real(dp) :: in_surf
+    real(dp) :: in_top
+    real(dp) :: in_dist
+    real(dp) :: out_surf
+    real(dp) :: out_top
+    real(dp) :: out_rain
+    real(dp) :: out_other
+    real(dp) :: net
+    real(dp) :: factor
   end type
+  
+  !!!!!!!!!!!!!!!!!
+  !!! Reactions !!!
+  !!!!!!!!!!!!!!!!!
+  
+  type :: Efficiencies
+    integer :: n_eff ! number of efficiencies
+    real(dp) :: def_eff ! default efficiency
+    real(dp), allocatable :: efficiencies(:) ! 3-body efficiencies
+    integer, allocatable :: eff_sp_inds(:) ! species indices for each efficiency
+  end type
+  
+  type, abstract :: BaseRate
+    integer :: rxtype 
+    ! 0 is PhotolysisRate, 1 is ElementaryRate, 2 is ThreeBodyRate, 3 is FalloffRate
+  end type
+  
+  type, extends(BaseRate) :: PhotolysisRate 
+    ! no rate parameters. calculated via radiative transfer
+  end type
+  
+  type, extends(BaseRate) :: ElementaryRate
+    ! rate = A*T^b*exp(-Ea/T)
+    real(dp) :: A
+    real(dp) :: b
+    real(dp) :: Ea
+  end type
+  
+  type, extends(ElementaryRate) :: ThreeBodyRate
+    type(Efficiencies) :: eff
+  end type
+  
+  type, extends(BaseRate) :: FalloffRate
+    real(dp) :: A0
+    real(dp) :: b0
+    real(dp) :: Ea0
+    real(dp) :: Ainf
+    real(dp) :: binf
+    real(dp) :: Eainf
+    
+    integer :: falloff_type
+    real(dp), allocatable :: A_T
+    real(dp), allocatable :: T1
+    real(dp), allocatable :: T2
+    real(dp), allocatable :: T3
+    
+    type(Efficiencies) :: eff
+  end type
+  
+  type :: Reaction
+    integer :: nreact ! number of reactants
+    integer :: nprod ! number of projects
+    integer, allocatable :: react_sp_inds(:) ! (nreact) species indexes for reactants
+    integer, allocatable :: prod_sp_inds(:) ! (nprod) species indexes for products
+    integer, allocatable :: reverse_info ! if a reversed reaction, 
+                                         ! then it is the index of the forward
+    class(BaseRate), allocatable :: rp ! rate parameters
+  end type
+  
+  type :: ProdLoss
+    integer :: nump ! size(iprod)
+    integer :: numl ! size(iloss)
+    integer, allocatable :: iprod(:) ! reaction #s of production mechanism for sp
+    integer, allocatable :: iloss(:) ! reaction #s of loss mechanism for sp
+  end type
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!! Data, Vars, and Wrk !!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!
   
   type :: PhotochemData
     ! PhotochemData contains information that is never changed
@@ -70,16 +141,16 @@ module photochem_types ! make a giant IO object
     integer :: kd, kl, ku ! not read in. It is nq + nq + 1 (diagonal width of jacobian)
     integer :: lda ! not read in. It is nq + nq + nq + 1. leading dimension of array which stores jacobian
     character(len=s_str_len), allocatable :: atoms_names(:) ! (natoms)
-    real(real_kind), allocatable :: atoms_mass(:) ! g/mol (natoms)
-    real(real_kind), allocatable :: atoms_redox(:) !  (natoms)
+    real(dp), allocatable :: atoms_mass(:) ! g/mol (natoms)
+    real(dp), allocatable :: atoms_redox(:) !  (natoms)
     character(len=s_str_len), allocatable :: SL_names(:) ! (nsl)
     character(len=s_str_len), allocatable :: species_names(:) ! (nsp+2) + 2 for hv and M
     integer, allocatable :: species_composition(:,:) ! (natoms, nsp+2)
-    real(real_kind), allocatable :: species_mass(:) ! (nsp)
-    real(real_kind), allocatable :: species_redox(:) ! (nsp)
+    real(dp), allocatable :: species_mass(:) ! (nsp)
+    real(dp), allocatable :: species_redox(:) ! (nsp)
     type(ThermodynamicData), allocatable :: thermo_data(:) ! (ng)
-    real(real_kind), allocatable :: henry_data(:,:) ! (2, nsp).
-    ! henry_data(:,i) = [A, B], and [mol/(kg * Pa)] = A*exp(B*(1.d0/298.15d0 - 1.d0/T))
+    real(dp), allocatable :: henry_data(:,:) ! (2, nsp).
+    ! henry_data(:,i) = [A, B], and [mol/(kg * Pa)] = A*exp(B*(1.0_dp/298.15e0_dp - 1.0_dp/T))
     
     ! particles
     logical :: there_are_particles
@@ -87,10 +158,10 @@ module photochem_types ! make a giant IO object
     integer :: npq ! number of particle equations. for now nq = npq.
     character(len=s_str_len), allocatable :: particle_names(:) ! np
     integer, allocatable :: particle_formation_method(:) ! np. 1 == saturation, 2 == reaction
-    real(real_kind), allocatable :: particle_density(:) ! np (g/cm3)
+    real(dp), allocatable :: particle_density(:) ! np (g/cm3)
     type(linear_interp_2d) :: H2SO4_sat ! interpolator for H2SO4 saturation, which depends on T and H2O.
     integer, allocatable :: particle_sat_type(:) ! np, 1 == arrhenius, 2 == H2SO4
-    real(real_kind), allocatable :: particle_sat_params(:,:) ! (3,np)
+    real(dp), allocatable :: particle_sat_params(:,:) ! (3,np)
     character(len=s_str_len), allocatable :: particle_gas_phase(:) ! (np). gas phase of particle. 
     ! Only for saturation particles
     integer, allocatable :: particle_gas_phase_ind(:) ! np. index of gas phase of particle
@@ -102,43 +173,23 @@ module photochem_types ! make a giant IO object
     integer :: nrF ! number of forward reactions
     integer :: nrR ! number of reverse reactions
     integer :: nrT ! number of total reactions
-    integer :: max_num_reactants
-    integer :: max_num_products
-    character(len=m_str_len), allocatable :: reaction_equations(:)
-    character(len=s_str_len), allocatable :: reactants_names(:,:)
-    character(len=s_str_len), allocatable :: products_names(:,:)
-    ! reactants_sp_inds(1:nreactants(i),i) are the species indicies for reaction i
-    integer, allocatable :: reactants_sp_inds(:,:) ! (max_num_reactants, nrT)
-    ! same idea as reactants_sp_inds
-    integer, allocatable :: products_sp_inds(:,:) ! (max_num_products, nrT)
-    integer, allocatable :: nreactants(:) ! (nrT) number of reactants
-    integer, allocatable :: nproducts(:) ! (nrT) number of products
-    integer, allocatable :: reverse_info(:) ! (nrT) indexs between forward and reverse reactions
-    integer, allocatable :: rxtypes(:) ! (nrT) 0 is photolysis, 1 is elementary, 2 is three-body, 3 is falloff
-    real(real_kind), allocatable :: rateparams(:,:) ! (10, nrF)
-    real(real_kind), allocatable :: efficiencies(:,:) ! (maxval(num_efficient), nrF)
-    integer, allocatable :: eff_sp_inds(:,:) ! (maxval(num_efficient), nrF)
-    integer, allocatable :: num_efficient(:) ! number of efficiencies for each reaction
-    real(real_kind), allocatable :: def_eff(:) ! default efficiency
-    integer, allocatable :: falloff_type(:) ! type of falloff function (0 = none, 1 = Troe without T2,..)
-    integer, allocatable :: nump(:) ! number of production mechanisms (rxns) for each sp
-    integer, allocatable :: numl(:) ! number of loss mechanisms (rxns) for each sp
-    integer, allocatable :: iprod(:,:) ! (nmax,nsp) returns reaction # of production mechanism for sp
-    integer, allocatable :: iloss(:,:) ! (nmax,nsp) returns reaction # of loss mechanism for sp
+    type(Reaction), allocatable :: rx(:) ! (nrT) array of reaction objects
+    character(len=m_str_len), allocatable :: reaction_equations(:) ! (nrT)
+    type(ProdLoss), allocatable :: pl(:) ! (nsp) reactions producing and destroying each species
     integer :: kj ! number of photolysis reactions
     integer, allocatable :: photonums(:) ! (kj) the reaction number of each photolysis reaction
 
     ! raditative transfer
     integer :: nw ! number of wavelength bins
-    real(real_kind), allocatable :: wavl(:) ! (nw+1) wavelength bins in nm
+    real(dp), allocatable :: wavl(:) ! (nw+1) wavelength bins in nm
     type(XsectionData), allocatable :: xs_data(:) ! (kj)
     integer :: nray ! number of species with rayleigh scattering
-    real(real_kind), allocatable :: sigray(:,:) ! (len(raynums), nw)
+    real(dp), allocatable :: sigray(:,:) ! (len(raynums), nw)
     integer, allocatable :: raynums(:) ! species number of rayleigh species
     
     ! particle radiative transfer
     integer :: nrad_file
-    real(real_kind), allocatable  :: radii_file(:,:) ! particle radii in optical data files
+    real(dp), allocatable  :: radii_file(:,:) ! particle radii in optical data files
     ! We use array of types for particle xs because we want the option
     ! to exclude optical properties, but not take up a ton of useless memory.
     ! So some elements of this array have nothing in it.
@@ -146,23 +197,23 @@ module photochem_types ! make a giant IO object
     
     ! initial conditions  
     integer :: nzf ! number of atmospheric layers in file
-    real(real_kind), allocatable :: z_file(:) ! (nzf) cm
-    real(real_kind), allocatable :: T_file(:) ! (nzf) K
-    real(real_kind), allocatable :: edd_file(:) ! (nzf) cm2/s
-    real(real_kind), allocatable :: usol_file(:,:) ! (nq,nzf) mixing ratios
-    real(real_kind), allocatable :: particle_radius_file(:,:) ! (np,nzf) cm
+    real(dp), allocatable :: z_file(:) ! (nzf) cm
+    real(dp), allocatable :: T_file(:) ! (nzf) K
+    real(dp), allocatable :: edd_file(:) ! (nzf) cm2/s
+    real(dp), allocatable :: usol_file(:,:) ! (nq,nzf) mixing ratios
+    real(dp), allocatable :: particle_radius_file(:,:) ! (np,nzf) cm
     
     ! settings
     logical :: regular_grid ! True of wavelength grid is evenly spaced
-    real(real_kind) :: lower_wavelength ! nm
-    real(real_kind) :: upper_wavelength ! nm
+    real(dp) :: lower_wavelength ! nm
+    real(dp) :: upper_wavelength ! nm
     character(len=str_len) :: grid_file ! filename of grid file. Only if regular_grid == False
     logical :: back_gas ! True if background gas is used
     character(len=str_len) :: back_gas_name ! Normally N2, but can be most any gas.
-    real(real_kind) :: back_gas_mu ! g/mol
+    real(dp) :: back_gas_mu ! g/mol
     integer :: back_gas_ind
-    real(real_kind) :: planet_mass ! grams
-    real(real_kind) :: planet_radius ! cm
+    real(dp) :: planet_mass ! grams
+    real(dp) :: planet_radius ! cm
     logical :: fix_water_in_trop ! True if fixing water in troposphere
     integer :: LH2O ! index of H2O
     logical :: water_cond ! True if water should condense out of the atmosphere
@@ -188,38 +239,38 @@ module photochem_types ! make a giant IO object
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! boundary conditions
     integer, allocatable :: lowerboundcond(:) ! 0, 1, 2 or 3
-    real(real_kind), allocatable :: lower_vdep(:)
-    real(real_kind), allocatable :: lower_flux(:)
-    real(real_kind), allocatable :: lower_dist_height(:)
-    real(real_kind), allocatable :: lower_fix_mr(:)
+    real(dp), allocatable :: lower_vdep(:)
+    real(dp), allocatable :: lower_flux(:)
+    real(dp), allocatable :: lower_dist_height(:)
+    real(dp), allocatable :: lower_fix_mr(:)
     integer, allocatable :: upperboundcond(:) ! 0 or 2
-    real(real_kind), allocatable :: upper_veff(:)
-    real(real_kind), allocatable :: upper_flux(:)
+    real(dp), allocatable :: upper_veff(:)
+    real(dp), allocatable :: upper_flux(:)
     logical, allocatable :: only_eddy(:) ! True if only use eddy
     
     ! Atmospheres structure
-    real(real_kind) :: bottom_atmos ! cm
-    real(real_kind) :: top_atmos ! cm
+    real(dp) :: bottom_atmos ! cm
+    real(dp) :: top_atmos ! cm
     integer :: nz ! number of vertical layers
-    real(real_kind) :: surface_pressure ! bars
-    real(real_kind) :: surface_albedo
-    real(real_kind) :: diurnal_fac ! normally 0.5 cuz planets spin around.
-    real(real_kind) :: solar_zenith 
-    real(real_kind) :: trop_alt ! cm (only for fix_water_in_trop == true or gas_rainout == true)
-    real(real_kind) :: rainfall_rate ! relative to modern Earth's average rainfall rate of 1.1e17 molecules/cm2/s
+    real(dp) :: surface_pressure ! bars
+    real(dp) :: surface_albedo
+    real(dp) :: diurnal_fac ! normally 0.5 cuz planets spin around.
+    real(dp) :: solar_zenith 
+    real(dp) :: trop_alt ! cm (only for fix_water_in_trop == true or gas_rainout == true)
+    real(dp) :: rainfall_rate ! relative to modern Earth's average rainfall rate of 1.1e17 molecules/cm2/s
     integer :: trop_ind ! index of troposphere (only for fix_water_in_trop == true or gas_rainout == true)
     logical :: use_manabe ! use manabe formula
-    real(real_kind) :: relative_humidity ! relative humidity if no manabe
-    real(real_kind) :: H2O_condensation_rate(3) 
+    real(dp) :: relative_humidity ! relative humidity if no manabe
+    real(dp) :: H2O_condensation_rate(3) 
     
     ! Radiative tranfer
-    real(real_kind), allocatable :: photon_flux(:) ! (nw) photonz
+    real(dp), allocatable :: photon_flux(:) ! (nw) photonz
     ! for scaling photon flux for different planets in a solar system
-    real(real_kind) :: photon_scale_factor 
+    real(dp) :: photon_scale_factor 
     
     ! particles
     ! condensation rate of particles
-    real(real_kind), allocatable :: condensation_rate(:,:)
+    real(dp), allocatable :: condensation_rate(:,:)
     
     ! switch for dealing with H2O if not read in. in some cases
     logical :: no_water_profile
@@ -228,31 +279,31 @@ module photochem_types ! make a giant IO object
     !!! set AFTER file read-in !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     integer :: neqs ! number of equations nq*nz
-    real(real_kind), allocatable :: temperature(:) ! (nz) K
-    real(real_kind), allocatable :: z(:) ! (nz) cm
-    real(real_kind), allocatable :: dz(:) ! (nz) cm
-    real(real_kind), allocatable :: edd(:) ! (nz) cm2/s
-    real(real_kind), allocatable :: grav(:) ! (nz) cm/s2
-    real(real_kind), allocatable :: usol_init(:,:) ! (nq,nz) mixing ratio
-    real(real_kind), allocatable :: particle_radius(:,:) ! (np,nz) cm
-    real(real_kind), allocatable :: xs_x_qy(:,:,:) ! (nz,kj,nw) cm2/molecule
+    real(dp), allocatable :: temperature(:) ! (nz) K
+    real(dp), allocatable :: z(:) ! (nz) cm
+    real(dp), allocatable :: dz(:) ! (nz) cm
+    real(dp), allocatable :: edd(:) ! (nz) cm2/s
+    real(dp), allocatable :: grav(:) ! (nz) cm/s2
+    real(dp), allocatable :: usol_init(:,:) ! (nq,nz) mixing ratio
+    real(dp), allocatable :: particle_radius(:,:) ! (np,nz) cm
+    real(dp), allocatable :: xs_x_qy(:,:,:) ! (nz,kj,nw) cm2/molecule
     type(ParticleXsections), allocatable :: particle_xs(:) ! (np) cm2/molecule
-    real(real_kind), allocatable :: gibbs_energy(:,:) ! (nz,ng) Joules/mol
+    real(dp), allocatable :: gibbs_energy(:,:) ! (nz,ng) Joules/mol
     
     ! output
     logical :: at_photo_equilibrium = .false.
-    real(real_kind), allocatable :: usol_out(:,:)
+    real(dp), allocatable :: usol_out(:,:)
     
     ! other 
     real(c_double) :: rtol = 1.d-3 ! integration relative tolerance
     real(c_double) :: atol = 1.d-27 ! integration absolute tolerance
     integer :: mxsteps = 10000 ! max number of steps before integrator will give up.
     ! seconds. atomsphere considered in equilibrium if integrations reaches this time.
-    real(real_kind) :: equilibrium_time = 1.d17 
+    real(dp) :: equilibrium_time = 1.e17_dp 
     real(c_double) :: initial_dt = 1.d-6 ! intial timestep size (seconds)
     integer(c_int) :: max_err_test_failures = 15 
     integer(c_int) :: max_order = 5
-    real(real_kind) :: epsj = 1.d-9 ! perturbation for jacobian calculation
+    real(dp) :: epsj = 1.d-9 ! perturbation for jacobian calculation
     integer :: verbose = 1 ! 0 == no printing. 1 == some printing. 2 == bunch of printing.
   end type
   
@@ -271,37 +322,37 @@ module photochem_types ! make a giant IO object
     
     ! Used in prep_all_background_gas
     ! work arrays
-    real(real_kind), allocatable :: usol(:,:) ! (nq,nz)
-    real(real_kind), allocatable :: densities(:,:) ! (nsp+1,nz)
-    real(real_kind), allocatable :: density(:) ! (nz)
-    real(real_kind), allocatable :: rx_rates(:,:) ! (nz,nrT)
-    real(real_kind), allocatable :: mubar(:) ! (nz)
-    real(real_kind), allocatable :: pressure(:) ! (nz)
-    real(real_kind), allocatable :: fH2O(:) ! (nz)
-    real(real_kind), allocatable :: H2O_sat_mix(:) ! (nz)
-    real(real_kind), allocatable :: prates(:,:) ! (nz,kj)
-    real(real_kind), allocatable :: surf_radiance(:) ! (nw)
-    real(real_kind), allocatable :: amean_grd(:,:) ! (nz,nw)
-    real(real_kind), allocatable :: optical_depth(:,:) ! (nz,nw)
-    real(real_kind), allocatable :: upper_veff_copy(:) ! (nq)
-    real(real_kind), allocatable :: lower_vdep_copy(:) ! (nq)
-    real(real_kind), allocatable :: xp(:) ! (nz)
-    real(real_kind), allocatable :: xl(:) ! (nz)
+    real(dp), allocatable :: usol(:,:) ! (nq,nz)
+    real(dp), allocatable :: densities(:,:) ! (nsp+1,nz)
+    real(dp), allocatable :: density(:) ! (nz)
+    real(dp), allocatable :: rx_rates(:,:) ! (nz,nrT)
+    real(dp), allocatable :: mubar(:) ! (nz)
+    real(dp), allocatable :: pressure(:) ! (nz)
+    real(dp), allocatable :: fH2O(:) ! (nz)
+    real(dp), allocatable :: H2O_sat_mix(:) ! (nz)
+    real(dp), allocatable :: prates(:,:) ! (nz,kj)
+    real(dp), allocatable :: surf_radiance(:) ! (nw)
+    real(dp), allocatable :: amean_grd(:,:) ! (nz,nw)
+    real(dp), allocatable :: optical_depth(:,:) ! (nz,nw)
+    real(dp), allocatable :: upper_veff_copy(:) ! (nq)
+    real(dp), allocatable :: lower_vdep_copy(:) ! (nq)
+    real(dp), allocatable :: xp(:) ! (nz)
+    real(dp), allocatable :: xl(:) ! (nz)
     ! diffusion and H escape
-    real(real_kind), allocatable :: DU(:,:) ! (nq,nz)
-    real(real_kind), allocatable :: DD(:,:) ! (nq,nz)
-    real(real_kind), allocatable :: DL(:,:) ! (nq,nz)
-    real(real_kind), allocatable :: ADU(:,:) ! (nq,nz)
-    real(real_kind), allocatable :: ADL(:,:) ! (nq,nz)
-    real(real_kind) :: VH2_esc
-    real(real_kind) :: VH_esc
+    real(dp), allocatable :: DU(:,:) ! (nq,nz)
+    real(dp), allocatable :: DD(:,:) ! (nq,nz)
+    real(dp), allocatable :: DL(:,:) ! (nq,nz)
+    real(dp), allocatable :: ADU(:,:) ! (nq,nz)
+    real(dp), allocatable :: ADL(:,:) ! (nq,nz)
+    real(dp) :: VH2_esc
+    real(dp) :: VH_esc
     ! other
-    real(real_kind), allocatable :: sum_usol(:) ! (nz)
-    real(real_kind) :: surface_scale_height
-    real(real_kind), allocatable :: wfall(:,:)
-    real(real_kind), allocatable :: gas_sat_den(:,:)
-    real(real_kind), allocatable :: molecules_per_particle(:,:)
-    real(real_kind), allocatable :: rainout_rates(:,:)
+    real(dp), allocatable :: sum_usol(:) ! (nz)
+    real(dp) :: surface_scale_height
+    real(dp), allocatable :: wfall(:,:)
+    real(dp), allocatable :: gas_sat_den(:,:)
+    real(dp), allocatable :: molecules_per_particle(:,:)
+    real(dp), allocatable :: rainout_rates(:,:)
     ! end used in prep_all_background_gas
     
     

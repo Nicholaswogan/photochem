@@ -1,72 +1,72 @@
 module photochem_eqns
-  use photochem_const, only: real_kind
+  use photochem_const, only: dp
   implicit none
   
 contains
   
   pure subroutine gravity(radius, mass, nz, z, grav)
     use photochem_const, only: G_grav
-    real(real_kind), intent(in) :: radius, mass ! radius in cm, mass in grams
+    real(dp), intent(in) :: radius, mass ! radius in cm, mass in grams
     integer, intent(in) :: nz
-    real(real_kind), intent(in) :: z(nz) ! cm
-    real(real_kind), intent(out) :: grav(nz) ! cm/s2
+    real(dp), intent(in) :: z(nz) ! cm
+    real(dp), intent(out) :: grav(nz) ! cm/s2
 
     integer :: i
     
     do i = 1, nz              
-      grav(i) = G_grav * (mass/1.d3) / ((radius + z(i))/1.d2)**2.d0
-      grav(i) = grav(i)*1.d2 ! convert to cgs
+      grav(i) = G_grav * (mass/1.e3_dp) / ((radius + z(i))/1.e2_dp)**2.0_dp
+      grav(i) = grav(i)*1.e2_dp ! convert to cgs
     enddo 
     
   end subroutine
   
   pure subroutine vertical_grid(bottom, top, nz, z, dz)
-    real(real_kind), intent(in) :: bottom, top
+    real(dp), intent(in) :: bottom, top
     integer, intent(in) :: nz
-    real(real_kind), intent(out) :: z(nz), dz(nz)
+    real(dp), intent(out) :: z(nz), dz(nz)
   
     integer :: i
   
     dz = (top - bottom)/nz
-    z(1) = dz(1)/2.d0
+    z(1) = dz(1)/2.0_dp
     do i = 2,nz
       z(i) = z(i-1) + dz(i)
     enddo
   end subroutine
   
   pure function gibbs_energy_shomate(coeffs, T) result(gibbs)
-    real(real_kind), intent(in) :: coeffs(7)
-    real(real_kind), intent(in) :: T
-    real(real_kind) :: gibbs
+    real(dp), intent(in) :: coeffs(7)
+    real(dp), intent(in) :: T
+    real(dp) :: gibbs
     
-    real(real_kind) :: enthalpy, entropy, TT
+    real(dp) :: enthalpy, entropy, TT
     
-    TT = T/1000.d0
-    enthalpy = coeffs(1)*TT + (coeffs(2)*TT**2)/2.d0 &
-             + (coeffs(3)*TT**3)/3.d0  + (coeffs(4)*TT**4)/4.d0 &
+    TT = T/1000.0_dp
+    enthalpy = coeffs(1)*TT + (coeffs(2)*TT**2)/2.0_dp &
+             + (coeffs(3)*TT**3)/3.0_dp  + (coeffs(4)*TT**4)/4.0_dp &
              - coeffs(5)/TT + coeffs(6)
     entropy = coeffs(1)*log(TT) + coeffs(2)*TT &
-            + (coeffs(3)*TT**2)/2.d0 + (coeffs(4)*TT**3)/3.d0 &
-            - coeffs(5)/(2.d0 * TT**2) + coeffs(7)
-    gibbs = enthalpy*1000.d0 - T*entropy
+            + (coeffs(3)*TT**2)/2.0_dp + (coeffs(4)*TT**3)/3.0_dp &
+            - coeffs(5)/(2.0_dp * TT**2) + coeffs(7)
+    gibbs = enthalpy*1000.0_dp - T*entropy
   end function
   
   pure function gibbs_energy_nasa9(coeffs, T) result(gibbs)
     use photochem_const, only: Rgas
-    real(real_kind), intent(in) :: coeffs(9)
-    real(real_kind), intent(in) :: T
-    real(real_kind) :: gibbs
+    real(dp), intent(in) :: coeffs(9)
+    real(dp), intent(in) :: T
+    real(dp) :: gibbs
     
-    real(real_kind) :: enthalpy, entropy
+    real(dp) :: enthalpy, entropy
     
-    enthalpy = (- coeffs(1)*T**(-2.d0) + coeffs(2)*log(T)/T &
-                + coeffs(3) + coeffs(4)*T/2.d0 + coeffs(5)*T**(2.d0)/3.d0 &
-                + coeffs(6)*T**(3.d0)/4.d0 + coeffs(7)*T**(4.d0)/5.d0 &
+    enthalpy = (- coeffs(1)*T**(-2.0_dp) + coeffs(2)*log(T)/T &
+                + coeffs(3) + coeffs(4)*T/2.0_dp + coeffs(5)*T**(2.0_dp)/3.0_dp &
+                + coeffs(6)*T**(3.0_dp)/4.0_dp + coeffs(7)*T**(4.0_dp)/5.0_dp &
                 + coeffs(8)/T)*T*Rgas
              
-    entropy = (- coeffs(1)*T**(-2.d0)/2.d0 - coeffs(2)*T**(-1.d0) &
-               + coeffs(3)*log(T) + coeffs(4)*T + coeffs(5)*T**(2.d0)/2.d0 &
-               + coeffs(6)*T**(3.d0)/3.d0 + coeffs(7)*T**(4.d0)/4.d0 &
+    entropy = (- coeffs(1)*T**(-2.0_dp)/2.0_dp - coeffs(2)*T**(-1.0_dp) &
+               + coeffs(3)*log(T) + coeffs(4)*T + coeffs(5)*T**(2.0_dp)/2.0_dp &
+               + coeffs(6)*T**(3.0_dp)/3.0_dp + coeffs(7)*T**(4.0_dp)/4.0_dp &
                + coeffs(9))*Rgas
                
     gibbs = enthalpy - T*entropy
@@ -76,9 +76,9 @@ contains
     use photochem_types, only: ThermodynamicData
     
     type(ThermodynamicData), intent(in) :: thermo
-    real(real_kind), intent(in) :: T
+    real(dp), intent(in) :: T
     logical, intent(out) :: found
-    real(real_kind), intent(out) :: gibbs_energy
+    real(dp), intent(out) :: gibbs_energy
     
     integer :: k
     
@@ -106,22 +106,22 @@ contains
     use photochem_const, only: k_boltz, N_avo
   
     integer, intent(in) :: nz
-    real(real_kind), intent(in) :: T(nz), grav(nz)
-    real(real_kind), intent(in) :: Psurf, dz(nz), mubar(nz)
+    real(dp), intent(in) :: T(nz), grav(nz)
+    real(dp), intent(in) :: Psurf, dz(nz), mubar(nz)
   
-    real(real_kind), intent(out) :: pressure(nz)
-    real(real_kind), intent(out) :: density(nz)
+    real(dp), intent(out) :: pressure(nz)
+    real(dp), intent(out) :: density(nz)
   
-    real(real_kind) :: T_temp
+    real(dp) :: T_temp
     integer :: i
   
     ! first layer
     T_temp = T(1)
-    pressure(1) = Psurf * exp(-((mubar(1) * grav(1))/(N_avo * k_boltz * T_temp)) * 0.5d0 * dz(1))
+    pressure(1) = Psurf * exp(-((mubar(1) * grav(1))/(N_avo * k_boltz * T_temp)) * 0.5e0_dp * dz(1))
     density(1) = pressure(1)/(k_boltz * T(1))
     ! other layers
     do i = 2,nz
-      T_temp = (T(i) + T(i-1))/2.d0
+      T_temp = (T(i) + T(i-1))/2.0_dp
       pressure(i) = pressure(i-1) * exp(-((mubar(i) * grav(i))/(N_avo * k_boltz * T_temp))* dz(i))
       density(i) = pressure(i)/(k_boltz * T(i))
     enddo
@@ -131,163 +131,163 @@ contains
   pure subroutine molar_weight(nll, usol_layer, sum_usol_layer, masses, background_mu, mubar_layer)
     implicit none
     integer, intent(in) :: nll
-    real(real_kind), intent(in) :: usol_layer(nll)
-    real(real_kind), intent(in) :: sum_usol_layer
-    real(real_kind), intent(in) :: masses(nll)
-    real(real_kind), intent(in) :: background_mu
-    real(real_kind), intent(out) :: mubar_layer
+    real(dp), intent(in) :: usol_layer(nll)
+    real(dp), intent(in) :: sum_usol_layer
+    real(dp), intent(in) :: masses(nll)
+    real(dp), intent(in) :: background_mu
+    real(dp), intent(out) :: mubar_layer
     integer :: j
-    real(real_kind) :: f_background
+    real(dp) :: f_background
   
-    mubar_layer = 0.d0
+    mubar_layer = 0.0_dp
     do j = 1, nll
       mubar_layer = mubar_layer + usol_layer(j) * masses(j)
     enddo
-    f_background = 1.d0 - sum_usol_layer
+    f_background = 1.0_dp - sum_usol_layer
     mubar_layer = mubar_layer + f_background * background_mu
   
   end subroutine
   
   pure function saturation_pressure(T, A, B, C) result(Psat)
-      real(real_kind), intent(in) :: T ! Kelvin
-      real(real_kind), intent(in) :: A, B, C ! parameters
-      real(real_kind) :: Psat ! saturation pressure [bar]
+      real(dp), intent(in) :: T ! Kelvin
+      real(dp), intent(in) :: A, B, C ! parameters
+      real(dp) :: Psat ! saturation pressure [bar]
       ! Simple exponential fit to saturation pressure data
-      Psat = exp(A + B/T + C/T**2.d0)
+      Psat = exp(A + B/T + C/T**2.0_dp)
   end function
   
   pure function saturation_density(T, A, B, C) result(nsat)
       use photochem_const, only: k_boltz
-      real(real_kind), intent(in) :: T ! Kelvin
-      real(real_kind), intent(in) :: A, B, C ! parameters
-      real(real_kind) :: nsat ! saturation density [molecules/cm3]
-      nsat = saturation_pressure(T, A, B, C)*1.d6/(k_boltz*T)
+      real(dp), intent(in) :: T ! Kelvin
+      real(dp), intent(in) :: A, B, C ! parameters
+      real(dp) :: nsat ! saturation density [molecules/cm3]
+      nsat = saturation_pressure(T, A, B, C)*1.e6_dp/(k_boltz*T)
   end function
   
   pure function dynamic_viscosity_air(T) result(eta)
-      real(real_kind), intent(in) :: T
-      real(real_kind) :: eta ! dynamic viscosity [dynes s/cm^2]
+      real(dp), intent(in) :: T
+      real(dp) :: eta ! dynamic viscosity [dynes s/cm^2]
       ! parameters speceific to Modern Earth air
-      real(real_kind), parameter :: T0 = 273.d0 ! K
-      real(real_kind), parameter :: eta0 = 1.716d-5 ! N s /m^2
-      real(real_kind), parameter :: S = 111.d0 ! K
-      real(real_kind), parameter :: unit_conversion = 10.d0 ! [dynes s/cm^2]/[N s/m^2]
+      real(dp), parameter :: T0 = 273.0_dp ! K
+      real(dp), parameter :: eta0 = 1.716e-5_dp ! N s /m^2
+      real(dp), parameter :: S = 111.0_dp ! K
+      real(dp), parameter :: unit_conversion = 10.0_dp ! [dynes s/cm^2]/[N s/m^2]
       ! Dynamic viscosity of Air using the Sutherland relation.
       ! Reference: White (2006) "Viscous Fluid Flow"
       ! Equation 1-36 and Table 1-2 (air)
-      eta = unit_conversion*eta0*(T/T0)**(3.d0/2.d0)*(T0 + S)/(T + S)
+      eta = unit_conversion*eta0*(T/T0)**(3.0_dp/2.0_dp)*(T0 + S)/(T + S)
   end function
 
   pure function fall_velocity(gravity, partical_radius, particle_density, air_density, viscosity) result(wfall)
-    real(real_kind), intent(in) :: gravity ! cm/s^2
-    real(real_kind), intent(in) :: partical_radius ! cm
-    real(real_kind), intent(in) :: particle_density ! g/cm^3
-    real(real_kind), intent(in) :: air_density ! g/cm^3
-    real(real_kind), intent(in) :: viscosity ! dynes s/cm^2
-    real(real_kind) :: wfall ! fall velocity [cm/s]
+    real(dp), intent(in) :: gravity ! cm/s^2
+    real(dp), intent(in) :: partical_radius ! cm
+    real(dp), intent(in) :: particle_density ! g/cm^3
+    real(dp), intent(in) :: air_density ! g/cm^3
+    real(dp), intent(in) :: viscosity ! dynes s/cm^2
+    real(dp) :: wfall ! fall velocity [cm/s]
     ! fall velocity from stokes law
     ! derived using Equation 9.29 in Seinfeld (2006) 
     ! title: "Atmospheric Chemistry and Physics"
-    wfall = (2.d0/9.d0)*gravity*partical_radius**2.d0* &
+    wfall = (2.0_dp/9.0_dp)*gravity*partical_radius**2.0_dp* &
             (particle_density - air_density)/(viscosity)
   end function
   
   pure function slip_correction_factor(partical_radius, density) result(correct_fac)
-    real(real_kind), intent(in) :: partical_radius ! cm
-    real(real_kind), intent(in) :: density ! molecules/cm3
-    real(real_kind), parameter :: area_of_molecule = 6.0d-15 ! cm2
-    real(real_kind) :: correct_fac
-    real(real_kind) :: mean_free_path
+    real(dp), intent(in) :: partical_radius ! cm
+    real(dp), intent(in) :: density ! molecules/cm3
+    real(dp), parameter :: area_of_molecule = 6.0e-15_dp ! cm2
+    real(dp) :: correct_fac
+    real(dp) :: mean_free_path
     
     ! The density dependence really is nuts. I'm going to
     ! dampen out dependence with a power.
-    ! mean_free_path = 1.d0/(density*area_of_molecule)
-    mean_free_path = 1.d0/(density**(1.5d0)*area_of_molecule)
+    ! mean_free_path = 1.0_dp/(density*area_of_molecule)
+    mean_free_path = 1.0_dp/(density**(1.5e0_dp)*area_of_molecule)
     ! slip correction factor
     ! Equation 9.34 in Seinfeld (2006) 
     ! title: "Atmospheric Chemistry and Physics"
-    correct_fac =  1.d0 + (mean_free_path/partical_radius)* &
-                          (1.257d0 + 0.4d0*exp((-1.1d0*partical_radius)/(mean_free_path)))
+    correct_fac =  1.0_dp + (mean_free_path/partical_radius)* &
+                          (1.257e0_dp + 0.4e0_dp*exp((-1.1e0_dp*partical_radius)/(mean_free_path)))
   end function
   
   pure function binary_diffusion_param(mu_i, mubar, T) result(b)
-    real(real_kind), intent(in) :: mu_i, mubar, T
-    real(real_kind) :: b
+    real(dp), intent(in) :: mu_i, mubar, T
+    real(dp) :: b
     ! Banks and Kockarts 1973, Eq 15.29
     ! also Catling and Kasting 2017, Eq B.4 (although Catling has a typo,
     ! and is missing a power of 0.5)
-    b = 1.52d18*((1.d0/mu_i+1.d0/mubar)**0.5d0)*(T**0.5d0)
+    b = 1.52e18_dp*((1.0_dp/mu_i+1.0_dp/mubar)**0.5e0_dp)*(T**0.5e0_dp)
   end function
   
   pure function arrhenius_rate(A, b, Ea, T) result(k)
-    real(real_kind), intent(in) :: A, b, Ea, T
-    real(real_kind) :: k
+    real(dp), intent(in) :: A, b, Ea, T
+    real(dp) :: k
     k = A * T**b * exp(-Ea/T)
   end function
 
   pure function falloff_rate(kinf, Pr, F) result(k)
-    real(real_kind), intent(in) :: kinf, Pr, F
-    real(real_kind) :: k
+    real(dp), intent(in) :: kinf, Pr, F
+    real(dp) :: k
     
-    k = kinf * (Pr / (1.d0 + Pr)) * F
+    k = kinf * (Pr / (1.0_dp + Pr)) * F
   end function
 
   pure function Troe_noT2(A, T1, T3, T, Pr) result(F)
-    real(real_kind), intent(in) :: A, T1, T3, T, Pr
-    real(real_kind) :: F
+    real(dp), intent(in) :: A, T1, T3, T, Pr
+    real(dp) :: F
     
-    real(real_kind) :: log10Fcent, f1, C, N
+    real(dp) :: log10Fcent, f1, C, N
     
-    log10Fcent = log10((1.d0-A)*exp(-T/T3) + A*exp(-T/T1))
-    C = -0.4d0 - 0.67d0*log10Fcent
-    N = 0.75d0 - 1.27d0*log10Fcent
-    f1 = (log10(Pr) + C)/(N - 0.14d0*(log10(Pr + C)))
-    F = 10.d0**((log10Fcent)/(1.d0 + f1**2.d0))
+    log10Fcent = log10((1.0_dp-A)*exp(-T/T3) + A*exp(-T/T1))
+    C = -0.4e0_dp - 0.67e0_dp*log10Fcent
+    N = 0.75e0_dp - 1.27e0_dp*log10Fcent
+    f1 = (log10(Pr) + C)/(N - 0.14e0_dp*(log10(Pr + C)))
+    F = 10.0_dp**((log10Fcent)/(1.0_dp + f1**2.0_dp))
   end function
 
   pure function Troe_withT2(A, T1, T2, T3, T, Pr) result(F)
-    real(real_kind), intent(in) :: A, T1, T2, T3, T, Pr
-    real(real_kind) :: F
+    real(dp), intent(in) :: A, T1, T2, T3, T, Pr
+    real(dp) :: F
     
-    real(real_kind) :: log10Fcent, f1, C, N
+    real(dp) :: log10Fcent, f1, C, N
     
-    log10Fcent = log10((1.d0-A)*exp(-T/T3) + A*exp(-T/T1) + exp(-T2/T))
-    C = -0.4d0 - 0.67d0*log10Fcent
-    N = 0.75d0 - 1.27d0*log10Fcent
-    f1 = (log10(Pr) + C)/(N - 0.14d0*(log10(Pr + C)))
-    F = 10.d0**((log10Fcent)/(1.d0 + f1**2.d0))
+    log10Fcent = log10((1.0_dp-A)*exp(-T/T3) + A*exp(-T/T1) + exp(-T2/T))
+    C = -0.4e0_dp - 0.67e0_dp*log10Fcent
+    N = 0.75e0_dp - 1.27e0_dp*log10Fcent
+    f1 = (log10(Pr) + C)/(N - 0.14e0_dp*(log10(Pr + C)))
+    F = 10.0_dp**((log10Fcent)/(1.0_dp + f1**2.0_dp))
   end function
   
   pure function sat_pressure_H2O(T) result(p_H2O)
-    real(real_kind), intent(in) :: T ! temperature in K
-    real(real_kind) :: p_H2O
-    real(real_kind), parameter :: lc = 2.5d6 ! specific enthalpy of H2O vaporization
-    real(real_kind), parameter :: Rc = 461.d0 ! gas constant for water
-    real(real_kind), parameter :: e0 = 611.d0 ! Pascals
-    real(real_kind), parameter :: T0 = 273.15d0 ! K
+    real(dp), intent(in) :: T ! temperature in K
+    real(dp) :: p_H2O
+    real(dp), parameter :: lc = 2.5e6_dp ! specific enthalpy of H2O vaporization
+    real(dp), parameter :: Rc = 461.0_dp ! gas constant for water
+    real(dp), parameter :: e0 = 611.0_dp ! Pascals
+    real(dp), parameter :: T0 = 273.15_dp ! K
     ! Catling and Kasting (Equation 1.49)
-    p_H2O = 10.d0*e0*exp(lc/Rc*(1/T0 - 1/T))
+    p_H2O = 10.0_dp*e0*exp(lc/Rc*(1/T0 - 1/T))
     ! output is in dynes/cm2
   end function
   
   pure function damp_condensation_rate(A, rhc, rh0, rh) result(k)
     use photochem_const, only: pi
-    real(real_kind), intent(in) :: A
-    real(real_kind), intent(in) :: rhc, rh0
-    real(real_kind), intent(in) :: rh ! the relative humidity
-    real(real_kind) :: k 
+    real(dp), intent(in) :: A
+    real(dp), intent(in) :: rhc, rh0
+    real(dp), intent(in) :: rh ! the relative humidity
+    real(dp) :: k 
     ! k = 0 for rh = rhc
     ! k = A for rh = infinity, approaches asymptotically
     ! k = 0.5*A for rh = rh0
-    k = A*(2.d0/pi)*atan((rh - rhc)/(rh0 - rhc))
+    k = A*(2.0_dp/pi)*atan((rh - rhc)/(rh0 - rhc))
   end function
   
   pure function henrys_law(T, A, B) result(H)
-    real(real_kind), intent(in) :: T
-    real(real_kind), intent(in) :: A
-    real(real_kind), intent(in) :: B
-    real(real_kind) :: H ! mol/(kg * Pa)
-    H = A*exp(B*(1.d0/298.15d0 - 1.d0/T))
+    real(dp), intent(in) :: T
+    real(dp), intent(in) :: A
+    real(dp), intent(in) :: B
+    real(dp) :: H ! mol/(kg * Pa)
+    H = A*exp(B*(1.0_dp/298.15_dp - 1.0_dp/T))
   end function
   
 end module

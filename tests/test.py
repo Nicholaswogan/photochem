@@ -1,4 +1,4 @@
-from Photochem import Atmosphere, zahnle_earth
+from photochem import Atmosphere, zahnle_earth
 
 pc = Atmosphere(zahnle_earth,\
                 "../templates/ModernEarth/settings_ModernEarth.yaml",\

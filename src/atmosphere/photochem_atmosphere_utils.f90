@@ -65,8 +65,8 @@ contains
     
     do i = 1,var%nz
       write(1,*)
-      write(unit=1,fmt="(es27.17e3)",advance='no') var%z(i)/1.d5
-      write(unit=1,fmt="(es27.17e3)",advance='no') wrk%pressure(i)/1.d6
+      write(unit=1,fmt="(es27.17e3)",advance='no') var%z(i)/1.e5_dp
+      write(unit=1,fmt="(es27.17e3)",advance='no') wrk%pressure(i)/1.e6_dp
       write(unit=1,fmt="(es27.17e3)",advance='no') wrk%density(i)
       write(unit=1,fmt="(es27.17e3)",advance='no') var%temperature(i)
       write(unit=1,fmt="(es27.17e3)",advance='no') var%edd(i)
@@ -104,13 +104,13 @@ contains
   
   module subroutine gas_fluxes(self, surf_fluxes, top_fluxes, err)
     class(Atmosphere), target, intent(inout) :: self
-    real(real_kind), intent(out) :: surf_fluxes(:)
-    real(real_kind), intent(out) :: top_fluxes(:)
+    real(dp), intent(out) :: surf_fluxes(:)
+    real(dp), intent(out) :: top_fluxes(:)
     character(len=err_len), intent(out) :: err
   
-    real(real_kind) :: rhs(self%var%neqs)  
-    real(real_kind) :: diffusive_production
-    real(real_kind) :: chemical_production
+    real(dp) :: rhs(self%var%neqs)  
+    real(dp) :: diffusive_production
+    real(dp) :: chemical_production
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
@@ -168,10 +168,10 @@ contains
     character(len=err_len), intent(out) :: err
     type(AtomConservation) :: con
     
-    real(real_kind) :: surf_fluxes(self%dat%nq)
-    real(real_kind) :: top_fluxes(self%dat%nq)
-    real(real_kind) :: integrated_rainout(self%dat%nq)
-    real(real_kind) :: cond_rate
+    real(dp) :: surf_fluxes(self%dat%nq)
+    real(dp) :: top_fluxes(self%dat%nq)
+    real(dp) :: integrated_rainout(self%dat%nq)
+    real(dp) :: cond_rate
     
     integer :: ind(1), i, j, kk
     
@@ -221,12 +221,12 @@ contains
       if (surf_fluxes(i) > 0) then
         con%in_surf = con%in_surf + surf_fluxes(i)*dat%species_composition(kk,i)
       else
-        con%out_surf = con%out_surf + (-1.d0)*surf_fluxes(i)*dat%species_composition(kk,i)
+        con%out_surf = con%out_surf + (-1.0_dp)*surf_fluxes(i)*dat%species_composition(kk,i)
       endif
       if (top_fluxes(i) > 0) then
         con%out_top = con%out_top + top_fluxes(i)*dat%species_composition(kk,i)
       else
-        con%in_top = con%in_top + (-1.d0)*top_fluxes(i)*dat%species_composition(kk,i)
+        con%in_top = con%in_top + (-1.0_dp)*top_fluxes(i)*dat%species_composition(kk,i)
       endif
     enddo
     
@@ -239,7 +239,7 @@ contains
     
     ! rainout
     if (dat%gas_rainout) then
-      integrated_rainout = 0.d0
+      integrated_rainout = 0.0_dp
       do j = 1,var%trop_ind
         do i = 1,dat%nq
           integrated_rainout(i) = integrated_rainout(i) + &
@@ -283,23 +283,23 @@ contains
   module function redox_conservation(self, err) result(redox_factor)
     class(Atmosphere), target, intent(inout) :: self
     character(len=err_len), intent(out) :: err
-    real(real_kind) :: redox_factor
+    real(dp) :: redox_factor
     
-    real(real_kind) :: surf_fluxes(self%dat%nq)
-    real(real_kind) :: top_fluxes(self%dat%nq)
-    real(real_kind) :: integrated_rainout(self%dat%nq)
+    real(dp) :: surf_fluxes(self%dat%nq)
+    real(dp) :: top_fluxes(self%dat%nq)
+    real(dp) :: integrated_rainout(self%dat%nq)
     
-    real(real_kind) :: oxi_in_surf, oxi_out_surf
-    real(real_kind) :: red_in_surf, red_out_surf
-    real(real_kind) :: oxi_in_top, oxi_out_top
-    real(real_kind) :: red_in_top, red_out_top
-    real(real_kind) :: oxi_in_dist
-    real(real_kind) :: red_in_dist
-    real(real_kind) :: oxi_out_rain
-    real(real_kind) :: red_out_rain
+    real(dp) :: oxi_in_surf, oxi_out_surf
+    real(dp) :: red_in_surf, red_out_surf
+    real(dp) :: oxi_in_top, oxi_out_top
+    real(dp) :: red_in_top, red_out_top
+    real(dp) :: oxi_in_dist
+    real(dp) :: red_in_dist
+    real(dp) :: oxi_out_rain
+    real(dp) :: red_out_rain
     
-    real(real_kind) :: oxi_in, oxi_out, red_in, red_out
-    real(real_kind) :: net_redox
+    real(dp) :: oxi_in, oxi_out, red_in, red_out
+    real(dp) :: net_redox
     
     integer :: i, j
     
@@ -316,18 +316,18 @@ contains
     call self%gas_fluxes(surf_fluxes, top_fluxes, err)
     if (len_trim(err) /= 0) return
     
-    oxi_in_surf = 0.d0
-    oxi_out_surf = 0.d0
-    red_in_surf = 0.d0
-    red_out_surf = 0.d0
-    oxi_in_top = 0.d0
-    oxi_out_top = 0.d0
-    red_in_top = 0.d0
-    red_out_top = 0.d0
-    oxi_in_dist = 0.d0
-    red_in_dist = 0.d0
-    oxi_out_rain = 0.d0
-    red_out_rain = 0.d0
+    oxi_in_surf = 0.0_dp
+    oxi_out_surf = 0.0_dp
+    red_in_surf = 0.0_dp
+    red_out_surf = 0.0_dp
+    oxi_in_top = 0.0_dp
+    oxi_out_top = 0.0_dp
+    red_in_top = 0.0_dp
+    red_out_top = 0.0_dp
+    oxi_in_dist = 0.0_dp
+    red_in_dist = 0.0_dp
+    oxi_out_rain = 0.0_dp
+    red_out_rain = 0.0_dp
     
     ! All numbers will be treated as positive.
     ! Later on, we implement signs
@@ -339,27 +339,27 @@ contains
         if (surf_fluxes(i) > 0) then
           oxi_in_surf = oxi_in_surf + surf_fluxes(i)*dat%species_redox(i)
         else
-          oxi_out_surf = oxi_out_surf + (-1.d0)*surf_fluxes(i)*dat%species_redox(i)
+          oxi_out_surf = oxi_out_surf + (-1.0_dp)*surf_fluxes(i)*dat%species_redox(i)
         endif
         
         if (top_fluxes(i) > 0) then
           oxi_out_top = oxi_out_top + top_fluxes(i)*dat%species_redox(i)
         else
-          oxi_in_top = oxi_in_top + (-1.d0)*top_fluxes(i)*dat%species_redox(i)
+          oxi_in_top = oxi_in_top + (-1.0_dp)*top_fluxes(i)*dat%species_redox(i)
         endif
         
       elseif (dat%species_redox(i) < 0) then
         
         if (surf_fluxes(i) > 0) then
-          red_in_surf = red_in_surf + surf_fluxes(i)*dat%species_redox(i)*(-1.d0)
+          red_in_surf = red_in_surf + surf_fluxes(i)*dat%species_redox(i)*(-1.0_dp)
         else
-          red_out_surf = red_out_surf + (-1.d0)*surf_fluxes(i)*dat%species_redox(i)*(-1.d0)
+          red_out_surf = red_out_surf + (-1.0_dp)*surf_fluxes(i)*dat%species_redox(i)*(-1.0_dp)
         endif
         
         if (top_fluxes(i) > 0) then
-          red_out_top = red_out_top + top_fluxes(i)*dat%species_redox(i)*(-1.d0)
+          red_out_top = red_out_top + top_fluxes(i)*dat%species_redox(i)*(-1.0_dp)
         else
-          red_in_top = red_in_top + (-1.d0)*top_fluxes(i)*dat%species_redox(i)*(-1.d0)
+          red_in_top = red_in_top + (-1.0_dp)*top_fluxes(i)*dat%species_redox(i)*(-1.0_dp)
         endif
         
       endif
@@ -371,14 +371,14 @@ contains
         if (dat%species_redox(i) > 0) then
           oxi_in_dist = oxi_in_dist + var%lower_flux(i)*dat%species_redox(i)
         elseif (dat%species_redox(i) < 0) then
-          red_in_dist = red_in_dist + var%lower_flux(i)*dat%species_redox(i)*(-1.d0)
+          red_in_dist = red_in_dist + var%lower_flux(i)*dat%species_redox(i)*(-1.0_dp)
         endif
       endif
     enddo
     
     ! rainout
     if (dat%gas_rainout) then
-      integrated_rainout = 0.d0
+      integrated_rainout = 0.0_dp
       ! rhs_chem already got layer 1. So
       ! we start at layer 2
       do j = 1,var%trop_ind
@@ -392,7 +392,7 @@ contains
         if (dat%species_redox(i) > 0) then
           oxi_out_rain = oxi_out_rain + integrated_rainout(i)*dat%species_redox(i)
         elseif (dat%species_redox(i) < 0) then
-          red_out_rain = red_out_rain + integrated_rainout(i)*dat%species_redox(i)*(-1.d0)
+          red_out_rain = red_out_rain + integrated_rainout(i)*dat%species_redox(i)*(-1.0_dp)
         endif
       enddo
     endif
@@ -413,10 +413,10 @@ contains
     class(Atmosphere), intent(inout) :: self
     character(len=*), intent(in) :: species
     character(len=*), intent(in) :: bc_type
-    real(real_kind), optional, intent(in) :: vdep
-    real(real_kind), optional, intent(in) :: mix
-    real(real_kind), optional, intent(in) :: flux
-    real(real_kind), optional, intent(in) :: height
+    real(dp), optional, intent(in) :: vdep
+    real(dp), optional, intent(in) :: mix
+    real(dp), optional, intent(in) :: flux
+    real(dp), optional, intent(in) :: height
     character(len=err_len), intent(out) :: err
     
     integer :: ind(1)
@@ -490,8 +490,8 @@ contains
     class(Atmosphere), intent(inout) :: self
     character(len=*), intent(in) :: species
     character(len=*), intent(in) :: bc_type
-    real(real_kind), optional, intent(in) :: veff
-    real(real_kind), optional, intent(in) :: flux
+    real(dp), optional, intent(in) :: veff
+    real(dp), optional, intent(in) :: flux
     character(len=err_len), intent(out) :: err
     
     integer :: ind(1)
@@ -548,8 +548,8 @@ contains
     use photochem_input, only: interp2xsdata, compute_gibbs_energy
     
     class(Atmosphere), target, intent(inout) :: self
-    real(real_kind), intent(in) :: temperature(:)
-    real(real_kind), optional, intent(in) :: trop_alt
+    real(dp), intent(in) :: temperature(:)
+    real(dp), optional, intent(in) :: trop_alt
     character(len=err_len), intent(out) :: err
     
     type(PhotochemData), pointer :: dat

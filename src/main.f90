@@ -1,7 +1,7 @@
 
 program main
   use Photochem, only: Atmosphere, err_len
-  use Photochem, only: dp => real_kind
+  use Photochem, only: dp => dp
   implicit none
   character(len=err_len) :: err
   type(Atmosphere) :: pc

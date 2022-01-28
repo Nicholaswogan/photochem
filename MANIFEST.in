@@ -1,1 +1,1 @@
-recursive-include Photochem/data *
+recursive-include photochem/data *
