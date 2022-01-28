@@ -41,8 +41,8 @@ program main
     stop 1
   endif
   
-  call pc%init("../Photochem/data", &
-               "../Photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
+  call pc%init("../photochem/data", &
+               "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
                "../templates/Titan/settings_Titan.yaml", &
                "../templates/ModernEarth/Sun_now.txt", &
                "../templates/Titan/atmosphere_Titan.txt", &
