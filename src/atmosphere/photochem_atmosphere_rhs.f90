@@ -11,30 +11,25 @@ submodule(photochem_atmosphere) photochem_atmosphere_rhs
   
 contains
   
-  subroutine reaction_rates(self, density, densities, rx_rates, err)
+  pure subroutine reaction_rates(dat, var, density, densities, rx_rates, err)
     use photochem_types, only: ElementaryRate, ThreeBodyRate, FalloffRate
     use photochem_eqns, only: arrhenius_rate, Troe_noT2, Troe_withT2, falloff_rate
     use photochem_const, only: Rgas, k_boltz, smallest_real ! constants
     
-    class(Atmosphere), intent(in), target :: self
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
     real(dp), intent(in) :: density(:)
     real(dp), intent(in) :: densities(:,:)
     real(dp), intent(out) :: rx_rates(:,:)
     character(len=err_len), intent(out) :: err
     
     integer :: i, j, k, n, l, m
-    real(dp) :: eff_den(self%var%nz), F(self%var%nz)
-    real(dp) :: k0, kinf(self%var%nz), Pr(self%var%nz)
+    real(dp) :: eff_den(var%nz), F(var%nz)
+    real(dp) :: k0, kinf(var%nz), Pr(var%nz)
     real(dp) :: gibbR_forward, gibbP_forward
     real(dp) :: Dg_forward
     
-    type(PhotochemData), pointer :: dat
-    type(PhotochemVars), pointer :: var
-    
     err = ""
-    
-    dat => self%dat
-    var => self%var
     
     do i = 1,dat%nrF
       select type(rp => dat%rx(i)%rp)
@@ -135,10 +130,11 @@ contains
 
   end subroutine
   
-  subroutine chempl(self, nz, nsp, nrT, densities, rx_rates, k, xp, xl)
+  pure subroutine chempl(dat, var, nz, nsp, nrT, densities, rx_rates, k, xp, xl)
     
     ! input
-    class(Atmosphere), intent(in), target :: self
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
     integer, intent(in) :: nz, nsp, nrT
     real(dp), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
     real(dp), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
@@ -150,11 +146,6 @@ contains
     ! local
     real(dp) :: DD
     integer :: i, ii, iii, m, l, j
-    type(PhotochemData), pointer :: dat
-    type(PhotochemVars), pointer :: var
-    
-    dat => self%dat
-    var => self%var
     
     xp = 0.0_dp
     xl = 0.0_dp
@@ -191,10 +182,11 @@ contains
     
   end subroutine
   
-  subroutine chempl_sl(self, nz, nsp, nrT, densities, rx_rates, k, xp, xl)
+  pure subroutine chempl_sl(dat, var, nz, nsp, nrT, densities, rx_rates, k, xp, xl)
     
     ! input
-    class(Atmosphere), intent(in), target :: self
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
     integer, intent(in) :: nz, nsp, nrT
     real(dp), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
     real(dp), intent(in) :: rx_rates(nz,nrT) ! reaction rates (various units)
@@ -206,11 +198,6 @@ contains
     ! local
     real(dp) :: DD
     integer :: i, ii, iii, m, l, j
-    type(PhotochemData), pointer :: dat
-    type(PhotochemVars), pointer :: var
-    
-    dat => self%dat
-    var => self%var
     
     xp = 0.0_dp
     xl = 0.0_dp
@@ -321,7 +308,7 @@ contains
     
     ! short lived
     do k = dat%nq+1,dat%nq+dat%nsl
-      call chempl_sl(self, nz, nsp, nrT, densities, rx_rates, k, xp, xl) 
+      call chempl_sl(self%dat, self%var, nz, nsp, nrT, densities, rx_rates, k, xp, xl) 
       densities(k,:) = xp/xl
     enddo
     
@@ -329,7 +316,7 @@ contains
     
     ! long lived              
     do i = dat%ng_1,dat%nq
-      call chempl(self, nz, nsp, nrT, densities, rx_rates, i, xp, xl)
+      call chempl(self%dat, self%var, nz, nsp, nrT, densities, rx_rates, i, xp, xl)
       do j = 1,var%nz
         k = i + (j - 1) * dat%nq
         rhs(k) = xp(j)/density(j) - xl(j)/density(j)
@@ -374,7 +361,7 @@ contains
     if (dat%there_are_particles) then
       ! formation from reaction
       do i = 1,dat%np
-        call chempl(self, nz, nsp, nrT, densities, rx_rates, i, xp, xl)
+        call chempl(self%dat, self%var, nz, nsp, nrT, densities, rx_rates, i, xp, xl)
         do j = 1,var%nz
           k = i + (j - 1) * nq
           rhs(k) = rhs(k) + (xp(j) - xl(j))/density(j)
@@ -422,20 +409,21 @@ contains
     
   end subroutine
   
-  subroutine photorates(self, nz, nsp, kj, nw, densities, &
+  pure subroutine photorates(dat, var, nz, nsp, kj, nw, densities, &
                         prates, surf_radiance, amean_grd, optical_depth, err)
     use photochem_radtran, only: two_stream
     use photochem_const, only: pi
     ! input
-    class(Atmosphere), target, intent(in) :: self
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
     integer, intent(in) :: nz, nsp, kj, nw
     real(dp), intent(in) :: densities(nsp+1, nz)
     
     ! output
     real(dp), intent(out) :: prates(nz,kj)
     real(dp), intent(out) :: surf_radiance(nw)
-    real(dp) :: amean_grd(nz,nw)
-    real(dp) :: optical_depth(nz,nw)
+    real(dp), intent(out) :: amean_grd(nz,nw)
+    real(dp), intent(out) :: optical_depth(nz,nw)
     character(len=err_len), intent(out) :: err
     
     ! local
@@ -443,14 +431,9 @@ contains
     real(dp) :: tausg(nz), taua(nz), tau(nz), w0(nz), gt(nz)
     real(dp) :: taup(nz), tausp(nz)
     real(dp) :: amean(nz+1), surf_rad, flx
-    real(dp) :: taup_1, gt_1, tausp_1(self%dat%np,nz)
+    real(dp) :: taup_1, gt_1, tausp_1(dat%np,nz)
     real(dp) :: u0
     integer :: l, i, j, jj, k, n, ie, ierr, ierrs
-    type(PhotochemData), pointer :: dat
-    type(PhotochemVars), pointer :: var
-    
-    dat => self%dat
-    var => self%var
     
     u0 = cos(var%solar_zenith*pi/180.0_dp)
 
@@ -743,13 +726,14 @@ contains
     res = 0
   end function
   
-  subroutine diffusion_coefficients(self, nq, npq, nz, den, mubar, &
+  pure subroutine diffusion_coefficients(dat, var, nq, npq, nz, den, mubar, &
                                     DU, DD, DL, ADU, ADL, wfall, VH2_esc, VH_esc)
     use photochem_eqns, only: dynamic_viscosity_air, fall_velocity, slip_correction_factor, &
                               binary_diffusion_param
     use photochem_const, only: k_boltz, N_avo
     
-    class(Atmosphere), target, intent(in) :: self
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
     integer, intent(in) :: nq, npq, nz
     real(dp), intent(in) :: den(nz)
     real(dp), intent(in) :: mubar(nz)
@@ -770,11 +754,6 @@ contains
     real(dp) :: radius_p, radius_m
     
     integer :: i, j
-    type(PhotochemData), pointer :: dat
-    type(PhotochemVars), pointer :: var
-    
-    dat => self%dat
-    var => self%var
     
     ! eddy diffusion. particles and gases
     ! middle
@@ -962,11 +941,12 @@ contains
     
   end subroutine
   
-  subroutine rainout(self, nq, nz, trop_ind, usol, den, rainout_rates)
+  pure subroutine rainout(dat, var, nq, nz, trop_ind, usol, den, rainout_rates)
     use photochem_const, only: k_boltz, N_avo, small_real
     use photochem_eqns, only: henrys_law
     
-    class(Atmosphere), target, intent(in) :: self
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
     integer, intent(in) :: nq, nz, trop_ind
     real(dp), intent(in) :: usol(nq, nz)
     real(dp), intent(in) :: den(nz)
@@ -989,12 +969,6 @@ contains
     real(dp), parameter :: C2 = 1.d-9 ![m3/cm3][L H2O/g H2O]
     real(dp), parameter :: MH2O = 18.0_dp ! g H2O/mol H2O
     real(dp), parameter :: rho_H2O = 1000.0_dp ! g H2O/L H2O
-    
-    type(PhotochemData), pointer :: dat
-    type(PhotochemVars), pointer :: var
-    
-    dat => self%dat
-    var => self%var
     
     !!!!!!! calculate raining rate !!!!!!!
     ! middle of atmosphere
@@ -1096,7 +1070,7 @@ contains
     if (len_trim(err) /= 0) return  
   
     ! diffusion coefficients
-    call diffusion_coefficients(self, dat%nq, dat%npq, var%nz, wrk%density, wrk%mubar, &
+    call diffusion_coefficients(self%dat, self%var, dat%nq, dat%npq, var%nz, wrk%density, wrk%mubar, &
                                 wrk%DU, wrk%DD, wrk%DL, wrk%ADU, wrk%ADL, &
                                 wrk%wfall, wrk%VH2_esc, wrk%VH_esc)
   
@@ -1154,10 +1128,10 @@ contains
       wrk%densities(dat%nsp+1,j) = 1.0_dp ! for hv
     enddo
     
-    call reaction_rates(self, wrk%density, wrk%densities, wrk%rx_rates, err)
+    call reaction_rates(self%dat, self%var, wrk%density, wrk%densities, wrk%rx_rates, err)
     if (len_trim(err) /= 0) return
   
-    call photorates(self, var%nz, dat%nsp, dat%kj, dat%nw, wrk%densities, &
+    call photorates(self%dat, self%var, var%nz, dat%nsp, dat%kj, dat%nw, wrk%densities, &
                     wrk%prates, wrk%surf_radiance, wrk%amean_grd, wrk%optical_depth, err)
     if (len_trim(err) /= 0) return
   
@@ -1168,7 +1142,8 @@ contains
   
     ! rainout rates
     if (dat%gas_rainout) then
-      call rainout(self, dat%nq, var%nz, var%trop_ind, wrk%usol, wrk%density, wrk%rainout_rates)
+      call rainout(self%dat, self%var, dat%nq, var%nz, var%trop_ind, &
+                   wrk%usol, wrk%density, wrk%rainout_rates)
     endif
   
   end subroutine
@@ -1440,10 +1415,11 @@ contains
   
   end subroutine
 
-  subroutine chempl_t(self, nz, nsp, nrT, np, nl, densities, rx_rates, k, xpT, xlT)
+  pure subroutine chempl_t(dat, var, nz, nsp, nrT, np, nl, densities, rx_rates, k, xpT, xlT)
     
     ! input
-    class(Atmosphere), intent(in), target :: self
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
     integer, intent(in) :: nz, nsp, nrT
     integer, intent(in) :: np, nl
     real(dp), intent(in) :: densities(nsp+1, nz) ! molecules/cm3 of each species
@@ -1456,11 +1432,6 @@ contains
     ! local
     real(dp) :: DD
     integer :: i, ii, iii, m, l, j
-    type(PhotochemData), pointer :: dat
-    type(PhotochemVars), pointer :: var
-    
-    dat => self%dat
-    var => self%var
     
     xpT = 0.0_dp
     xlT = 0.0_dp
@@ -1561,13 +1532,13 @@ contains
   
     if (sp_ind <= dat%nq) then ! long lived or particle
       do k = dat%nq+1,dat%nq+dat%nsl
-        call chempl_sl(self, var%nz, dat%nsp, dat%nrT, wrk%densities, wrk%rx_rates, &
+        call chempl_sl(self%dat, self%var, var%nz, dat%nsp, dat%nrT, wrk%densities, wrk%rx_rates, &
                        k, xp, xl) 
         wrk%densities(k,:) = xp/xl
       enddo
     endif
     
-    call chempl_t(self, var%nz, dat%nsp, dat%nrT, np, nl, &
+    call chempl_t(self%dat, self%var, var%nz, dat%nsp, dat%nrT, np, nl, &
                   wrk%densities, wrk%rx_rates, sp_ind, pl%production, pl%loss)
   
     do i = 1,np

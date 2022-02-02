@@ -126,17 +126,18 @@ module photochem_atmosphere
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_atmosphere_integrate.f90 !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    module subroutine evolve(self, filename, tstart, usol_start, t_eval, success, err)
+    module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, err) result(success)
       use, intrinsic :: iso_c_binding
       class(Atmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: filename
       real(c_double), intent(in) :: tstart
       real(dp), intent(in) :: usol_start(:,:)
       real(c_double), intent(in) :: t_eval(:)
-      logical, intent(out) :: success
+      logical, optional, intent(in) :: overwrite
+      logical :: success
       character(len=err_len), intent(out) :: err
       ! Evolve atmosphere through time, and saves output in a binary Fortran file.
-    end subroutine
+    end function
     
     module subroutine photochemical_equilibrium(self, success, err)
       class(Atmosphere), target, intent(inout) :: self
@@ -255,5 +256,12 @@ module photochem_atmosphere
     end subroutine
     
   end interface
+  
+contains
+  
+  
+  subroutine print_hi()
+    print*,'hi'
+  end subroutine
   
 end module

@@ -31,7 +31,7 @@ cdef extern void atmosphere_atom_conservation_wrapper(void *ptr, char *atom, voi
 
 cdef extern void atmosphere_evolve_wrapper(void *ptr, char *filename, 
                 double *tstart, int *nq, int *nz, double *usol, 
-                int *nt, double *t_eval, bint *success, char *err)
+                int *nt, double *t_eval, bint *overwrite, bint *success, char *err)
 
 cdef extern void atmosphere_set_temperature_wrapper(void *ptr, int *nz, double *temperature, 
                                                     double *trop_alt, bint *trop_alt_present, char *err)
@@ -297,11 +297,12 @@ cdef class Atmosphere:
     con._ptr = con_ptr
     return con
   
-  def evolve(self, str filename, double tstart, ndarray[double, ndim=2] usol, ndarray[double, ndim=1] t_eval):
+  def evolve(self, str filename, double tstart, ndarray[double, ndim=2] usol, ndarray[double, ndim=1] t_eval, bint overwrite = False):
     cdef bytes filename_b = pystring2cstring(filename)
     cdef char *filename_c = filename_b
     cdef char err[ERR_LEN+1]
     cdef bint success
+    cdef bint overwrite_c = overwrite
     cdef int nq = self.dat.nq
     cdef int nz = self.var.nz
     cdef int nt = t_eval.size
@@ -310,7 +311,7 @@ cdef class Atmosphere:
     if usol.shape[0] != nq or usol.shape[1] != nz:
       raise PhotoException("Input usol is the wrong size.")
       
-    atmosphere_evolve_wrapper(&self._ptr, filename_c, &tstart, &nq, &nz, <double *>usol.data, &nt, <double *>t_eval.data, &success, err)
+    atmosphere_evolve_wrapper(&self._ptr, filename_c, &tstart, &nq, &nz, <double *>usol.data, &nt, <double *>t_eval.data, &overwrite_c, &success, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     return success

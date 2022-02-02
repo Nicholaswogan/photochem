@@ -7,7 +7,7 @@ module photochem_radtran
 
 contains
   
-  subroutine two_stream(nz, tau, w0, gt, u0, Rsfc, amean, surface_radiance, ierr)
+  pure subroutine two_stream(nz, tau, w0, gt, u0, Rsfc, amean, surface_radiance, ierr)
     integer, intent(in) :: nz
     real(dp), intent(inout) :: tau(nz)
     real(dp), intent(inout) :: w0(nz)
@@ -161,7 +161,7 @@ contains
 
   end subroutine
   
-  subroutine tridiag(n,a,b,c,d)
+  pure subroutine tridiag(n,a,b,c,d)
     integer,intent(in) :: n
     real(dp), intent(inout) :: a(n), b(n), c(n), d(n)
 

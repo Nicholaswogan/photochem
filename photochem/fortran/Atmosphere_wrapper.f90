@@ -354,7 +354,7 @@ contains
     call copy_string_ftoc(err_f, err)    
   end subroutine
   
-  subroutine atmosphere_evolve_wrapper(ptr, filename, tstart, nq, nz, usol, nt, t_eval, success, err) bind(c)
+  subroutine atmosphere_evolve_wrapper(ptr, filename, tstart, nq, nz, usol, nt, t_eval, overwrite, success, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     character(kind=c_char), intent(in) :: filename(*)
     real(c_double), intent(in) :: tstart
@@ -362,6 +362,7 @@ contains
     real(c_double), intent(in) :: usol(nq, nz)
     integer(c_int), intent(in) :: nt
     real(c_double), intent(in) :: t_eval(nt)
+    logical(4), intent(in) :: overwrite
     logical(4), intent(out) :: success
     character(kind=c_char), intent(out) :: err(err_len+1)
     
@@ -375,7 +376,7 @@ contains
     call copy_string_ctof(filename, filename_f)
     
     err_f = ""
-    call pc%evolve(filename_f, tstart, usol, t_eval, success, err_f)
+    success = pc%evolve(filename_f, tstart, usol, t_eval, overwrite=overwrite, err=err_f)
     call copy_string_ftoc(err_f, err)
   end subroutine
   

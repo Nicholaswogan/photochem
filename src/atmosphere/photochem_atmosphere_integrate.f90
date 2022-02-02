@@ -119,7 +119,7 @@ contains
   
   end function
   
-  module subroutine evolve(self, filename, tstart, usol_start, t_eval, success, err)
+  module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, err) result(success)
                                    
     use, intrinsic :: iso_c_binding
     use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSStolerances, &
@@ -141,7 +141,8 @@ contains
     real(dp), intent(in) :: usol_start(:,:)
     ! real(c_double), intent(in) :: t_eval(num_t_eval)
     real(c_double), intent(in) :: t_eval(:)
-    logical, intent(out) :: success
+    logical, optional, intent(in) :: overwrite
+    logical :: success
     character(len=err_len), intent(out) :: err
     
     ! local variables
@@ -158,7 +159,7 @@ contains
     type(SUNLinearSolver), pointer :: sunlin
     
     ! real(dp) :: fH2O(self%var%trop_ind)
-    integer :: i, j, k, ii
+    integer :: i, j, k, ii, io
     
     type(c_ptr)    :: user_data
     type(PhotochemData), pointer :: dat
@@ -185,7 +186,15 @@ contains
     endif
     
     ! file prep
-    open(1, file = filename, status='replace', form="unformatted")
+    if (overwrite) then
+      open(1, file = filename, status='replace', form="unformatted")
+    else
+      open(1, file = filename, status='new', form="unformatted",iostat=io)
+      if (io /= 0) then
+        err = "Unable to create file "//trim(filename)//" because it already exists"
+        return
+      endif
+    endif
     write(1) dat%nq
     write(1) var%nz
     write(1) var%z
@@ -339,7 +348,7 @@ contains
     end if
     call FSUNMatDestroy(sunmat)
 
-  end subroutine
+  end function
   
   module subroutine photochemical_equilibrium(self, success, err)
     class(Atmosphere), target, intent(inout) :: self
