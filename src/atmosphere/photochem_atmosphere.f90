@@ -257,11 +257,4 @@ module photochem_atmosphere
     
   end interface
   
-contains
-  
-  
-  subroutine print_hi()
-    print*,'hi'
-  end subroutine
-  
 end module

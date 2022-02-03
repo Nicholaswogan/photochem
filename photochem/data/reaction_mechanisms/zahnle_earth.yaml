@@ -976,7 +976,7 @@ particles:
   optical-type: mie
   equation: C4H + HCCCN => HCaer3
   type: elementary
-  rate-constant: {A: 1.1e-12, b: 0, Ea: 900}
+  rate-constant: {A: 8.6e-16, b: 1.8, Ea: -474}
 
 reactions:
 - equation: H + H (+ M) <=> H2 (+ M)

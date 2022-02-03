@@ -126,3 +126,13 @@
   saturation-parameters: {A: 14.8, B: -5420.0, C: 0.000711}
   composition: {N: 1, H: 3}
   optical-properties: none
+  
+# From Table III in Moses et al. (1992) (model of Neptune)
+  
+- name: C4H2aer
+  formation: saturation
+  density: 1
+  gas-phase: C4H2
+  saturation-parameters: {A: 6.97, B: -1031.18, C: -294373.7}
+  composition: {C: 4, H: 2}
+  optical-properties: none
