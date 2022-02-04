@@ -409,7 +409,7 @@ contains
     
   end subroutine
   
-  pure subroutine photorates(dat, var, nz, nsp, kj, nw, densities, &
+  subroutine photorates(dat, var, nz, nsp, kj, nw, densities, &
                         prates, surf_radiance, amean_grd, optical_depth, err)
     use photochem_radtran, only: two_stream
     use photochem_const, only: pi
