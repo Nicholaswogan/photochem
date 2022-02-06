@@ -9,6 +9,13 @@ module photochem_input
 
   public :: setup, interp2xsdata, compute_gibbs_energy
   
+  type, extends(type_list) :: type_list_tmp
+  ! temporary list for accessing all reactions and
+  ! species in a row.
+  contains
+    final :: list_destroy
+  end type
+  
   interface
     module subroutine after_read_setup(photodata, photovars, err)
       use photochem_eqns, only: vertical_grid, gravity
@@ -64,6 +71,20 @@ contains
     call after_read_setup(photodata, photovars, err)
     if (len_trim(err) /= 0) return
     
+  end subroutine
+  
+  subroutine list_destroy(self)
+    type(type_list_tmp), intent(inout) :: self
+    
+    type (type_list_item),pointer :: item, next
+    
+    item => self%first
+    do while (associated(item))
+       next => item%next
+       deallocate(item)
+       item => next
+    end do
+    nullify(self%first)
   end subroutine
   
 end module

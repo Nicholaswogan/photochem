@@ -41,7 +41,7 @@ contains
   end subroutine
   
   subroutine get_photomech(infile, photodata, photovars, err) 
-    use yaml, only : parse, error_length
+    use fortran_yaml_c, only : parse, error_length
     character(len=*), intent(in) :: infile
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(in) :: photovars
@@ -92,7 +92,7 @@ contains
     integer :: i, ii, j, k, kk, l, ind(1), size_eqr, size_eqp
     logical :: reverse
     ! all_species causes a small memory leak. Not sure how to free the memory properly
-    type(type_list) :: all_species, all_reactions ! will include particles
+    type(type_list_tmp) :: all_species, all_reactions ! will include particles
     logical, allocatable :: duplicate(:)
 
     err = ''
@@ -382,13 +382,6 @@ contains
         return
       endif
     endif
-    item => all_species%first
-    do while (associated(item))
-       next => item%next
-       deallocate(item)
-       item => next
-    end do
-    nullify(all_species%first)
     !!! done with species !!!
     
     if (photodata%there_are_particles) then
@@ -492,14 +485,6 @@ contains
       item => item%next
       j = j + 1
     enddo
-    
-    item => all_reactions%first
-    do while (associated(item))
-       next => item%next
-       deallocate(item)
-       item => next
-    end do
-    nullify(all_reactions%first)
     
     ! production and loss mechanisms for each species
     allocate(photodata%pl(photodata%nsp))
@@ -660,7 +645,7 @@ contains
   end subroutine
   
   subroutine get_henry(photodata, photovars, err)
-    use yaml, only : parse, error_length
+    use fortran_yaml_c, only : parse, error_length
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(in) :: photovars
     character(len=*), intent(out) :: err
@@ -1555,7 +1540,7 @@ contains
   end subroutine
   
   subroutine get_SL_and_background(infile, photodata, err)
-    use yaml, only : parse, error_length
+    use fortran_yaml_c, only : parse, error_length
     character(len=*), intent(in) :: infile
     type(PhotochemData), intent(inout) :: photodata
     character(len=err_len), intent(out) :: err
@@ -1594,7 +1579,7 @@ contains
   end subroutine
   
   subroutine get_photoset(infile, photodata, photovars, err)
-    use yaml, only : parse, error_length
+    use fortran_yaml_c, only : parse, error_length
     character(len=*), intent(in) :: infile
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(inout) :: photovars
@@ -2646,7 +2631,7 @@ contains
   
   
   subroutine get_rayleigh(photodata, photovars, err)
-    use yaml, only : parse, error_length
+    use fortran_yaml_c, only : parse, error_length
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(in) :: photovars
     character(len=err_len), intent(out) :: err
