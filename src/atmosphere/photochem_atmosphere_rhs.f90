@@ -550,7 +550,7 @@ contains
                                      density, mubar, pressure, fH2O, H2O_sat_mix, err)
     use photochem_eqns, only: sat_pressure_H2O, molar_weight, press_and_den
     use, intrinsic :: iso_c_binding, only : c_loc, c_ptr
-    use cminpack2fort, only: hybrd1 ! interface to hybrd1 from cminpack
+    use cminpack_wrapper, only: hybrd1 ! interface to hybrd1 from cminpack
     
     class(Atmosphere), target, intent(inout) :: self
     integer, intent(in) :: nq, nz, trop_ind

@@ -1,22 +1,28 @@
 
-# fortran yaml
-add_subdirectory(fortran-yaml-c EXCLUDE_FROM_ALL)
+add_subdirectory(futils)
 
-# binning
-add_subdirectory(futils EXCLUDE_FROM_ALL)
+CPMAddPackage(
+  NAME cminpack-f
+  VERSION 0.1.1
+  GITHUB_REPOSITORY "Nicholaswogan/cminpack-f"
+  GIT_TAG "v0.1.1"
+  EXCLUDE_FROM_ALL ON
+)
 
-# CVODE
-set(BUILD_SHARED_LIBS OFF)
-set(EXAMPLES_ENABLE_C OFF)
-set(EXAMPLES_ENABLE_F77 OFF)
-set(EXAMPLES_ENABLE_F90 OFF)
-set(EXAMPLES_ENABLE_F2003 OFF)
-set(BUILD_FORTRAN_MODULE_INTERFACE ON)
-set(BUILD_ARKODE OFF)
-set(BUILD_CVODES OFF)
-set(BUILD_IDA OFF)
-set(BUILD_KINSOL OFF)
-add_subdirectory(cvode-5.7.0 EXCLUDE_FROM_ALL)
+CPMAddPackage(
+  NAME fortran-yaml-c
+  VERSION 0.1.1
+  GITHUB_REPOSITORY "Nicholaswogan/fortran-yaml-c"
+  GIT_TAG "v0.1.1"
+  EXCLUDE_FROM_ALL ON
+)
 
-add_subdirectory(cminpack EXCLUDE_FROM_ALL)
-
+CPMAddPackage(
+  NAME cvode 
+  VERSION 5.7.0
+  OPTIONS 
+    "BUILD_SHARED_LIBS OFF" 
+    "BUILD_FORTRAN_MODULE_INTERFACE ON"
+  URL "https://github.com/LLNL/sundials/releases/download/v5.7.0/cvode-5.7.0.tar.gz"
+  EXCLUDE_FROM_ALL ON
+)

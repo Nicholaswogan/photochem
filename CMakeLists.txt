@@ -1,9 +1,13 @@
-cmake_minimum_required(VERSION "3.12")
-project(Photochem LANGUAGES Fortran C VERSION "0.1.10")
+cmake_minimum_required(VERSION "3.14")
+project(Photochem LANGUAGES Fortran C VERSION "0.1.11")
 
 include(FortranCInterface)
 FortranCInterface_VERIFY()
 
+# includes
+include(cmake/CPM.cmake)
+
+# options
 option(SKBUILD "Should be ON of being build by skbuild, 
 and OFF of being build by regular cmake" OFF)
 
