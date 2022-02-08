@@ -12,10 +12,10 @@ Create a `conda` environment with all dependencies
 conda create -n photochem -c conda-forge python numpy scipy pyyaml scikit-build cython
 ```
 
-Recursively clone this Gitub repository: 
+Clone or download this Gitub repository: 
 
 ```sh
-git clone --recursive --depth=1 https://github.com/Nicholaswogan/photochem.git
+git clone --depth=1 https://github.com/Nicholaswogan/photochem.git
 ```
 
 Navigate to the root directory with a terminal, activate your new `conda` environment, then install with setup.py:
