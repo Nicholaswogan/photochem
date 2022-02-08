@@ -10,6 +10,7 @@ before_install:
   - sudo apt-get install gfortran
   - sudo apt-get install gcc
   - sudo apt-get install valgrind
+  - pip install cmake
   - mkdir build
   - cd build
 
