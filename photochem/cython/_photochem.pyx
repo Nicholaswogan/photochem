@@ -1,4 +1,5 @@
 from numpy cimport ndarray
+from libcpp cimport bool
 import numpy as np
 import os
 
@@ -24,5 +25,5 @@ def _photochem_version():
   
 __version__ = _photochem_version()
     
-def sat_pressure_H2O(double T):
+cpdef double sat_pressure_H2O(double T):
   return 1.0e-5*611.0*np.exp(2.5e6/461.e0*(1/273.15 - 1/T))

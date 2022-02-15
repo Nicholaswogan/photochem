@@ -91,7 +91,7 @@ contains
   
   subroutine atmosphere_photochemical_equilibrium_wrapper(ptr, success, err) bind(c)
     type(c_ptr), intent(in) :: ptr
-    logical(4), intent(out) :: success
+    logical(c_bool), intent(out) :: success
     character(len=c_char), intent(out) :: err(err_len+1)
     
     character(len=err_len) :: err_f
@@ -108,7 +108,7 @@ contains
   subroutine atmosphere_out2atmosphere_txt_wrapper(ptr, filename, overwrite, clip, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     character(kind=c_char), intent(in) :: filename(*)
-    logical(4), intent(in) :: overwrite, clip
+    logical(c_bool), intent(in) :: overwrite, clip
     character(kind=c_char), intent(out) :: err(err_len+1)
     
     character(len=:), allocatable :: filename_f
@@ -167,7 +167,7 @@ contains
     real(c_double), intent(in) :: mix
     real(c_double), intent(in) :: flux
     real(c_double), intent(in) :: height
-    logical(4), intent(in) :: missing
+    logical(c_bool), intent(in) :: missing
     character(kind=c_char), intent(out) :: err(err_len+1)
     
     character(len=:), allocatable :: species_f
@@ -198,7 +198,7 @@ contains
     character(kind=c_char), intent(in) :: bc_type(*)
     real(c_double), intent(in) :: veff
     real(c_double), intent(in) :: flux
-    logical(4), intent(in) :: missing
+    logical(c_bool), intent(in) :: missing
     character(kind=c_char), intent(out) :: err(err_len+1)
     
     character(len=:), allocatable :: species_f
@@ -362,10 +362,11 @@ contains
     real(c_double), intent(in) :: usol(nq, nz)
     integer(c_int), intent(in) :: nt
     real(c_double), intent(in) :: t_eval(nt)
-    logical(4), intent(in) :: overwrite
-    logical(4), intent(out) :: success
+    logical(c_bool), intent(in) :: overwrite
+    logical(c_bool), intent(out) :: success
     character(kind=c_char), intent(out) :: err(err_len+1)
     
+    logical :: overwrite_f, success_f
     character(len=:), allocatable :: filename_f
     character(len=err_len) :: err_f
     type(Atmosphere), pointer :: pc
@@ -374,9 +375,11 @@ contains
     
     allocate(character(len=len_cstring(filename))::filename_f)
     call copy_string_ctof(filename, filename_f)
+    overwrite_f = overwrite
     
     err_f = ""
-    success = pc%evolve(filename_f, tstart, usol, t_eval, overwrite=overwrite, err=err_f)
+    success_f = pc%evolve(filename_f, tstart, usol, t_eval, overwrite=overwrite_f, err=err_f)
+    success = success_f
     call copy_string_ftoc(err_f, err)
   end subroutine
   
@@ -386,7 +389,7 @@ contains
     integer(c_int), intent(in) :: nz
     real(c_double), intent(in) :: temperature(nz)
     real(c_double), intent(in) :: trop_alt
-    logical(4), intent(in) :: trop_alt_present
+    logical(c_bool), intent(in) :: trop_alt_present
     character(kind=c_char), intent(out) :: err(err_len+1)
     
     character(len=err_len) :: err_f

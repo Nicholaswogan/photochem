@@ -38,7 +38,7 @@ contains
   
   subroutine photochemvars_at_photo_equilibrium_get(ptr, at_photo_equilibrium) bind(c)
     type(c_ptr), intent(in) :: ptr
-    logical(4), intent(out) :: at_photo_equilibrium
+    logical(c_bool), intent(out) :: at_photo_equilibrium
     type(PhotochemVars), pointer :: var
     call c_f_pointer(ptr, var)
     at_photo_equilibrium = var%at_photo_equilibrium
