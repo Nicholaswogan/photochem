@@ -312,7 +312,7 @@ contains
     
     
     call pc%production_and_loss(species_f, usol, pl, err_f)
-    if (len_trim(err_f) /= 0) then
+    if (allocated(err_f)) then
       deallocate(pl)
     else
       pl_ptr = c_loc(pl)
@@ -380,7 +380,7 @@ contains
     
     
     con = pc%atom_conservation(atom_f, err_f)
-    if (len_trim(err_f) /= 0) then
+    if (allocated(err_f)) then
       deallocate(con)
     else
       con_ptr = c_loc(con)
