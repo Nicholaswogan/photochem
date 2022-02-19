@@ -21,7 +21,7 @@ contains
     ! pointers to data in SUNDIALS vectors
     real(c_double), pointer :: yvec(:)
     real(c_double), pointer :: fvec(:)
-    character(len=err_len) :: err
+    character(:), allocatable :: err
     integer(c_long) :: nsteps(1)
     integer(c_int) :: loc_ierr
     real(c_double) :: hcur(1)
@@ -72,7 +72,7 @@ contains
       self%wrk%nsteps_previous = nsteps(1)
     endif
     
-    if (len_trim(err) /= 0) then
+    if (allocated(err)) then
       print*,trim(err)//". CVODE will attempt to correct the error."
       ierr = 1
     endif
@@ -101,7 +101,7 @@ contains
     ! pointers to data in SUNDIALS vectors
     real(c_double), pointer :: yvec(:)
     real(c_double), pointer :: Jmat(:)
-    character(len=err_len) :: err
+    character(:), allocatable :: err
     
     type(Atmosphere), pointer :: self
   
@@ -111,7 +111,7 @@ contains
     yvec(1:self%var%neqs) => FN_VGetArrayPointer(sunvec_y)
     Jmat(1:self%var%neqs*self%dat%lda) => FSUNBandMatrix_Data(sunmat_J)
     call self%jacobian(self%dat%lda*self%var%neqs, self%var%neqs, yvec, Jmat, err)
-    if (len_trim(err) /= 0) then
+    if (allocated(err)) then
       print*,trim(err)//". CVODE will attempt to correct the error."
       ierr = 1
     endif
@@ -143,7 +143,7 @@ contains
     real(c_double), intent(in) :: t_eval(:)
     logical, optional, intent(in) :: overwrite
     logical :: success
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     ! local variables
     real(c_double) :: tcur(1)    ! current time
@@ -167,7 +167,6 @@ contains
     type(PhotochemWrk), pointer :: wrk
     type(Atmosphere), pointer :: self_ptr
   
-    err = ''
     
     dat => self%dat
     var => self%var
@@ -226,7 +225,7 @@ contains
     enddo
     if (dat%fix_water_in_trop) then
       call self%prep_atmosphere(usol_start, err)
-      if (len_trim(err) /= 0) return 
+      if (allocated(err)) return 
       do j = 1,var%trop_ind
         k = dat%LH2O + (j-1)*dat%nq
         yvec(k) = self%wrk%fH2O(j)
@@ -328,7 +327,7 @@ contains
         enddo
         
         call self%prep_atmosphere(wrk%usol, err)
-        if (len_trim(err) /= 0) return
+        if (allocated(err)) return
         
         open(1, file = filename, status='old', form="unformatted",position="append")
         write(1) tcur(1)
@@ -353,7 +352,7 @@ contains
   module subroutine photochemical_equilibrium(self, success, err)
     class(Atmosphere), target, intent(inout) :: self
     logical, intent(out) :: success
-    character(len=err_len), intent(out) :: err 
+    character(:), allocatable, intent(out) :: err 
     
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -362,24 +361,22 @@ contains
     real(dp) :: tn
     integer :: nsteps
     
-    err = ""
     
     dat => self%dat
     var => self%var
     wrk => self%wrk
     
     call self%initialize_stepper(var%usol_init, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     success = .true.
     tn = 0
     nsteps = 0
     do while(tn < var%equilibrium_time)
       tn = self%step(err)
-      if (len_trim(err) /= 0) then
+      if (allocated(err)) then
         ! If the step fails then exit
         success = .false.
-        err = ""
         exit
       endif
       nsteps = nsteps + 1
@@ -392,7 +389,7 @@ contains
     
     var%usol_out = wrk%usol
     call self%destroy_stepper(err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     var%at_photo_equilibrium = success 
     
@@ -414,7 +411,7 @@ contains
     
     class(Atmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     real(c_double) :: tstart
     integer(c_int) :: ierr       ! error flag from C functions
@@ -434,7 +431,6 @@ contains
     var => self%var
     wrk => self%wrk
     
-    err = ''
     
     if (size(usol_start,1) /= dat%nq .or. size(usol_start,2) /= var%nz) then
       err = "Input 'usol_start' to 'initialize_stepper' is the wrong dimension"
@@ -451,7 +447,7 @@ contains
     user_data = c_loc(self_ptr)
     
     call self%destroy_stepper(err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     ! initialize solution vector
     allocate(wrk%yvec(var%neqs))
@@ -468,7 +464,7 @@ contains
     enddo
     if (dat%fix_water_in_trop) then
       call self%prep_atmosphere(usol_start, err)
-      if (len_trim(err) /= 0) return 
+      if (allocated(err)) return 
       do j = 1,var%trop_ind
         k = dat%LH2O + (j-1)*dat%nq
         wrk%yvec(k) = self%wrk%fH2O(j)
@@ -559,13 +555,12 @@ contains
     use iso_c_binding, only: c_null_ptr, c_int, c_double, c_associated
     use fcvode_mod, only: CV_ONE_STEP, FCVode
     class(Atmosphere), target, intent(inout) :: self
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     real(dp) :: tn
     
     integer(c_int) :: ierr
     real(c_double), parameter :: dum = 0.0_dp
     
-    err = ""
     if (.not.c_associated(self%wrk%cvode_mem)) then
       err = "You must first initialize the stepper with 'initialize_stepper'"
       return 
@@ -587,11 +582,10 @@ contains
     use fsundials_linearsolver_mod, only: FSUNLinSolFree
     
     class(Atmosphere), target, intent(inout) :: self
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     integer(c_int) :: ierr
     
-    err = ""
     
     if (c_associated(self%wrk%cvode_mem)) then
       call FN_VDestroy(self%wrk%sunvec_y)

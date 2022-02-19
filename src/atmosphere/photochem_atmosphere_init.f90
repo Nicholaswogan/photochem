@@ -17,13 +17,12 @@ contains
     character(len=*), intent(in) :: settings_file
     character(len=*), intent(in) :: flux_file
     character(len=*), intent(in) :: atmosphere_txt
-    character(len=err_len), intent(out) :: err
-    err = ""
+    character(:), allocatable, intent(out) :: err
     
     if (allocated(self%dat)) then
       if (c_associated(self%wrk%cvode_mem)) then
         call self%destroy_stepper(err)
-        if (len_trim(err) /= 0) return 
+        if (allocated(err)) return 
       endif
       deallocate(self%dat)
       deallocate(self%var)
@@ -37,14 +36,14 @@ contains
     self%var%data_dir = data_dir
     call setup(mechanism_file, settings_file, flux_file, atmosphere_txt, &
                self%dat, self%var, err)
-    if (len_trim(err) /= 0) return 
+    if (allocated(err)) return 
     
     call self%wrk%init(self%dat%nsp, self%dat%np, self%dat%nq, &
                        self%var%nz, self%dat%nrT, self%dat%kj, &
                        self%dat%nw, self%var%trop_ind)
                        
     call self%prep_atmosphere(self%var%usol_init, err)
-    if (len_trim(err) /= 0) return 
+    if (allocated(err)) return 
   end subroutine
   
 end submodule

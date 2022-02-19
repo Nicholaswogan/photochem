@@ -10,7 +10,7 @@ contains
     class(Atmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: filename
     logical, intent(in) :: overwrite, clip
-    character(len=1024), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     character(len=100) :: tmp
     integer :: io, i, j
@@ -18,7 +18,6 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
     
-    err = ""
     
     dat => self%dat
     var => self%var
@@ -26,7 +25,7 @@ contains
     
     ! update wrk variables
     call self%prep_atmosphere(wrk%usol, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     if (overwrite) then
       open(1, file=filename, form='formatted', status='replace', iostat=io)
@@ -90,8 +89,7 @@ contains
   
   module subroutine out2in(self, err)
     class(Atmosphere), intent(inout) :: self
-    character(len=err_len), intent(out) :: err
-    err = ''
+    character(:), allocatable, intent(out) :: err
     
     if (self%var%at_photo_equilibrium) then
       self%var%usol_init = self%var%usol_out
@@ -106,7 +104,7 @@ contains
     class(Atmosphere), target, intent(inout) :: self
     real(dp), intent(out) :: surf_fluxes(:)
     real(dp), intent(out) :: top_fluxes(:)
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
   
     real(dp) :: rhs(self%var%neqs)  
     real(dp) :: diffusive_production
@@ -117,7 +115,6 @@ contains
   
     integer :: i
     
-    err = ""
     
     dat => self%dat
     var => self%var
@@ -129,7 +126,7 @@ contains
     endif
   
     call self%right_hand_side_chem(wrk%usol, rhs, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     ! surface flux is molecules required to sustain the lower boundary
     ! chemical production + diffusion production = total change in lower cell    
@@ -165,7 +162,7 @@ contains
     use photochem_types, only: AtomConservation
     class(Atmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: atom
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     type(AtomConservation) :: con
     
     real(dp) :: surf_fluxes(self%dat%nq)
@@ -179,7 +176,6 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
     
-    err = ""
     
     dat => self%dat
     var => self%var
@@ -206,7 +202,7 @@ contains
     endif
     
     call self%gas_fluxes(surf_fluxes, top_fluxes, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     con%in_surf = 0
     con%in_top = 0
@@ -282,7 +278,7 @@ contains
   
   module function redox_conservation(self, err) result(redox_factor)
     class(Atmosphere), target, intent(inout) :: self
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     real(dp) :: redox_factor
     
     real(dp) :: surf_fluxes(self%dat%nq)
@@ -307,14 +303,13 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
     
-    err = ""
     
     dat => self%dat
     var => self%var
     wrk => self%wrk
     
     call self%gas_fluxes(surf_fluxes, top_fluxes, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     oxi_in_surf = 0.0_dp
     oxi_out_surf = 0.0_dp
@@ -417,11 +412,10 @@ contains
     real(dp), optional, intent(in) :: mix
     real(dp), optional, intent(in) :: flux
     real(dp), optional, intent(in) :: height
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     integer :: ind(1)
     
-    err = ""
     
     ind = findloc(self%dat%species_names(1:self%dat%nq), trim(species))
     if (ind(1) == 0) then
@@ -492,11 +486,10 @@ contains
     character(len=*), intent(in) :: bc_type
     real(dp), optional, intent(in) :: veff
     real(dp), optional, intent(in) :: flux
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     integer :: ind(1)
     
-    err = ""
     
     ind = findloc(self%dat%species_names(1:self%dat%nq), trim(species))
     if (ind(1) == 0) then
@@ -550,14 +543,13 @@ contains
     class(Atmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: temperature(:)
     real(dp), optional, intent(in) :: trop_alt
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemVars) :: var_save
     type(PhotochemWrk) :: wrk_save
     
-    err = ""
     
     dat => self%dat
     var => self%var
@@ -575,13 +567,13 @@ contains
     
     ! xsections and gibbs energy needs updating
     call interp2xsdata(dat, var, err)
-    if (len_trim(err) /= 0) then
+    if (allocated(err)) then
       var = var_save
       return
     endif
     if (dat%reverse) then
       call compute_gibbs_energy(dat, var, err)
-      if (len_trim(err) /= 0) then
+      if (allocated(err)) then
         var = var_save
         return
       endif

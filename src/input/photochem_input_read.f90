@@ -12,31 +12,30 @@ contains
     character(len=*), intent(in) :: atmosphere_txt
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(inout) :: photovars
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
-    err = ""
     
     ! first get SL and background species from settings
     call get_SL_and_background(settings_file, photodata, err)
-    if (len(trim(err)) /= 0) return
+    if (allocated(err)) return
     
     call get_photomech(mechanism_file, photodata, photovars, err)
-    if (len(trim(err)) /= 0) return
+    if (allocated(err)) return
     
     call get_photoset(settings_file, photodata, photovars, err)
-    if (len(trim(err)) /= 0) return
+    if (allocated(err)) return
     
     call get_photorad(photodata, photovars, err)
-    if (len(trim(err)) /= 0) return
+    if (allocated(err)) return
     
     ! stelar flux
     allocate(photovars%photon_flux(photodata%nw))
     call read_stellar_flux(flux_file, photodata%nw, photodata%wavl, photovars%photon_flux, err)
-    if (len(trim(err)) /= 0) return
+    if (allocated(err)) return
     
     ! initial atmosphere
     call read_atmosphere_file(atmosphere_txt, photodata, photovars, err)
-    if (len(trim(err)) /= 0) return
+    if (allocated(err)) return
     
   end subroutine
   
@@ -45,11 +44,10 @@ contains
     character(len=*), intent(in) :: infile
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(in) :: photovars
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     character(error_length) :: error
     class (type_node), pointer :: root
-    err = ''
     
     ! parse yaml file
     root => parse(infile,error=error)
@@ -65,7 +63,7 @@ contains
     end select
     call root%finalize()
     deallocate(root)  
-    if (len_trim(err) > 0) return
+    if (allocated(err)) return
      
   end subroutine
   
@@ -74,7 +72,7 @@ contains
     character(len=*), intent(in) :: infile
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(in) :: photovars
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     class (type_dictionary), pointer :: sat_params
     class (type_list), pointer :: species, reactions, atoms
@@ -95,7 +93,6 @@ contains
     type(type_list_tmp) :: all_species, all_reactions ! will include particles
     logical, allocatable :: duplicate(:)
 
-    err = ''
 
     atoms => mapping%get_list('atoms',.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -232,7 +229,7 @@ contains
               photodata%particle_sat_type(j) = 2
               ! make a H2SO4 interpolator
               call H2SO4_interpolator(photovars, photodata%H2SO4_sat, err)
-              if (len_trim(err) /= 0) return
+              if (allocated(err)) return
             else
               err = "Saturation type '"//trim(tmpchar)//"' is not a valid type."
               return
@@ -361,7 +358,7 @@ contains
         if (photodata%reverse .and. (ii >= photodata%ng_1)) then
           call get_thermodata(element,photodata%species_names(j), infile, &
                               photodata%thermo_data(j-photodata%npq), err)
-          if (len_trim(err) > 0) return
+          if (allocated(err)) return
         endif
       class default
         err = "IOError: Problem with species number "//char(j)//"  in the input file"
@@ -420,7 +417,7 @@ contains
         tmp = trim(element%get_string("equation",error = io_err))
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         reverse = is_rx_reverse(tmp, err)
-        if (len_trim(err) /= 0) return 
+        if (allocated(err)) return 
         
         if (reverse) then
           if (.not.photodata%reverse) then
@@ -453,9 +450,9 @@ contains
         if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
         call get_rateparams(photodata, element, infile, photodata%rx(j), err)
-        if (len_trim(err) /= 0) return
+        if (allocated(err)) return
         call get_reaction_sp_nums(photodata, tmp, photodata%rx(j), reverse, err)
-        if (len_trim(err) /= 0) return
+        if (allocated(err)) return
         
         ! check if duplicate
         duplicate(j) = element%get_logical("duplicate",default=.false.,error = io_err)
@@ -556,12 +553,12 @@ contains
     enddo
     
     call check_for_duplicates(photodata, duplicate, err)
-    if (len(trim(err)) > 0) return
+    if (allocated(err)) return
     !!! end reactions !!!
     
     !!! henrys law !!!
     call get_henry(photodata, photovars, err)
-    if (len(trim(err)) > 0) return
+    if (allocated(err)) return
     !!! end henrys law !!!
     
   end subroutine
@@ -570,7 +567,7 @@ contains
     use linear_interpolation_module, only: linear_interp_2d
     type(PhotochemVars), intent(in) :: photovars
     type(linear_interp_2d), intent(out) :: s2
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     real(dp), allocatable :: H2O(:)
     real(dp), allocatable :: Temp(:)
@@ -579,7 +576,6 @@ contains
     integer :: nT, nH2O
     character(len=:), allocatable :: filename
     
-    err = ""
     
     filename = trim(photovars%data_dir)//"/misc/H2SO4.dat"
     open(unit=1,file=filename, status='old',iostat=io,form='unformatted')
@@ -611,7 +607,7 @@ contains
     type(PhotochemVars), intent(in) :: photovars
     character(len=s_str_len), allocatable, intent(out) :: henry_names(:)
     real(dp), allocatable, intent(out) :: henry_data(:,:)
-    character(len=*), intent(out) :: err
+    character(:), allocatable :: err
   
     type (type_error), pointer :: io_err
     class (type_list_item), pointer :: item
@@ -648,7 +644,7 @@ contains
     use fortran_yaml_c, only : parse, error_length
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(in) :: photovars
-    character(len=*), intent(out) :: err
+    character(:), allocatable :: err
     
     character(error_length) :: error
     class (type_node), pointer :: root
@@ -657,7 +653,6 @@ contains
     character(len=s_str_len), allocatable :: henry_names(:)
     real(dp), allocatable :: henry_data(:,:)
     
-    err = ''
 
     ! parse yaml file
     root => parse(trim(photovars%data_dir)//"/henry/henry.yaml",error=error)
@@ -673,7 +668,7 @@ contains
     end select
     call root%finalize()
     deallocate(root)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     allocate(photodata%henry_data(2,photodata%nsp))
     photodata%henry_data = 0.0_dp
@@ -693,7 +688,7 @@ contains
     use sorting, only: sort
     type(PhotochemData), intent(in) :: dat
     logical, intent(in) :: duplicate(:)
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     character(len=:), allocatable :: rxstring
     
     integer i, ii, j, jj, nr, np, rxt, rxt_ii
@@ -701,7 +696,6 @@ contains
     
     integer, allocatable :: tmp_arr1(:), tmp_arr2(:)
     
-    err = ''
     
     do i = 1,dat%nrT-1
       do ii = i+1,dat%nrT
@@ -756,7 +750,7 @@ contains
             if (l) then
               err = "IOError: This reaction is a duplicate: "
               call reaction_string(dat, i, rxstring)
-              err(len_trim(err)+2:) = rxstring
+              err = err//rxstring
               return
             endif
           endif
@@ -808,7 +802,7 @@ contains
     character(len=s_str_len), allocatable, intent(in) :: eqr(:), eqp(:)
     logical, intent(in) :: reverse
     integer, intent(in) :: rxtype_int
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     character(len=s_str_len) :: rxtype
     integer i
     logical k, j, m, l, kk, jj
@@ -818,7 +812,6 @@ contains
     kk = .false.
     j = .false.
     jj = .false.
-    err = ''
     if (rxtype_int == 0) then
       rxtype = 'photolysis'
     elseif (rxtype_int == 1) then
@@ -928,7 +921,7 @@ contains
     character(len=*), intent(in) :: infile
     
     type(ThermodynamicData), intent(out) :: thermo
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     type (type_error), pointer :: io_err
     class(type_dictionary), pointer :: tmpdict
@@ -939,7 +932,6 @@ contains
     
     integer :: j, k
     
-    err = ''
     
     tmpdict => molecule%get_dictionary("thermo",.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -1047,18 +1039,17 @@ contains
     character(len=*), intent(in) :: rx_str
     type(Reaction), intent(inout) :: rx ! already has rate parameters
     logical, intent(out) :: reverse
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     character(len=s_str_len), allocatable :: eqr(:), eqp(:), eqr1(:), eqp1(:)
     integer :: reactant_atoms(dat%natoms), product_atoms(dat%natoms)
     integer :: ind(1), i
     
-    err = ""
     
     call parse_reaction(rx_str, reverse, eqr1, eqp1, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     call compare_rxtype_string(rx_str, eqr1, eqp1, reverse, rx%rp%rxtype, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     if (rx%rp%rxtype == 2 .or. rx%rp%rxtype == 3) then
       ! remove the M
@@ -1116,9 +1107,8 @@ contains
   function is_rx_reverse(rx_string, err) result(reverse)
     character(len=*), intent(in) :: rx_string
     logical :: reverse
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
-    err = ""
     
     if (index(rx_string, "<=>") /= 0) then
       reverse = .true.
@@ -1138,7 +1128,7 @@ contains
     class(type_dictionary), intent(in) :: reaction_d
     character(len=*), intent(in) :: infile
     type(Reaction), target, intent(out) :: rx
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     class(BaseRate), pointer :: rp
     type (type_error), pointer :: io_err
@@ -1147,7 +1137,6 @@ contains
     logical :: use_jpl
     real(dp) :: T2
     
-    err = ""
     
     rxtype_str = reaction_d%get_string("type", default="elementary", error = io_err) 
     
@@ -1178,17 +1167,17 @@ contains
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       call get_arrhenius(dict, rp%A, rp%b, rp%Ea, err)
-      if (len_trim(err) /= 0) return
+      if (allocated(err)) return
         
     class is (ThreeBodyRate)
       dict => reaction_d%get_dictionary('rate-constant',.true.,error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       call get_arrhenius(dict, rp%A, rp%b, rp%Ea, err)
-      if (len_trim(err) /= 0) return
+      if (allocated(err)) return
       
       call get_efficiencies(dat, reaction_d, rp%eff, err)
-      if (len_trim(err) /= 0) return
+      if (allocated(err)) return
       
     class is (FalloffRate)
       
@@ -1196,16 +1185,16 @@ contains
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       call get_arrhenius(dict, rp%A0, rp%b0, rp%Ea0, err)
-      if (len_trim(err) /= 0) return
+      if (allocated(err)) return
         
       dict => reaction_d%get_dictionary('high-P-rate-constant',.true.,error = io_err)
       if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       call get_arrhenius(dict, rp%Ainf, rp%binf, rp%Eainf, err)
-      if (len_trim(err) /= 0) return
+      if (allocated(err)) return
       
       call get_efficiencies(dat, reaction_d, rp%eff, err)
-      if (len_trim(err) /= 0) return
+      if (allocated(err)) return
       
       ! get falloff stuff
       use_jpl = reaction_d%get_logical('JPL',default=.false.,error = io_err)
@@ -1257,14 +1246,13 @@ contains
     type(PhotochemData), intent(in) :: dat
     type(type_dictionary), intent(in) :: rx
     type(Efficiencies), intent(out) :: eff
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     type (type_error), pointer :: io_err
     type (type_key_value_pair), pointer :: key_value_pair
     type(type_dictionary), pointer :: d
     integer :: ind(1), j
     
-    err = ""
     
     eff%def_eff = rx%get_real("default-efficiency",default=1.0_dp,error = io_err)
   
@@ -1302,11 +1290,10 @@ contains
   subroutine get_arrhenius(d, A, b, Ea, err)
     type(type_dictionary), intent(in) :: d
     real(dp), intent(out) :: A, b, Ea
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     type (type_error), pointer :: io_err
     
-    err = ""
     
     A = d%get_real('A',error = io_err)
     if (associated(io_err)) then; err = trim(io_err%message); return; endif
@@ -1323,7 +1310,7 @@ contains
     character(len=*), intent(in) :: instring
     logical, intent(out) :: reverse
     character(len=s_str_len), allocatable, intent(out) :: eqr(:), eqp(:)
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     character(len=:), allocatable :: string2, string3
     character(len=:), allocatable :: eqr1, eqp1, eqr2, eqp2
@@ -1465,7 +1452,7 @@ contains
     class (type_dictionary), intent(in) :: root
     character(len=*), intent(in) :: infile
     type(PhotochemData), intent(inout) :: photodata
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
   
     class (type_dictionary), pointer :: tmp1
     type (type_error), pointer :: io_err
@@ -1543,12 +1530,11 @@ contains
     use fortran_yaml_c, only : parse, error_length
     character(len=*), intent(in) :: infile
     type(PhotochemData), intent(inout) :: photodata
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
   
     character(error_length) :: error
     class (type_node), pointer :: root
     integer :: i, j
-    err = ''
     
     root => parse(infile,error=error)
     if (error /= '') then
@@ -1563,7 +1549,7 @@ contains
     end select
     call root%finalize()
     deallocate(root)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     ! check for duplicates
     do i = 1,photodata%nsl-1
@@ -1583,11 +1569,10 @@ contains
     character(len=*), intent(in) :: infile
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(inout) :: photovars
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
   
     character(error_length) :: error
     class (type_node), pointer :: root
-    err = ''
     
     root => parse(infile,error=error)
     if (error /= '') then
@@ -1602,7 +1587,7 @@ contains
     end select
     call root%finalize()
     deallocate(root)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
 
   end subroutine
   
@@ -1611,7 +1596,7 @@ contains
     character(len=*), intent(in) :: infile
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(inout) :: photovars
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     class (type_dictionary), pointer :: tmp1, tmp2, tmp3
     class (type_list), pointer :: bcs, particles
@@ -1625,7 +1610,6 @@ contains
     integer :: default_lowerboundcond
     logical, allocatable :: particle_checklist(:)
     
-    err = ''
     
     ! photolysis grid
     tmp1 => mapping%get_dictionary('photolysis-grid',.true.,error = io_err)
@@ -1961,7 +1945,7 @@ contains
                                  photovars%lower_fix_mr(i), &
                                  photovars%upperboundcond(i), photovars%upper_veff(i), &
                                  photovars%upper_flux(i), err)
-          if (len_trim(err) /= 0) return
+          if (allocated(err)) return
           
           photovars%only_eddy(i) = element%get_logical("only-eddy",default=.false., error = io_err)
           if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -1996,7 +1980,7 @@ contains
 
     ! check for SL nonlinearities
     call check_sl(photodata, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
 
     
   end subroutine
@@ -2004,11 +1988,10 @@ contains
   subroutine check_sl(dat, err)
     use photochem_types, only: ThreeBodyRate, FalloffRate
     type(PhotochemData), intent(in) :: dat
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     integer :: i, j, l, k, kk, m, mm, n, nn, ind(1), counter
     character(len=:), allocatable :: reaction
-    err = ''
     
     do i = 1, dat%nsl
       
@@ -2099,12 +2082,11 @@ contains
     real(dp), intent(out) :: Lvdep, Lflux, LdistH, Lmr
     integer, intent(out) :: uppercond
     real(dp), intent(out) :: Uveff, Uflux
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     type (type_error), pointer :: io_err
     class(type_dictionary), pointer :: tmpdict
     character(len=:), allocatable :: bctype
-    err = ''
 
     tmpdict => molecule%get_dictionary("lower-boundary",.true.,error = io_err)
     if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
@@ -2191,10 +2173,9 @@ contains
   subroutine get_photorad(photodata, photovars, err)
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(in) :: photovars
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     integer :: i
-    err = ''
     
     ! compute wavelength grid
     if (photodata%regular_grid) then
@@ -2212,15 +2193,15 @@ contains
     
     ! get rayleigh
     call get_rayleigh(photodata, photovars, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     ! get photolysis xsections data
     call get_photolysis_xs(photodata, photovars, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     if (photodata%there_are_particles) then
       call get_aerosol_xs(photodata, photovars, err)
-      if (len_trim(err) /= 0) return
+      if (allocated(err)) return
     endif
     
   end subroutine
@@ -2238,7 +2219,7 @@ contains
     integer, intent(out) :: nrad_file
     real(dp), allocatable, intent(out) :: radii_file(:)
     real(dp), allocatable, intent(out) :: w0_file(:,:), qext_file(:,:), g_file(:,:)
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     real(dp), allocatable :: wavl_tmp(:)
     real(dp), allocatable :: w0_tmp(:,:), qext_tmp(:,:), g_tmp(:,:)
@@ -2248,7 +2229,6 @@ contains
     real(dp) :: dum
     integer :: i, j, io, ierr
     
-    err = ''
     
     open(2,file=filename,form="unformatted",status='old',iostat=io)
     if (io /= 0) then
@@ -2394,7 +2374,7 @@ contains
   subroutine get_aerosol_xs(photodata, photovars, err)
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(in) :: photovars
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     integer :: nrad
     integer, parameter :: nrad_fixed = 50
@@ -2438,7 +2418,7 @@ contains
       endif
       call read_mie_data_file(filename, photodata%nw, photodata%wavl, &
                               nrad, radii, w0, qext, g, err) 
-      if (len_trim(err) /= 0) return
+      if (allocated(err)) return
       if (nrad /= nrad_fixed) then
         err = "IOError: Aerosol data file "//filename// &
               "must have 50 radii bins."
@@ -2458,7 +2438,7 @@ contains
     use futils, only: inter2, addpnt, replaceStr
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(in) :: photovars
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     integer, parameter :: maxcols = 200
     character(len=:), allocatable :: xsroot
@@ -2470,7 +2450,6 @@ contains
     real(dp), parameter :: rdelta = 1.0e-4_dp
     
     integer :: i, j, k, l, m, io, kk, ierr
-    err = ''
     
     xsroot = trim(photovars%data_dir)//"/"//trim(photovars%xs_folder_name)//"/"
     
@@ -2634,7 +2613,7 @@ contains
     use fortran_yaml_c, only : parse, error_length
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(in) :: photovars
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     real(dp), allocatable :: A(:), B(:), Delta(:)
     character(len=str_len) :: rayleigh_file
@@ -2642,7 +2621,6 @@ contains
     character(error_length) :: error
     class (type_node), pointer :: root
     integer :: i, j
-    err = ''
     
     rayleigh_file = trim(photovars%data_dir)//"/rayleigh/rayleigh.yaml"
     
@@ -2659,7 +2637,7 @@ contains
     end select
     call root%finalize()
     deallocate(root)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     ! compute cross sections
     photodata%nray = size(A)
@@ -2677,7 +2655,7 @@ contains
     class (type_dictionary), intent(in), pointer :: mapping
     type(PhotochemData), intent(in) :: photodata
     character(len=*), intent(in) :: infile
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     class (type_key_value_pair), pointer :: key_value_pair
     class (type_dictionary), pointer :: tmp1, tmp2
@@ -2745,7 +2723,7 @@ contains
     integer, intent(in) :: nw
     real(dp), intent(in) :: wavl(nw+1)
     real(dp), intent(out) :: photon_flux(nw)
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     real(dp), allocatable :: file_wav(:), file_flux(:)
     real(dp) :: flux(nw)
@@ -2811,7 +2789,7 @@ contains
     character(len=*), intent(in) :: atmosphere_txt
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(inout) :: photovars
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     character(len=10000) :: line
     character(len=:), allocatable :: message
@@ -2823,7 +2801,6 @@ contains
     integer :: io, i, n, nn, ii
     logical :: missing
     
-    err = ''
     open(4, file=trim(atmosphere_txt),status='old',iostat=io)
     if (io /= 0) then
       err = 'Can not open file '//trim(atmosphere_txt)

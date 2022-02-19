@@ -1,8 +1,8 @@
 
 program main
-  use photochem, only: Atmosphere, err_len, version
+  use photochem, only: Atmosphere, version
   implicit none
-  character(len=err_len) :: err
+  character(:), allocatable :: err
   type(Atmosphere) :: pc
   logical :: success
   integer :: i, j
@@ -15,13 +15,13 @@ program main
                "../templates/ModernEarth/Sun_now.txt", &
                "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
                err)
-  if (len(trim(err)) > 0) then
+  if (allocated(err)) then
     print*,trim(err)
     stop 1
   endif
 
   call pc%photochemical_equilibrium(success, err)
-  if (len(trim(err)) > 0) then
+  if (allocated(err)) then
     print*,trim(err)
     stop 1
   endif

@@ -1,5 +1,5 @@
 module photochem_atmosphere
-  use photochem_const, only: err_len, dp
+  use photochem_const, only: dp
   use photochem_types, only : PhotochemData, PhotochemVars, PhotochemWrk
   implicit none
   
@@ -57,7 +57,7 @@ module photochem_atmosphere
       character(len=*), intent(in) :: settings_file
       character(len=*), intent(in) :: flux_file
       character(len=*), intent(in) :: atmosphere_txt
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
       ! initializes the Atmosphere object. Reads all files, 
       ! allocates memry, and prepares for photochemical calculations.
     end subroutine
@@ -68,7 +68,7 @@ module photochem_atmosphere
     module subroutine prep_all_background_gas(self, usol_in, err)
       class(Atmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:)
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
       ! Given usol_in, the mixing ratios of each species in the atmosphere,
       ! this subroutine calculates reaction rates, photolysis rates, etc.
       ! and puts this information into self%wrk. self%wrk contains all the
@@ -79,7 +79,7 @@ module photochem_atmosphere
       class(Atmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol(:,:)
       real(dp), intent(out) :: rhs(:)
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
       ! The right-hand-side of the ODEs describing atmospheric chemistry
       ! but does not include transport
     end subroutine
@@ -90,7 +90,7 @@ module photochem_atmosphere
       character(len=*), intent(in) :: species
       real(dp), intent(in) :: usol(:,:)
       type(ProductionLoss), intent(out) :: pl
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
       ! Computes the production and loss of input `species`.
       ! See ProductionLoss object in photochem_types.
     end subroutine
@@ -100,7 +100,7 @@ module photochem_atmosphere
       integer, intent(in) :: neqs
       real(dp), target, intent(in) :: usol_flat(neqs)
       real(dp), intent(out) :: rhs(neqs)
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
       ! Computes the right-hand-side of the ODEs describing atmospheric chemistry
       ! and transport.
     end subroutine
@@ -110,7 +110,7 @@ module photochem_atmosphere
       integer, intent(in) :: lda_neqs, neqs
       real(dp), target, intent(in) :: usol_flat(neqs)
       real(dp), intent(out), target :: jac(lda_neqs)
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
       ! The jacobian of the rhs_background_gas.
     end subroutine
     
@@ -135,32 +135,32 @@ module photochem_atmosphere
       real(c_double), intent(in) :: t_eval(:)
       logical, optional, intent(in) :: overwrite
       logical :: success
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
       ! Evolve atmosphere through time, and saves output in a binary Fortran file.
     end function
     
     module subroutine photochemical_equilibrium(self, success, err)
       class(Atmosphere), target, intent(inout) :: self
       logical, intent(out) :: success
-      character(len=err_len), intent(out) :: err 
+      character(:), allocatable, intent(out) :: err 
       ! Integrates to photochemical equilibrium starting from self%var%usol_init
     end subroutine
     
     module subroutine initialize_stepper(self, usol_start, err)      
       class(Atmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_start(:,:)
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
     end subroutine
     
     module function step(self, err) result(tn)
       class(Atmosphere), target, intent(inout) :: self
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
       real(dp) :: tn
     end function
     
     module subroutine destroy_stepper(self, err)
       class(Atmosphere), target, intent(inout) :: self
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
     end subroutine
     
     module function RhsFn(tn, sunvec_y, sunvec_f, user_data) &
@@ -199,32 +199,32 @@ module photochem_atmosphere
       class(Atmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: filename
       logical, intent(in) :: overwrite, clip
-      character(len=1024), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
     end subroutine
     
     module subroutine out2in(self, err)
       class(Atmosphere), intent(inout) :: self
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
     end subroutine
     
     module subroutine gas_fluxes(self, surf_fluxes, top_fluxes, err)
       class(Atmosphere), target, intent(inout) :: self
       real(dp), intent(out) :: surf_fluxes(:)
       real(dp), intent(out) :: top_fluxes(:)
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
     end subroutine
     
     module function atom_conservation(self, atom, err) result(con)
       use photochem_types, only: AtomConservation
       class(Atmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: atom
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
       type(AtomConservation) :: con
     end function
     
     module function redox_conservation(self, err) result(redox_factor)
       class(Atmosphere), target, intent(inout) :: self
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
       real(dp) :: redox_factor
     end function
     
@@ -236,7 +236,7 @@ module photochem_atmosphere
       real(dp), optional, intent(in) :: mix
       real(dp), optional, intent(in) :: flux
       real(dp), optional, intent(in) :: height
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
     end subroutine
     
     module subroutine set_upper_bc(self, species, bc_type, veff, flux, err)
@@ -245,14 +245,14 @@ module photochem_atmosphere
       character(len=*), intent(in) :: bc_type
       real(dp), optional, intent(in) :: veff
       real(dp), optional, intent(in) :: flux
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
     end subroutine
     
     module subroutine set_temperature(self, temperature, trop_alt, err)
       class(Atmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: temperature(:)
       real(dp), optional, intent(in) :: trop_alt
-      character(len=err_len), intent(out) :: err
+      character(:), allocatable, intent(out) :: err
     end subroutine
     
   end interface

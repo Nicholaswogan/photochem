@@ -7,8 +7,7 @@ contains
     use photochem_eqns, only: vertical_grid, gravity
     type(PhotochemData), intent(inout) :: photodata
     type(PhotochemVars), intent(inout) :: photovars
-    character(len=err_len), intent(out) :: err
-    err = ""
+    character(:), allocatable, intent(out) :: err
     
     photodata%kd = 2*photodata%nq + 1
     photodata%kl = photodata%kd + photodata%nq
@@ -22,15 +21,15 @@ contains
     call gravity(photodata%planet_radius, photodata%planet_mass, &
                  photovars%nz, photovars%z, photovars%grav)
     call interp2atmosfile(photodata, photovars, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     ! all below depends on Temperature
     call interp2xsdata(photodata, photovars, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     if (photodata%reverse) then
       call compute_gibbs_energy(photodata, photovars, err)
-      if (len_trim(err) /= 0) return
+      if (allocated(err)) return
     endif
     
     if (photodata%fix_water_in_trop .or. photodata%gas_rainout) then
@@ -47,23 +46,22 @@ contains
     use futils, only: interp
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     integer :: i
     
-    err = ''
     
     call interp(var%nz, dat%nzf, var%z, dat%z_file, dat%T_file, var%Temperature, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     call interp(var%nz, dat%nzf, var%z, dat%z_file, dlog10(dabs(dat%edd_file)), var%edd, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     var%edd = 10.0_dp**var%edd
     
     do i = 1,dat%nq
       call interp(var%nz, dat%nzf, var%z, dat%z_file,&
                   dlog10(dabs(dat%usol_file(i,:))), var%usol_init(i,:), err)
-      if (len_trim(err) /= 0) return
+      if (allocated(err)) return
     enddo
     var%usol_init = 10.0_dp**var%usol_init
     
@@ -71,7 +69,7 @@ contains
       do i = 1,dat%npq
         call interp(var%nz, dat%nzf, var%z, dat%z_file, &
                     log10(abs(dat%particle_radius_file(i,:))), var%particle_radius(i,:), err)
-        if (len_trim(err) /= 0) return
+        if (allocated(err)) return
       enddo
       var%particle_radius = 10.0_dp**var%particle_radius
     endif
@@ -91,12 +89,11 @@ contains
     
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     integer :: i, j
     logical :: found
 
-    err = ''
     
     do i = 1,dat%ng
       do j = 1,var%nz
@@ -118,13 +115,12 @@ contains
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
 
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     integer :: i, j, k, jj
     real(dp) :: val(1), T_temp(1)
     real(dp) :: dr, slope, intercept
     
-    err = ''
 
     do k = 1, dat%nw
       do i = 1,dat%kj

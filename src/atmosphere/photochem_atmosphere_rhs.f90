@@ -21,7 +21,7 @@ contains
     real(dp), intent(in) :: density(:)
     real(dp), intent(in) :: densities(:,:)
     real(dp), intent(out) :: rx_rates(:,:)
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     integer :: i, j, k, n, l, m
     real(dp) :: eff_den(var%nz), F(var%nz)
@@ -29,7 +29,6 @@ contains
     real(dp) :: gibbR_forward, gibbP_forward
     real(dp) :: Dg_forward
     
-    err = ""
     
     do i = 1,dat%nrF
       select type(rp => dat%rx(i)%rp)
@@ -241,13 +240,12 @@ contains
     class(Atmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol(:,:)
     real(dp), intent(out) :: rhs(:)
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
     
-    err = ""
     
     dat => self%dat
     var => self%var
@@ -259,7 +257,7 @@ contains
     endif
 
     call self%prep_atmosphere(usol, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     call dochem(self, var%neqs, dat%nsp, dat%np, dat%nsl, dat%nq, var%nz, &
                 var%trop_ind, dat%nrT, wrk%usol, wrk%density, wrk%rx_rates, &
@@ -424,7 +422,7 @@ contains
     real(dp), intent(out) :: surf_radiance(nw)
     real(dp), intent(out) :: amean_grd(nz,nw)
     real(dp), intent(out) :: optical_depth(nz,nw)
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     ! local
     real(dp) :: partial_prates(nz,kj)
@@ -439,7 +437,6 @@ contains
 
     ierrs = 0
     prates = 0.0_dp
-    err = ''
     !$omp parallel private(l, i, j, jj, k, n, ie, ierr, partial_prates, &
     !$omp& taup, taup_1, tausp, tausp_1, tausg, taua, tau, w0, gt, gt_1, &
     !$omp& amean, surf_rad, &
@@ -558,7 +555,7 @@ contains
     real(dp), intent(out) :: sum_usol(nz)
     real(dp), intent(out) :: density(nz)
     real(dp), intent(out) :: mubar(nz), pressure(nz), fH2O(trop_ind), H2O_sat_mix(nz)
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     real(dp) :: rel
     integer :: i
@@ -575,7 +572,6 @@ contains
     type(c_ptr) :: ptr ! void c pointer for cminpack
     ! end hybrd1 varibles
     
-    err = ''
     
     dat => self%dat
     var => self%var
@@ -1030,7 +1026,7 @@ contains
   
     class(Atmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
   
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -1038,7 +1034,6 @@ contains
     integer :: i, j, k
     real(dp) :: P_H2SO4
   
-    err = ''
   
     dat => self%dat
     var => self%var
@@ -1067,7 +1062,7 @@ contains
   
     call prep_atm_background_gas(self, dat%nq, var%nz, var%trop_ind, wrk%sum_usol, wrk%usol, &
                                  wrk%density, wrk%mubar, wrk%pressure, wrk%fH2O, wrk%H2O_sat_mix, err)  
-    if (len_trim(err) /= 0) return  
+    if (allocated(err)) return  
   
     ! diffusion coefficients
     call diffusion_coefficients(self%dat, self%var, dat%nq, dat%npq, var%nz, wrk%density, wrk%mubar, &
@@ -1129,11 +1124,11 @@ contains
     enddo
     
     call reaction_rates(self%dat, self%var, wrk%density, wrk%densities, wrk%rx_rates, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
   
     call photorates(self%dat, self%var, var%nz, dat%nsp, dat%kj, dat%nw, wrk%densities, &
                     wrk%prates, wrk%surf_radiance, wrk%amean_grd, wrk%optical_depth, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
   
     do i = 1,dat%kj
       k = dat%photonums(i)
@@ -1156,7 +1151,7 @@ contains
     integer, intent(in) :: neqs
     real(dp), target, intent(in) :: usol_flat(neqs)
     real(dp), intent(out) :: rhs(neqs)
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     real(dp) :: disth, ztop, ztop1    
     integer :: i, k, j, jdisth
@@ -1166,7 +1161,6 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
     
-    err = ''
     
     dat => self%dat
     var => self%var
@@ -1182,7 +1176,7 @@ contains
     
     ! fills self%wrk with data
     call prep_all_background_gas(self, usol_in, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
     
     call dochem(self, var%neqs, dat%nsp, dat%np, dat%nsl, dat%nq, var%nz, &
                 var%trop_ind, dat%nrT, wrk%usol, wrk%density, wrk%rx_rates, &
@@ -1268,7 +1262,7 @@ contains
     integer, intent(in) :: lda_neqs, neqs
     real(dp), target, intent(in) :: usol_flat(neqs)
     real(dp), intent(out), target :: jac(lda_neqs)
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
     
     real(dp), pointer :: usol_in(:,:)
     real(dp), pointer :: djac(:,:)
@@ -1287,7 +1281,6 @@ contains
 
     integer :: i, k, j, m, mm
   
-    err = ''
     
     dat => self%dat
     var => self%var
@@ -1303,7 +1296,7 @@ contains
     endif
   
     call prep_all_background_gas(self, usol_in, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
   
     ! compute chemistry contribution to jacobian using forward differences
     jac = 0.0_dp
@@ -1477,7 +1470,7 @@ contains
     character(len=*), intent(in) :: species
     real(dp), intent(in) :: usol(:,:)
     type(ProductionLoss), intent(out) :: pl
-    character(len=err_len), intent(out) :: err
+    character(:), allocatable, intent(out) :: err
   
     real(dp) :: xl(self%var%nz), xp(self%var%nz)
     integer, allocatable :: prod_inds(:), loss_inds(:)
@@ -1491,7 +1484,6 @@ contains
     var => self%var
     wrk => self%wrk
   
-    err = ""
     
     if (size(usol,1) /= dat%nq .or. size(usol,2) /= var%nz) then
       err = "Input usol to production_and_loss has the wrong dimensions"
@@ -1506,7 +1498,7 @@ contains
     endif
     
     call self%prep_atmosphere(usol, err)
-    if (len_trim(err) /= 0) return
+    if (allocated(err)) return
   
     np = dat%pl(sp_ind)%nump
     nl = dat%pl(sp_ind)%numl

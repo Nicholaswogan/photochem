@@ -43,7 +43,7 @@ contains
     real(real_kind), intent(in) :: x(n), y(n) ! old data
     
     real(real_kind), intent(out) :: yg(ng) ! new data 
-    character(len=100), intent(out) :: err 
+    character(:), allocatable, intent(out) :: err 
     
     real(real_kind) :: slope
     integer :: i, j, nn
