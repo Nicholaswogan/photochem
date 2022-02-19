@@ -77,7 +77,7 @@ contains
     class (type_dictionary), pointer :: sat_params
     class (type_list), pointer :: species, reactions, atoms
     class (type_list), pointer :: particles
-    type (type_error), pointer :: io_err
+    type (type_error), allocatable :: io_err
     class (type_list_item), pointer :: item, next
     class (type_dictionary), pointer :: dict
     class (type_key_value_pair), pointer :: key_value_pair
@@ -95,11 +95,11 @@ contains
 
 
     atoms => mapping%get_list('atoms',.true.,error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     species => mapping%get_list('species',.true.,error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     reactions => mapping%get_list('reactions',.true.,error = io_err) 
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     ! should i reverse reactions?
     photodata%reverse = mapping%get_logical('reverse-reactions',.true.,error = io_err)
@@ -116,11 +116,11 @@ contains
       select type (element => item%node)
       class is (type_dictionary)
         photodata%atoms_names(j) = element%get_string("name",error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         photodata%atoms_mass(j) = element%get_real("mass",error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         photodata%atoms_redox(j) = element%get_real("redox",error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       class default
         err = "atoms in "//trim(infile)//" must made of dictionaries"
         return 
@@ -159,10 +159,10 @@ contains
         select type (element => item%node)
         class is (type_dictionary)
           photodata%particle_names(j) = element%get_string("name",error = io_err) ! get name
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           
           tmpchar = element%get_string("formation",error = io_err) 
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           if (trim(tmpchar) == 'saturation') then
             photodata%particle_formation_method(j) = 1
           elseif (trim(tmpchar) == 'reaction') then
@@ -172,13 +172,13 @@ contains
             return
           endif
           photodata%particle_density(j) = element%get_real("density",error = io_err)
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           photodata%particle_optical_prop(j) = element%get_string("optical-properties",error = io_err)
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           ! only require optical type if not "none"
           if (photodata%particle_optical_prop(j) /= 'none') then
             tmpchar = element%get_string("optical-type",error = io_err)
-            if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+            if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
             if (trim(tmpchar) == "mie") then
               photodata%particle_optical_type(j) = 0
             elseif  (trim(tmpchar) == "fractal") then
@@ -198,7 +198,7 @@ contains
             if (tmpchar == 'arrhenius') then
               photodata%particle_sat_type(j) = 1
               sat_params => element%get_dictionary('saturation-parameters',.true.,error = io_err) 
-              if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+              if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
               i = 0
               key_value_pair => sat_params%first
               do while (associated(key_value_pair))
@@ -206,13 +206,13 @@ contains
                 
                 if (trim(tmpchar) == "A") then
                   photodata%particle_sat_params(1,j) = sat_params%get_real(trim(tmpchar),error = io_err)
-                  if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+                  if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
                 elseif (trim(tmpchar) == "B") then
                   photodata%particle_sat_params(2,j) = sat_params%get_real(trim(tmpchar),error = io_err)
-                  if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+                  if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
                 elseif (trim(tmpchar) == "C") then
                   photodata%particle_sat_params(3,j) = sat_params%get_real(trim(tmpchar),error = io_err)
-                  if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+                  if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
                 else
                   err = "Particle "//trim(photodata%particle_names(j))//" saturation parameters "//&
                         "can only be 'A', 'B', or 'C'"
@@ -237,7 +237,7 @@ contains
             
             ! gas phase
             photodata%particle_gas_phase(j) = element%get_string("gas-phase",error = io_err) 
-            if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+            if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           elseif (photodata%particle_formation_method(j) == 2) then
             ! add the reaction to the list of reactions
             call all_reactions%append(item%node)
@@ -315,7 +315,7 @@ contains
       select type (element => item%node)
       class is (type_dictionary)
         tmpchar = trim(element%get_string("name",error = io_err)) ! get name
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
         
         if (ii < photodata%ng_1) then
@@ -337,7 +337,7 @@ contains
                   
         photodata%species_names(j) = tmpchar
         dict => element%get_dictionary("composition",.true.,error = io_err)  ! get composition
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         key_value_pair => dict%first ! dont allow unspecified atoms
         do while (associated(key_value_pair))
           ind = findloc(photodata%atoms_names,trim(key_value_pair%key))
@@ -415,7 +415,7 @@ contains
       select type (element => item%node)
       class is (type_dictionary)
         tmp = trim(element%get_string("equation",error = io_err))
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         reverse = is_rx_reverse(tmp, err)
         if (allocated(err)) return 
         
@@ -447,7 +447,7 @@ contains
       select type (element => item%node)
       class is (type_dictionary)
         tmp = trim(element%get_string("equation",error = io_err))
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
         call get_rateparams(photodata, element, infile, photodata%rx(j), err)
         if (allocated(err)) return
@@ -456,7 +456,7 @@ contains
         
         ! check if duplicate
         duplicate(j) = element%get_logical("duplicate",default=.false.,error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
         if (reverse) then
           ! reaction has a reverse
@@ -609,7 +609,7 @@ contains
     real(dp), allocatable, intent(out) :: henry_data(:,:)
     character(:), allocatable :: err
   
-    type (type_error), pointer :: io_err
+    type (type_error), allocatable :: io_err
     class (type_list_item), pointer :: item
     integer :: j  
     
@@ -628,11 +628,11 @@ contains
       select type (element => item%node)
       class is (type_dictionary)
         henry_names(j) = element%get_string('name',error = io_err)
-        if (associated(io_err)) then; err = trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(io_err%message); return; endif
         henry_data(1,j) = element%get_real('A',error = io_err)
-        if (associated(io_err)) then; err = trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(io_err%message); return; endif
         henry_data(2,j) = element%get_real('B',error = io_err)
-        if (associated(io_err)) then; err = trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(io_err%message); return; endif
       
       j = j + 1
       item => item%next
@@ -923,7 +923,7 @@ contains
     type(ThermodynamicData), intent(out) :: thermo
     character(:), allocatable, intent(out) :: err
     
-    type (type_error), pointer :: io_err
+    type (type_error), allocatable :: io_err
     class(type_dictionary), pointer :: tmpdict
     class(type_list), pointer :: tmplist
     class(type_list_item), pointer :: item, item1
@@ -934,11 +934,11 @@ contains
     
     
     tmpdict => molecule%get_dictionary("thermo",.true.,error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     ! check thermodynamic model
     model = tmpdict%get_string("model",error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     if (model == "Shomate") then
       thermo%dtype = 1
     elseif (model == "NASA9") then
@@ -950,7 +950,7 @@ contains
     
     ! get temperature ranges
     tmplist =>tmpdict%get_list("temperature-ranges",.true.,error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
     thermo%ntemps = tmplist%size() - 1
     if (thermo%ntemps /= 1 .and. thermo%ntemps /= 2) then
@@ -979,7 +979,7 @@ contains
     
     ! get data
     tmplist => tmpdict%get_list("data",.true.,error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
     if (tmplist%size() /= thermo%ntemps) then
       err = "IOError: Problem reading thermodynamic data for "//trim(molecule_name)
@@ -1131,7 +1131,7 @@ contains
     character(:), allocatable, intent(out) :: err
     
     class(BaseRate), pointer :: rp
-    type (type_error), pointer :: io_err
+    type (type_error), allocatable :: io_err
     character(len=str_len) :: rxtype_str
     type(type_dictionary), pointer :: dict
     logical :: use_jpl
@@ -1164,14 +1164,14 @@ contains
       ! No rate info
     class is (ElementaryRate)
       dict => reaction_d%get_dictionary('rate-constant',.true.,error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       call get_arrhenius(dict, rp%A, rp%b, rp%Ea, err)
       if (allocated(err)) return
         
     class is (ThreeBodyRate)
       dict => reaction_d%get_dictionary('rate-constant',.true.,error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       call get_arrhenius(dict, rp%A, rp%b, rp%Ea, err)
       if (allocated(err)) return
@@ -1182,13 +1182,13 @@ contains
     class is (FalloffRate)
       
       dict => reaction_d%get_dictionary('low-P-rate-constant',.true.,error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       call get_arrhenius(dict, rp%A0, rp%b0, rp%Ea0, err)
       if (allocated(err)) return
         
       dict => reaction_d%get_dictionary('high-P-rate-constant',.true.,error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       call get_arrhenius(dict, rp%Ainf, rp%binf, rp%Eainf, err)
       if (allocated(err)) return
@@ -1218,14 +1218,14 @@ contains
         allocate(rp%T3)
         
         rp%A_T = dict%get_real('A',error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         rp%T1 = dict%get_real('T1',error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
         T2 = dict%get_real('T2',error = io_err)
-        if (associated(io_err)) then ! T2 is not there
+        if (allocated(io_err)) then ! T2 is not there
           rp%falloff_type = 1
-          nullify(io_err)
+          deallocate(io_err)
         else ! T2 is there
           rp%falloff_type = 2
           allocate(rp%T2)
@@ -1233,7 +1233,7 @@ contains
         endif
         
         rp%T3 = dict%get_real('T3',error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       endif
       
         
@@ -1248,7 +1248,7 @@ contains
     type(Efficiencies), intent(out) :: eff
     character(:), allocatable, intent(out) :: err
     
-    type (type_error), pointer :: io_err
+    type (type_error), allocatable :: io_err
     type (type_key_value_pair), pointer :: key_value_pair
     type(type_dictionary), pointer :: d
     integer :: ind(1), j
@@ -1277,7 +1277,7 @@ contains
         
         eff%eff_sp_inds(j) = ind(1)
         eff%efficiencies(j) = d%get_real(trim(key_value_pair%key),error = io_err)
-        if (associated(io_err)) then; err = trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(io_err%message); return; endif
         
         key_value_pair => key_value_pair%next
         j = j + 1
@@ -1292,17 +1292,17 @@ contains
     real(dp), intent(out) :: A, b, Ea
     character(:), allocatable, intent(out) :: err
     
-    type (type_error), pointer :: io_err
+    type (type_error), allocatable :: io_err
     
     
     A = d%get_real('A',error = io_err)
-    if (associated(io_err)) then; err = trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(io_err%message); return; endif
     
     b = d%get_real('b',error = io_err)
-    if (associated(io_err)) then; err = trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(io_err%message); return; endif
     
     Ea = d%get_real('Ea',error = io_err)
-    if (associated(io_err)) then; err = trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(io_err%message); return; endif
     
   end subroutine
 
@@ -1455,21 +1455,21 @@ contains
     character(:), allocatable, intent(out) :: err
   
     class (type_dictionary), pointer :: tmp1
-    type (type_error), pointer :: io_err
+    type (type_error), allocatable :: io_err
     class (type_list), pointer :: bcs
     class (type_list_item), pointer :: item
     character(len=str_len) :: spec_type
     
     ! get background species
     tmp1 => root%get_dictionary('planet',.true.,error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     photodata%back_gas = tmp1%get_logical('use-background-gas',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     if (photodata%back_gas) then
       photodata%back_gas_name = tmp1%get_string('background-gas',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     else
       photodata%back_gas_ind = -1
       err = "Currently, the model requires there to be a background gas."// &
@@ -1510,7 +1510,7 @@ contains
         if (spec_type == 'short lived') then
           photodata%nsl = photodata%nsl + 1
           photodata%SL_names(photodata%nsl) = element%get_string('name',error = io_err)
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         elseif (spec_type == 'long lived') then
           ! do nothing
         else
@@ -1601,7 +1601,7 @@ contains
     class (type_dictionary), pointer :: tmp1, tmp2, tmp3
     class (type_list), pointer :: bcs, particles
     class (type_list_item), pointer :: item
-    type (type_error), pointer :: io_err
+    type (type_error), allocatable :: io_err
     
     character(len=str_len) :: spec_type
     integer :: j, i, ind(1), io
@@ -1613,17 +1613,17 @@ contains
     
     ! photolysis grid
     tmp1 => mapping%get_dictionary('photolysis-grid',.true.,error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photodata%regular_grid = tmp1%get_logical('regular-grid',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
     if (photodata%regular_grid) then
       photodata%lower_wavelength = tmp1%get_real('lower-wavelength',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       photodata%upper_wavelength = tmp1%get_real('upper-wavelength',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       photodata%nw = tmp1%get_integer('number-of-bins',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       if (photodata%nw < 1) then 
         err = 'Number of photolysis bins must be >= 1 in '//trim(infile)
         return
@@ -1634,58 +1634,58 @@ contains
       endif
     else
       photodata%grid_file = tmp1%get_string('input-file',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     endif
     ! scale factor for photon flux. Its optional
     photovars%photon_scale_factor = tmp1%get_real('photon-scale-factor', 1.0_dp,error = io_err)
     
     ! atmosphere grid
     tmp1 => mapping%get_dictionary('atmosphere-grid',.true.,error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photovars%bottom_atmos = tmp1%get_real('bottom',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photovars%top_atmos = tmp1%get_real('top',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photovars%nz = tmp1%get_integer('number-of-layers',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     ! Planet
     tmp1 => mapping%get_dictionary('planet',.true.,error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     photovars%surface_pressure = tmp1%get_real('surface-pressure',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     if (photovars%surface_pressure <= 0.0_dp) then
       err = 'IOError: Planet surface pressure must be greater than zero.'
       return
     endif
     photodata%planet_mass = tmp1%get_real('planet-mass',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     if (photodata%planet_mass < 0.0_dp) then
       err = 'IOError: Planet mass must be greater than zero.'
       return
     endif
     photodata%planet_radius = tmp1%get_real('planet-radius',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     if (photodata%planet_radius < 0.0_dp) then
       err = 'IOError: Planet radius must be greater than zero.'
       return
     endif
     photovars%surface_albedo = tmp1%get_real('surface-albedo',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     if (photovars%surface_albedo < 0.0_dp) then
       err = 'IOError: Surface albedo must be greater than zero.'
       return
     endif
     photovars%diurnal_fac = tmp1%get_real('diurnal-averaging-factor',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     if (photovars%diurnal_fac < 0.0_dp .or. photovars%diurnal_fac > 1.0_dp) then
       err = 'IOError: diurnal-averaging-factor must be between 0 and 1.'
       return
     endif
     
     photovars%solar_zenith = tmp1%get_real('solar-zenith-angle',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     if (photovars%solar_zenith < 0.0_dp .or. photovars%solar_zenith > 90.0_dp) then
       err = 'IOError: solar zenith must be between 0 and 90.'
       return
@@ -1693,7 +1693,7 @@ contains
     
     ! H2 escape
     photodata%diff_H_escape = tmp1%get_logical('diff-lim-hydrogen-escape',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     ind = findloc(photodata%species_names,'H2')
     photodata%LH2 = ind(1)
     if (ind(1) == 0 .and. photodata%diff_H_escape) then
@@ -1719,13 +1719,13 @@ contains
     endif
     
     tmp2 => tmp1%get_dictionary('water',.true.,error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photodata%fix_water_in_trop = tmp2%get_logical('fix-water-in-troposphere',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photodata%water_cond = tmp2%get_logical('water-condensation',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     photodata%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     ind = findloc(photodata%species_names,'H2O')
     photodata%LH2O = ind(1)
     if (ind(1) == 0 .and. photodata%fix_water_in_trop) then
@@ -1747,7 +1747,7 @@ contains
     if (photodata%fix_water_in_trop) then  
       
       temp_char = tmp2%get_string('relative-humidity',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
       read(temp_char,*,iostat = io) photovars%relative_humidity
       
@@ -1767,13 +1767,13 @@ contains
     
     if (photodata%gas_rainout) then
       photovars%rainfall_rate = tmp2%get_real('rainfall-rate',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     endif
     
     if (photodata%fix_water_in_trop .or. photodata%gas_rainout) then
       ! we need a tropopause altitude
       photovars%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
-      if (associated(io_err)) then
+      if (allocated(io_err)) then
         err = "tropopause-altitude must be specified if fix-water-in-troposphere = true, or gas-rainout = true"
         return
       endif
@@ -1788,14 +1788,14 @@ contains
     if (photodata%water_cond) then        
       
       tmp3 => tmp2%get_dictionary('condensation-rate',.true.,error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       photovars%H2O_condensation_rate(1) = tmp3%get_real('A',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       photovars%H2O_condensation_rate(2) = tmp3%get_real('rhc',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       photovars%H2O_condensation_rate(3) = tmp3%get_real('rh0',error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       if (photovars%H2O_condensation_rate(3) <= photovars%H2O_condensation_rate(2)) then
         err = 'IOError: Rate constant "rh0" for H2O condensation must be > "rhc". See '//trim(infile)
         return
@@ -1805,7 +1805,7 @@ contains
     ! particle parameters
     if (photodata%there_are_particles) then
       particles => mapping%get_list('particles',.true.,error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
       allocate(particle_checklist(photodata%np))
       allocate(photovars%condensation_rate(3,photodata%np))
@@ -1816,7 +1816,7 @@ contains
         select type (element => item%node)
         class is (type_dictionary)
           temp_char = element%get_string('name',error = io_err)
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           ind = findloc(photodata%particle_names,trim(temp_char))
           if (particle_checklist(ind(1))) then
             err = "IOError: particle "//trim(temp_char)//" in the settings"// &
@@ -1832,14 +1832,14 @@ contains
           endif
           
           tmp1 => element%get_dictionary('condensation-rate',.true.,error = io_err)
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           
           photovars%condensation_rate(1,ind(1)) = tmp1%get_real('A',error = io_err)
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           photovars%condensation_rate(2,ind(1)) = tmp1%get_real('rhc',error = io_err)
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           photovars%condensation_rate(3,ind(1)) = tmp1%get_real('rh0',error = io_err)
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           if (photovars%condensation_rate(3,ind(1)) <= photovars%condensation_rate(2,ind(1))) then
             err = 'IOError: Rate constant "rh0" for '//trim(temp_char) &
                   //' condensation must be > "rhc". See '//trim(infile)
@@ -1865,7 +1865,7 @@ contains
       
     ! boundary conditions and species types
     bcs => mapping%get_list('boundary-conditions',.true.,error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     if (photodata%back_gas) then
       ind = findloc(photodata%species_names,trim(photodata%back_gas_name))
@@ -1902,7 +1902,7 @@ contains
           return
         endif
         dups(j) = element%get_string('name',error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         ! check for duplicates
         if (j > 1) then
           do i = 1,j-1
@@ -1948,7 +1948,7 @@ contains
           if (allocated(err)) return
           
           photovars%only_eddy(i) = element%get_logical("only-eddy",default=.false., error = io_err)
-          if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         else
           err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
           return
@@ -2084,15 +2084,15 @@ contains
     real(dp), intent(out) :: Uveff, Uflux
     character(:), allocatable, intent(out) :: err
     
-    type (type_error), pointer :: io_err
+    type (type_error), allocatable :: io_err
     class(type_dictionary), pointer :: tmpdict
     character(len=:), allocatable :: bctype
 
     tmpdict => molecule%get_dictionary("lower-boundary",.true.,error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     bctype = tmpdict%get_string("type",error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     
     ! deposition velocity = vdep
@@ -2102,7 +2102,7 @@ contains
     if (bctype == "vdep") then
       lowercond = 0
       Lvdep = tmpdict%get_real("vdep",error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       Lflux = 0.0_dp
       LdistH = 0.0_dp
@@ -2113,26 +2113,26 @@ contains
       Lflux = 0.0_dp
       LdistH = 0.0_dp
       Lmr = tmpdict%get_real("mix",error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
     elseif (bctype == "flux") then
       lowercond = 2
       Lvdep = 0.0_dp
       Lflux = tmpdict%get_real("flux",error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       LdistH = 0.0_dp
       Lmr = 0.0_dp 
     elseif (bctype == "vdep + dist flux") then
       lowercond = 3
       Lvdep = tmpdict%get_real("vdep",error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       Lflux = tmpdict%get_real("flux",error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       LdistH = tmpdict%get_real("height",error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       Lmr = 0.0_dp 
     elseif (bctype == "Moses") then
@@ -2143,10 +2143,10 @@ contains
     endif
     
     tmpdict => molecule%get_dictionary("upper-boundary",.true.,error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     bctype = tmpdict%get_string("type",error = io_err)
-    if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     
     ! effusion velocity = veff
@@ -2154,14 +2154,14 @@ contains
     if (bctype == "veff") then
       uppercond = 0
       Uveff = tmpdict%get_real("veff",error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
       Uflux = 0.0_dp
     elseif (bctype == "flux") then
       uppercond = 2
       Uveff = 0.0_dp
       Uflux = tmpdict%get_real("flux",error = io_err)
-      if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
     else
       err = 'IOError: "'//trim(bctype)//'" is not a valid upper boundary condition for '//trim(molecule_name)
@@ -2659,7 +2659,7 @@ contains
     
     class (type_key_value_pair), pointer :: key_value_pair
     class (type_dictionary), pointer :: tmp1, tmp2
-    type (type_error), pointer :: io_err
+    type (type_error), allocatable :: io_err
     real(dp), allocatable, intent(out) :: A(:), B(:), Delta(:)
     integer, allocatable, intent(out) :: raynums(:)
     
@@ -2686,19 +2686,19 @@ contains
         raynums(j) = ind(1)
         
         tmp1 => mapping%get_dictionary(key_value_pair%key,.true.,error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         if (trim(tmp1%get_string('formalism',error=io_err)) /= 'vardavas') then
           err = "Unknown formalism for Rayleigh cross section for "//trim(key_value_pair%key)
           return
         endif
         tmp2 => tmp1%get_dictionary("data",.true.,error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         Delta(j) = tmp2%get_real("Delta",error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         A(j) = tmp2%get_real("A",error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         B(j) = tmp2%get_real("B",error = io_err)
-        if (associated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         j = j + 1
       endif
       key_value_pair => key_value_pair%next
