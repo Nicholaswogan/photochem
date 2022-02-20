@@ -57,7 +57,7 @@ if (BUILD_EXECUTABLES)
   target_include_directories(photorun PRIVATE ${CMAKE_BINARY_DIR}/modules)
 
   #  tests
-  add_executable(testrun ${CMAKE_SOURCE_DIR}/tests/test.f90)
+  add_executable(testrun ${CMAKE_SOURCE_DIR}/tests/testrun.f90)
   target_link_libraries(testrun photochem)
   target_include_directories(testrun PRIVATE ${CMAKE_BINARY_DIR}/modules)
   
