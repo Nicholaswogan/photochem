@@ -18,7 +18,6 @@ script:
   - cmake .. -DTRAVIS=ON
   - make install
   - ./testrun
-  - ./memtest
   - valgrind --error-exitcode=1 --leak-check=full ./memtest
   - cd ..
   - python -m pip install .
