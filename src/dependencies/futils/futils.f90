@@ -63,9 +63,9 @@ contains
     
     nn = 1
     do i = 1,ng
-      if (xg(i) < x(1)) then
+      if (xg(i) <= x(1)) then
         yg(i) = y(1)
-      elseif ((xg(i) >= x(1)) .and. (xg(i) <= x(n))) then
+      elseif ((xg(i) > x(1)) .and. (xg(i) < x(n))) then
         do j = nn,n
           if ((xg(i) >= x(j)) .and. (xg(i) <= x(j+1))) then
             slope = (y(j+1)-y(j))/(x(j+1)-x(j))
@@ -74,7 +74,7 @@ contains
             exit
           endif
         enddo
-      elseif (xg(i) > x(n)) then
+      elseif (xg(i) >= x(n)) then
         yg(i) = y(n)
       endif
     enddo
