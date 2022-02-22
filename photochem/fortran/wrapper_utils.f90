@@ -44,8 +44,10 @@ contains
     ! utility function to convert c string to fortran string
     character(len=*), intent(in) :: stringf
     character(c_char), intent(out) :: stringc(:)
-    integer j,n
-    n = len_trim(stringf)   
+    integer j, n, n1, n2
+    n1 = len_trim(stringf)  
+    n2 = size(stringc) - 1
+    n = min(n1, n2)
     do j=1,n    
       stringc(j) = stringf(j:j)   
     end do
