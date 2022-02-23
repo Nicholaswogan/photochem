@@ -5,7 +5,8 @@ set(PHOTOCHEM_MODULES
   photochem_const.f90
   photochem_radtran.f90 
   photochem_eqns.f90 
-  photochem_types.f90)
+  photochem_types.f90
+  photochem_common.f90)
 
 set(PHOTOCHEM_INPUT
     input/photochem_input.f90

@@ -15,6 +15,22 @@ module photochem_types ! make a giant IO object
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
   
+  !!!!!!!!!!!!!!!!!
+  !!! Utilities !!!
+  !!!!!!!!!!!!!!!!!
+  
+  type :: AtomConservation
+    real(dp) :: in_surf
+    real(dp) :: in_top
+    real(dp) :: in_dist
+    real(dp) :: out_surf
+    real(dp) :: out_top
+    real(dp) :: out_rain
+    real(dp) :: out_other
+    real(dp) :: net
+    real(dp) :: factor
+  end type
+  
   type :: ProductionLoss
     real(dp), allocatable :: production(:,:)
     real(dp), allocatable :: loss(:,:)
@@ -24,6 +40,9 @@ module photochem_types ! make a giant IO object
     character(len=m_str_len), allocatable :: loss_rx(:)
   end type
   
+  !!!!!!!!!!!!!!!!!
+  !!! Reactions !!!
+  !!!!!!!!!!!!!!!!!
   type :: XsectionData
     integer :: n_temps
     real(dp), allocatable :: xs(:,:) ! (n_temps, nw)
@@ -43,19 +62,7 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: temps(:)
     real(dp), allocatable :: data(:,:)
   end type
-  
-  type :: AtomConservation
-    real(dp) :: in_surf
-    real(dp) :: in_top
-    real(dp) :: in_dist
-    real(dp) :: out_surf
-    real(dp) :: out_top
-    real(dp) :: out_rain
-    real(dp) :: out_other
-    real(dp) :: net
-    real(dp) :: factor
-  end type
-  
+
   !!!!!!!!!!!!!!!!!
   !!! Reactions !!!
   !!!!!!!!!!!!!!!!!
@@ -129,20 +136,27 @@ module photochem_types ! make a giant IO object
     ! PhotochemData contains information that is never changed
     ! after file read-in
     
-    ! molecules
-    integer :: nq ! number of gases + particles which evolve over time from integration
-    integer :: ng_1 ! index of first gas
-    integer :: nll ! number of long-lived gas molecules
-    integer :: nsl ! number of short-lived gas moleules. Short lived abundances are calculated
-    ! assuming chemical equilibrium
-    integer :: ng  ! number of gases
-    integer :: nsp ! total number of species (nq + nsl + 1)
     integer :: natoms ! number of atoms
-    integer :: kd, kl, ku ! not read in. It is nq + nq + 1 (diagonal width of jacobian)
-    integer :: lda ! not read in. It is nq + nq + nq + 1. leading dimension of array which stores jacobian
     character(len=s_str_len), allocatable :: atoms_names(:) ! (natoms)
     real(dp), allocatable :: atoms_mass(:) ! g/mol (natoms)
     real(dp), allocatable :: atoms_redox(:) !  (natoms)
+    
+    ! species
+    ! Organization is as follows
+    ! [       nsp       ]
+    ! [   nq   + nsl + 1]
+    ! [np + ng + nsl + 1]
+    ! |_______|
+    !     |
+    ! Only np + ng = nq evolve through time. nsl are assumed to be in equilibrium. +1 is background gas.
+    integer :: nq ! number of gases + particles which evolve over time from integration
+    integer :: ng_1 ! index of first gas
+    integer :: nll ! number of long-lived gas molecules
+    integer :: nsl ! number of short-lived gas molecules
+    integer :: ng  ! number of gases
+    integer :: nsp ! total number of species (nq + nsl + 1)
+    integer :: kd, kl, ku ! not read in. It is nq + nq + 1 (diagonal width of jacobian)
+    integer :: lda ! not read in. It is nq + nq + nq + 1. leading dimension of array which stores jacobian
     character(len=s_str_len), allocatable :: SL_names(:) ! (nsl)
     character(len=s_str_len), allocatable :: species_names(:) ! (nsp+2) + 2 for hv and M
     integer, allocatable :: species_composition(:,:) ! (natoms, nsp+2)
