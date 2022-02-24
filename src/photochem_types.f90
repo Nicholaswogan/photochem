@@ -40,9 +40,9 @@ module photochem_types ! make a giant IO object
     character(len=m_str_len), allocatable :: loss_rx(:)
   end type
   
-  !!!!!!!!!!!!!!!!!
-  !!! Reactions !!!
-  !!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!! XS and thermodynamic data !!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   type :: XsectionData
     integer :: n_temps
     real(dp), allocatable :: xs(:,:) ! (n_temps, nw)

@@ -269,9 +269,9 @@ contains
     real(dp), intent(in) :: den(:)
     real(dp), intent(in) :: mubar(:)
     
-    real(dp), intent(out) :: DU(:,:), DL(:,:), DD(:,:)
-    real(dp), intent(out) :: ADU(:,:), ADL(:,:)
-    real(dp), intent(out) :: wfall(:,:)
+    real(dp), intent(out) :: DU(:,:), DL(:,:), DD(:,:) ! (nq,nz)
+    real(dp), intent(out) :: ADU(:,:), ADL(:,:) ! (nq,nz)
+    real(dp), intent(out) :: wfall(:,:) ! (npq,nz)
     real(dp), intent(out) :: VH2_esc, VH_esc
     
     real(dp) :: eddav_p, eddav_m, denav_p, denav_m, tav_p, tav_m
@@ -670,8 +670,8 @@ contains
     integer, intent(in) :: k ! species number
     
     ! output
-    real(dp), intent(out) :: xpT(:,:) ! (nz,np) molecules/cm3/s.
-    real(dp), intent(out) :: xlT(:,:) ! (nz,nl)
+    real(dp), intent(out) :: xpT(:,:) ! (nz,nprod) molecules/cm3/s.
+    real(dp), intent(out) :: xlT(:,:) ! (nz,nloss)
       
     ! local
     real(dp) :: DD
