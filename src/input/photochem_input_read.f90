@@ -78,7 +78,7 @@ contains
     class (type_list), pointer :: species, reactions, atoms
     class (type_list), pointer :: particles
     type (type_error), allocatable :: io_err
-    class (type_list_item), pointer :: item, next
+    class (type_list_item), pointer :: item
     class (type_dictionary), pointer :: dict
     class (type_key_value_pair), pointer :: key_value_pair
 
@@ -86,8 +86,7 @@ contains
     character(len=str_len) :: tmpchar
     character(len=str_len) :: tmp
     character(len=:), allocatable :: rxstring
-    character(len=s_str_len), allocatable :: eqr(:), eqp(:)
-    integer :: i, ii, j, k, kk, l, ind(1), size_eqr, size_eqp
+    integer :: i, ii, j, k, kk, l, ind(1)
     logical :: reverse
     ! all_species causes a small memory leak. Not sure how to free the memory properly
     type(type_list_tmp) :: all_species, all_reactions ! will include particles
@@ -2000,7 +1999,7 @@ contains
     type(PhotochemData), intent(in) :: dat
     character(:), allocatable, intent(out) :: err
     
-    integer :: i, j, l, k, kk, m, mm, n, nn, ind(1), counter
+    integer :: i, j, l, k, kk, mm, n, nn, ind(1), counter
     character(len=:), allocatable :: reaction
     
     do i = 1, dat%nsl
