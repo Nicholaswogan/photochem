@@ -12,9 +12,9 @@ contains
     
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
-    real(dp), intent(in) :: density(:)
-    real(dp), intent(in) :: densities(:,:)
-    real(dp), intent(out) :: rx_rates(:,:)
+    real(dp), intent(in) :: density(:) ! (nz)
+    real(dp), intent(in) :: densities(:,:) ! (nsp+1,nz)
+    real(dp), intent(out) :: rx_rates(:,:) ! (nz,nrT) 
     
     integer :: i, j, k, n, l, m
     real(dp) :: eff_den(var%nz), F(var%nz)
@@ -129,13 +129,13 @@ contains
     ! input
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
-    real(dp), intent(in) :: densities(:,:)
+    real(dp), intent(in) :: densities(:,:) ! (nsp+1,nz)
     
     ! output
-    real(dp), intent(out) :: prates(:,:)
-    real(dp), intent(out) :: surf_radiance(:)
-    real(dp), intent(out) :: amean_grd(:,:)
-    real(dp), intent(out) :: optical_depth(:,:)
+    real(dp), intent(out) :: prates(:,:) ! (nz,kj)
+    real(dp), intent(out) :: surf_radiance(:) ! (nw)
+    real(dp), intent(out) :: amean_grd(:,:) ! (nz,nw)
+    real(dp), intent(out) :: optical_depth(:,:) ! (nz,nw)
     character(:), allocatable, intent(out) :: err
     
     ! local

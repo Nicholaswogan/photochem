@@ -419,9 +419,6 @@ contains
     endif
   
     ! densities include particle densities
-    ! we track mol/cm3 for particles (instead of particles/cm3) 
-    ! because it makes the numbers smaller and closer to 1, which
-    ! is similar to mixing ratios.
     do j = 1,var%nz
       do i = 1,dat%npq
         wrk%densities(i,j) = max(wrk%usol(i,j)*(wrk%density(j)/wrk%molecules_per_particle(i,j)), small_real)

@@ -62,6 +62,14 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: temps(:)
     real(dp), allocatable :: data(:,:)
   end type
+  
+  type :: BoundaryCondition
+    integer :: type
+    real(dp), allocatable :: v
+    real(dp), allocatable :: mix
+    real(dp), allocatable :: flux
+    real(dp), allocatable :: height
+  end type
 
   !!!!!!!!!!!!!!!!!
   !!! Reactions !!!
@@ -252,6 +260,8 @@ module photochem_types ! make a giant IO object
     !!! set DURING file read-in !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! boundary conditions
+    type(BoundaryCondition), allocatable :: lower_bcs(:)
+    type(BoundaryCondition), allocatable :: upper_bcs(:)
     integer, allocatable :: lowerboundcond(:) ! 0, 1, 2 or 3
     real(dp), allocatable :: lower_vdep(:)
     real(dp), allocatable :: lower_flux(:)
@@ -284,7 +294,7 @@ module photochem_types ! make a giant IO object
     
     ! particles
     ! condensation rate of particles
-    real(dp), allocatable :: condensation_rate(:,:)
+    real(dp), allocatable :: condensation_rate(:,:) ! (3,np)
     
     ! switch for dealing with H2O if not read in. in some cases
     logical :: no_water_profile

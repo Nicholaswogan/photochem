@@ -3,41 +3,41 @@ submodule (photochem_input) photochem_input_after_read
   
 contains
   
-  module subroutine after_read_setup(photodata, photovars, err)
+  module subroutine after_read_setup(dat, var, err)
     use photochem_eqns, only: vertical_grid, gravity
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(inout) :: photovars
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
-    photodata%kd = 2*photodata%nq + 1
-    photodata%kl = photodata%kd + photodata%nq
-    photodata%ku = photodata%kd - photodata%nq
-    photodata%lda = 3*photodata%nq + 1
+    dat%kd = 2*dat%nq + 1
+    dat%kl = dat%kd + dat%nq
+    dat%ku = dat%kd - dat%nq
+    dat%lda = 3*dat%nq + 1
     
-    call allocate_nz_vars(photodata, photovars)
+    call allocate_nz_vars(dat, var)
     ! set up the atmosphere grid
-    call vertical_grid(photovars%bottom_atmos, photovars%top_atmos, &
-                       photovars%nz, photovars%z, photovars%dz)
-    call gravity(photodata%planet_radius, photodata%planet_mass, &
-                 photovars%nz, photovars%z, photovars%grav)
-    call interp2atmosfile(photodata, photovars, err)
+    call vertical_grid(var%bottom_atmos, var%top_atmos, &
+                       var%nz, var%z, var%dz)
+    call gravity(dat%planet_radius, dat%planet_mass, &
+                 var%nz, var%z, var%grav)
+    call interp2atmosfile(dat, var, err)
     if (allocated(err)) return
     
     ! all below depends on Temperature
-    call interp2xsdata(photodata, photovars, err)
+    call interp2xsdata(dat, var, err)
     if (allocated(err)) return
     
-    if (photodata%reverse) then
-      call compute_gibbs_energy(photodata, photovars, err)
+    if (dat%reverse) then
+      call compute_gibbs_energy(dat, var, err)
       if (allocated(err)) return
     endif
     
-    if (photodata%fix_water_in_trop .or. photodata%gas_rainout) then
+    if (dat%fix_water_in_trop .or. dat%gas_rainout) then
       ! we have a tropopause
-      photovars%trop_ind = minloc(photovars%z,1, &
-                          photovars%z .ge. photovars%trop_alt) - 1
+      var%trop_ind = minloc(var%z,1, &
+                          var%z .ge. var%trop_alt) - 1
     else
-      photovars%trop_ind = 0
+      var%trop_ind = 0
     endif
     
   end subroutine
@@ -197,39 +197,39 @@ contains
 
   end subroutine
   
-  subroutine allocate_nz_vars(photodata, vars)
-    type(PhotochemData), intent(in) :: photodata
+  subroutine allocate_nz_vars(dat, vars)
+    type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: vars
     
     integer :: i
     
-    vars%neqs = photodata%nq*vars%nz
+    vars%neqs = dat%nq*vars%nz
 
     allocate(vars%temperature(vars%nz))
     allocate(vars%z(vars%nz))
     allocate(vars%dz(vars%nz))
     allocate(vars%edd(vars%nz))
     allocate(vars%grav(vars%nz))
-    allocate(vars%usol_init(photodata%nq,vars%nz))
-    allocate(vars%particle_radius(photodata%npq,vars%nz))
-    allocate(vars%xs_x_qy(vars%nz,photodata%kj,photodata%nw))
-    allocate(vars%usol_out(photodata%nq,vars%nz))
+    allocate(vars%usol_init(dat%nq,vars%nz))
+    allocate(vars%particle_radius(dat%npq,vars%nz))
+    allocate(vars%xs_x_qy(vars%nz,dat%kj,dat%nw))
+    allocate(vars%usol_out(dat%nq,vars%nz))
     
-    allocate(vars%particle_xs(photodata%np))
-    do i = 1,photodata%np
+    allocate(vars%particle_xs(dat%np))
+    do i = 1,dat%np
       ! only allocate space if there is data
-      if (photodata%part_xs_file(i)%ThereIsData) then
+      if (dat%part_xs_file(i)%ThereIsData) then
         vars%particle_xs(i)%ThereIsData = .true.
-        allocate(vars%particle_xs(i)%w0(vars%nz,photodata%nw))
-        allocate(vars%particle_xs(i)%qext(vars%nz,photodata%nw))
-        allocate(vars%particle_xs(i)%gt(vars%nz,photodata%nw))
+        allocate(vars%particle_xs(i)%w0(vars%nz,dat%nw))
+        allocate(vars%particle_xs(i)%qext(vars%nz,dat%nw))
+        allocate(vars%particle_xs(i)%gt(vars%nz,dat%nw))
       else
         vars%particle_xs(i)%ThereIsData = .false.
       endif
     enddo
     
-    if (photodata%reverse) then
-      allocate(vars%gibbs_energy(vars%nz,photodata%ng))
+    if (dat%reverse) then
+      allocate(vars%gibbs_energy(vars%nz,dat%ng))
     endif
 
   end subroutine

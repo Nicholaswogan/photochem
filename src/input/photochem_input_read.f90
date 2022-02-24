@@ -4,46 +4,46 @@ submodule (photochem_input) photochem_input_read
 contains
   
   module subroutine read_all_files(mechanism_file, settings_file, flux_file, atmosphere_txt, &
-                                   photodata, photovars, err)
+                                   dat, var, err)
     
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
     character(len=*), intent(in) :: flux_file
     character(len=*), intent(in) :: atmosphere_txt
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(inout) :: photovars
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
     
     ! first get SL and background species from settings
-    call get_SL_and_background(settings_file, photodata, err)
+    call get_SL_and_background(settings_file, dat, err)
     if (allocated(err)) return
     
-    call get_photomech(mechanism_file, photodata, photovars, err)
+    call get_photomech(mechanism_file, dat, var, err)
     if (allocated(err)) return
     
-    call get_photoset(settings_file, photodata, photovars, err)
+    call get_photoset(settings_file, dat, var, err)
     if (allocated(err)) return
     
-    call get_photorad(photodata, photovars, err)
+    call get_photorad(dat, var, err)
     if (allocated(err)) return
     
     ! stelar flux
-    allocate(photovars%photon_flux(photodata%nw))
-    call read_stellar_flux(flux_file, photodata%nw, photodata%wavl, photovars%photon_flux, err)
+    allocate(var%photon_flux(dat%nw))
+    call read_stellar_flux(flux_file, dat%nw, dat%wavl, var%photon_flux, err)
     if (allocated(err)) return
     
     ! initial atmosphere
-    call read_atmosphere_file(atmosphere_txt, photodata, photovars, err)
+    call read_atmosphere_file(atmosphere_txt, dat, var, err)
     if (allocated(err)) return
     
   end subroutine
   
-  subroutine get_photomech(infile, photodata, photovars, err) 
+  subroutine get_photomech(infile, dat, var, err) 
     use fortran_yaml_c, only : parse, error_length
     character(len=*), intent(in) :: infile
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(in) :: photovars
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
     
     character(error_length) :: error
@@ -57,7 +57,7 @@ contains
     end if
     select type (root)
       class is (type_dictionary)
-        call get_rxmechanism(root, infile, photodata, photovars, err)
+        call get_rxmechanism(root, infile, dat, var, err)
       class default
         err = "yaml file must have dictionaries at root level"
     end select
@@ -67,11 +67,11 @@ contains
      
   end subroutine
   
-  subroutine get_rxmechanism(mapping, infile, photodata, photovars, err)
+  subroutine get_rxmechanism(mapping, infile, dat, var, err)
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(in) :: photovars
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
     
     class (type_dictionary), pointer :: sat_params
@@ -102,24 +102,24 @@ contains
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     ! should i reverse reactions?
-    photodata%reverse = mapping%get_logical('reverse-reactions',.true.,error = io_err)
+    dat%reverse = mapping%get_logical('reverse-reactions',.true.,error = io_err)
     
     !!! atoms !!!
-    photodata%natoms = atoms%size()
-    allocate(photodata%atoms_names(photodata%natoms))
-    allocate(photodata%atoms_mass(photodata%natoms))
-    allocate(photodata%atoms_redox(photodata%natoms))
+    dat%natoms = atoms%size()
+    allocate(dat%atoms_names(dat%natoms))
+    allocate(dat%atoms_mass(dat%natoms))
+    allocate(dat%atoms_redox(dat%natoms))
     
     j = 1
     item => atoms%first
     do while(associated(item))
       select type (element => item%node)
       class is (type_dictionary)
-        photodata%atoms_names(j) = element%get_string("name",error = io_err)
+        dat%atoms_names(j) = element%get_string("name",error = io_err)
         if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        photodata%atoms_mass(j) = element%get_real("mass",error = io_err)
+        dat%atoms_mass(j) = element%get_real("mass",error = io_err)
         if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        photodata%atoms_redox(j) = element%get_real("redox",error = io_err)
+        dat%atoms_redox(j) = element%get_real("redox",error = io_err)
         if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       class default
         err = "atoms in "//trim(infile)//" must made of dictionaries"
@@ -135,22 +135,22 @@ contains
     particles => mapping%get_list('particles',.false.,error = io_err) 
     if (associated(particles)) then
       ! there are particles
-      photodata%there_are_particles = .true.
-      photodata%np = 0
+      dat%there_are_particles = .true.
+      dat%np = 0
       item => particles%first
       do while (associated(item))
-        photodata%np = photodata%np + 1
+        dat%np = dat%np + 1
         item => item%next
       enddo
       
-      allocate(photodata%particle_names(photodata%np))
-      allocate(photodata%particle_formation_method(photodata%np))
-      allocate(photodata%particle_density(photodata%np))
-      allocate(photodata%particle_sat_type(photodata%np))
-      allocate(photodata%particle_sat_params(3,photodata%np))
-      allocate(photodata%particle_gas_phase(photodata%np))
-      allocate(photodata%particle_optical_prop(photodata%np))
-      allocate(photodata%particle_optical_type(photodata%np))
+      allocate(dat%particle_names(dat%np))
+      allocate(dat%particle_formation_method(dat%np))
+      allocate(dat%particle_density(dat%np))
+      allocate(dat%particle_sat_type(dat%np))
+      allocate(dat%particle_sat_params(3,dat%np))
+      allocate(dat%particle_gas_phase(dat%np))
+      allocate(dat%particle_optical_prop(dat%np))
+      allocate(dat%particle_optical_type(dat%np))
       
       item => particles%first
       j = 1
@@ -158,45 +158,45 @@ contains
         call all_species%append(item%node)
         select type (element => item%node)
         class is (type_dictionary)
-          photodata%particle_names(j) = element%get_string("name",error = io_err) ! get name
+          dat%particle_names(j) = element%get_string("name",error = io_err) ! get name
           if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           
           tmpchar = element%get_string("formation",error = io_err) 
           if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           if (trim(tmpchar) == 'saturation') then
-            photodata%particle_formation_method(j) = 1
+            dat%particle_formation_method(j) = 1
           elseif (trim(tmpchar) == 'reaction') then
-            photodata%particle_formation_method(j) = 2
+            dat%particle_formation_method(j) = 2
           else
             err = "IOError: the only formation mechanism for particles is 'saturation'"
             return
           endif
-          photodata%particle_density(j) = element%get_real("density",error = io_err)
+          dat%particle_density(j) = element%get_real("density",error = io_err)
           if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          photodata%particle_optical_prop(j) = element%get_string("optical-properties",error = io_err)
+          dat%particle_optical_prop(j) = element%get_string("optical-properties",error = io_err)
           if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           ! only require optical type if not "none"
-          if (photodata%particle_optical_prop(j) /= 'none') then
+          if (dat%particle_optical_prop(j) /= 'none') then
             tmpchar = element%get_string("optical-type",error = io_err)
             if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
             if (trim(tmpchar) == "mie") then
-              photodata%particle_optical_type(j) = 0
+              dat%particle_optical_type(j) = 0
             elseif  (trim(tmpchar) == "fractal") then
               err = "IOError: 'fractal' is not an optional optical type for "// &
-                    trim(photodata%particle_names(j))
+                    trim(dat%particle_names(j))
               return
             else
               err = "IOError: "//trim(tmpchar)//" is not an optional optical type for "// &
-                    trim(photodata%particle_names(j))
+                    trim(dat%particle_names(j))
               return
             endif
           endif
   
-          if (photodata%particle_formation_method(j) == 1) then
+          if (dat%particle_formation_method(j) == 1) then
             ! there should be saturation vapor pressure information
             tmpchar = element%get_string("saturation-type",default="arrhenius",error = io_err)
             if (tmpchar == 'arrhenius') then
-              photodata%particle_sat_type(j) = 1
+              dat%particle_sat_type(j) = 1
               sat_params => element%get_dictionary('saturation-parameters',.true.,error = io_err) 
               if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
               i = 0
@@ -205,16 +205,16 @@ contains
                 tmpchar = trim(key_value_pair%key)
                 
                 if (trim(tmpchar) == "A") then
-                  photodata%particle_sat_params(1,j) = sat_params%get_real(trim(tmpchar),error = io_err)
+                  dat%particle_sat_params(1,j) = sat_params%get_real(trim(tmpchar),error = io_err)
                   if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
                 elseif (trim(tmpchar) == "B") then
-                  photodata%particle_sat_params(2,j) = sat_params%get_real(trim(tmpchar),error = io_err)
+                  dat%particle_sat_params(2,j) = sat_params%get_real(trim(tmpchar),error = io_err)
                   if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
                 elseif (trim(tmpchar) == "C") then
-                  photodata%particle_sat_params(3,j) = sat_params%get_real(trim(tmpchar),error = io_err)
+                  dat%particle_sat_params(3,j) = sat_params%get_real(trim(tmpchar),error = io_err)
                   if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
                 else
-                  err = "Particle "//trim(photodata%particle_names(j))//" saturation parameters "//&
+                  err = "Particle "//trim(dat%particle_names(j))//" saturation parameters "//&
                         "can only be 'A', 'B', or 'C'"
                   return
                 endif                
@@ -222,13 +222,13 @@ contains
                 i = i + 1
               enddo
               if (i /= 3) then
-                err = "IOError: Missing or two many saturation parameters for "//trim(photodata%particle_names(j))
+                err = "IOError: Missing or two many saturation parameters for "//trim(dat%particle_names(j))
                 return 
               endif
             elseif (tmpchar == 'H2SO4') then
-              photodata%particle_sat_type(j) = 2
+              dat%particle_sat_type(j) = 2
               ! make a H2SO4 interpolator
-              call H2SO4_interpolator(photovars, photodata%H2SO4_sat, err)
+              call H2SO4_interpolator(var, dat%H2SO4_sat, err)
               if (allocated(err)) return
             else
               err = "Saturation type '"//trim(tmpchar)//"' is not a valid type."
@@ -236,9 +236,9 @@ contains
             endif
             
             ! gas phase
-            photodata%particle_gas_phase(j) = element%get_string("gas-phase",error = io_err) 
+            dat%particle_gas_phase(j) = element%get_string("gas-phase",error = io_err) 
             if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          elseif (photodata%particle_formation_method(j) == 2) then
+          elseif (dat%particle_formation_method(j) == 2) then
             ! add the reaction to the list of reactions
             call all_reactions%append(item%node)
           endif
@@ -251,51 +251,51 @@ contains
         j = j + 1
       enddo
     else ! there are no particles
-      photodata%there_are_particles = .false.
-      photodata%np = 0
+      dat%there_are_particles = .false.
+      dat%np = 0
     endif
     
     ! for now number particle equations will be the same 
     ! as number of particles
-    photodata%npq = photodata%np
+    dat%npq = dat%np
     
     !!! done with particles !!!
     
     !!! species !!!
-    photodata%ng = 0 ! count number of gas phase species
+    dat%ng = 0 ! count number of gas phase species
     item => species%first
     do while (associated(item))
       item => item%next
-      photodata%ng = photodata%ng + 1
+      dat%ng = dat%ng + 1
     enddo
     
-    if (photodata%back_gas) then
-      photodata%nll = photodata%ng - photodata%nsl - 1 ! minus 1 for background
+    if (dat%back_gas) then
+      dat%nll = dat%ng - dat%nsl - 1 ! minus 1 for background
     else
-      photodata%nll = photodata%ng - photodata%nsl
+      dat%nll = dat%ng - dat%nsl
     endif
     
-    photodata%ng_1 = photodata%npq + 1 ! the long lived gas index
-    ! photodata%nq is the last ll gas index
+    dat%ng_1 = dat%npq + 1 ! the long lived gas index
+    ! dat%nq is the last ll gas index
     
     ! now we now nq, the number of PDEs
-    photodata%nq = photodata%npq + photodata%nll
+    dat%nq = dat%npq + dat%nll
     
     ! we also now nsp, the index of the backgorund gas 
-    photodata%nsp = photodata%npq + photodata%ng
+    dat%nsp = dat%npq + dat%ng
     
     ! species_mass, species_composition, and species_names
     ! will include the particles, thus we allocate nsp
-    allocate(photodata%species_redox(photodata%nsp))
-    allocate(photodata%species_mass(photodata%nsp))
-    allocate(photodata%species_composition(photodata%natoms,photodata%nsp+2))
-    photodata%species_composition = 0
-    allocate(photodata%species_names(photodata%nsp+2))
-    photodata%species_names(photodata%nsp+1) = "hv" ! always add these guys
-    photodata%species_names(photodata%nsp+2) = "M"
+    allocate(dat%species_redox(dat%nsp))
+    allocate(dat%species_mass(dat%nsp))
+    allocate(dat%species_composition(dat%natoms,dat%nsp+2))
+    dat%species_composition = 0
+    allocate(dat%species_names(dat%nsp+2))
+    dat%species_names(dat%nsp+1) = "hv" ! always add these guys
+    dat%species_names(dat%nsp+2) = "M"
     ! we will not include particles in thermodynamic data.
-    if (photodata%reverse) then
-      allocate(photodata%thermo_data(photodata%ng))
+    if (dat%reverse) then
+      allocate(dat%thermo_data(dat%ng))
     endif
     
     ! Append the species to the end of a list
@@ -307,7 +307,7 @@ contains
     enddo
 
     ! Loop through particles and gases
-    kk = photodata%ng_1
+    kk = dat%ng_1
     l = 1
     ii = 1 ! overall counter
     item => all_species%first
@@ -318,29 +318,29 @@ contains
         if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
         
-        if (ii < photodata%ng_1) then
+        if (ii < dat%ng_1) then
           ! we are dealing with particles
           j = ii
         else
           ! we are dealing with gases
-          ind = findloc(photodata%SL_names,tmpchar)
+          ind = findloc(dat%SL_names,tmpchar)
           if (ind(1) /= 0) then ! short lived species
-            j = photodata%nq + l 
+            j = dat%nq + l 
             l = l + 1
-          elseif (tmpchar == photodata%back_gas_name) then ! background gas
-            j = photodata%nsp
+          elseif (tmpchar == dat%back_gas_name) then ! background gas
+            j = dat%nsp
           else ! long lived species
             j = kk
             kk = kk + 1
           endif
         endif
                   
-        photodata%species_names(j) = tmpchar
+        dat%species_names(j) = tmpchar
         dict => element%get_dictionary("composition",.true.,error = io_err)  ! get composition
         if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         key_value_pair => dict%first ! dont allow unspecified atoms
         do while (associated(key_value_pair))
-          ind = findloc(photodata%atoms_names,trim(key_value_pair%key))
+          ind = findloc(dat%atoms_names,trim(key_value_pair%key))
           if (ind(1) == 0) then
             err = 'IOError: The atom "'// trim(key_value_pair%key)// '" is not in the list of atoms.'
             return
@@ -348,16 +348,16 @@ contains
           key_value_pair =>key_value_pair%next
         enddo
         
-        do i=1,photodata%natoms
-          photodata%species_composition(i,j) =  &
-              dict%get_integer(photodata%atoms_names(i),0,error = io_err) ! no error possible.
+        do i=1,dat%natoms
+          dat%species_composition(i,j) =  &
+              dict%get_integer(dat%atoms_names(i),0,error = io_err) ! no error possible.
         enddo
-        photodata%species_mass(j) = sum(photodata%species_composition(:,j) * photodata%atoms_mass)
-        photodata%species_redox(j) = sum(photodata%species_composition(:,j) * photodata%atoms_redox)
+        dat%species_mass(j) = sum(dat%species_composition(:,j) * dat%atoms_mass)
+        dat%species_redox(j) = sum(dat%species_composition(:,j) * dat%atoms_redox)
         
-        if (photodata%reverse .and. (ii >= photodata%ng_1)) then
-          call get_thermodata(element,photodata%species_names(j), infile, &
-                              photodata%thermo_data(j-photodata%npq), err)
+        if (dat%reverse .and. (ii >= dat%ng_1)) then
+          call get_thermodata(element,dat%species_names(j), infile, &
+                              dat%thermo_data(j-dat%npq), err)
           if (allocated(err)) return
         endif
       class default
@@ -368,12 +368,12 @@ contains
       item => item%next
     enddo
     
-    if (l-1 /= photodata%nsl) then
+    if (l-1 /= dat%nsl) then
       err = 'IOError: One of the short lived species is not in the file '//trim(infile)
       return
     endif
-    if (photodata%back_gas) then
-      ind = findloc(photodata%species_names,photodata%back_gas_name)
+    if (dat%back_gas) then
+      ind = findloc(dat%species_names,dat%back_gas_name)
       if (ind(1) == 0) then
         err = 'IOError: The specified background gas is not in '//trim(infile)
         return
@@ -381,19 +381,19 @@ contains
     endif
     !!! done with species !!!
     
-    if (photodata%there_are_particles) then
+    if (dat%there_are_particles) then
       ! get indexes of gas phase condensing species
-      allocate(photodata%particle_gas_phase_ind(photodata%np))
-      do i = 1,photodata%np
-        if (photodata%particle_formation_method(i) == 1) then
+      allocate(dat%particle_gas_phase_ind(dat%np))
+      do i = 1,dat%np
+        if (dat%particle_formation_method(i) == 1) then
           ! if a condensing molecule
-          ind = findloc(photodata%species_names,photodata%particle_gas_phase(i))
+          ind = findloc(dat%species_names,dat%particle_gas_phase(i))
           if (ind(1) /= 0) then
-            photodata%particle_gas_phase_ind(i) = ind(1)
+            dat%particle_gas_phase_ind(i) = ind(1)
           else
-            err = "IOError: particle "//trim(photodata%particle_names(i))// &
-                  " can not be made from "//trim(photodata%particle_gas_phase(i))// &
-                  " because "//trim(photodata%particle_gas_phase(i))//" is not a gas"// &
+            err = "IOError: particle "//trim(dat%particle_names(i))// &
+                  " can not be made from "//trim(dat%particle_gas_phase(i))// &
+                  " because "//trim(dat%particle_gas_phase(i))//" is not a gas"// &
                   " in the model."
             return
           endif
@@ -408,8 +408,8 @@ contains
       item => item%next
     enddo
 
-    photodata%nrF = all_reactions%size()
-    photodata%nrR = 0
+    dat%nrF = all_reactions%size()
+    dat%nrR = 0
     item => all_reactions%first
     do while (associated(item))
       select type (element => item%node)
@@ -420,12 +420,12 @@ contains
         if (allocated(err)) return 
         
         if (reverse) then
-          if (.not.photodata%reverse) then
+          if (.not.dat%reverse) then
             err = 'IOError: reaction file '//trim(infile)//' contains reverse reaction '//tmp// &
                   ', which is incompatible with "reverse-reactions: false"'
             return
           endif
-          photodata%nrR = photodata%nrR + 1
+          dat%nrR = dat%nrR + 1
         endif
 
       class default
@@ -434,11 +434,11 @@ contains
       end select
       item => item%next
     enddo
-    photodata%nrT = photodata%nrR + photodata%nrF
+    dat%nrT = dat%nrR + dat%nrF
     
     ! allocate stuff and loop through reactions again
-    allocate(duplicate(photodata%nrT))
-    allocate(photodata%rx(photodata%nrT))
+    allocate(duplicate(dat%nrT))
+    allocate(dat%rx(dat%nrT))
     
     j = 1
     k = 1
@@ -449,9 +449,9 @@ contains
         tmp = trim(element%get_string("equation",error = io_err))
         if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
-        call get_rateparams(photodata, element, infile, photodata%rx(j), err)
+        call get_rateparams(dat, element, infile, dat%rx(j), err)
         if (allocated(err)) return
-        call get_reaction_sp_nums(photodata, tmp, photodata%rx(j), reverse, err)
+        call get_reaction_sp_nums(dat, tmp, dat%rx(j), reverse, err)
         if (allocated(err)) return
         
         ! check if duplicate
@@ -460,18 +460,18 @@ contains
         
         if (reverse) then
           ! reaction has a reverse
-          i = photodata%nrF + k
+          i = dat%nrF + k
           duplicate(i) = duplicate(j)
-          allocate(photodata%rx(j)%reverse_info)
-          allocate(photodata%rx(i)%reverse_info)
-          photodata%rx(j)%reverse_info = i
-          photodata%rx(i)%reverse_info = j
-          photodata%rx(i)%nreact = photodata%rx(j)%nprod
-          photodata%rx(i)%nprod = photodata%rx(j)%nreact
-          allocate(photodata%rx(i)%react_sp_inds(photodata%rx(i)%nreact))
-          allocate(photodata%rx(i)%prod_sp_inds(photodata%rx(i)%nprod))
-          photodata%rx(i)%react_sp_inds = photodata%rx(j)%prod_sp_inds
-          photodata%rx(i)%prod_sp_inds = photodata%rx(j)%react_sp_inds
+          allocate(dat%rx(j)%reverse_info)
+          allocate(dat%rx(i)%reverse_info)
+          dat%rx(j)%reverse_info = i
+          dat%rx(i)%reverse_info = j
+          dat%rx(i)%nreact = dat%rx(j)%nprod
+          dat%rx(i)%nprod = dat%rx(j)%nreact
+          allocate(dat%rx(i)%react_sp_inds(dat%rx(i)%nreact))
+          allocate(dat%rx(i)%prod_sp_inds(dat%rx(i)%nprod))
+          dat%rx(i)%react_sp_inds = dat%rx(j)%prod_sp_inds
+          dat%rx(i)%prod_sp_inds = dat%rx(j)%react_sp_inds
 
           k = k + 1
         endif
@@ -484,88 +484,98 @@ contains
     enddo
     
     ! production and loss mechanisms for each species
-    allocate(photodata%pl(photodata%nsp))
-    do i = 1,photodata%nsp
-      photodata%pl(i)%nump = 0
-      photodata%pl(i)%numl = 0
+    allocate(dat%pl(dat%nsp))
+    do i = 1,dat%nsp
+      dat%pl(i)%nump = 0
+      dat%pl(i)%numl = 0
     enddo
-    do j = 1,photodata%nrT
-      do i = 1,photodata%rx(j)%nreact
-        kk = photodata%rx(j)%react_sp_inds(i)
-        if (kk <= photodata%nsp) then
-          photodata%pl(kk)%numl = photodata%pl(kk)%numl + 1
+    do j = 1,dat%nrT
+      do i = 1,dat%rx(j)%nreact
+        kk = dat%rx(j)%react_sp_inds(i)
+        if (kk <= dat%nsp) then
+          dat%pl(kk)%numl = dat%pl(kk)%numl + 1
         endif
       enddo
-      do i = 1,photodata%rx(j)%nprod
-        kk = photodata%rx(j)%prod_sp_inds(i)
-        if (kk <= photodata%nsp) then
-          photodata%pl(kk)%nump = photodata%pl(kk)%nump + 1
+      do i = 1,dat%rx(j)%nprod
+        kk = dat%rx(j)%prod_sp_inds(i)
+        if (kk <= dat%nsp) then
+          dat%pl(kk)%nump = dat%pl(kk)%nump + 1
         endif
       enddo
     enddo
-    do i = 1,photodata%nsp
-      allocate(photodata%pl(i)%iprod(photodata%pl(i)%nump))
-      allocate(photodata%pl(i)%iloss(photodata%pl(i)%numl))
-      photodata%pl(i)%nump = 0
-      photodata%pl(i)%numl = 0
+    do i = 1,dat%nsp
+      allocate(dat%pl(i)%iprod(dat%pl(i)%nump))
+      allocate(dat%pl(i)%iloss(dat%pl(i)%numl))
+      dat%pl(i)%nump = 0
+      dat%pl(i)%numl = 0
     enddo
 
-    do j = 1,photodata%nrT
-      do i = 1,photodata%rx(j)%nreact
-        kk = photodata%rx(j)%react_sp_inds(i)
-        if (kk <= photodata%nsp) then
-          photodata%pl(kk)%numl = photodata%pl(kk)%numl + 1
-          l = photodata%pl(kk)%numl
-          photodata%pl(kk)%iloss(l) = j
+    do j = 1,dat%nrT
+      do i = 1,dat%rx(j)%nreact
+        kk = dat%rx(j)%react_sp_inds(i)
+        if (kk <= dat%nsp) then
+          dat%pl(kk)%numl = dat%pl(kk)%numl + 1
+          l = dat%pl(kk)%numl
+          dat%pl(kk)%iloss(l) = j
         endif
       enddo
-      do i = 1,photodata%rx(j)%nprod
-        kk = photodata%rx(j)%prod_sp_inds(i)
-        if (kk <= photodata%nsp) then
-          photodata%pl(kk)%nump = photodata%pl(kk)%nump + 1
-          l = photodata%pl(kk)%nump
-          photodata%pl(kk)%iprod(l) = j
+      do i = 1,dat%rx(j)%nprod
+        kk = dat%rx(j)%prod_sp_inds(i)
+        if (kk <= dat%nsp) then
+          dat%pl(kk)%nump = dat%pl(kk)%nump + 1
+          l = dat%pl(kk)%nump
+          dat%pl(kk)%iprod(l) = j
         endif
       enddo
     enddo
     
     ! photolysis
-    photodata%kj = 0
-    do i = 1, photodata%nrF
-      if (photodata%rx(i)%rp%rxtype == 0) then
-        photodata%kj = photodata%kj + 1
+    dat%kj = 0
+    do i = 1, dat%nrF
+      if (dat%rx(i)%rp%rxtype == 0) then
+        dat%kj = dat%kj + 1
       endif
     enddo
-    allocate(photodata%photonums(photodata%kj))
+    allocate(dat%photonums(dat%kj))
     j = 1
-    do i = 1, photodata%nrF
-      if (photodata%rx(i)%rp%rxtype == 0) then
-        photodata%photonums(j) = i
+    do i = 1, dat%nrF
+      if (dat%rx(i)%rp%rxtype == 0) then
+        dat%photonums(j) = i
         j = j + 1
       endif
     enddo
     
     ! save reaction names
-    allocate(photodata%reaction_equations(photodata%nrT))
-    do i = 1,photodata%nrT
-      call reaction_string(photodata,i,rxstring)
-      photodata%reaction_equations(i) = rxstring
+    allocate(dat%reaction_equations(dat%nrT))
+    do i = 1,dat%nrT
+      call reaction_string(dat,i,rxstring)
+      dat%reaction_equations(i) = rxstring
     enddo
     
-    call check_for_duplicates(photodata, duplicate, err)
+    call check_for_duplicates(dat, duplicate, err)
     if (allocated(err)) return
+    
+    ! Make sure particles are not being destroyed from reactions
+    do i = 1,dat%np
+      if (dat%pl(i)%numl /= 0) then
+        err = 'Particle "'//trim(dat%species_names(i))//'" is destroyed by reactions. '// &
+              'Particles can not be destroyed by reactions! Remove these reaction(s).'
+        return
+      endif
+    enddo
+    
     !!! end reactions !!!
     
     !!! henrys law !!!
-    call get_henry(photodata, photovars, err)
+    call get_henry(dat, var, err)
     if (allocated(err)) return
     !!! end henrys law !!!
     
   end subroutine
   
-  subroutine H2SO4_interpolator(photovars, s2, err)
+  subroutine H2SO4_interpolator(var, s2, err)
     use linear_interpolation_module, only: linear_interp_2d
-    type(PhotochemVars), intent(in) :: photovars
+    type(PhotochemVars), intent(in) :: var
     type(linear_interp_2d), intent(out) :: s2
     character(:), allocatable, intent(out) :: err
     
@@ -577,7 +587,7 @@ contains
     character(len=:), allocatable :: filename
     
     
-    filename = trim(photovars%data_dir)//"/misc/H2SO4.dat"
+    filename = trim(var%data_dir)//"/misc/H2SO4.dat"
     open(unit=1,file=filename, status='old',iostat=io,form='unformatted')
     if (io /= 0) then
       err = "Could not open "//trim(filename)
@@ -601,10 +611,10 @@ contains
     
   end subroutine
   
-  subroutine get_henry_parse(root, photodata, photovars, henry_names, henry_data, err)
+  subroutine get_henry_parse(root, dat, var, henry_names, henry_data, err)
     class (type_list), intent(in) :: root
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(in) :: photovars
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(in) :: var
     character(len=s_str_len), allocatable, intent(out) :: henry_names(:)
     real(dp), allocatable, intent(out) :: henry_data(:,:)
     character(:), allocatable :: err
@@ -640,10 +650,10 @@ contains
     enddo
   end subroutine
   
-  subroutine get_henry(photodata, photovars, err)
+  subroutine get_henry(dat, var, err)
     use fortran_yaml_c, only : parse, error_length
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(in) :: photovars
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(in) :: var
     character(:), allocatable :: err
     
     character(error_length) :: error
@@ -655,14 +665,14 @@ contains
     
 
     ! parse yaml file
-    root => parse(trim(photovars%data_dir)//"/henry/henry.yaml",error=error)
+    root => parse(trim(var%data_dir)//"/henry/henry.yaml",error=error)
     if (error /= '') then
       err = trim(error)
       return
     end if
     select type (root)
     class is (type_list)
-      call get_henry_parse(root, photodata, photovars, henry_names, henry_data, err)
+      call get_henry_parse(root, dat, var, henry_names, henry_data, err)
     class default
       err = "yaml file must have dictionaries at root level"
     end select
@@ -670,17 +680,17 @@ contains
     deallocate(root)
     if (allocated(err)) return
     
-    allocate(photodata%henry_data(2,photodata%nsp))
-    photodata%henry_data = 0.0_dp
+    allocate(dat%henry_data(2,dat%nsp))
+    dat%henry_data = 0.0_dp
     do j = 1,size(henry_names)
-      ind = findloc(photodata%species_names,henry_names(j))
+      ind = findloc(dat%species_names,henry_names(j))
       if (ind(1) /= 0) then
         i = ind(1)
-        photodata%henry_data(:,i) = henry_data(:,j)
+        dat%henry_data(:,i) = henry_data(:,j)
       endif
     enddo
     ! set particle solubility to super high number
-    photodata%henry_data(1,1:photodata%npq) = 7.e11_dp
+    dat%henry_data(1,1:dat%npq) = 7.e11_dp
     
   end subroutine  
   
@@ -1448,10 +1458,10 @@ contains
     str = str(1:i)
   end subroutine
     
-  subroutine SL_and_background(root, infile, photodata, err)
+  subroutine SL_and_background(root, infile, dat, err)
     class (type_dictionary), intent(in) :: root
     character(len=*), intent(in) :: infile
-    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemData), intent(inout) :: dat
     character(:), allocatable, intent(out) :: err
   
     class (type_dictionary), pointer :: tmp1
@@ -1464,14 +1474,14 @@ contains
     tmp1 => root%get_dictionary('planet',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
-    photodata%back_gas = tmp1%get_logical('use-background-gas',error = io_err)
+    dat%back_gas = tmp1%get_logical('use-background-gas',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
-    if (photodata%back_gas) then
-      photodata%back_gas_name = tmp1%get_string('background-gas',error = io_err)
+    if (dat%back_gas) then
+      dat%back_gas_name = tmp1%get_string('background-gas',error = io_err)
       if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     else
-      photodata%back_gas_ind = -1
+      dat%back_gas_ind = -1
       err = "Currently, the model requires there to be a background gas."// &
             " You must set 'use-background-gas: true'"
       return
@@ -1479,14 +1489,14 @@ contains
     
     bcs => root%get_list('boundary-conditions',.true.,error = io_err)
     
-    photodata%nsl = 0
+    dat%nsl = 0
     item => bcs%first
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
         spec_type = element%get_string('type','long lived',error = io_err)
         if (spec_type == 'short lived') then
-          photodata%nsl = photodata%nsl + 1
+          dat%nsl = dat%nsl + 1
         elseif (spec_type == 'long lived') then
           ! do nothing
         else
@@ -1499,17 +1509,17 @@ contains
       end select 
       item => item%next
     enddo
-    allocate(photodata%SL_names(photodata%nsl))
+    allocate(dat%SL_names(dat%nsl))
     
-    photodata%nsl = 0
+    dat%nsl = 0
     item => bcs%first
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
         spec_type = element%get_string('type','long lived',error = io_err)
         if (spec_type == 'short lived') then
-          photodata%nsl = photodata%nsl + 1
-          photodata%SL_names(photodata%nsl) = element%get_string('name',error = io_err)
+          dat%nsl = dat%nsl + 1
+          dat%SL_names(dat%nsl) = element%get_string('name',error = io_err)
           if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         elseif (spec_type == 'long lived') then
           ! do nothing
@@ -1526,10 +1536,10 @@ contains
     
   end subroutine
   
-  subroutine get_SL_and_background(infile, photodata, err)
+  subroutine get_SL_and_background(infile, dat, err)
     use fortran_yaml_c, only : parse, error_length
     character(len=*), intent(in) :: infile
-    type(PhotochemData), intent(inout) :: photodata
+    type(PhotochemData), intent(inout) :: dat
     character(:), allocatable, intent(out) :: err
   
     character(error_length) :: error
@@ -1543,7 +1553,7 @@ contains
     end if
     select type (root)
       class is (type_dictionary)
-        call SL_and_background(root, infile, photodata, err)
+        call SL_and_background(root, infile, dat, err)
       class default
         err = trim(infile)//" file must have dictionaries at root level"
     end select
@@ -1552,10 +1562,10 @@ contains
     if (allocated(err)) return
     
     ! check for duplicates
-    do i = 1,photodata%nsl-1
-      do j = i+1,photodata%nsl
-        if (photodata%SL_names(i) == photodata%SL_names(j)) then
-          err = 'IOError: Short lived species '//trim(photodata%SL_names(i))// &
+    do i = 1,dat%nsl-1
+      do j = i+1,dat%nsl
+        if (dat%SL_names(i) == dat%SL_names(j)) then
+          err = 'IOError: Short lived species '//trim(dat%SL_names(i))// &
                 ' is a duplicate.'
           return
         endif
@@ -1564,11 +1574,11 @@ contains
   
   end subroutine
   
-  subroutine get_photoset(infile, photodata, photovars, err)
+  subroutine get_photoset(infile, dat, var, err)
     use fortran_yaml_c, only : parse, error_length
     character(len=*), intent(in) :: infile
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(inout) :: photovars
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
   
     character(error_length) :: error
@@ -1581,7 +1591,7 @@ contains
     end if
     select type (root)
       class is (type_dictionary)
-        call unpack_settings(root, infile, photodata, photovars, err)
+        call unpack_settings(root, infile, dat, var, err)
       class default
         err = trim(infile)//" file must have dictionaries at root level"
     end select
@@ -1591,11 +1601,11 @@ contains
 
   end subroutine
   
-  subroutine unpack_settings(mapping, infile, photodata, photovars, err)
+  subroutine unpack_settings(mapping, infile, dat, var, err)
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(inout) :: photovars
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
     class (type_dictionary), pointer :: tmp1, tmp2, tmp3
@@ -1614,95 +1624,95 @@ contains
     ! photolysis grid
     tmp1 => mapping%get_dictionary('photolysis-grid',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photodata%regular_grid = tmp1%get_logical('regular-grid',error = io_err)
+    dat%regular_grid = tmp1%get_logical('regular-grid',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-    if (photodata%regular_grid) then
-      photodata%lower_wavelength = tmp1%get_real('lower-wavelength',error = io_err)
+    if (dat%regular_grid) then
+      dat%lower_wavelength = tmp1%get_real('lower-wavelength',error = io_err)
       if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      photodata%upper_wavelength = tmp1%get_real('upper-wavelength',error = io_err)
+      dat%upper_wavelength = tmp1%get_real('upper-wavelength',error = io_err)
       if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      photodata%nw = tmp1%get_integer('number-of-bins',error = io_err)
+      dat%nw = tmp1%get_integer('number-of-bins',error = io_err)
       if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      if (photodata%nw < 1) then 
+      if (dat%nw < 1) then 
         err = 'Number of photolysis bins must be >= 1 in '//trim(infile)
         return
       endif
-      if (photodata%lower_wavelength > photodata%upper_wavelength) then
+      if (dat%lower_wavelength > dat%upper_wavelength) then
         err = 'lower-wavelength must be smaller than upper-wavelength in '//trim(infile)
         return
       endif
     else
-      photodata%grid_file = tmp1%get_string('input-file',error = io_err)
+      dat%grid_file = tmp1%get_string('input-file',error = io_err)
       if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     endif
     ! scale factor for photon flux. Its optional
-    photovars%photon_scale_factor = tmp1%get_real('photon-scale-factor', 1.0_dp,error = io_err)
+    var%photon_scale_factor = tmp1%get_real('photon-scale-factor', 1.0_dp,error = io_err)
     
     ! atmosphere grid
     tmp1 => mapping%get_dictionary('atmosphere-grid',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photovars%bottom_atmos = tmp1%get_real('bottom',error = io_err)
+    var%bottom_atmos = tmp1%get_real('bottom',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photovars%top_atmos = tmp1%get_real('top',error = io_err)
+    var%top_atmos = tmp1%get_real('top',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photovars%nz = tmp1%get_integer('number-of-layers',error = io_err)
+    var%nz = tmp1%get_integer('number-of-layers',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
     ! Planet
     tmp1 => mapping%get_dictionary('planet',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
-    photovars%surface_pressure = tmp1%get_real('surface-pressure',error = io_err)
+    var%surface_pressure = tmp1%get_real('surface-pressure',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photovars%surface_pressure <= 0.0_dp) then
+    if (var%surface_pressure <= 0.0_dp) then
       err = 'IOError: Planet surface pressure must be greater than zero.'
       return
     endif
-    photodata%planet_mass = tmp1%get_real('planet-mass',error = io_err)
+    dat%planet_mass = tmp1%get_real('planet-mass',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photodata%planet_mass < 0.0_dp) then
+    if (dat%planet_mass < 0.0_dp) then
       err = 'IOError: Planet mass must be greater than zero.'
       return
     endif
-    photodata%planet_radius = tmp1%get_real('planet-radius',error = io_err)
+    dat%planet_radius = tmp1%get_real('planet-radius',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photodata%planet_radius < 0.0_dp) then
+    if (dat%planet_radius < 0.0_dp) then
       err = 'IOError: Planet radius must be greater than zero.'
       return
     endif
-    photovars%surface_albedo = tmp1%get_real('surface-albedo',error = io_err)
+    var%surface_albedo = tmp1%get_real('surface-albedo',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photovars%surface_albedo < 0.0_dp) then
+    if (var%surface_albedo < 0.0_dp) then
       err = 'IOError: Surface albedo must be greater than zero.'
       return
     endif
-    photovars%diurnal_fac = tmp1%get_real('diurnal-averaging-factor',error = io_err)
+    var%diurnal_fac = tmp1%get_real('diurnal-averaging-factor',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photovars%diurnal_fac < 0.0_dp .or. photovars%diurnal_fac > 1.0_dp) then
+    if (var%diurnal_fac < 0.0_dp .or. var%diurnal_fac > 1.0_dp) then
       err = 'IOError: diurnal-averaging-factor must be between 0 and 1.'
       return
     endif
     
-    photovars%solar_zenith = tmp1%get_real('solar-zenith-angle',error = io_err)
+    var%solar_zenith = tmp1%get_real('solar-zenith-angle',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (photovars%solar_zenith < 0.0_dp .or. photovars%solar_zenith > 90.0_dp) then
+    if (var%solar_zenith < 0.0_dp .or. var%solar_zenith > 90.0_dp) then
       err = 'IOError: solar zenith must be between 0 and 90.'
       return
     endif
     
     ! H2 escape
-    photodata%diff_H_escape = tmp1%get_logical('diff-lim-hydrogen-escape',error = io_err)
+    dat%diff_H_escape = tmp1%get_logical('diff-lim-hydrogen-escape',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    ind = findloc(photodata%species_names,'H2')
-    photodata%LH2 = ind(1)
-    if (ind(1) == 0 .and. photodata%diff_H_escape) then
+    ind = findloc(dat%species_names,'H2')
+    dat%LH2 = ind(1)
+    if (ind(1) == 0 .and. dat%diff_H_escape) then
       err = 'IOError: H2 must be a species if diff-lim-hydrogen-escape = True.'
       return
     endif
-    ind = findloc(photodata%species_names,'H')
-    photodata%LH = ind(1)
-    if (ind(1) == 0 .and. photodata%diff_H_escape) then
+    ind = findloc(dat%species_names,'H')
+    dat%LH = ind(1)
+    if (ind(1) == 0 .and. dat%diff_H_escape) then
       err = 'IOError: H must be a species if diff-lim-hydrogen-escape = True.'
       return
     endif
@@ -1720,95 +1730,95 @@ contains
     
     tmp2 => tmp1%get_dictionary('water',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photodata%fix_water_in_trop = tmp2%get_logical('fix-water-in-troposphere',error = io_err)
+    dat%fix_water_in_trop = tmp2%get_logical('fix-water-in-troposphere',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photodata%water_cond = tmp2%get_logical('water-condensation',error = io_err)
+    dat%water_cond = tmp2%get_logical('water-condensation',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    photodata%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
+    dat%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    ind = findloc(photodata%species_names,'H2O')
-    photodata%LH2O = ind(1)
-    if (ind(1) == 0 .and. photodata%fix_water_in_trop) then
+    ind = findloc(dat%species_names,'H2O')
+    dat%LH2O = ind(1)
+    if (ind(1) == 0 .and. dat%fix_water_in_trop) then
       err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
       return
-    elseif (ind(1) == 0 .and. photodata%water_cond) then
+    elseif (ind(1) == 0 .and. dat%water_cond) then
       err = 'IOError: H2O must be a species if water-condensation = True.'
       return
-    elseif (ind(1) == 0 .and. photodata%gas_rainout) then
+    elseif (ind(1) == 0 .and. dat%gas_rainout) then
       err = 'IOError: H2O must be a species if gas-rainout = True.'
       return
-    elseif (ind(1) == 0 .and. photodata%there_are_particles) then
-      if (any(photodata%particle_sat_type == 2)) then
+    elseif (ind(1) == 0 .and. dat%there_are_particles) then
+      if (any(dat%particle_sat_type == 2)) then
         err = 'IOError: H2O must be a species if H2SO4 condensation is on.'
         return
       endif
     endif
     
-    if (photodata%fix_water_in_trop) then  
+    if (dat%fix_water_in_trop) then  
       
       temp_char = tmp2%get_string('relative-humidity',error = io_err)
       if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
-      read(temp_char,*,iostat = io) photovars%relative_humidity
+      read(temp_char,*,iostat = io) var%relative_humidity
       
       if (io /= 0) then
         ! it isn't a float
         if (trim(temp_char) == "manabe") then
-          photovars%use_manabe = .true.
+          var%use_manabe = .true.
         else
           err = '"relative-humidity" can only be a number between 0 and 1, or "manabe". See '//trim(infile)
           return 
         endif
       else
-        photovars%use_manabe = .false.
+        var%use_manabe = .false.
       endif
       
     endif
     
-    if (photodata%gas_rainout) then
-      photovars%rainfall_rate = tmp2%get_real('rainfall-rate',error = io_err)
+    if (dat%gas_rainout) then
+      var%rainfall_rate = tmp2%get_real('rainfall-rate',error = io_err)
       if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     endif
     
-    if (photodata%fix_water_in_trop .or. photodata%gas_rainout) then
+    if (dat%fix_water_in_trop .or. dat%gas_rainout) then
       ! we need a tropopause altitude
-      photovars%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
+      var%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
       if (allocated(io_err)) then
         err = "tropopause-altitude must be specified if fix-water-in-troposphere = true, or gas-rainout = true"
         return
       endif
-      if ((photovars%trop_alt < photovars%bottom_atmos) .or. &
-          (photovars%trop_alt > photovars%top_atmos)) then
+      if ((var%trop_alt < var%bottom_atmos) .or. &
+          (var%trop_alt > var%top_atmos)) then
           err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
           return
       endif
       
     endif
     
-    if (photodata%water_cond) then        
+    if (dat%water_cond) then        
       
       tmp3 => tmp2%get_dictionary('condensation-rate',.true.,error = io_err)
       if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       
-      photovars%H2O_condensation_rate(1) = tmp3%get_real('A',error = io_err)
+      var%H2O_condensation_rate(1) = tmp3%get_real('A',error = io_err)
       if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      photovars%H2O_condensation_rate(2) = tmp3%get_real('rhc',error = io_err)
+      var%H2O_condensation_rate(2) = tmp3%get_real('rhc',error = io_err)
       if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      photovars%H2O_condensation_rate(3) = tmp3%get_real('rh0',error = io_err)
+      var%H2O_condensation_rate(3) = tmp3%get_real('rh0',error = io_err)
       if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      if (photovars%H2O_condensation_rate(3) <= photovars%H2O_condensation_rate(2)) then
+      if (var%H2O_condensation_rate(3) <= var%H2O_condensation_rate(2)) then
         err = 'IOError: Rate constant "rh0" for H2O condensation must be > "rhc". See '//trim(infile)
         return
       endif
     endif
     
     ! particle parameters
-    if (photodata%there_are_particles) then
+    if (dat%there_are_particles) then
       particles => mapping%get_list('particles',.true.,error = io_err)
       if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         
-      allocate(particle_checklist(photodata%np))
-      allocate(photovars%condensation_rate(3,photodata%np))
+      allocate(particle_checklist(dat%np))
+      allocate(var%condensation_rate(3,dat%np))
       particle_checklist = .false.
       
       item => particles%first
@@ -1817,7 +1827,7 @@ contains
         class is (type_dictionary)
           temp_char = element%get_string('name',error = io_err)
           if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          ind = findloc(photodata%particle_names,trim(temp_char))
+          ind = findloc(dat%particle_names,trim(temp_char))
           if (particle_checklist(ind(1))) then
             err = "IOError: particle "//trim(temp_char)//" in the settings"// &
                   " file is listed more than once"
@@ -1834,13 +1844,13 @@ contains
           tmp1 => element%get_dictionary('condensation-rate',.true.,error = io_err)
           if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           
-          photovars%condensation_rate(1,ind(1)) = tmp1%get_real('A',error = io_err)
+          var%condensation_rate(1,ind(1)) = tmp1%get_real('A',error = io_err)
           if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          photovars%condensation_rate(2,ind(1)) = tmp1%get_real('rhc',error = io_err)
+          var%condensation_rate(2,ind(1)) = tmp1%get_real('rhc',error = io_err)
           if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          photovars%condensation_rate(3,ind(1)) = tmp1%get_real('rh0',error = io_err)
+          var%condensation_rate(3,ind(1)) = tmp1%get_real('rh0',error = io_err)
           if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          if (photovars%condensation_rate(3,ind(1)) <= photovars%condensation_rate(2,ind(1))) then
+          if (var%condensation_rate(3,ind(1)) <= var%condensation_rate(2,ind(1))) then
             err = 'IOError: Rate constant "rh0" for '//trim(temp_char) &
                   //' condensation must be > "rhc". See '//trim(infile)
             return
@@ -1853,9 +1863,9 @@ contains
         item => item%next
       end do
       
-      do i = 1,photodata%np
-        if (photodata%particle_formation_method(i) == 1 .and. .not. particle_checklist(i)) then
-          err = 'IOError: Particle '//trim(photodata%particle_names(i))// &
+      do i = 1,dat%np
+        if (dat%particle_formation_method(i) == 1 .and. .not. particle_checklist(i)) then
+          err = 'IOError: Particle '//trim(dat%particle_names(i))// &
                 ' does not have any condensation rate data in the file '//trim(infile)
           return
         endif
@@ -1867,37 +1877,37 @@ contains
     bcs => mapping%get_list('boundary-conditions',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     
-    if (photodata%back_gas) then
-      ind = findloc(photodata%species_names,trim(photodata%back_gas_name))
-      photodata%back_gas_ind = ind(1)
-      photodata%back_gas_mu = photodata%species_mass(ind(1))
+    if (dat%back_gas) then
+      ind = findloc(dat%species_names,trim(dat%back_gas_name))
+      dat%back_gas_ind = ind(1)
+      dat%back_gas_mu = dat%species_mass(ind(1))
     endif
     
     ! allocate boundary conditions
-    allocate(photovars%lowerboundcond(photodata%nq))
-    allocate(photovars%lower_vdep(photodata%nq))
-    allocate(photovars%lower_flux(photodata%nq))
-    allocate(photovars%lower_dist_height(photodata%nq))
-    allocate(photovars%lower_fix_mr(photodata%nq))
-    allocate(photovars%upperboundcond(photodata%nq))
-    allocate(photovars%upper_veff(photodata%nq))
-    allocate(photovars%upper_flux(photodata%nq))
-    allocate(photovars%only_eddy(photodata%nq))
+    allocate(var%lowerboundcond(dat%nq))
+    allocate(var%lower_vdep(dat%nq))
+    allocate(var%lower_flux(dat%nq))
+    allocate(var%lower_dist_height(dat%nq))
+    allocate(var%lower_fix_mr(dat%nq))
+    allocate(var%upperboundcond(dat%nq))
+    allocate(var%upper_veff(dat%nq))
+    allocate(var%upper_flux(dat%nq))
+    allocate(var%only_eddy(dat%nq))
     ! default boundary conditions
-    photovars%lowerboundcond = default_lowerboundcond
-    photovars%lower_vdep = 0.0_dp
-    photovars%upperboundcond = 0
-    photovars%upper_veff = 0.0_dp
-    photovars%only_eddy = .false.
+    var%lowerboundcond = default_lowerboundcond
+    var%lower_vdep = 0.0_dp
+    var%upperboundcond = 0
+    var%upper_veff = 0.0_dp
+    var%only_eddy = .false.
       
     ! determine number of short lived species. 
-    allocate(dups(photodata%nsp))
+    allocate(dups(dat%nsp))
     j = 1
     item => bcs%first
     do while (associated(item))
       select type (element => item%node)
       class is (type_dictionary)
-        if (j > photodata%nsp) then
+        if (j > dat%nsp) then
           err = "IOError: Too many boundary condition entries in settings file."
           return
         endif
@@ -1914,19 +1924,19 @@ contains
           enddo
         endif
         ! make sure it isn't water
-        if (photodata%fix_water_in_trop .and. dups(j) == "H2O") then
+        if (dat%fix_water_in_trop .and. dups(j) == "H2O") then
           err = "IOError: H2O can not have a specified boundary condition"// &
                 " if water-saturated-troposphere = true in the settings file."
           return
         endif
         ! check if in rxmech
-        ind = findloc(photodata%species_names,dups(j))
+        ind = findloc(dat%species_names,dups(j))
         if (ind(1) == 0) then
           err = "IOError: Species "//trim(dups(j))// &
           ' in settings file is not in the reaction mechanism file.'
           return 
         endif
-        if ((ind(1) == photodata%back_gas_ind) .and. (photodata%back_gas)) then ! can't be background gas
+        if ((ind(1) == dat%back_gas_ind) .and. (dat%back_gas)) then ! can't be background gas
           err = "IOError: Species "//trim(dups(j))// &
           ' in settings file is the background gas, and can not have boundary conditions.'
           return
@@ -1940,14 +1950,14 @@ contains
           i = ind(1)
           ! get boundary condition
           call get_boundaryconds(element, dups(j), infile, &
-                                 photovars%lowerboundcond(i), photovars%lower_vdep(i), &
-                                 photovars%lower_flux(i), photovars%lower_dist_height(i), &
-                                 photovars%lower_fix_mr(i), &
-                                 photovars%upperboundcond(i), photovars%upper_veff(i), &
-                                 photovars%upper_flux(i), err)
+                                 var%lowerboundcond(i), var%lower_vdep(i), &
+                                 var%lower_flux(i), var%lower_dist_height(i), &
+                                 var%lower_fix_mr(i), &
+                                 var%upperboundcond(i), var%upper_veff(i), &
+                                 var%upper_flux(i), err)
           if (allocated(err)) return
           
-          photovars%only_eddy(i) = element%get_logical("only-eddy",default=.false., error = io_err)
+          var%only_eddy(i) = element%get_logical("only-eddy",default=.false., error = io_err)
           if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         else
           err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
@@ -1963,15 +1973,15 @@ contains
     
     ! Make sure that upper boundary condition for H and H2 are
     ! effusion velocities, if diffusion limited escape
-    if (photodata%diff_H_escape) then
-      if (photodata%back_gas_name /= "H2") then
-        if (photovars%upperboundcond(photodata%LH2) /= 0) then
+    if (dat%diff_H_escape) then
+      if (dat%back_gas_name /= "H2") then
+        if (var%upperboundcond(dat%LH2) /= 0) then
           err = "IOError: H2 must have a have a effusion velocity upper boundary"// &
                 " if diff-lim-hydrogen-escape = True"
           return
         endif
       endif
-      if (photovars%upperboundcond(photodata%LH) /= 0) then
+      if (var%upperboundcond(dat%LH) /= 0) then
         err = "IOError: H must have a have a effusion velocity upper boundary"// &
               " if diff-lim-hydrogen-escape = True"
         return
@@ -1979,7 +1989,7 @@ contains
     endif
 
     ! check for SL nonlinearities
-    call check_sl(photodata, err)
+    call check_sl(dat, err)
     if (allocated(err)) return
 
     
@@ -2170,20 +2180,20 @@ contains
     
   end subroutine
     
-  subroutine get_photorad(photodata, photovars, err)
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(in) :: photovars
+  subroutine get_photorad(dat, var, err)
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
     
     integer :: i
     
     ! compute wavelength grid
-    if (photodata%regular_grid) then
-      allocate(photodata%wavl(photodata%nw+1))
-      photodata%wavl(1) = photodata%lower_wavelength
-      do i = 2,photodata%nw+1
-        photodata%wavl(i) = photodata%wavl(i-1) + &
-                           (photodata%upper_wavelength - photodata%lower_wavelength)/photodata%nw
+    if (dat%regular_grid) then
+      allocate(dat%wavl(dat%nw+1))
+      dat%wavl(1) = dat%lower_wavelength
+      do i = 2,dat%nw+1
+        dat%wavl(i) = dat%wavl(i-1) + &
+                           (dat%upper_wavelength - dat%lower_wavelength)/dat%nw
       enddo
     else
       ! read file
@@ -2192,15 +2202,15 @@ contains
     endif
     
     ! get rayleigh
-    call get_rayleigh(photodata, photovars, err)
+    call get_rayleigh(dat, var, err)
     if (allocated(err)) return
     
     ! get photolysis xsections data
-    call get_photolysis_xs(photodata, photovars, err)
+    call get_photolysis_xs(dat, var, err)
     if (allocated(err)) return
     
-    if (photodata%there_are_particles) then
-      call get_aerosol_xs(photodata, photovars, err)
+    if (dat%there_are_particles) then
+      call get_aerosol_xs(dat, var, err)
       if (allocated(err)) return
     endif
     
@@ -2371,9 +2381,9 @@ contains
   
   end subroutine
   
-  subroutine get_aerosol_xs(photodata, photovars, err)
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(in) :: photovars
+  subroutine get_aerosol_xs(dat, var, err)
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
     
     integer :: nrad
@@ -2384,39 +2394,39 @@ contains
     character(len=:), allocatable :: filename
     integer :: i
     
-    xsroot = trim(photovars%data_dir)//"/aerosol_xsections/"
+    xsroot = trim(var%data_dir)//"/aerosol_xsections/"
     
-    allocate(photodata%radii_file(nrad_fixed,photodata%np))
-    allocate(photodata%part_xs_file(photodata%np))
+    allocate(dat%radii_file(nrad_fixed,dat%np))
+    allocate(dat%part_xs_file(dat%np))
     
-    photodata%nrad_file = nrad_fixed
+    dat%nrad_file = nrad_fixed
     
-    do i = 1,photodata%np
+    do i = 1,dat%np
       
-      if (photodata%particle_optical_prop(i) == 'none') then
+      if (dat%particle_optical_prop(i) == 'none') then
         ! there is no optical data, so we skip
-        photodata%part_xs_file(i)%ThereIsData = .false.
+        dat%part_xs_file(i)%ThereIsData = .false.
         cycle
       else
         ! there is optical data, so we allocate and get it
-        photodata%part_xs_file(i)%ThereIsData = .true.
-        allocate(photodata%part_xs_file(i)%w0(nrad_fixed,photodata%nw))
-        allocate(photodata%part_xs_file(i)%qext(nrad_fixed,photodata%nw))
-        allocate(photodata%part_xs_file(i)%gt(nrad_fixed,photodata%nw))
+        dat%part_xs_file(i)%ThereIsData = .true.
+        allocate(dat%part_xs_file(i)%w0(nrad_fixed,dat%nw))
+        allocate(dat%part_xs_file(i)%qext(nrad_fixed,dat%nw))
+        allocate(dat%part_xs_file(i)%gt(nrad_fixed,dat%nw))
       endif
       
-      if (photodata%particle_optical_type(i) == 0) then
-        filename = xsroot//trim(photodata%particle_optical_prop(i))// &
-                  "/mie_"//trim(photodata%particle_optical_prop(i))//".dat"
-      elseif (photodata%particle_optical_type(i) == 1) then
-        filename = xsroot//trim(photodata%particle_optical_prop(i))// &
-                  "/frac_"//trim(photodata%particle_optical_prop(i))//".dat"
+      if (dat%particle_optical_type(i) == 0) then
+        filename = xsroot//trim(dat%particle_optical_prop(i))// &
+                  "/mie_"//trim(dat%particle_optical_prop(i))//".dat"
+      elseif (dat%particle_optical_type(i) == 1) then
+        filename = xsroot//trim(dat%particle_optical_prop(i))// &
+                  "/frac_"//trim(dat%particle_optical_prop(i))//".dat"
       endif
       
       if (allocated(radii)) then
         deallocate(radii, w0, qext, g)
       endif
-      call read_mie_data_file(filename, photodata%nw, photodata%wavl, &
+      call read_mie_data_file(filename, dat%nw, dat%wavl, &
                               nrad, radii, w0, qext, g, err) 
       if (allocated(err)) return
       if (nrad /= nrad_fixed) then
@@ -2425,19 +2435,19 @@ contains
         return
       endif
       
-      photodata%radii_file(:,i) = radii/1.e4_dp ! convert from micron to cm
-      photodata%part_xs_file(i)%w0 = w0
-      photodata%part_xs_file(i)%qext = qext
-      photodata%part_xs_file(i)%gt = g
+      dat%radii_file(:,i) = radii/1.e4_dp ! convert from micron to cm
+      dat%part_xs_file(i)%w0 = w0
+      dat%part_xs_file(i)%qext = qext
+      dat%part_xs_file(i)%gt = g
 
     enddo
     
   end subroutine
   
-  subroutine get_photolysis_xs(photodata, photovars, err)
+  subroutine get_photolysis_xs(dat, var, err)
     use futils, only: inter2, addpnt, replaceStr
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(in) :: photovars
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
     
     integer, parameter :: maxcols = 200
@@ -2451,23 +2461,23 @@ contains
     
     integer :: i, j, k, l, m, io, kk, ierr
     
-    xsroot = trim(photovars%data_dir)//"/"//trim(photovars%xs_folder_name)//"/"
+    xsroot = trim(var%data_dir)//"/"//trim(var%xs_folder_name)//"/"
     
-    allocate(photodata%xs_data(photodata%kj))
+    allocate(dat%xs_data(dat%kj))
     
-    do i = 1,photodata%kj
+    do i = 1,dat%kj
       filename = ''
-      j = photodata%photonums(i)
-      call reaction_string(photodata,j,reaction)
+      j = dat%photonums(i)
+      call reaction_string(dat,j,reaction)
       filename = reaction
       filename = replaceStr(filename, ' ', '_')
       filename = replaceStr(filename, '>', '')
       filename = filename//'.txt'
 
-      k = photodata%rx(j)%react_sp_inds(1)
+      k = dat%rx(j)%react_sp_inds(1)
       
-      filename = trim(photodata%species_names(k))//'/'//filename
-      xsfilename = trim(photodata%species_names(k))//'/'//trim(photodata%species_names(k))//'_xs.txt'
+      filename = trim(dat%species_names(k))//'/'//filename
+      xsfilename = trim(dat%species_names(k))//'/'//trim(dat%species_names(k))//'_xs.txt'
       open(101, file=xsroot//filename,status='old',iostat=io)
       if (io /= 0) then
         err = 'The photolysis reaction '//reaction//' does not have quantum yield data'
@@ -2483,13 +2493,13 @@ contains
         err = 'More cross section temperature data than allowed for reaction '//reaction
         return
       endif
-      photodata%xs_data(i)%n_temps = k - 2
-      allocate(photodata%xs_data(i)%xs(k - 2, photodata%nw))
-      allocate(photodata%xs_data(i)%xs_temps(k - 2))
+      dat%xs_data(i)%n_temps = k - 2
+      allocate(dat%xs_data(i)%xs(k - 2, dat%nw))
+      allocate(dat%xs_data(i)%xs_temps(k - 2))
       
-      do k=1,photodata%xs_data(i)%n_temps
+      do k=1,dat%xs_data(i)%n_temps
         tmp1 = tmp(k+1)
-        read(tmp1(1:index(tmp1,'K')-1),*,iostat=io) photodata%xs_data(i)%xs_temps(k)
+        read(tmp1(1:index(tmp1,'K')-1),*,iostat=io) dat%xs_data(i)%xs_temps(k)
         if (io /= 0) then
           err = 'Problem reading in cross sections for reaction '//reaction
           return
@@ -2504,9 +2514,9 @@ contains
       enddo
       allocate(file_wav(k+4))
       allocate(file_wav_save(k+4))
-      allocate(file_qy(k+4,photodata%xs_data(i)%n_temps))
-      allocate(file_line(photodata%xs_data(i)%n_temps+1))
-      allocate(dumby(photodata%nw,photodata%xs_data(i)%n_temps))
+      allocate(file_qy(k+4,dat%xs_data(i)%n_temps))
+      allocate(file_line(dat%xs_data(i)%n_temps+1))
+      allocate(dumby(dat%nw,dat%xs_data(i)%n_temps))
 
       rewind(101)
       read(101,*)
@@ -2514,7 +2524,7 @@ contains
       do l = 1, k
         read(101,'(A)',iostat=io) line
         read(line,*) file_wav(l)
-        do m = 1,photodata%xs_data(i)%n_temps+1
+        do m = 1,dat%xs_data(i)%n_temps+1
           read(line,*) file_line(1:m)
         enddo
         file_qy(l,:) = file_line(2:)
@@ -2523,7 +2533,7 @@ contains
       
       ! interpolate to grid
       ierr = 0
-      do l = 1, photodata%xs_data(i)%n_temps
+      do l = 1, dat%xs_data(i)%n_temps
         kk = k
         call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(1)*(1.0_dp-rdelta), 0.0_dp, ierr)
         call addpnt(file_wav, file_qy(:,l), kk+4, k, 0.0_dp, 0.0_dp, ierr)
@@ -2534,14 +2544,14 @@ contains
                 trim(reaction)
           return
         endif
-        call inter2(photodata%nw+1,photodata%wavl,dumby(:,l), &
+        call inter2(dat%nw+1,dat%wavl,dumby(:,l), &
                     kk+4,file_wav,file_qy(:,l),ierr)
         if (ierr /= 0) then
           err = 'IOError: Problem interpolating quantum yield data to photolysis grid for reaction '// &
                 trim(reaction)
           return
         endif
-        photodata%xs_data(i)%xs(l,:) = dumby(:,l)
+        dat%xs_data(i)%xs(l,:) = dumby(:,l)
         k = kk
         file_wav = file_wav_save
       enddo
@@ -2563,7 +2573,7 @@ contains
       enddo
       allocate(file_wav(k+4))
       allocate(file_wav_save(k+4))
-      allocate(file_xs(k+4,photodata%xs_data(i)%n_temps))
+      allocate(file_xs(k+4,dat%xs_data(i)%n_temps))
       
       rewind(102)
       read(102,*)
@@ -2571,7 +2581,7 @@ contains
       do l = 1, k
         read(102,'(A)',iostat=io) line
         read(line,*) file_wav(l)
-        do m = 1,photodata%xs_data(i)%n_temps+1
+        do m = 1,dat%xs_data(i)%n_temps+1
           read(line,*) file_line(1:m)
         enddo
         file_xs(l,:) = file_line(2:)
@@ -2579,7 +2589,7 @@ contains
       file_wav_save = file_wav
       
       ierr = 0
-      do l = 1, photodata%xs_data(i)%n_temps
+      do l = 1, dat%xs_data(i)%n_temps
         kk = k
         call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(1)*(1.0_dp-rdelta), 0.0_dp,ierr)
         call addpnt(file_wav, file_xs(:,l), kk+4, k, 0.0_dp, 0.0_dp,ierr)
@@ -2590,14 +2600,14 @@ contains
                 trim(reaction)
           return
         endif
-        call inter2(photodata%nw+1,photodata%wavl,dumby(:,l), &
+        call inter2(dat%nw+1,dat%wavl,dumby(:,l), &
                     kk+4,file_wav,file_xs(:,l),ierr)  
         if (ierr /= 0) then
           err = 'IOError: Problem interpolating xs data to photolysis grid for reaction '// &
                 trim(reaction)
           return
         endif
-        photodata%xs_data(i)%xs(l,:) = photodata%xs_data(i)%xs(l,:)*dumby(:,l)
+        dat%xs_data(i)%xs(l,:) = dat%xs_data(i)%xs(l,:)*dumby(:,l)
         k = kk
         file_wav = file_wav_save
       enddo
@@ -2609,10 +2619,10 @@ contains
   end subroutine
   
   
-  subroutine get_rayleigh(photodata, photovars, err)
+  subroutine get_rayleigh(dat, var, err)
     use fortran_yaml_c, only : parse, error_length
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(in) :: photovars
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
     
     real(dp), allocatable :: A(:), B(:), Delta(:)
@@ -2622,7 +2632,7 @@ contains
     class (type_node), pointer :: root
     integer :: i, j
     
-    rayleigh_file = trim(photovars%data_dir)//"/rayleigh/rayleigh.yaml"
+    rayleigh_file = trim(var%data_dir)//"/rayleigh/rayleigh.yaml"
     
     ! parse yaml file
     root => parse(rayleigh_file,error=error)
@@ -2632,28 +2642,28 @@ contains
     end if
     select type (root)
       class is (type_dictionary)
-        call rayleigh_params(root,photodata,trim(rayleigh_file),err, &
-                             photodata%raynums, A, B, Delta)
+        call rayleigh_params(root,dat,trim(rayleigh_file),err, &
+                             dat%raynums, A, B, Delta)
     end select
     call root%finalize()
     deallocate(root)
     if (allocated(err)) return
     
     ! compute cross sections
-    photodata%nray = size(A)
-    allocate(photodata%sigray(photodata%nray,photodata%nw))
-    do i = 1,photodata%nw
+    dat%nray = size(A)
+    allocate(dat%sigray(dat%nray,dat%nw))
+    do i = 1,dat%nw
       do j = 1,size(A)
-        call rayleigh_vardavas(A(j), B(j), Delta(j), photodata%wavl(i), &
-                               photodata%sigray(j, i))
+        call rayleigh_vardavas(A(j), B(j), Delta(j), dat%wavl(i), &
+                               dat%sigray(j, i))
       enddo
     enddo
     deallocate(A,B,Delta)
   end subroutine
   
-  subroutine rayleigh_params(mapping,photodata,infile,err, raynums, A, B, Delta)
+  subroutine rayleigh_params(mapping,dat,infile,err, raynums, A, B, Delta)
     class (type_dictionary), intent(in), pointer :: mapping
-    type(PhotochemData), intent(in) :: photodata
+    type(PhotochemData), intent(in) :: dat
     character(len=*), intent(in) :: infile
     character(:), allocatable, intent(out) :: err
     
@@ -2668,7 +2678,7 @@ contains
     j = 0
     key_value_pair => mapping%first
     do while (associated(key_value_pair))
-      ind = findloc(photodata%species_names,trim(key_value_pair%key))
+      ind = findloc(dat%species_names,trim(key_value_pair%key))
       if (ind(1) /= 0) then 
         j = j + 1
       endif
@@ -2681,7 +2691,7 @@ contains
     j = 1
     key_value_pair => mapping%first
     do while (associated(key_value_pair))
-      ind = findloc(photodata%species_names,trim(key_value_pair%key))
+      ind = findloc(dat%species_names,trim(key_value_pair%key))
       if (ind(1) /= 0) then 
         raynums(j) = ind(1)
         
@@ -2785,10 +2795,10 @@ contains
   end subroutine
   
   
-  subroutine read_atmosphere_file(atmosphere_txt, photodata, photovars, err)
+  subroutine read_atmosphere_file(atmosphere_txt, dat, var, err)
     character(len=*), intent(in) :: atmosphere_txt
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(inout) :: photovars
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
     character(len=10000) :: line
@@ -2808,23 +2818,23 @@ contains
     endif
     read(4,'(A)') line
     
-    photodata%nzf = -1
+    dat%nzf = -1
     io = 0
     do while (io == 0)
       read(4,*,iostat=io)
-      photodata%nzf = photodata%nzf + 1
+      dat%nzf = dat%nzf + 1
     enddo
     
-    allocate(photodata%z_file(photodata%nzf))
-    allocate(photodata%T_file(photodata%nzf))
-    allocate(photodata%edd_file(photodata%nzf))
-    allocate(photodata%usol_file(photodata%nq, photodata%nzf))
-    photodata%z_file = 0.0_dp
-    photodata%T_file = 0.0_dp
-    photodata%edd_file = 0.0_dp
-    photodata%usol_file = 1.0e-40_dp
-    if (photodata%there_are_particles) then
-      allocate(photodata%particle_radius_file(photodata%npq, photodata%nzf))
+    allocate(dat%z_file(dat%nzf))
+    allocate(dat%T_file(dat%nzf))
+    allocate(dat%edd_file(dat%nzf))
+    allocate(dat%usol_file(dat%nq, dat%nzf))
+    dat%z_file = 0.0_dp
+    dat%T_file = 0.0_dp
+    dat%edd_file = 0.0_dp
+    dat%usol_file = 1.0e-40_dp
+    if (dat%there_are_particles) then
+      allocate(dat%particle_radius_file(dat%npq, dat%nzf))
     endif
     
     rewind(4)
@@ -2849,13 +2859,13 @@ contains
     
     ! allocate memory
     allocate(labels(n))
-    allocate(temp(n,photodata%nzf))
+    allocate(temp(n,dat%nzf))
     rewind(4)
     read(4,'(A)') line
     read(line,*) (labels(i),i=1,n)
     
     ! First read in all the data into big array
-    do i = 1,photodata%nzf
+    do i = 1,dat%nzf
       read(4,*,iostat=io) (temp(ii,i),ii=1,n)
       if (io /= 0) then
         err = 'Problem reading in initial atmosphere in '//trim(atmosphere_txt)
@@ -2866,43 +2876,43 @@ contains
     
     ! reads in mixing ratios
     missing = .false.
-    do i=1,photodata%nq
-      ind = findloc(labels,photodata%species_names(i))
+    do i=1,dat%nq
+      ind = findloc(labels,dat%species_names(i))
       if (ind(1) /= 0) then
-        photodata%usol_file(i,:) = temp(ind(1),:)
+        dat%usol_file(i,:) = temp(ind(1),:)
       else
         missing = .true.
       endif
     enddo
     
-    photovars%no_water_profile = .false.
-    if (photodata%fix_water_in_trop) then
+    var%no_water_profile = .false.
+    if (dat%fix_water_in_trop) then
       ind = findloc(labels,'H2O')
       if (ind(1) == 0) then
-        photovars%no_water_profile = .true. 
+        var%no_water_profile = .true. 
       endif
     endif
     
     if (missing) then
       message = 'Warning: Did not find initial data for some species in '// &
                 trim(atmosphere_txt)//' . The program will assume initial mixing ratios of 1.0e-40'
-      if (photovars%no_water_profile) then
+      if (var%no_water_profile) then
         message = message // " except H2O, which will be set to saturation in troposphere with constant "//&
                               "extrapolation above the tropopause."
       endif
       print*,message
     endif
     
-    if (photodata%there_are_particles) then
+    if (dat%there_are_particles) then
       missing = .false.
-      do i=1,photodata%npq
-        ind = findloc(labels,trim(photodata%species_names(i))//"_r")
+      do i=1,dat%npq
+        ind = findloc(labels,trim(dat%species_names(i))//"_r")
         if (ind(1) /= 0) then
-          photodata%particle_radius_file(i,:) = temp(ind(1),:)
+          dat%particle_radius_file(i,:) = temp(ind(1),:)
         else
           ! did not find the data
           ! will set to 0.1 micron
-          photodata%particle_radius_file(i,:) = 1.0e-5_dp
+          dat%particle_radius_file(i,:) = 1.0e-5_dp
           missing = .true.
         endif
       enddo
@@ -2916,7 +2926,7 @@ contains
     ! reads in temperature
     ind = findloc(labels,'temp')
     if (ind(1) /= 0) then
-      photodata%T_file(:) = temp(ind(1),:)
+      dat%T_file(:) = temp(ind(1),:)
     else
       err = '"temp" was not found in input file '//trim(atmosphere_txt)
       return
@@ -2925,7 +2935,7 @@ contains
     ! reads in alt
     ind = findloc(labels,'alt')
     if (ind(1) /= 0) then
-      photodata%z_file(:) = temp(ind(1),:)*1.e5_dp ! conver to cm
+      dat%z_file(:) = temp(ind(1),:)*1.e5_dp ! conver to cm
     else
       err = '"alt" was not found in input file '//trim(atmosphere_txt)
       return
@@ -2934,7 +2944,7 @@ contains
     ! reads in eddy diffusion
     ind = findloc(labels,'eddy')
     if (ind(1) /= 0) then
-      photodata%edd_file(:) = temp(ind(1),:)
+      dat%edd_file(:) = temp(ind(1),:)
     else
       err = '"eddy" was not found in input file '//trim(atmosphere_txt)
       return

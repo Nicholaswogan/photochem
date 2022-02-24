@@ -17,21 +17,21 @@ module photochem_input
   end type
   
   interface
-    module subroutine after_read_setup(photodata, photovars, err)
+    module subroutine after_read_setup(dat, var, err)
       use photochem_eqns, only: vertical_grid, gravity
-      type(PhotochemData), intent(inout) :: photodata
-      type(PhotochemVars), intent(inout) :: photovars
+      type(PhotochemData), intent(inout) :: dat
+      type(PhotochemVars), intent(inout) :: var
       character(:), allocatable, intent(out) :: err
     end subroutine
     
     module subroutine read_all_files(mechanism_file, settings_file, flux_file, atmosphere_txt, &
-                              photodata, photovars, err)
+                              dat, var, err)
       character(len=*), intent(in) :: mechanism_file
       character(len=*), intent(in) :: settings_file
       character(len=*), intent(in) :: flux_file
       character(len=*), intent(in) :: atmosphere_txt
-      type(PhotochemData), intent(inout) :: photodata
-      type(PhotochemVars), intent(inout) :: photovars
+      type(PhotochemData), intent(inout) :: dat
+      type(PhotochemVars), intent(inout) :: var
       character(:), allocatable, intent(out) :: err
     end subroutine
     
@@ -52,22 +52,22 @@ module photochem_input
 contains
   
   subroutine setup(mechanism_file, settings_file, flux_file, atmosphere_txt, &
-                   photodata, photovars, err)
+                   dat, var, err)
     
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
     character(len=*), intent(in) :: flux_file
     character(len=*), intent(in) :: atmosphere_txt
-    type(PhotochemData), intent(inout) :: photodata
-    type(PhotochemVars), intent(inout) :: photovars
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
     
     call read_all_files(mechanism_file, settings_file, flux_file, atmosphere_txt, &
-                        photodata, photovars, err)
+                        dat, var, err)
     if (allocated(err)) return     
                  
-    call after_read_setup(photodata, photovars, err)
+    call after_read_setup(dat, var, err)
     if (allocated(err)) return
     
   end subroutine
