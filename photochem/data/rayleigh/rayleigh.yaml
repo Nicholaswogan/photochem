@@ -77,7 +77,7 @@ H2:
   formalism: vardavas
   data:
     Delta: 0.0
-    A: 13.58e-4
+    A: 1.358e-4
     B: 7.52e-3
   citations:
     - citation: Keady and Kilcrease (2002)

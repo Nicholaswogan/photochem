@@ -6,7 +6,7 @@ Main secondary source is [Ranjan and Sasselov (2017)](https://doi.org/10.1089/as
 
  `vardavas`
 
-From [Varavadas and Carver (1984)]((https://doi.org/10.1016/0032-0633(84)90074-6)), Equation 26
+From [Varavadas and Carver (1984)](https://doi.org/10.1016/0032-0633(84)90074-6), Equation 26
 
 $$\sigma_R = 4.577 \times 10^{-21} \frac{1}{(\lambda_{nm}10^{-3})^4} \left(\frac{6+3\Delta}{6-7\Delta}\right)  \left( A \left(1+\frac{B}{(\lambda_{nm}10^{-3})^2} \right) \right)^2$$
 
