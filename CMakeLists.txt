@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION "3.14")
-project(Photochem LANGUAGES Fortran C VERSION "0.2.1")
+project(Photochem LANGUAGES Fortran C VERSION "0.2.2")
 
 include(FortranCInterface)
 FortranCInterface_VERIFY()
@@ -51,11 +51,6 @@ message (STATUS "Building with OpenMP multi-threading = ${BUILD_WITH_OPENMP}")
 add_subdirectory(src)
 
 if (BUILD_EXECUTABLES)
-
-  # the main executable
-  add_executable(photorun ${CMAKE_SOURCE_DIR}/src/main.f90)
-  target_link_libraries(photorun photochem)
-  target_include_directories(photorun PRIVATE ${CMAKE_BINARY_DIR}/modules)
 
   #  tests
   add_executable(testrun ${CMAKE_SOURCE_DIR}/tests/testrun.f90)

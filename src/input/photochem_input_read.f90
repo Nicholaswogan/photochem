@@ -349,7 +349,8 @@ contains
         
         do i=1,dat%natoms
           dat%species_composition(i,j) =  &
-              dict%get_integer(dat%atoms_names(i),0,error = io_err) ! no error possible.
+              dict%get_integer(dat%atoms_names(i),0,error = io_err)
+          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
         enddo
         dat%species_mass(j) = sum(dat%species_composition(:,j) * dat%atoms_mass)
         dat%species_redox(j) = sum(dat%species_composition(:,j) * dat%atoms_redox)
@@ -2648,6 +2649,8 @@ contains
     deallocate(root)
     if (allocated(err)) return
     
+
+    
     ! compute cross sections
     dat%nray = size(A)
     allocate(dat%sigray(dat%nray,dat%nw))
@@ -2655,9 +2658,28 @@ contains
       do j = 1,size(A)
         call rayleigh_vardavas(A(j), B(j), Delta(j), dat%wavl(i), &
                                dat%sigray(j, i))
+      
+        ! if (dat%species_names(dat%raynums(j)) == 'H2') then
+        ! 
+        !   print*,dat%wavl(i),dat%sigray(j, i)
+        ! endif
       enddo
     enddo
     deallocate(A,B,Delta)
+    
+    open(1,file='../rayleigh.dat',form='unformatted',status='replace')
+    write(1) dat%nray
+    write(1) dat%nw
+    write(1) dat%wavl
+    write(1) dat%sigray
+    close(1)
+    
+    do i = 1,dat%nray
+      print*,dat%species_names(dat%raynums(i))
+    enddo
+    
+    
+    stop
   end subroutine
   
   subroutine rayleigh_params(mapping,dat,infile,err, raynums, A, B, Delta)

@@ -47,6 +47,14 @@ cdef class PhotochemWrk:
       wrk_pxd.photochemwrk_density_get(&self._ptr, &dim1, <double *>arr.data)
       return arr
       
+  property densities:
+    def __get__(self):
+      cdef int dim1, dim2
+      wrk_pxd.photochemwrk_densities_get_size(&self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      wrk_pxd.photochemwrk_densities_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+      
   property mubar:
     def __get__(self):
       cdef int dim1
