@@ -1,5 +1,21 @@
 
-add_subdirectory(futils)
+CPMAddPackage(
+  NAME futils
+  VERSION 0.1.0
+  GITHUB_REPOSITORY "Nicholaswogan/futils"
+  GIT_TAG "v0.1.0"
+  EXCLUDE_FROM_ALL ON
+)
+
+CPMAddPackage(
+  NAME finterp
+  VERSION 1.3.0
+  GITHUB_REPOSITORY "jacobwilliams/finterp"
+  GIT_TAG "1.3.0"
+  DOWNLOAD_ONLY ON
+)
+
+add_library(finterp ${finterp_SOURCE_DIR}/src/linear_interpolation_module.F90)
 
 CPMAddPackage(
   NAME cminpack-f

@@ -746,7 +746,7 @@ contains
   end subroutine
   
   module subroutine production_and_loss(self, species, usol, pl, err)     
-    use sorting, only: argsort            
+    use futils, only: argsort            
     use photochem_common, only: chempl_sl, chempl_t
     use photochem_types, only: ProductionLoss
     use photochem_const, only: small_real

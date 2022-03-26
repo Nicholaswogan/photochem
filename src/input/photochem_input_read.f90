@@ -695,7 +695,7 @@ contains
   end subroutine  
   
   subroutine check_for_duplicates(dat, duplicate, err)
-    use sorting, only: sort
+    use futils, only: sort
     type(PhotochemData), intent(in) :: dat
     logical, intent(in) :: duplicate(:)
     character(:), allocatable, intent(out) :: err
