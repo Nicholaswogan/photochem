@@ -85,4 +85,6 @@ boundary-conditions:
   type: short lived
 - name: N2D
   type: short lived
+- name: 1CH2
+  type: short lived
 
