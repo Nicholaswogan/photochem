@@ -27,10 +27,6 @@ contains
     dat%nsl = s%nsl
     dat%SL_names = s%SL_names
     
-    ! first get SL and background species from settings
-    ! call get_SL_and_background(settings_file, dat, err)
-    ! if (allocated(err)) return
-    
     call get_photomech(mechanism_file, dat, var, err)
     if (allocated(err)) return
     
@@ -40,7 +36,7 @@ contains
     call get_photorad(dat, var, err)
     if (allocated(err)) return
     
-    ! stelar flux
+    ! stellar flux
     allocate(var%photon_flux(dat%nw))
     call read_stellar_flux(flux_file, dat%nw, dat%wavl, var%photon_flux, err)
     if (allocated(err)) return
@@ -80,6 +76,9 @@ contains
   end subroutine
   
   subroutine get_rxmechanism(mapping, infile, dat, var, err)
+    use photochem_enum, only: CondensingParticle, ReactionParticle
+    use photochem_enum, only: ArrheniusSaturation, H2SO4Saturation
+    use photochem_enum, only: MieParticle, FractalParticle 
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
     type(PhotochemData), intent(inout) :: dat
@@ -175,9 +174,9 @@ contains
           tmpchar = element%get_string("formation",error = io_err) 
           if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
           if (trim(tmpchar) == 'saturation') then
-            dat%particle_formation_method(j) = 1
+            dat%particle_formation_method(j) = CondensingParticle
           elseif (trim(tmpchar) == 'reaction') then
-            dat%particle_formation_method(j) = 2
+            dat%particle_formation_method(j) = ReactionParticle
           else
             err = "IOError: the only formation mechanism for particles is 'saturation'"
             return
@@ -191,7 +190,7 @@ contains
             tmpchar = element%get_string("optical-type",error = io_err)
             if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
             if (trim(tmpchar) == "mie") then
-              dat%particle_optical_type(j) = 0
+              dat%particle_optical_type(j) = MieParticle
             elseif  (trim(tmpchar) == "fractal") then
               err = "IOError: 'fractal' is not an optional optical type for "// &
                     trim(dat%particle_names(j))
@@ -203,11 +202,11 @@ contains
             endif
           endif
   
-          if (dat%particle_formation_method(j) == 1) then
+          if (dat%particle_formation_method(j) == CondensingParticle) then
             ! there should be saturation vapor pressure information
             tmpchar = element%get_string("saturation-type",default="arrhenius",error = io_err)
             if (tmpchar == 'arrhenius') then
-              dat%particle_sat_type(j) = 1
+              dat%particle_sat_type(j) = ArrheniusSaturation
               sat_params => element%get_dictionary('saturation-parameters',.true.,error = io_err) 
               if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
               i = 0
@@ -237,7 +236,7 @@ contains
                 return 
               endif
             elseif (tmpchar == 'H2SO4') then
-              dat%particle_sat_type(j) = 2
+              dat%particle_sat_type(j) = H2SO4Saturation
               ! make a H2SO4 interpolator
               call H2SO4_interpolator(var, dat%H2SO4_sat, err)
               if (allocated(err)) return
@@ -249,7 +248,7 @@ contains
             ! gas phase
             dat%particle_gas_phase(j) = element%get_string("gas-phase",error = io_err) 
             if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          elseif (dat%particle_formation_method(j) == 2) then
+          elseif (dat%particle_formation_method(j) == ReactionParticle) then
             ! add the reaction to the list of reactions
             call all_reactions%append(item%node)
           endif
@@ -397,7 +396,7 @@ contains
       ! get indexes of gas phase condensing species
       allocate(dat%particle_gas_phase_ind(dat%np))
       do i = 1,dat%np
-        if (dat%particle_formation_method(i) == 1) then
+        if (dat%particle_formation_method(i) == CondensingParticle) then
           ! if a condensing molecule
           ind = findloc(dat%species_names,dat%particle_gas_phase(i))
           if (ind(1) /= 0) then
@@ -653,6 +652,7 @@ contains
   end function
   
   function unpack_PhotoSettings(root, filename, err) result(s)
+    use photochem_enum, only: VelocityBC, MosesBC
     use photochem_types, only: PhotoSettings
     type(type_dictionary), intent(in) :: root
     character(*), intent(in) :: filename
@@ -769,25 +769,13 @@ contains
     ! H2 escape
     s%diff_H_escape = dict%get_logical('diff-lim-hydrogen-escape',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    ! ind = findloc(dat%species_names,'H2')
-    ! dat%LH2 = ind(1)
-    ! if (ind(1) == 0 .and. dat%diff_H_escape) then
-    !   err = 'IOError: H2 must be a species if diff-lim-hydrogen-escape = True.'
-    !   return
-    ! endif
-    ! ind = findloc(dat%species_names,'H')
-    ! dat%LH = ind(1)
-    ! if (ind(1) == 0 .and. dat%diff_H_escape) then
-    !   err = 'IOError: H must be a species if diff-lim-hydrogen-escape = True.'
-    !   return
-    ! endif
     
     ! default lower boundary
     temp_char = trim(dict%get_string('default-lower-boundary',"deposition velocity",error = io_err))
     if (trim(temp_char) == 'deposition velocity') then
-      s%default_lowerboundcond = 0
+      s%default_lowerboundcond = VelocityBC
     elseif (trim(temp_char) == 'Moses') then
-      s%default_lowerboundcond = -1
+      s%default_lowerboundcond = MosesBC
     else
       err = "IOError: Only 'deposition velocity' or 'Moses' can be default boundary conditions."
       return
@@ -801,42 +789,10 @@ contains
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     s%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    ! ind = findloc(dat%species_names,'H2O')
-    ! dat%LH2O = ind(1)
-    ! if (ind(1) == 0 .and. dat%fix_water_in_trop) then
-    !   err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
-    !   return
-    ! elseif (ind(1) == 0 .and. dat%water_cond) then
-    !   err = 'IOError: H2O must be a species if water-condensation = True.'
-    !   return
-    ! elseif (ind(1) == 0 .and. dat%gas_rainout) then
-    !   err = 'IOError: H2O must be a species if gas-rainout = True.'
-    !   return
-    ! elseif (ind(1) == 0 .and. dat%there_are_particles) then
-    !   if (any(dat%particle_sat_type == 2)) then
-    !     err = 'IOError: H2O must be a species if H2SO4 condensation is on.'
-    !     return
-    !   endif
-    ! endif
-    
     if (s%fix_water_in_trop) then  
     
       s%relative_humidity = trim(tmp2%get_string('relative-humidity',error = io_err))
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    
-      ! read(temp_char,*,iostat = io) var%relative_humidity
-      ! 
-      ! if (io /= 0) then
-      !   ! it isn't a float
-      !   if (trim(temp_char) == "manabe") then
-      !     var%use_manabe = .true.
-      !   else
-      !     err = '"relative-humidity" can only be a number between 0 and 1, or "manabe". See '//trim(filename)
-      !     return 
-      !   endif
-      ! else
-      !   var%use_manabe = .false.
-      ! endif
       
     endif
     
@@ -895,19 +851,6 @@ contains
         class is (type_dictionary)
           s%con_names(j) = trim(e%get_string('name',error = io_err))
           if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-          ! ind = findloc(dat%particle_names,trim(temp_char))
-          ! if (particle_checklist(ind(1))) then
-          !   err = "IOError: particle "//trim(temp_char)//" in the settings"// &
-          !         " file is listed more than once"
-          !   return
-          ! endif
-          ! if (ind(1) == 0) then
-          !   err = "IOError: particle "//trim(temp_char)//" in the settings"// &
-          !         " file isn't in the list of particles in the reaction mechanism file"
-          !   return
-          ! else
-          !   particle_checklist(ind(1)) = .true.
-          ! endif
       
           tmp2 => e%get_dictionary('condensation-rate',.true.,error = io_err)
           if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
@@ -931,15 +874,7 @@ contains
         j = j + 1
         item => item%next
       end do
-      
-      ! do i = 1,dat%np
-      !   if (dat%particle_formation_method(i) == 1 .and. .not. particle_checklist(i)) then
-      !     err = 'IOError: Particle '//trim(dat%particle_names(i))// &
-      !           ' does not have any condensation rate data in the file '//trim(infile)
-      !     return
-      !   endif
-      ! enddo
-        
+
     endif
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -947,12 +882,6 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
     bcs => root%get_list('boundary-conditions',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-
-    ! if (dat%back_gas) then
-    !  ind = findloc(dat%species_names,trim(dat%back_gas_name))
-    !  dat%back_gas_ind = ind(1)
-    !  dat%back_gas_mu = dat%species_mass(ind(1))
-    ! endif
    
     ! allocate boundary conditions
     allocate(s%ubcs(bcs%size()))
@@ -965,7 +894,7 @@ contains
     do j = 1,size(s%ubcs)
      s%lbcs(j)%bc_type = s%default_lowerboundcond
      s%lbcs(j)%vel = 0.0_dp
-     s%ubcs(j)%bc_type = 0
+     s%ubcs(j)%bc_type = VelocityBC
      s%ubcs(j)%vel = 0.0_dp
      s%only_eddy(j) = .false.
     enddo
@@ -988,25 +917,7 @@ contains
             endif
           enddo
         endif
-        ! ! make sure it isn't water
-        ! if (dat%fix_water_in_trop .and. dups(j) == "H2O") then
-        !   err = "IOError: H2O can not have a specified boundary condition"// &
-        !         " if water-saturated-troposphere = true in the settings file."
-        !   return
-        ! endif
-        ! ! check if in rxmech
-        ! ind = findloc(dat%species_names,dups(j))
-        ! if (ind(1) == 0) then
-        !   err = "IOError: Species "//trim(dups(j))// &
-        !   ' in settings file is not in the reaction mechanism file.'
-        !   return 
-        ! endif
-        ! if ((ind(1) == dat%back_gas_ind) .and. (dat%back_gas)) then ! can't be background gas
-        !   err = "IOError: Species "//trim(dups(j))// &
-        !   ' in settings file is the background gas, and can not have boundary conditions.'
-        !   return
-        ! endif
-        ! 
+        
         s%sp_types(j) = trim(e%get_string('type','long lived',error = io_err))
         if (s%sp_types(j) == 'short lived') then
           s%nsl = s%nsl + 1
@@ -1045,32 +956,12 @@ contains
         i = i + 1
       endif
     enddo   
-   
-   ! Make sure that upper boundary condition for H and H2 are
-   ! effusion velocities, if diffusion limited escape
-   ! if (dat%diff_H_escape) then
-   !   if (dat%back_gas_name /= "H2") then
-   !     if (var%upperboundcond(dat%LH2) /= 0) then
-   !       err = "IOError: H2 must have a have a effusion velocity upper boundary"// &
-   !             " if diff-lim-hydrogen-escape = True"
-   !       return
-   !     endif
-   !   endif
-   !   if (var%upperboundcond(dat%LH) /= 0) then
-   !     err = "IOError: H must have a have a effusion velocity upper boundary"// &
-   !           " if diff-lim-hydrogen-escape = True"
-   !     return
-   !   endif
-   ! endif
-
-   ! check for SL nonlinearities
-   ! call check_sl(dat, err)
-   ! if (allocated(err)) return
     
   end function
   
   subroutine unpack_SettingsBC(bc, bc_kind, sp_name, filename, sbc, err)
     use photochem_types, only: SettingsBC
+    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
     type(type_dictionary), intent(in) :: bc
     character(*), intent(in) :: bc_kind
     character(*), intent(in) :: sp_name
@@ -1091,7 +982,7 @@ contains
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     
     if (bctype == vel) then
-      sbc%bc_type = 0
+      sbc%bc_type = VelocityBC
       sbc%vel = bc%get_real(vel,error = io_err)
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
       
@@ -1104,7 +995,7 @@ contains
         return
       endif
       
-      sbc%bc_type = 1
+      sbc%bc_type = MixingRatioBC
       sbc%mix = bc%get_real("mix",error = io_err)
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
       
@@ -1112,7 +1003,7 @@ contains
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
     elseif (bctype == "flux") then
-      sbc%bc_type = 2
+      sbc%bc_type = FluxBC
       sbc%flux = bc%get_real("flux",error = io_err)
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     
@@ -1125,7 +1016,7 @@ contains
         return
       endif
       
-      sbc%bc_type = 3
+      sbc%bc_type = VelocityDistributedFluxBC
       sbc%vel = bc%get_real(vel,error = io_err)
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
       
@@ -1138,7 +1029,7 @@ contains
       sbc%mix = -huge(1.0_dp)
       
     elseif (bctype == "Moses") then
-      sbc%bc_type = -1
+      sbc%bc_type = MosesBC
       
       sbc%vel = -huge(1.0_dp)
       sbc%mix = -huge(1.0_dp)
@@ -1152,6 +1043,9 @@ contains
   end subroutine
   
   subroutine unpack_settings(infile, s, dat, var, err)
+    use photochem_enum, only: H2SO4Saturation
+    use photochem_enum, only: CondensingParticle
+    use photochem_enum, only: VelocityBC
     use photochem_types, only: PhotoSettings
     character(len=*), intent(in) :: infile
     type(PhotoSettings), intent(in) :: s
@@ -1209,7 +1103,7 @@ contains
       return
     endif
     
-    ! default-lower-boundary already applied to s%lbcs
+    ! default-lower-boundary already applied to PhotoSettings
     
     ! water
     dat%fix_water_in_trop = s%fix_water_in_trop
@@ -1227,7 +1121,7 @@ contains
       err = 'IOError: H2O must be a species if gas-rainout = True.'
       return
     elseif (ind(1) == 0 .and. dat%there_are_particles) then
-      if (any(dat%particle_sat_type == 2)) then
+      if (any(dat%particle_sat_type == H2SO4Saturation)) then
         err = 'IOError: H2O must be a species if H2SO4 condensation is on.'
         return
       endif
@@ -1268,7 +1162,7 @@ contains
     !!! particles !!!
     !!!!!!!!!!!!!!!!!
     if (dat%there_are_particles) then
-      if (any(dat%particle_formation_method == 1)) then
+      if (any(dat%particle_formation_method == CondensingParticle)) then
         ! then we need rate data
       
         if (.not. allocated(s%con_names)) then
@@ -1304,7 +1198,7 @@ contains
         enddo
         
         do i = 1,dat%np
-          if (dat%particle_formation_method(i) == 1 .and. .not. particle_checklist(i)) then
+          if (dat%particle_formation_method(i) == CondensingParticle .and. .not. particle_checklist(i)) then
             err = 'IOError: Particle '//trim(dat%particle_names(i))// &
                   ' does not have any condensation rate data in the file '//trim(infile)
             return
@@ -1334,9 +1228,9 @@ contains
     allocate(var%upper_flux(dat%nq))
     allocate(var%only_eddy(dat%nq))
     ! default boundary conditions
-    var%lowerboundcond = s%default_lowerboundcond
+    var%lowerboundcond = s%default_lowerboundcond ! can be -1 (Moses) or 0 (velocity)
     var%lower_vdep = 0.0_dp
-    var%upperboundcond = 0
+    var%upperboundcond = VelocityBC
     var%upper_veff = 0.0_dp
     var%only_eddy = .false.
     
@@ -1382,13 +1276,13 @@ contains
     ! effusion velocities, if diffusion limited escape
     if (dat%diff_H_escape) then
       if (dat%back_gas_name /= "H2") then
-        if (var%upperboundcond(dat%LH2) /= 0) then
+        if (var%upperboundcond(dat%LH2) /= VelocityBC) then
           err = "IOError: H2 must have a have a effusion velocity upper boundary"// &
                 " if diff-lim-hydrogen-escape = True"
           return
         endif
       endif
-      if (var%upperboundcond(dat%LH) /= 0) then
+      if (var%upperboundcond(dat%LH) /= VelocityBC) then
         err = "IOError: H must have a have a effusion velocity upper boundary"// &
               " if diff-lim-hydrogen-escape = True"
         return
@@ -1715,6 +1609,7 @@ contains
   
   subroutine get_thermodata(molecule, molecule_name, infile, &
                             thermo, err)
+    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial
     use photochem_types, only: ThermodynamicData
     class(type_dictionary), intent(in) :: molecule
     character(len=*), intent(in) :: molecule_name
@@ -1740,9 +1635,9 @@ contains
     model = tmpdict%get_string("model",error = io_err)
     if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
     if (model == "Shomate") then
-      thermo%dtype = 1
+      thermo%dtype = ShomatePolynomial
     elseif (model == "NASA9") then
-      thermo%dtype = 2
+      thermo%dtype = Nasa9Polynomial
     else
       err = "IOError: Thermodynamic data must be in Shomate format for "//trim(molecule_name)
       return
@@ -1923,6 +1818,7 @@ contains
   end function
   
   subroutine get_rateparams(dat, reaction_d, infile, rx, err)
+    use photochem_enum, only: NoFalloff, TroeWithoutT2Falloff, TroeWithT2Falloff, JPLFalloff
     use photochem_types, only: Reaction, BaseRate, ElementaryRate, ThreeBodyRate, FalloffRate, PhotolysisRate
     type(PhotochemData), intent(in) :: dat
     class(type_dictionary), intent(in) :: reaction_d
@@ -2006,10 +1902,10 @@ contains
         return
       endif
       
-      rp%falloff_type = 0
+      rp%falloff_type = NoFalloff
       
       if (use_jpl) then
-        rp%falloff_type = 3
+        rp%falloff_type = JPLFalloff
       endif
       
       if (associated(dict)) then
@@ -2024,10 +1920,10 @@ contains
         
         T2 = dict%get_real('T2',error = io_err)
         if (allocated(io_err)) then ! T2 is not there
-          rp%falloff_type = 1
+          rp%falloff_type = TroeWithoutT2Falloff
           deallocate(io_err)
         else ! T2 is there
-          rp%falloff_type = 2
+          rp%falloff_type = TroeWithT2Falloff
           allocate(rp%T2)
           rp%T2 = T2
         endif
@@ -2536,6 +2432,7 @@ contains
   end subroutine
   
   subroutine get_aerosol_xs(dat, var, err)
+    use photochem_enum, only: MieParticle, FractalParticle
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
@@ -2569,10 +2466,10 @@ contains
         allocate(dat%part_xs_file(i)%gt(nrad_fixed,dat%nw))
       endif
       
-      if (dat%particle_optical_type(i) == 0) then
+      if (dat%particle_optical_type(i) == MieParticle) then
         filename = xsroot//trim(dat%particle_optical_prop(i))// &
                   "/mie_"//trim(dat%particle_optical_prop(i))//".dat"
-      elseif (dat%particle_optical_type(i) == 1) then
+      elseif (dat%particle_optical_type(i) == FractalParticle) then
         filename = xsroot//trim(dat%particle_optical_prop(i))// &
                   "/frac_"//trim(dat%particle_optical_prop(i))//".dat"
       endif

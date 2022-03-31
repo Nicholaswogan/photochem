@@ -15,6 +15,7 @@ contains
                     gas_sat_den, molecules_per_particle, &
                     H2O_sat_mix, rainout_rates, &
                     densities, xp, xl, rhs)                 
+    use photochem_enum, only: CondensingParticle
     use photochem_common, only: chempl, chempl_sl
     use photochem_eqns, only: damp_condensation_rate
     use photochem_const, only: N_avo, pi, small_real
@@ -115,7 +116,7 @@ contains
       do j = 1,var%nz
         do i = 1,dat%np
           ! if this particle forms from condensation
-          if (dat%particle_formation_method(i) == 1) then
+          if (dat%particle_formation_method(i) == CondensingParticle) then
             ii = dat%particle_gas_phase_ind(i) ! index of gas phase
             kk = ii + (j - 1) * dat%nq ! gas phase rhs index
             k = i + (j - 1) * dat%nq ! particle rhs index
@@ -330,6 +331,9 @@ contains
   end function
   
   module subroutine prep_all_background_gas(self, usol_in, err)
+    use photochem_enum, only: CondensingParticle
+    use photochem_enum, only: ArrheniusSaturation, H2SO4Saturation
+    use photochem_enum, only: MixingRatioBC
     use photochem_common, only: reaction_rates, diffusion_coefficients, rainout, photorates
     use photochem_eqns, only: saturation_density
     use photochem_const, only: pi, k_boltz, N_avo, small_real
@@ -365,7 +369,7 @@ contains
     wrk%lower_vdep_copy = var%lower_vdep
   
     do i = 1,dat%nq
-      if (var%lowerboundcond(i) == 1) then
+      if (var%lowerboundcond(i) == MixingRatioBC) then
         wrk%usol(i,1) = var%lower_fix_mr(i)
       endif
     enddo
@@ -399,13 +403,13 @@ contains
       ! compute The saturation density
       do j = 1,var%nz
         do i = 1,dat%np
-          if (dat%particle_formation_method(i) == 1) then
-            if (dat%particle_sat_type(i) == 1) then ! arrhenius
+          if (dat%particle_formation_method(i) == CondensingParticle) then
+            if (dat%particle_sat_type(i) == ArrheniusSaturation) then ! arrhenius
               wrk%gas_sat_den(i,j) = saturation_density(var%temperature(j), &
                                                    dat%particle_sat_params(1,i), &
                                                    dat%particle_sat_params(2,i), &
                                                    dat%particle_sat_params(3,i))
-            elseif (dat%particle_sat_type(i) == 2) then ! interpolate to H2SO4 data
+            elseif (dat%particle_sat_type(i) == H2SO4Saturation) then ! interpolate to H2SO4 data
               call dat%H2SO4_sat%evaluate(var%temperature(j), &
                                           log10(wrk%usol(dat%LH2O,j)*wrk%pressure(j)/1.e6_dp),P_H2SO4)
               P_H2SO4 = 10.0_dp**(P_H2SO4)
@@ -450,6 +454,7 @@ contains
   end subroutine
   
   module subroutine rhs_background_gas(self, neqs, usol_flat, rhs, err)
+    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
     
@@ -502,20 +507,21 @@ contains
     
     ! Lower boundary
     do i = 1,dat%nq
-      if (var%lowerboundcond(i) == 0 .or. var%lowerboundcond(i) == 3) then
+      if (var%lowerboundcond(i) == VelocityBC .or. &
+          var%lowerboundcond(i) == VelocityDistributedFluxBC) then
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
                         - wrk%DU(i,1)*wrk%usol(i,1) + wrk%ADU(i,1)*wrk%usol(i,1) &
                         - wrk%lower_vdep_copy(i)*wrk%usol(i,1)/var%dz(1)
-      elseif (var%lowerboundcond(i) == 1) then
+      elseif (var%lowerboundcond(i) == MixingRatioBC) then
         rhs(i) = 0.0_dp
-      elseif (var%lowerboundcond(i) == 2) then
+      elseif (var%lowerboundcond(i) == FluxBC) then
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
                         - wrk%DU(i,1)*wrk%usol(i,1) + wrk%ADU(i,1)*wrk%usol(i,1) &
                         + var%lower_flux(i)/(wrk%density(1)*var%dz(1))
       ! Moses (2001) boundary condition for gas giants
       ! A deposition velocity controled by how quickly gases
       ! turbulantly mix vertically
-      elseif (var%lowerboundcond(i) == -1) then
+      elseif (var%lowerboundcond(i) == MosesBC) then
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
                         - wrk%DU(i,1)*wrk%usol(i,1) + wrk%ADU(i,1)*wrk%usol(i,1) &
                         - (var%edd(1)/wrk%surface_scale_height)*wrk%usol(i,1)/var%dz(1)
@@ -525,11 +531,11 @@ contains
     ! Upper boundary
     do i = 1,dat%nq
       k = i + (var%nz-1)*dat%nq
-      if (var%upperboundcond(i) == 0) then
+      if (var%upperboundcond(i) == VelocityBC) then
         rhs(k) = rhs(k) - wrk%DL(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz) &
                         + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
                         - wrk%upper_veff_copy(i)*wrk%usol(i,var%nz)/var%dz(var%nz)    
-      elseif (var%upperboundcond(i) == 2) then
+      elseif (var%upperboundcond(i) == FluxBC) then
         rhs(k) = rhs(k) - wrk%DL(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz) &
                         + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
                         - var%upper_flux(i)/(wrk%density(var%nz)*var%dz(var%nz))
@@ -538,7 +544,7 @@ contains
     
     ! Distributed (volcanic) sources
     do i = 1,dat%nq
-      if (var%lowerboundcond(i) == 3) then
+      if (var%lowerboundcond(i) == VelocityDistributedFluxBC) then
         disth = var%lower_dist_height(i)*1.e5_dp        
         jdisth = minloc(var%Z,1, var%Z >= disth) - 1
         jdisth = max(jdisth,2)
@@ -561,6 +567,7 @@ contains
   end subroutine
   
   module subroutine jac_background_gas(self, lda_neqs, neqs, usol_flat, jac, err)
+    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
@@ -653,11 +660,11 @@ contains
   
     ! Lower boundary
     do i = 1,dat%nq
-      if (var%lowerboundcond(i) == 0 .or. var%lowerboundcond(i) == 3) then
+      if (var%lowerboundcond(i) == VelocityBC .or. var%lowerboundcond(i) == VelocityDistributedFluxBC) then
 
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
         djac(dat%kd,i) = djac(dat%kd,i) - wrk%DU(i,1) + wrk%ADU(i,1) - wrk%lower_vdep_copy(i)/var%dz(1)
-      elseif (var%lowerboundcond(i) == 1) then
+      elseif (var%lowerboundcond(i) == MixingRatioBC) then
 
         do m=1,dat%nq
           mm = dat%kd + i - m
@@ -668,10 +675,10 @@ contains
         ! much happier. I will keep it. Jacobians don't need to be perfect.
         djac(dat%kd,i) = - wrk%DU(i,1)
   
-      elseif (var%lowerboundcond(i) == 2) then
+      elseif (var%lowerboundcond(i) == FluxBC) then
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
         djac(dat%kd,i) = djac(dat%kd,i) - wrk%DU(i,1) + wrk%ADU(i,1)
-      elseif (var%lowerboundcond(i) == -1) then
+      elseif (var%lowerboundcond(i) == MosesBC) then
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
         djac(dat%kd,i) = djac(dat%kd,i) - wrk%DU(i,1) + wrk%ADU(i,1) - &
                          (var%edd(1)/wrk%surface_scale_height)/var%dz(1)
@@ -681,7 +688,7 @@ contains
     ! Upper boundary
     do i = 1,dat%nq
       k = i + (var%nz-1)*dat%nq
-      if (var%upperboundcond(i) == 0) then
+      if (var%upperboundcond(i) == VelocityBC) then
         ! rhs(k) = rhs(k) - DL(i,nz)*usol(i,nz) &
         !                 + DL(i,nz)*usol(i,nz-1) + ADL(i,nz)*usol(i,nz-1) &
         !                 - upper_veff(i)*usol(i,nz)/dz(nz)    
@@ -689,7 +696,7 @@ contains
         djac(dat%kd,k) = djac(dat%kd,k) - wrk%DL(i,var%nz) + wrk%ADL(i,var%nz) &
                         - wrk%upper_veff_copy(i)/var%dz(var%nz) 
         djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
-      elseif (var%upperboundcond(i) == 2) then
+      elseif (var%upperboundcond(i) == FluxBC) then
         djac(dat%kd,k) = djac(dat%kd,k) - wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
         djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
       endif

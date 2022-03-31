@@ -134,6 +134,8 @@ contains
     use fsundials_linearsolver_mod, only: SUNLinearSolver, FSUNLinSolFree
     use fsunlinsol_band_mod, only: FSUNLinSol_Band
     
+    use photochem_enum, only: MixingRatioBC
+    
     ! in/out
     class(Atmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: filename
@@ -219,7 +221,7 @@ contains
       enddo
     enddo
     do i = 1,dat%nq
-      if (var%lowerboundcond(i) == 1) then
+      if (var%lowerboundcond(i) == MixingRatioBC) then
         yvec(i) = var%lower_fix_mr(i)
       endif
     enddo
@@ -409,6 +411,8 @@ contains
     use fsundials_linearsolver_mod, only: SUNLinearSolver, FSUNLinSolFree
     use fsunlinsol_band_mod, only: FSUNLinSol_Band
     
+    use photochem_enum, only: MixingRatioBC
+    
     class(Atmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
     character(:), allocatable, intent(out) :: err
@@ -458,7 +462,7 @@ contains
       enddo
     enddo
     do i = 1,dat%nq
-      if (var%lowerboundcond(i) == 1) then
+      if (var%lowerboundcond(i) == MixingRatioBC) then
         wrk%yvec(i) = var%lower_fix_mr(i)
       endif
     enddo

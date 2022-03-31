@@ -73,6 +73,7 @@ contains
   end function
   
   pure subroutine gibbs_energy_eval(thermo, T, found, gibbs_energy)
+    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial
     use photochem_types, only: ThermodynamicData
     
     type(ThermodynamicData), intent(in) :: thermo
@@ -88,9 +89,9 @@ contains
           T <  thermo%temps(k+1)) then
           
         found = .true.
-        if (thermo%dtype == 1) then
+        if (thermo%dtype == ShomatePolynomial) then
           gibbs_energy = gibbs_energy_shomate(thermo%data(1:7,k), T)
-        elseif (thermo%dtype == 2) then
+        elseif (thermo%dtype == Nasa9Polynomial) then
           gibbs_energy = gibbs_energy_nasa9(thermo%data(1:9,k), T)          
         endif
         

@@ -6,6 +6,7 @@ module photochem_common
 contains
   
   pure subroutine reaction_rates(dat, var, density, densities, rx_rates)
+    use photochem_enum, only: NoFalloff, TroeWithoutT2Falloff, TroeWithT2Falloff, JPLFalloff
     use photochem_types, only: ElementaryRate, ThreeBodyRate, FalloffRate
     use photochem_eqns, only: arrhenius_rate, Troe_noT2, Troe_withT2, falloff_rate
     use photochem_const, only: Rgas, k_boltz, smallest_real ! constants
@@ -67,17 +68,17 @@ contains
         enddo
         
         ! compute falloff function
-        if (rp%falloff_type == 0) then ! no falloff function
+        if (rp%falloff_type == NoFalloff) then ! no falloff function
           F = 1.0_dp
-        elseif (rp%falloff_type == 1) then ! Troe falloff without T2
+        elseif (rp%falloff_type == TroeWithoutT2Falloff) then ! Troe falloff without T2
           do j = 1,var%nz
             F(j) = Troe_noT2(rp%A_t, rp%T1, rp%T3, var%temperature(j), Pr(j))
           enddo
-        elseif (rp%falloff_type == 2) then ! Troe falloff with T2
+        elseif (rp%falloff_type == TroeWithT2Falloff) then ! Troe falloff with T2
           do j = 1,var%nz
             F(j) = Troe_withT2(rp%A_t, rp%T1, rp%T2, rp%T3, var%temperature(j), Pr(j))
           enddo
-        elseif (rp%falloff_type == 3) then ! JPL falloff function
+        elseif (rp%falloff_type == JPLFalloff) then ! JPL falloff function
           do j = 1,var%nz
             F(j) = 0.6_dp**(1.0_dp/(1.0_dp + (log10(Pr(j)))**2.0_dp ))
           enddo

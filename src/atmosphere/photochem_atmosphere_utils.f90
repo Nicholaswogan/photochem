@@ -158,6 +158,7 @@ contains
   end subroutine
   
   module function atom_conservation(self, atom, err) result(con)
+    use photochem_enum, only: VelocityDistributedFluxBC
     use photochem_eqns, only: damp_condensation_rate
     use photochem_types, only: AtomConservation
     class(Atmosphere), target, intent(inout) :: self
@@ -228,7 +229,7 @@ contains
     
     ! distributed fluxes
     do i = 1,dat%nq
-      if (var%lowerboundcond(i) == 3) then
+      if (var%lowerboundcond(i) == VelocityDistributedFluxBC) then
         con%in_dist = con%in_dist + var%lower_flux(i)*dat%species_composition(kk,i)
       endif
     enddo
@@ -277,6 +278,7 @@ contains
   end function
   
   module function redox_conservation(self, err) result(redox_factor)
+    use photochem_enum, only: VelocityDistributedFluxBC
     class(Atmosphere), target, intent(inout) :: self
     character(:), allocatable, intent(out) :: err
     real(dp) :: redox_factor
@@ -362,7 +364,7 @@ contains
     
     ! distributed fluxes
     do i = 1,dat%nq
-      if (var%lowerboundcond(i) == 3) then
+      if (var%lowerboundcond(i) == VelocityDistributedFluxBC) then
         if (dat%species_redox(i) > 0) then
           oxi_in_dist = oxi_in_dist + var%lower_flux(i)*dat%species_redox(i)
         elseif (dat%species_redox(i) < 0) then
@@ -405,6 +407,7 @@ contains
   end function
   
   module subroutine set_lower_bc(self, species, bc_type, vdep, mix, flux, height, err)
+    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
     class(Atmosphere), intent(inout) :: self
     character(len=*), intent(in) :: species
     character(len=*), intent(in) :: bc_type
@@ -438,7 +441,7 @@ contains
               " velocity must supply the 'vdep' argument"
         return
       endif
-      self%var%lowerboundcond(ind(1)) = 0
+      self%var%lowerboundcond(ind(1)) = VelocityBC
       self%var%lower_vdep(ind(1)) = vdep
       
     elseif (bc_type == 'mix') then
@@ -447,7 +450,7 @@ contains
               " ratio must supply the 'mix' argument"
         return
       endif
-      self%var%lowerboundcond(ind(1)) = 1
+      self%var%lowerboundcond(ind(1)) = MixingRatioBC
       self%var%lower_fix_mr(ind(1)) = mix
       
     elseif (bc_type == 'flux') then
@@ -456,7 +459,7 @@ contains
               " must supply the 'flux' argument"
         return
       endif
-      self%var%lowerboundcond(ind(1)) = 2
+      self%var%lowerboundcond(ind(1)) = FluxBC
       self%var%lower_flux(ind(1)) = flux
 
     elseif (bc_type == 'vdep + dist flux') then
@@ -465,13 +468,13 @@ contains
               " a distributed flux, must supply the 'vdep', 'flux', and 'height' arguments"
         return
       endif
-      self%var%lowerboundcond(ind(1)) = 3
+      self%var%lowerboundcond(ind(1)) = VelocityDistributedFluxBC
       self%var%lower_vdep(ind(1)) = vdep
       self%var%lower_flux(ind(1)) = flux
       self%var%lower_dist_height(ind(1)) = height
       
     elseif (bc_type == 'Moses') then
-      self%var%lowerboundcond(ind(1)) = -1
+      self%var%lowerboundcond(ind(1)) = MosesBC
     else
       err = "Boundary condition type '"//trim(bc_type)//"' is not a valid"// &
             " boundary condition type"
@@ -481,6 +484,7 @@ contains
   end subroutine
     
   module subroutine set_upper_bc(self, species, bc_type, veff, flux, err)
+    use photochem_enum, only: VelocityBC, FluxBC
     class(Atmosphere), intent(inout) :: self
     character(len=*), intent(in) :: species
     character(len=*), intent(in) :: bc_type
@@ -517,8 +521,8 @@ contains
               " velocity must supply the 'veff' argument"
         return
       endif
-      self%var%lowerboundcond(ind(1)) = 0
-      self%var%lower_vdep(ind(1)) = veff
+      self%var%upperboundcond(ind(1)) = VelocityBC
+      self%var%upper_veff(ind(1)) = veff
 
     elseif (bc_type == 'flux') then
       if (.not. present(flux)) then
@@ -526,8 +530,8 @@ contains
               " must supply the 'flux' argument"
         return
       endif
-      self%var%lowerboundcond(ind(1)) = 2
-      self%var%lower_flux(ind(1)) = flux
+      self%var%upperboundcond(ind(1)) = FluxBC
+      self%var%upper_flux(ind(1)) = flux
 
     else
       err = "Boundary condition type '"//trim(bc_type)//"' is not a valid"// &
