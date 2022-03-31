@@ -10,10 +10,80 @@ module photochem_types ! make a giant IO object
   implicit none
   private
   
+  public :: PhotoSettings, SettingsBC
   public :: PhotochemData, PhotochemVars, PhotochemWrk
   public :: ProductionLoss, AtomConservation, ThermodynamicData
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
+  
+  !!!!!!!!!!!!!!!!
+  !!! Settings !!!
+  !!!!!!!!!!!!!!!!
+  
+  type :: SettingsCondensationRate
+    real(dp) :: A
+    real(dp) :: rhc
+    real(dp) :: rh0
+  end type
+  
+  type :: SettingsBC
+    integer :: bc_type
+    real(dp) :: vel
+    real(dp) :: mix
+    real(dp) :: flux
+    real(dp) :: height
+  end type
+  
+  type :: PhotoSettings
+  
+    ! atmosphere-grid
+    real(dp) :: bottom
+    real(dp) :: top
+    integer :: nz
+  
+    ! photolysis-grid
+    logical :: regular_grid
+    real(dp) :: lower_wv
+    real(dp) :: upper_wv
+    integer :: nw
+    character(:), allocatable :: grid_file
+    real(dp) :: photon_scale_factor 
+  
+    ! planet
+    logical :: back_gas
+    character(:), allocatable :: back_gas_name
+    real(dp) :: P_surf
+    real(dp) :: planet_mass
+    real(dp) :: planet_radius
+    real(dp) :: surface_albedo
+    real(dp) :: diurnal_fac
+    real(dp) :: solar_zenith
+    logical :: diff_H_escape
+    integer :: default_lowerboundcond
+    ! water
+    logical :: fix_water_in_trop
+    logical :: water_cond
+    logical :: gas_rainout
+    character(:), allocatable :: relative_humidity
+    real(dp) :: rainfall_rate
+    real(dp) :: trop_alt
+    real(dp) :: H2O_condensation_rate(3)
+  
+    ! particles
+    character(s_str_len), allocatable :: con_names(:)
+    type(SettingsCondensationRate), allocatable :: con(:)
+  
+    ! boundary-conditions
+    type(SettingsBC), allocatable :: ubcs(:)
+    type(SettingsBC), allocatable :: lbcs(:)
+    character(s_str_len), allocatable :: sp_names(:)
+    character(s_str_len), allocatable :: sp_types(:)
+    logical, allocatable :: only_eddy(:) 
+    
+    integer :: nsl
+    character(s_str_len), allocatable :: SL_names(:)
+    
+  end type
   
   !!!!!!!!!!!!!!!!!
   !!! Utilities !!!

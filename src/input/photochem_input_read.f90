@@ -5,7 +5,7 @@ contains
   
   module subroutine read_all_files(mechanism_file, settings_file, flux_file, atmosphere_txt, &
                                    dat, var, err)
-    
+    use photochem_types, only: PhotoSettings
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
     character(len=*), intent(in) :: flux_file
@@ -14,15 +14,27 @@ contains
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
+    type(PhotoSettings) :: s
+    
+    s = create_PhotoSettings(settings_file, err)
+    if (allocated(err)) return
+    
+    ! stuff dat needs before entering get_photomech
+    dat%back_gas = s%back_gas
+    if (dat%back_gas) then
+      dat%back_gas_name = s%back_gas_name
+    endif
+    dat%nsl = s%nsl
+    dat%SL_names = s%SL_names
     
     ! first get SL and background species from settings
-    call get_SL_and_background(settings_file, dat, err)
-    if (allocated(err)) return
+    ! call get_SL_and_background(settings_file, dat, err)
+    ! if (allocated(err)) return
     
     call get_photomech(mechanism_file, dat, var, err)
     if (allocated(err)) return
     
-    call get_photoset(settings_file, dat, var, err)
+    call unpack_settings(settings_file, s, dat, var, err)
     if (allocated(err)) return
     
     call get_photorad(dat, var, err)
@@ -608,6 +620,784 @@ contains
       err = "Failed to initialize H2SO4 interpolator."
       return
     endif
+    
+  end subroutine
+  
+  function create_PhotoSettings(filename, err) result(s)
+    use fortran_yaml_c, only : parse, error_length
+    use photochem_types, only: PhotoSettings
+    character(*), intent(in) :: filename
+    character(:), allocatable, intent(out) :: err
+    
+    type(PhotoSettings) :: s
+    
+    character(error_length) :: error
+    class (type_node), pointer :: root
+    
+    ! parse yaml file
+    root => parse(filename,error=error)
+    if (error /= '') then
+      err = trim(error)
+      return
+    end if
+    select type (root)
+      class is (type_dictionary)
+        s = unpack_PhotoSettings(root, filename, err)
+      class default
+        err = "yaml file must have dictionaries at root level"
+    end select
+    call root%finalize()
+    deallocate(root)  
+    if (allocated(err)) return
+      
+  end function
+  
+  function unpack_PhotoSettings(root, filename, err) result(s)
+    use photochem_types, only: PhotoSettings
+    type(type_dictionary), intent(in) :: root
+    character(*), intent(in) :: filename
+    character(:), allocatable, intent(out) :: err
+    
+    type(PhotoSettings) :: s
+    
+    type(type_dictionary), pointer :: dict, tmp2, tmp3
+    type(type_list), pointer :: list, bcs
+    type(type_list_item), pointer :: item
+    type(type_error), allocatable :: io_err
+    character(:), allocatable :: temp_char
+    integer :: i, j
+    
+    !!!!!!!!!!!!!!!!!!!!!!!
+    !!! atmosphere-grid !!!
+    !!!!!!!!!!!!!!!!!!!!!!!
+    dict => root%get_dictionary('atmosphere-grid',.true.,error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    s%bottom = dict%get_real('bottom',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    s%top = dict%get_real('top',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    s%nz = dict%get_integer('number-of-layers',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+  
+    !!!!!!!!!!!!!!!!!!!!!!!
+    !!! photolysis-grid !!!
+    !!!!!!!!!!!!!!!!!!!!!!!
+    dict => root%get_dictionary('photolysis-grid',.true.,error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    s%regular_grid = dict%get_logical('regular-grid',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    
+    if (s%regular_grid) then
+      s%lower_wv = dict%get_real('lower-wavelength',error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      s%upper_wv = dict%get_real('upper-wavelength',error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      s%nw = dict%get_integer('number-of-bins',error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      if (s%nw < 1) then 
+        err = 'Number of photolysis bins must be >= 1 in '//trim(filename)
+        return
+      endif
+      if (s%lower_wv > s%upper_wv) then
+        err = 'lower-wavelength must be smaller than upper-wavelength in '//trim(filename)
+        return
+      endif
+    else
+      s%grid_file = dict%get_string('input-file',error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    endif
+    ! scale factor for photon flux. Its optional
+    s%photon_scale_factor = dict%get_real('photon-scale-factor', 1.0_dp,error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    
+    !!!!!!!!!!!!!!
+    !!! planet !!!
+    !!!!!!!!!!!!!!
+    dict => root%get_dictionary('planet',.true.,error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    
+    s%back_gas = dict%get_logical('use-background-gas',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      
+    if (s%back_gas) then
+      s%back_gas_name = trim(dict%get_string('background-gas',error = io_err))
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    else
+      err = "Currently, the model requires there to be a background gas."// &
+            " You must set 'use-background-gas: true'"
+      return
+    endif
+
+    s%P_surf = dict%get_real('surface-pressure',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    if (s%P_surf <= 0.0_dp) then
+      err = 'IOError: Planet surface pressure must be greater than zero.'
+      return
+    endif
+    s%planet_mass = dict%get_real('planet-mass',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    if (s%planet_mass <= 0.0_dp) then
+      err = 'IOError: Planet mass must be greater than zero.'
+      return
+    endif
+    s%planet_radius = dict%get_real('planet-radius',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    if (s%planet_radius <= 0.0_dp) then
+      err = 'IOError: Planet radius must be greater than zero.'
+      return
+    endif
+    s%surface_albedo = dict%get_real('surface-albedo',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    if (s%surface_albedo < 0.0_dp) then
+      err = 'IOError: Surface albedo must be greater than zero.'
+      return
+    endif
+    s%diurnal_fac = dict%get_real('diurnal-averaging-factor',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    if (s%diurnal_fac < 0.0_dp .or. s%diurnal_fac > 1.0_dp) then
+      err = 'IOError: diurnal-averaging-factor must be between 0 and 1.'
+      return
+    endif
+    
+    s%solar_zenith = dict%get_real('solar-zenith-angle',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    if (s%solar_zenith < 0.0_dp .or. s%solar_zenith > 90.0_dp) then
+      err = 'IOError: solar zenith must be between 0 and 90.'
+      return
+    endif
+    
+    ! H2 escape
+    s%diff_H_escape = dict%get_logical('diff-lim-hydrogen-escape',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    ! ind = findloc(dat%species_names,'H2')
+    ! dat%LH2 = ind(1)
+    ! if (ind(1) == 0 .and. dat%diff_H_escape) then
+    !   err = 'IOError: H2 must be a species if diff-lim-hydrogen-escape = True.'
+    !   return
+    ! endif
+    ! ind = findloc(dat%species_names,'H')
+    ! dat%LH = ind(1)
+    ! if (ind(1) == 0 .and. dat%diff_H_escape) then
+    !   err = 'IOError: H must be a species if diff-lim-hydrogen-escape = True.'
+    !   return
+    ! endif
+    
+    ! default lower boundary
+    temp_char = trim(dict%get_string('default-lower-boundary',"deposition velocity",error = io_err))
+    if (trim(temp_char) == 'deposition velocity') then
+      s%default_lowerboundcond = 0
+    elseif (trim(temp_char) == 'Moses') then
+      s%default_lowerboundcond = -1
+    else
+      err = "IOError: Only 'deposition velocity' or 'Moses' can be default boundary conditions."
+      return
+    endif
+    
+    tmp2 => dict%get_dictionary('water',.true.,error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    s%fix_water_in_trop = tmp2%get_logical('fix-water-in-troposphere',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    s%water_cond = tmp2%get_logical('water-condensation',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    s%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    ! ind = findloc(dat%species_names,'H2O')
+    ! dat%LH2O = ind(1)
+    ! if (ind(1) == 0 .and. dat%fix_water_in_trop) then
+    !   err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
+    !   return
+    ! elseif (ind(1) == 0 .and. dat%water_cond) then
+    !   err = 'IOError: H2O must be a species if water-condensation = True.'
+    !   return
+    ! elseif (ind(1) == 0 .and. dat%gas_rainout) then
+    !   err = 'IOError: H2O must be a species if gas-rainout = True.'
+    !   return
+    ! elseif (ind(1) == 0 .and. dat%there_are_particles) then
+    !   if (any(dat%particle_sat_type == 2)) then
+    !     err = 'IOError: H2O must be a species if H2SO4 condensation is on.'
+    !     return
+    !   endif
+    ! endif
+    
+    if (s%fix_water_in_trop) then  
+    
+      s%relative_humidity = trim(tmp2%get_string('relative-humidity',error = io_err))
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    
+      ! read(temp_char,*,iostat = io) var%relative_humidity
+      ! 
+      ! if (io /= 0) then
+      !   ! it isn't a float
+      !   if (trim(temp_char) == "manabe") then
+      !     var%use_manabe = .true.
+      !   else
+      !     err = '"relative-humidity" can only be a number between 0 and 1, or "manabe". See '//trim(filename)
+      !     return 
+      !   endif
+      ! else
+      !   var%use_manabe = .false.
+      ! endif
+      
+    endif
+    
+    if (s%gas_rainout) then
+      s%rainfall_rate = tmp2%get_real('rainfall-rate',error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    endif
+    
+    if (s%fix_water_in_trop .or. s%gas_rainout) then
+      ! we need a tropopause altitude
+      s%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
+      if (allocated(io_err)) then
+        err = "tropopause-altitude must be specified if fix-water-in-troposphere = true, or gas-rainout = true"
+        return
+      endif
+      if ((s%trop_alt < s%bottom) .or. &
+          (s%trop_alt > s%top)) then
+          err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
+          return
+      endif
+    
+    endif
+    
+    if (s%water_cond) then        
+    
+      tmp3 => tmp2%get_dictionary('condensation-rate',.true.,error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    
+      s%H2O_condensation_rate(1) = tmp3%get_real('A',error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      s%H2O_condensation_rate(2) = tmp3%get_real('rhc',error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      s%H2O_condensation_rate(3) = tmp3%get_real('rh0',error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      if (s%H2O_condensation_rate(3) <= s%H2O_condensation_rate(2)) then
+        err = 'IOError: Rate constant "rh0" for H2O condensation must be > "rhc". See '//trim(filename)
+        return
+      endif
+      
+    endif
+    
+    !!!!!!!!!!!!!!!!!
+    !!! particles !!!
+    !!!!!!!!!!!!!!!!!
+    
+    list => root%get_list('particles', .false., error = io_err)
+      
+    if (associated(list)) then 
+      allocate(s%con_names(list%size()))
+      allocate(s%con(size(s%con_names)))
+      
+      j = 1
+      item => list%first
+      do while (associated(item))
+        select type (e => item%node)
+        class is (type_dictionary)
+          s%con_names(j) = trim(e%get_string('name',error = io_err))
+          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+          ! ind = findloc(dat%particle_names,trim(temp_char))
+          ! if (particle_checklist(ind(1))) then
+          !   err = "IOError: particle "//trim(temp_char)//" in the settings"// &
+          !         " file is listed more than once"
+          !   return
+          ! endif
+          ! if (ind(1) == 0) then
+          !   err = "IOError: particle "//trim(temp_char)//" in the settings"// &
+          !         " file isn't in the list of particles in the reaction mechanism file"
+          !   return
+          ! else
+          !   particle_checklist(ind(1)) = .true.
+          ! endif
+      
+          tmp2 => e%get_dictionary('condensation-rate',.true.,error = io_err)
+          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      
+          s%con(j)%A = tmp2%get_real('A',error = io_err)
+          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+          s%con(j)%rhc = tmp2%get_real('rhc',error = io_err)
+          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+          s%con(j)%rh0 = tmp2%get_real('rh0',error = io_err)
+          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+          if (s%con(j)%rh0 <= s%con(j)%rhc) then
+            err = 'IOError: Rate constant "rh0" for '//trim(s%con_names(j)) &
+                  //' condensation must be > "rhc". See '//trim(filename)
+            return
+          endif
+      
+        class default
+          err = "IOError: Particle settings must be a list of dictionaries."
+          return
+        end select
+        j = j + 1
+        item => item%next
+      end do
+      
+      ! do i = 1,dat%np
+      !   if (dat%particle_formation_method(i) == 1 .and. .not. particle_checklist(i)) then
+      !     err = 'IOError: Particle '//trim(dat%particle_names(i))// &
+      !           ' does not have any condensation rate data in the file '//trim(infile)
+      !     return
+      !   endif
+      ! enddo
+        
+    endif
+    
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!! boundary-conditions !!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!
+    bcs => root%get_list('boundary-conditions',.true.,error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+
+    ! if (dat%back_gas) then
+    !  ind = findloc(dat%species_names,trim(dat%back_gas_name))
+    !  dat%back_gas_ind = ind(1)
+    !  dat%back_gas_mu = dat%species_mass(ind(1))
+    ! endif
+   
+    ! allocate boundary conditions
+    allocate(s%ubcs(bcs%size()))
+    allocate(s%lbcs(size(s%ubcs)))
+    allocate(s%sp_types(size(s%ubcs)))
+    allocate(s%sp_names(size(s%ubcs)))
+    allocate(s%only_eddy(size(s%ubcs)))
+   
+    ! default boundary conditions
+    do j = 1,size(s%ubcs)
+     s%lbcs(j)%bc_type = s%default_lowerboundcond
+     s%lbcs(j)%vel = 0.0_dp
+     s%ubcs(j)%bc_type = 0
+     s%ubcs(j)%vel = 0.0_dp
+     s%only_eddy(j) = .false.
+    enddo
+     
+    s%nsl = 0
+    j = 1
+    item => bcs%first
+    do while (associated(item))
+      select type (e => item%node)
+      class is (type_dictionary)
+        s%sp_names(j) = trim(e%get_string('name',error = io_err))
+        if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+        ! check for duplicates
+        if (j > 1) then
+          do i = 1,j-1
+            if (s%sp_names(j) == s%sp_names(i)) then
+              err = "IOError: Species "//trim(s%sp_names(i))// &
+              " has more than one boundary conditions entry in the settings file."
+              return
+            endif
+          enddo
+        endif
+        ! ! make sure it isn't water
+        ! if (dat%fix_water_in_trop .and. dups(j) == "H2O") then
+        !   err = "IOError: H2O can not have a specified boundary condition"// &
+        !         " if water-saturated-troposphere = true in the settings file."
+        !   return
+        ! endif
+        ! ! check if in rxmech
+        ! ind = findloc(dat%species_names,dups(j))
+        ! if (ind(1) == 0) then
+        !   err = "IOError: Species "//trim(dups(j))// &
+        !   ' in settings file is not in the reaction mechanism file.'
+        !   return 
+        ! endif
+        ! if ((ind(1) == dat%back_gas_ind) .and. (dat%back_gas)) then ! can't be background gas
+        !   err = "IOError: Species "//trim(dups(j))// &
+        !   ' in settings file is the background gas, and can not have boundary conditions.'
+        !   return
+        ! endif
+        ! 
+        s%sp_types(j) = trim(e%get_string('type','long lived',error = io_err))
+        if (s%sp_types(j) == 'short lived') then
+          s%nsl = s%nsl + 1
+        
+        elseif (s%sp_types(j) == 'long lived') then
+          ! get boundary condition
+          dict => e%get_dictionary("upper-boundary",.true.,error = io_err)
+          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+          call unpack_SettingsBC(dict, "upper", s%sp_names(j), filename, s%ubcs(j), err)
+          if (allocated(err)) return
+          
+          dict => e%get_dictionary("lower-boundary",.true.,error = io_err)
+          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+          call unpack_SettingsBC(dict, "lower", s%sp_names(j), filename, s%lbcs(j), err)
+          if (allocated(err)) return
+        
+          s%only_eddy(j) = e%get_logical("only-eddy",default=.false., error = io_err)
+          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+        else
+          err = 'IOError: species type '//s%sp_types(j)//' is not a valid.' 
+          return
+        endif
+      class default
+        err = "IOError: Boundary conditions must be a list of dictionaries."
+        return
+      end select 
+      j = j + 1
+      item => item%next
+    enddo
+    
+    allocate(s%SL_names(s%nsl))
+    i = 1
+    do j = 1,size(s%sp_names)
+      if (s%sp_types(j) == "short lived") then
+        s%SL_names(i) = s%sp_names(j)
+        i = i + 1
+      endif
+    enddo   
+   
+   ! Make sure that upper boundary condition for H and H2 are
+   ! effusion velocities, if diffusion limited escape
+   ! if (dat%diff_H_escape) then
+   !   if (dat%back_gas_name /= "H2") then
+   !     if (var%upperboundcond(dat%LH2) /= 0) then
+   !       err = "IOError: H2 must have a have a effusion velocity upper boundary"// &
+   !             " if diff-lim-hydrogen-escape = True"
+   !       return
+   !     endif
+   !   endif
+   !   if (var%upperboundcond(dat%LH) /= 0) then
+   !     err = "IOError: H must have a have a effusion velocity upper boundary"// &
+   !           " if diff-lim-hydrogen-escape = True"
+   !     return
+   !   endif
+   ! endif
+
+   ! check for SL nonlinearities
+   ! call check_sl(dat, err)
+   ! if (allocated(err)) return
+    
+  end function
+  
+  subroutine unpack_SettingsBC(bc, bc_kind, sp_name, filename, sbc, err)
+    use photochem_types, only: SettingsBC
+    type(type_dictionary), intent(in) :: bc
+    character(*), intent(in) :: bc_kind
+    character(*), intent(in) :: sp_name
+    character(*), intent(in) :: filename
+    type(SettingsBC), intent(inout) :: sbc
+    character(:), allocatable, intent(out) :: err
+    
+    character(:), allocatable :: vel, bctype
+    type(type_error), allocatable :: io_err
+
+    if (bc_kind == "upper") then
+      vel = 'veff'
+    elseif (bc_kind == "lower") then
+      vel = 'vdep'
+    endif
+    
+    bctype = bc%get_string("type",error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    
+    if (bctype == vel) then
+      sbc%bc_type = 0
+      sbc%vel = bc%get_real(vel,error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      
+      sbc%mix = -huge(1.0_dp)
+      sbc%flux = -huge(1.0_dp)
+      sbc%height = -huge(1.0_dp)
+    elseif (bctype == "mix") then
+      if (bc_kind == "upper") then
+        err = 'Upper boundary conditions can not be "mix" for '//trim(sp_name)
+        return
+      endif
+      
+      sbc%bc_type = 1
+      sbc%mix = bc%get_real("mix",error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      
+      sbc%vel = -huge(1.0_dp)
+      sbc%flux = -huge(1.0_dp)
+      sbc%height = -huge(1.0_dp)
+    elseif (bctype == "flux") then
+      sbc%bc_type = 2
+      sbc%flux = bc%get_real("flux",error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    
+      sbc%vel = -huge(1.0_dp)
+      sbc%mix = -huge(1.0_dp)
+      sbc%height = -huge(1.0_dp)
+    elseif (bctype == "vdep + dist flux") then
+      if (bc_kind == "upper") then
+        err = 'Upper boundary conditions can not be "vdep + dist flux" for '//trim(sp_name)
+        return
+      endif
+      
+      sbc%bc_type = 3
+      sbc%vel = bc%get_real(vel,error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      
+      sbc%flux = bc%get_real("flux",error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      
+      sbc%height = bc%get_real("height",error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      
+      sbc%mix = -huge(1.0_dp)
+      
+    elseif (bctype == "Moses") then
+      sbc%bc_type = -1
+      
+      sbc%vel = -huge(1.0_dp)
+      sbc%mix = -huge(1.0_dp)
+      sbc%flux = -huge(1.0_dp)
+      sbc%height = -huge(1.0_dp)
+    else
+      err = 'IOError: "'//trim(bctype)//'" is not a valid lower boundary condition for '//trim(sp_name)
+      return
+    endif
+    
+  end subroutine
+  
+  subroutine unpack_settings(infile, s, dat, var, err)
+    use photochem_types, only: PhotoSettings
+    character(len=*), intent(in) :: infile
+    type(PhotoSettings), intent(in) :: s
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    character(:), allocatable, intent(out) :: err
+    
+    integer :: j, i, ind(1), io
+    logical, allocatable :: particle_checklist(:)
+    
+    !!!!!!!!!!!!!!!!!!!!!!!
+    !!! atmosphere-grid !!!
+    !!!!!!!!!!!!!!!!!!!!!!!
+    var%bottom_atmos = s%bottom
+    var%top_atmos = s%top
+    var%nz = s%nz
+    
+    !!!!!!!!!!!!!!!!!!!!!!!
+    !!! photolysis-grid !!!
+    !!!!!!!!!!!!!!!!!!!!!!!
+    dat%regular_grid = s%regular_grid
+    
+    if (dat%regular_grid) then
+      dat%lower_wavelength = s%lower_wv
+      dat%upper_wavelength = s%upper_wv
+      dat%nw = s%nw
+    else
+      dat%grid_file = s%grid_file
+    endif
+    var%photon_scale_factor = s%photon_scale_factor
+    
+    !!!!!!!!!!!!!!
+    !!! planet !!!
+    !!!!!!!!!!!!!!
+    ! dat%back_gas
+    ! dat%back_gas_name
+    ! already set earlier
+    var%surface_pressure = s%P_surf
+    dat%planet_mass = s%planet_mass
+    dat%planet_radius = s%planet_radius
+    var%surface_albedo = s%surface_albedo
+    var%diurnal_fac = s%diurnal_fac
+    var%solar_zenith = s%solar_zenith
+    dat%diff_H_escape = s%diff_H_escape
+    ind = findloc(dat%species_names,'H2')
+    dat%LH2 = ind(1)
+    if (ind(1) == 0 .and. dat%diff_H_escape) then
+      err = 'IOError: H2 must be a species if diff-lim-hydrogen-escape = True.'
+      return
+    endif
+    ind = findloc(dat%species_names,'H')
+    dat%LH = ind(1)
+    if (ind(1) == 0 .and. dat%diff_H_escape) then
+      err = 'IOError: H must be a species if diff-lim-hydrogen-escape = True.'
+      return
+    endif
+    
+    ! default-lower-boundary already applied to s%lbcs
+    
+    ! water
+    dat%fix_water_in_trop = s%fix_water_in_trop
+    dat%water_cond = s%water_cond
+    dat%gas_rainout = s%gas_rainout
+    ind = findloc(dat%species_names,'H2O')
+    dat%LH2O = ind(1)
+    if (ind(1) == 0 .and. dat%fix_water_in_trop) then
+      err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
+      return
+    elseif (ind(1) == 0 .and. dat%water_cond) then
+      err = 'IOError: H2O must be a species if water-condensation = True.'
+      return
+    elseif (ind(1) == 0 .and. dat%gas_rainout) then
+      err = 'IOError: H2O must be a species if gas-rainout = True.'
+      return
+    elseif (ind(1) == 0 .and. dat%there_are_particles) then
+      if (any(dat%particle_sat_type == 2)) then
+        err = 'IOError: H2O must be a species if H2SO4 condensation is on.'
+        return
+      endif
+    endif
+    
+    if (dat%fix_water_in_trop) then  
+      
+      read(s%relative_humidity,*,iostat = io) var%relative_humidity
+      
+      if (io /= 0) then
+        ! it isn't a float
+        if (trim(s%relative_humidity) == "manabe") then
+          var%use_manabe = .true.
+        else
+          err = '"relative-humidity" can only be a number between 0 and 1, or "manabe". See '//trim(infile)
+          return 
+        endif
+      else
+        var%use_manabe = .false.
+      endif
+      
+    endif
+    
+    if (dat%gas_rainout) then
+      var%rainfall_rate = s%rainfall_rate
+    endif
+    
+    if (dat%fix_water_in_trop .or. dat%gas_rainout) then
+      ! we need a tropopause altitude
+      var%trop_alt = s%trop_alt
+    endif
+    
+    if (dat%water_cond) then        
+      var%H2O_condensation_rate = s%H2O_condensation_rate
+    endif
+    
+    !!!!!!!!!!!!!!!!!
+    !!! particles !!!
+    !!!!!!!!!!!!!!!!!
+    if (dat%there_are_particles) then
+      if (any(dat%particle_formation_method == 1)) then
+        ! then we need rate data
+      
+        if (.not. allocated(s%con_names)) then
+          err  = 'settings file "'//trim(infile)//'" does not contain'// &
+                 ' any particle condensation rate data.'
+          return
+        endif
+        
+        allocate(particle_checklist(dat%np))
+        allocate(var%condensation_rate(3,dat%np))
+        particle_checklist = .false.
+        
+        do i = 1,size(s%con_names)
+          
+          ind = findloc(dat%particle_names,trim(s%con_names(i)))
+          if (particle_checklist(ind(1))) then
+            err = "IOError: particle "//trim(s%con_names(i))//" in the settings"// &
+                  " file is listed more than once"
+            return
+          endif
+          if (ind(1) == 0) then
+            err = "IOError: particle "//trim(s%con_names(i))//" in the settings"// &
+                  " file isn't in the list of particles in the reaction mechanism file"
+            return
+          else
+            particle_checklist(ind(1)) = .true.
+          endif
+          
+          var%condensation_rate(1,ind(1)) = s%con(i)%A
+          var%condensation_rate(2,ind(1)) = s%con(i)%rhc
+          var%condensation_rate(3,ind(1)) = s%con(i)%rh0
+          
+        enddo
+        
+        do i = 1,dat%np
+          if (dat%particle_formation_method(i) == 1 .and. .not. particle_checklist(i)) then
+            err = 'IOError: Particle '//trim(dat%particle_names(i))// &
+                  ' does not have any condensation rate data in the file '//trim(infile)
+            return
+          endif
+        enddo
+        
+      endif
+    endif
+    
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!! boundary-conditions !!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!
+    
+    if (dat%back_gas) then
+     ind = findloc(dat%species_names,trim(dat%back_gas_name))
+     dat%back_gas_ind = ind(1)
+     dat%back_gas_mu = dat%species_mass(ind(1))
+    endif
+    
+    allocate(var%lowerboundcond(dat%nq))
+    allocate(var%lower_vdep(dat%nq))
+    allocate(var%lower_flux(dat%nq))
+    allocate(var%lower_dist_height(dat%nq))
+    allocate(var%lower_fix_mr(dat%nq))
+    allocate(var%upperboundcond(dat%nq))
+    allocate(var%upper_veff(dat%nq))
+    allocate(var%upper_flux(dat%nq))
+    allocate(var%only_eddy(dat%nq))
+    ! default boundary conditions
+    var%lowerboundcond = s%default_lowerboundcond
+    var%lower_vdep = 0.0_dp
+    var%upperboundcond = 0
+    var%upper_veff = 0.0_dp
+    var%only_eddy = .false.
+    
+    do j = 1,size(s%ubcs)
+      ! make sure it isn't water
+      if (dat%fix_water_in_trop .and. s%sp_names(j) == "H2O") then
+        err = "IOError: H2O can not have a specified boundary condition"// &
+              " if water-saturated-troposphere = true in the settings file."
+        return
+      endif
+      ! check if in rxmech
+      ind = findloc(dat%species_names,s%sp_names(j))
+      if (ind(1) == 0) then
+        err = "IOError: Species "//trim(s%sp_names(j))// &
+        ' in settings file is not in the reaction mechanism file.'
+        return 
+      endif
+      if ((ind(1) == dat%back_gas_ind) .and. (dat%back_gas)) then ! can't be background gas
+        err = "IOError: Species "//trim(s%sp_names(j))// &
+        ' in settings file is the background gas, and can not have boundary conditions.'
+        return
+      endif
+      
+      if (s%sp_types(j) == 'long lived') then
+      
+        var%lowerboundcond(ind(1)) = s%lbcs(j)%bc_type
+        var%lower_vdep(ind(1)) = s%lbcs(j)%vel
+        var%lower_flux(ind(1)) = s%lbcs(j)%flux
+        var%lower_dist_height(ind(1)) = s%lbcs(j)%height
+        var%lower_fix_mr(ind(1)) = s%lbcs(j)%mix
+        
+        var%upperboundcond(ind(1)) = s%ubcs(j)%bc_type
+        var%upper_veff(ind(1)) = s%ubcs(j)%vel
+        var%upper_flux(ind(1)) = s%ubcs(j)%flux
+        
+        var%only_eddy(ind(1)) = s%only_eddy(j)
+        
+      endif
+      
+    enddo
+    
+    ! Make sure that upper boundary condition for H and H2 are
+    ! effusion velocities, if diffusion limited escape
+    if (dat%diff_H_escape) then
+      if (dat%back_gas_name /= "H2") then
+        if (var%upperboundcond(dat%LH2) /= 0) then
+          err = "IOError: H2 must have a have a effusion velocity upper boundary"// &
+                " if diff-lim-hydrogen-escape = True"
+          return
+        endif
+      endif
+      if (var%upperboundcond(dat%LH) /= 0) then
+        err = "IOError: H must have a have a effusion velocity upper boundary"// &
+              " if diff-lim-hydrogen-escape = True"
+        return
+      endif
+    endif
+
+    ! check for SL nonlinearities
+    call check_sl(dat, err)
+    if (allocated(err)) return
     
   end subroutine
   
@@ -1457,543 +2247,6 @@ contains
     enddo
     str = str(1:i)
   end subroutine
-    
-  subroutine SL_and_background(root, infile, dat, err)
-    class (type_dictionary), intent(in) :: root
-    character(len=*), intent(in) :: infile
-    type(PhotochemData), intent(inout) :: dat
-    character(:), allocatable, intent(out) :: err
-  
-    class (type_dictionary), pointer :: tmp1
-    type (type_error), allocatable :: io_err
-    class (type_list), pointer :: bcs
-    class (type_list_item), pointer :: item
-    character(len=str_len) :: spec_type
-    
-    ! get background species
-    tmp1 => root%get_dictionary('planet',.true.,error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    
-    dat%back_gas = tmp1%get_logical('use-background-gas',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    
-    if (dat%back_gas) then
-      dat%back_gas_name = tmp1%get_string('background-gas',error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    else
-      dat%back_gas_ind = -1
-      err = "Currently, the model requires there to be a background gas."// &
-            " You must set 'use-background-gas: true'"
-      return
-    endif
-    
-    bcs => root%get_list('boundary-conditions',.true.,error = io_err)
-    
-    dat%nsl = 0
-    item => bcs%first
-    do while (associated(item))
-      select type (element => item%node)
-      class is (type_dictionary)
-        spec_type = element%get_string('type','long lived',error = io_err)
-        if (spec_type == 'short lived') then
-          dat%nsl = dat%nsl + 1
-        elseif (spec_type == 'long lived') then
-          ! do nothing
-        else
-          err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
-          return
-        endif
-      class default
-        err = "IOError: Boundary conditions must be a list of dictionaries."
-        return
-      end select 
-      item => item%next
-    enddo
-    allocate(dat%SL_names(dat%nsl))
-    
-    dat%nsl = 0
-    item => bcs%first
-    do while (associated(item))
-      select type (element => item%node)
-      class is (type_dictionary)
-        spec_type = element%get_string('type','long lived',error = io_err)
-        if (spec_type == 'short lived') then
-          dat%nsl = dat%nsl + 1
-          dat%SL_names(dat%nsl) = element%get_string('name',error = io_err)
-          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        elseif (spec_type == 'long lived') then
-          ! do nothing
-        else
-          err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
-          return
-        endif
-      class default
-        err = "IOError: Boundary conditions must be a list of dictionaries."
-        return
-      end select 
-      item => item%next
-    enddo
-    
-  end subroutine
-  
-  subroutine get_SL_and_background(infile, dat, err)
-    use fortran_yaml_c, only : parse, error_length
-    character(len=*), intent(in) :: infile
-    type(PhotochemData), intent(inout) :: dat
-    character(:), allocatable, intent(out) :: err
-  
-    character(error_length) :: error
-    class (type_node), pointer :: root
-    integer :: i, j
-    
-    root => parse(infile,error=error)
-    if (error /= '') then
-      err = trim(error)
-      return
-    end if
-    select type (root)
-      class is (type_dictionary)
-        call SL_and_background(root, infile, dat, err)
-      class default
-        err = trim(infile)//" file must have dictionaries at root level"
-    end select
-    call root%finalize()
-    deallocate(root)
-    if (allocated(err)) return
-    
-    ! check for duplicates
-    do i = 1,dat%nsl-1
-      do j = i+1,dat%nsl
-        if (dat%SL_names(i) == dat%SL_names(j)) then
-          err = 'IOError: Short lived species '//trim(dat%SL_names(i))// &
-                ' is a duplicate.'
-          return
-        endif
-      enddo
-    enddo
-  
-  end subroutine
-  
-  subroutine get_photoset(infile, dat, var, err)
-    use fortran_yaml_c, only : parse, error_length
-    character(len=*), intent(in) :: infile
-    type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    character(:), allocatable, intent(out) :: err
-  
-    character(error_length) :: error
-    class (type_node), pointer :: root
-    
-    root => parse(infile,error=error)
-    if (error /= '') then
-      err = trim(error)
-      return
-    end if
-    select type (root)
-      class is (type_dictionary)
-        call unpack_settings(root, infile, dat, var, err)
-      class default
-        err = trim(infile)//" file must have dictionaries at root level"
-    end select
-    call root%finalize()
-    deallocate(root)
-    if (allocated(err)) return
-
-  end subroutine
-  
-  subroutine unpack_settings(mapping, infile, dat, var, err)
-    class (type_dictionary), intent(in), pointer :: mapping
-    character(len=*), intent(in) :: infile
-    type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    character(:), allocatable, intent(out) :: err
-    
-    class (type_dictionary), pointer :: tmp1, tmp2, tmp3
-    class (type_list), pointer :: bcs, particles
-    class (type_list_item), pointer :: item
-    type (type_error), allocatable :: io_err
-    
-    character(len=str_len) :: spec_type
-    integer :: j, i, ind(1), io
-    character(len=str_len), allocatable :: dups(:)
-    character(len=30) :: temp_char
-    integer :: default_lowerboundcond
-    logical, allocatable :: particle_checklist(:)
-    
-    
-    ! photolysis grid
-    tmp1 => mapping%get_dictionary('photolysis-grid',.true.,error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    dat%regular_grid = tmp1%get_logical('regular-grid',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-    if (dat%regular_grid) then
-      dat%lower_wavelength = tmp1%get_real('lower-wavelength',error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      dat%upper_wavelength = tmp1%get_real('upper-wavelength',error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      dat%nw = tmp1%get_integer('number-of-bins',error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      if (dat%nw < 1) then 
-        err = 'Number of photolysis bins must be >= 1 in '//trim(infile)
-        return
-      endif
-      if (dat%lower_wavelength > dat%upper_wavelength) then
-        err = 'lower-wavelength must be smaller than upper-wavelength in '//trim(infile)
-        return
-      endif
-    else
-      dat%grid_file = tmp1%get_string('input-file',error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    endif
-    ! scale factor for photon flux. Its optional
-    var%photon_scale_factor = tmp1%get_real('photon-scale-factor', 1.0_dp,error = io_err)
-    
-    ! atmosphere grid
-    tmp1 => mapping%get_dictionary('atmosphere-grid',.true.,error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    var%bottom_atmos = tmp1%get_real('bottom',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    var%top_atmos = tmp1%get_real('top',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    var%nz = tmp1%get_integer('number-of-layers',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    
-    ! Planet
-    tmp1 => mapping%get_dictionary('planet',.true.,error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    
-    var%surface_pressure = tmp1%get_real('surface-pressure',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (var%surface_pressure <= 0.0_dp) then
-      err = 'IOError: Planet surface pressure must be greater than zero.'
-      return
-    endif
-    dat%planet_mass = tmp1%get_real('planet-mass',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (dat%planet_mass < 0.0_dp) then
-      err = 'IOError: Planet mass must be greater than zero.'
-      return
-    endif
-    dat%planet_radius = tmp1%get_real('planet-radius',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (dat%planet_radius < 0.0_dp) then
-      err = 'IOError: Planet radius must be greater than zero.'
-      return
-    endif
-    var%surface_albedo = tmp1%get_real('surface-albedo',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (var%surface_albedo < 0.0_dp) then
-      err = 'IOError: Surface albedo must be greater than zero.'
-      return
-    endif
-    var%diurnal_fac = tmp1%get_real('diurnal-averaging-factor',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (var%diurnal_fac < 0.0_dp .or. var%diurnal_fac > 1.0_dp) then
-      err = 'IOError: diurnal-averaging-factor must be between 0 and 1.'
-      return
-    endif
-    
-    var%solar_zenith = tmp1%get_real('solar-zenith-angle',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    if (var%solar_zenith < 0.0_dp .or. var%solar_zenith > 90.0_dp) then
-      err = 'IOError: solar zenith must be between 0 and 90.'
-      return
-    endif
-    
-    ! H2 escape
-    dat%diff_H_escape = tmp1%get_logical('diff-lim-hydrogen-escape',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    ind = findloc(dat%species_names,'H2')
-    dat%LH2 = ind(1)
-    if (ind(1) == 0 .and. dat%diff_H_escape) then
-      err = 'IOError: H2 must be a species if diff-lim-hydrogen-escape = True.'
-      return
-    endif
-    ind = findloc(dat%species_names,'H')
-    dat%LH = ind(1)
-    if (ind(1) == 0 .and. dat%diff_H_escape) then
-      err = 'IOError: H must be a species if diff-lim-hydrogen-escape = True.'
-      return
-    endif
-    
-    ! default lower boundary
-    temp_char = tmp1%get_string('default-lower-boundary',"deposition velocity",error = io_err)
-    if (trim(temp_char) == 'deposition velocity') then
-      default_lowerboundcond = 0
-    elseif (trim(temp_char) == 'Moses') then
-      default_lowerboundcond = -1
-    else
-      err = "IOError: Only 'deposition velocity' or 'Moses' can be default boundary conditions."
-      return
-    endif
-    
-    tmp2 => tmp1%get_dictionary('water',.true.,error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    dat%fix_water_in_trop = tmp2%get_logical('fix-water-in-troposphere',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    dat%water_cond = tmp2%get_logical('water-condensation',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    dat%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    ind = findloc(dat%species_names,'H2O')
-    dat%LH2O = ind(1)
-    if (ind(1) == 0 .and. dat%fix_water_in_trop) then
-      err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
-      return
-    elseif (ind(1) == 0 .and. dat%water_cond) then
-      err = 'IOError: H2O must be a species if water-condensation = True.'
-      return
-    elseif (ind(1) == 0 .and. dat%gas_rainout) then
-      err = 'IOError: H2O must be a species if gas-rainout = True.'
-      return
-    elseif (ind(1) == 0 .and. dat%there_are_particles) then
-      if (any(dat%particle_sat_type == 2)) then
-        err = 'IOError: H2O must be a species if H2SO4 condensation is on.'
-        return
-      endif
-    endif
-    
-    if (dat%fix_water_in_trop) then  
-      
-      temp_char = tmp2%get_string('relative-humidity',error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        
-      read(temp_char,*,iostat = io) var%relative_humidity
-      
-      if (io /= 0) then
-        ! it isn't a float
-        if (trim(temp_char) == "manabe") then
-          var%use_manabe = .true.
-        else
-          err = '"relative-humidity" can only be a number between 0 and 1, or "manabe". See '//trim(infile)
-          return 
-        endif
-      else
-        var%use_manabe = .false.
-      endif
-      
-    endif
-    
-    if (dat%gas_rainout) then
-      var%rainfall_rate = tmp2%get_real('rainfall-rate',error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    endif
-    
-    if (dat%fix_water_in_trop .or. dat%gas_rainout) then
-      ! we need a tropopause altitude
-      var%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
-      if (allocated(io_err)) then
-        err = "tropopause-altitude must be specified if fix-water-in-troposphere = true, or gas-rainout = true"
-        return
-      endif
-      if ((var%trop_alt < var%bottom_atmos) .or. &
-          (var%trop_alt > var%top_atmos)) then
-          err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
-          return
-      endif
-      
-    endif
-    
-    if (dat%water_cond) then        
-      
-      tmp3 => tmp2%get_dictionary('condensation-rate',.true.,error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      var%H2O_condensation_rate(1) = tmp3%get_real('A',error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      var%H2O_condensation_rate(2) = tmp3%get_real('rhc',error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      var%H2O_condensation_rate(3) = tmp3%get_real('rh0',error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      if (var%H2O_condensation_rate(3) <= var%H2O_condensation_rate(2)) then
-        err = 'IOError: Rate constant "rh0" for H2O condensation must be > "rhc". See '//trim(infile)
-        return
-      endif
-    endif
-    
-    ! particle parameters
-    if (dat%there_are_particles) then
-      particles => mapping%get_list('particles',.true.,error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        
-      allocate(particle_checklist(dat%np))
-      allocate(var%condensation_rate(3,dat%np))
-      particle_checklist = .false.
-      
-      item => particles%first
-      do while (associated(item))
-        select type (element => item%node)
-        class is (type_dictionary)
-          temp_char = element%get_string('name',error = io_err)
-          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          ind = findloc(dat%particle_names,trim(temp_char))
-          if (particle_checklist(ind(1))) then
-            err = "IOError: particle "//trim(temp_char)//" in the settings"// &
-                  " file is listed more than once"
-            return
-          endif
-          if (ind(1) == 0) then
-            err = "IOError: particle "//trim(temp_char)//" in the settings"// &
-                  " file isn't in the list of particles in the reaction mechanism file"
-            return
-          else
-            particle_checklist(ind(1)) = .true.
-          endif
-          
-          tmp1 => element%get_dictionary('condensation-rate',.true.,error = io_err)
-          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          
-          var%condensation_rate(1,ind(1)) = tmp1%get_real('A',error = io_err)
-          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          var%condensation_rate(2,ind(1)) = tmp1%get_real('rhc',error = io_err)
-          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          var%condensation_rate(3,ind(1)) = tmp1%get_real('rh0',error = io_err)
-          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-          if (var%condensation_rate(3,ind(1)) <= var%condensation_rate(2,ind(1))) then
-            err = 'IOError: Rate constant "rh0" for '//trim(temp_char) &
-                  //' condensation must be > "rhc". See '//trim(infile)
-            return
-          endif
-          
-        class default
-          err = "IOError: Particle settings must be a list of dictionaries."
-          return
-        end select
-        item => item%next
-      end do
-      
-      do i = 1,dat%np
-        if (dat%particle_formation_method(i) == 1 .and. .not. particle_checklist(i)) then
-          err = 'IOError: Particle '//trim(dat%particle_names(i))// &
-                ' does not have any condensation rate data in the file '//trim(infile)
-          return
-        endif
-      enddo
-        
-    endif
-      
-    ! boundary conditions and species types
-    bcs => mapping%get_list('boundary-conditions',.true.,error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    
-    if (dat%back_gas) then
-      ind = findloc(dat%species_names,trim(dat%back_gas_name))
-      dat%back_gas_ind = ind(1)
-      dat%back_gas_mu = dat%species_mass(ind(1))
-    endif
-    
-    ! allocate boundary conditions
-    allocate(var%lowerboundcond(dat%nq))
-    allocate(var%lower_vdep(dat%nq))
-    allocate(var%lower_flux(dat%nq))
-    allocate(var%lower_dist_height(dat%nq))
-    allocate(var%lower_fix_mr(dat%nq))
-    allocate(var%upperboundcond(dat%nq))
-    allocate(var%upper_veff(dat%nq))
-    allocate(var%upper_flux(dat%nq))
-    allocate(var%only_eddy(dat%nq))
-    ! default boundary conditions
-    var%lowerboundcond = default_lowerboundcond
-    var%lower_vdep = 0.0_dp
-    var%upperboundcond = 0
-    var%upper_veff = 0.0_dp
-    var%only_eddy = .false.
-      
-    ! determine number of short lived species. 
-    allocate(dups(dat%nsp))
-    j = 1
-    item => bcs%first
-    do while (associated(item))
-      select type (element => item%node)
-      class is (type_dictionary)
-        if (j > dat%nsp) then
-          err = "IOError: Too many boundary condition entries in settings file."
-          return
-        endif
-        dups(j) = element%get_string('name',error = io_err)
-        if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        ! check for duplicates
-        if (j > 1) then
-          do i = 1,j-1
-            if (dups(j) == dups(i)) then
-              err = "IOError: Species "//trim(dups(i))// &
-              " has more than one boundary conditions entry in the settings file."
-              return
-            endif
-          enddo
-        endif
-        ! make sure it isn't water
-        if (dat%fix_water_in_trop .and. dups(j) == "H2O") then
-          err = "IOError: H2O can not have a specified boundary condition"// &
-                " if water-saturated-troposphere = true in the settings file."
-          return
-        endif
-        ! check if in rxmech
-        ind = findloc(dat%species_names,dups(j))
-        if (ind(1) == 0) then
-          err = "IOError: Species "//trim(dups(j))// &
-          ' in settings file is not in the reaction mechanism file.'
-          return 
-        endif
-        if ((ind(1) == dat%back_gas_ind) .and. (dat%back_gas)) then ! can't be background gas
-          err = "IOError: Species "//trim(dups(j))// &
-          ' in settings file is the background gas, and can not have boundary conditions.'
-          return
-        endif
-        
-        spec_type = element%get_string('type','long lived',error = io_err)
-        if (spec_type == 'short lived') then
-          ! nothing
-          
-        elseif (spec_type == 'long lived') then
-          i = ind(1)
-          ! get boundary condition
-          call get_boundaryconds(element, dups(j), infile, &
-                                 var%lowerboundcond(i), var%lower_vdep(i), &
-                                 var%lower_flux(i), var%lower_dist_height(i), &
-                                 var%lower_fix_mr(i), &
-                                 var%upperboundcond(i), var%upper_veff(i), &
-                                 var%upper_flux(i), err)
-          if (allocated(err)) return
-          
-          var%only_eddy(i) = element%get_logical("only-eddy",default=.false., error = io_err)
-          if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-        else
-          err = 'IOError: species type '//trim(spec_type)//' is not a valid.' 
-          return
-        endif
-      class default
-        err = "IOError: Boundary conditions must be a list of dictionaries."
-        return
-      end select 
-      item => item%next
-      j = j + 1
-    enddo
-    
-    ! Make sure that upper boundary condition for H and H2 are
-    ! effusion velocities, if diffusion limited escape
-    if (dat%diff_H_escape) then
-      if (dat%back_gas_name /= "H2") then
-        if (var%upperboundcond(dat%LH2) /= 0) then
-          err = "IOError: H2 must have a have a effusion velocity upper boundary"// &
-                " if diff-lim-hydrogen-escape = True"
-          return
-        endif
-      endif
-      if (var%upperboundcond(dat%LH) /= 0) then
-        err = "IOError: H must have a have a effusion velocity upper boundary"// &
-              " if diff-lim-hydrogen-escape = True"
-        return
-      endif
-    endif
-
-    ! check for SL nonlinearities
-    call check_sl(dat, err)
-    if (allocated(err)) return
-
-    
-  end subroutine
   
   subroutine check_sl(dat, err)
     use photochem_types, only: ThreeBodyRate, FalloffRate
@@ -2081,105 +2334,6 @@ contains
     
   end subroutine
   
-  subroutine get_boundaryconds(molecule, molecule_name, infile, &
-                               lowercond, Lvdep, Lflux, LdistH, Lmr, &
-                               uppercond, Uveff, Uflux, err)
-    class(type_dictionary), intent(in) :: molecule
-    character(len=*), intent(in) :: molecule_name
-    character(len=*), intent(in) :: infile
-    
-    integer, intent(out) :: lowercond
-    real(dp), intent(out) :: Lvdep, Lflux, LdistH, Lmr
-    integer, intent(out) :: uppercond
-    real(dp), intent(out) :: Uveff, Uflux
-    character(:), allocatable, intent(out) :: err
-    
-    type (type_error), allocatable :: io_err
-    class(type_dictionary), pointer :: tmpdict
-    character(len=:), allocatable :: bctype
-
-    tmpdict => molecule%get_dictionary("lower-boundary",.true.,error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    
-    bctype = tmpdict%get_string("type",error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    
-    
-    ! deposition velocity = vdep
-    ! mixing-ratio = mixing-ratio
-    ! flux = flux
-    ! deposition velocity + distributed flux = vdep + flux + distributed-height
-    if (bctype == "vdep") then
-      lowercond = 0
-      Lvdep = tmpdict%get_real("vdep",error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      Lflux = 0.0_dp
-      LdistH = 0.0_dp
-      Lmr = 0.0_dp 
-    elseif (bctype == "mix") then
-      lowercond = 1
-      Lvdep = 0.0_dp
-      Lflux = 0.0_dp
-      LdistH = 0.0_dp
-      Lmr = tmpdict%get_real("mix",error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-    elseif (bctype == "flux") then
-      lowercond = 2
-      Lvdep = 0.0_dp
-      Lflux = tmpdict%get_real("flux",error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      LdistH = 0.0_dp
-      Lmr = 0.0_dp 
-    elseif (bctype == "vdep + dist flux") then
-      lowercond = 3
-      Lvdep = tmpdict%get_real("vdep",error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      Lflux = tmpdict%get_real("flux",error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      LdistH = tmpdict%get_real("height",error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      Lmr = 0.0_dp 
-    elseif (bctype == "Moses") then
-      lowercond = -1
-    else
-      err = 'IOError: "'//trim(bctype)//'" is not a valid lower boundary condition for '//trim(molecule_name)
-      return
-    endif
-    
-    tmpdict => molecule%get_dictionary("upper-boundary",.true.,error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    
-    bctype = tmpdict%get_string("type",error = io_err)
-    if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-    
-    
-    ! effusion velocity = veff
-    ! flux = flux
-    if (bctype == "veff") then
-      uppercond = 0
-      Uveff = tmpdict%get_real("veff",error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-      Uflux = 0.0_dp
-    elseif (bctype == "flux") then
-      uppercond = 2
-      Uveff = 0.0_dp
-      Uflux = tmpdict%get_real("flux",error = io_err)
-      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-      
-    else
-      err = 'IOError: "'//trim(bctype)//'" is not a valid upper boundary condition for '//trim(molecule_name)
-      return
-    endif
-    
-  end subroutine
-    
   subroutine get_photorad(dat, var, err)
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(in) :: var
