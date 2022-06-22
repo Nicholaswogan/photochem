@@ -38,10 +38,6 @@ target_include_directories(photochem PUBLIC
 # Add special compiler flags
 if ("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
   target_compile_options(photochem PRIVATE -Wunused -fimplicit-none)
-  
-  if (CMAKE_BUILD_TYPE STREQUAL "Release")
-    target_compile_options(photochem PRIVATE -finline-functions -ftree-vectorize -funroll-loops -march=native)
-  endif()
 endif()
 
 option(BUILD_WITH_OPENMP "Compile with muli-threading" OFF)
