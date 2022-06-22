@@ -29,8 +29,8 @@ jobs:
         python-version: 3.9
 
     - name: install valgrind
-      runs: sudo apt install -y valgrind
-      
+      run: sudo apt install -y valgrind
+
     - name: configure cmake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
