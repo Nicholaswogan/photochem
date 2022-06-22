@@ -34,3 +34,22 @@ add_library(photochem
 target_link_libraries(photochem fortran-yaml-c sundials_fcvode_mod sundials_cvode cminpack_wrapper futils finterp)
 target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules")
+
+# Add special compiler flags
+if ("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
+  target_compile_options(photochem PRIVATE -Wunused -fimplicit-none)
+  
+  if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_compile_options(photochem PRIVATE -finline-functions -ftree-vectorize -funroll-loops -march=native)
+  endif()
+endif()
+
+option(BUILD_WITH_OPENMP "Compile with muli-threading" OFF)
+if (BUILD_WITH_OPENMP)
+  find_package(OpenMP REQUIRED)
+  if (OpenMP_Fortran_FOUND)
+    target_compile_options(photochem PRIVATE ${OpenMP_Fortran_FLAGS})
+    target_link_options(photochem PUBLIC ${OpenMP_Fortran_FLAGS})
+  endif()
+endif()
+message (STATUS "Building with OpenMP multi-threading = ${BUILD_WITH_OPENMP}")

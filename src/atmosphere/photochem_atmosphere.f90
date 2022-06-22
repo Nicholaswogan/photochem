@@ -115,12 +115,12 @@ module photochem_atmosphere
     end subroutine
     
     module function fcn_fH2O(ptr, n, x, fvec, iflag) result(res) bind(c)
-      use, intrinsic :: iso_c_binding, only : c_ptr  
+      use, intrinsic :: iso_c_binding, only : c_ptr, c_int, c_double
       type(c_ptr) :: ptr
-      integer, value :: n, iflag
-      real(dp), intent(in) :: x(n)
-      real(dp), intent(out) :: fvec(n)
-      integer :: res
+      integer(c_int), value :: n, iflag
+      real(c_double), intent(in) :: x(n)
+      real(c_double), intent(out) :: fvec(n)
+      integer(c_int) :: res
     end function  
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

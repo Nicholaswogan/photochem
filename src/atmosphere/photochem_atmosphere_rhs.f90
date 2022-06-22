@@ -267,13 +267,13 @@ contains
   
   module function fcn_fH2O(ptr, n, x, fvec, iflag) result(res) bind(c)
     use photochem_eqns, only: sat_pressure_H2O, molar_weight, press_and_den
-    use, intrinsic :: iso_c_binding, only : c_f_pointer, c_ptr
+    use, intrinsic :: iso_c_binding, only : c_f_pointer, c_ptr, c_double, c_int
   
     type(c_ptr) :: ptr ! void pointer. Be careful!
-    integer, value :: n, iflag ! n == trop_ind
-    real(dp), intent(in) :: x(n) ! x == fH2O
-    real(dp), intent(out) :: fvec(n) ! fvec == residual
-    integer :: res
+    integer(c_int), value :: n, iflag ! n == trop_ind
+    real(c_double), intent(in) :: x(n) ! x == fH2O
+    real(c_double), intent(out) :: fvec(n) ! fvec == residual
+    integer(c_int) :: res
   
     real(dp) :: fH2O(n)
     real(dp), pointer :: usol(:,:)
