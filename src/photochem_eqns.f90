@@ -179,8 +179,8 @@ contains
       eta = unit_conversion*eta0*(T/T0)**(3.0_dp/2.0_dp)*(T0 + S)/(T + S)
   end function
 
-  pure function fall_velocity(gravity, partical_radius, particle_density, air_density, viscosity) result(wfall)
-    real(dp), intent(in) :: gravity ! cm/s^2
+  pure function fall_velocity(grav, partical_radius, particle_density, air_density, viscosity) result(wfall)
+    real(dp), intent(in) :: grav ! cm/s^2
     real(dp), intent(in) :: partical_radius ! cm
     real(dp), intent(in) :: particle_density ! g/cm^3
     real(dp), intent(in) :: air_density ! g/cm^3
@@ -189,7 +189,7 @@ contains
     ! fall velocity from stokes law
     ! derived using Equation 9.29 in Seinfeld (2006) 
     ! title: "Atmospheric Chemistry and Physics"
-    wfall = (2.0_dp/9.0_dp)*gravity*partical_radius**2.0_dp* &
+    wfall = (2.0_dp/9.0_dp)*grav*partical_radius**2.0_dp* &
             (particle_density - air_density)/(viscosity)
   end function
   

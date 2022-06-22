@@ -1,6 +1,6 @@
 import numpy as np
 import os
-from ._format import FormatReactions_main, MyDumper, Loader, yaml
+from ._format import FormatReactions_main, FormatSettings_main, MyDumper, Loader, yaml
 from ._convert_utils import compare2reactions, generate_photo_yaml_entries, sort_photos
     
 root_dir = os.path.dirname(os.path.realpath(__file__))
@@ -31,6 +31,86 @@ def atmos2yaml(rx_file, species_file, outfile, photo_database = "Photochem"):
     fil = open(outfile,'w')
     yaml.dump(out,fil,Dumper=MyDumper,sort_keys=False,width=70)
     fil.close()
+
+def atmosbc2yaml(species_file, outfile, short_lived = False):
+    """Converts Atmos boundary conditions into .yaml format compatible with Photochem.
+
+    Parameters
+    ----------
+    species_file : str
+        Path to Atmos species file which contains boundary conditions (e.g. species.dat)
+    outfile : _type_
+        Name of output .yaml file which will contain boundary conditions
+    """
+    out = atmosbc2yaml_main(species_file, short_lived = short_lived)
+    with open(outfile,'w') as f:
+        f.write(out)
+
+def atmosbc2yaml_main(species_file, short_lived = False):
+
+    with open(species_file) as f:
+        lines = f.readlines()
+
+    bc_list = []
+    for i,line in enumerate(lines):
+        if not line.startswith("*"):
+            tmp = line.split()
+            spname = tmp[0]
+
+            if tmp[1] == "LL":
+                lbound = int(tmp[8])
+                vdep = float(tmp[9])
+                mix = float(tmp[10])
+                sgflux = float(tmp[11])
+                disth = float(tmp[12])
+                mbound = int(tmp[13])
+                smflux = float(tmp[14])
+                veff = float(tmp[15])
+
+                if lbound == 0 and vdep == 0.0 \
+                    and mbound == 0 and veff == 0.0:
+                    # skip the boundary condition
+                    # because it is default.
+                    continue
+                
+                if lbound == 0:
+                    # vdep
+                    lb = {"type": "vdep", "vdep": vdep}
+                elif lbound == 1:
+                    lb = {"type": "mix", "mix": mix}
+                elif lbound == 2:
+                    lb = {"type": "flux", "flux": sgflux}
+                elif lbound == 3:
+                    lb = {"type": "vdep + dist flux", "vdep": vdep, "flux": sgflux, "height": disth}
+                else:
+                    raise Exception('"'+species_file+'" contains an invalid lower boundary condition')
+
+                if mbound == 0:
+                    ub = {"type": "veff", "veff": veff}
+                elif mbound == 1:
+                    raise Exception('"'+species_file+\
+                        '" contains a fixed mixing ratio upper boundary '+\
+                        'condition which is not compatible with Photochem')
+                elif mbound == 2:
+                    ub = {"type": "flux", "flux": smflux}
+                
+                entry = {}
+                entry['name'] = spname
+                entry['lower-boundary'] = lb
+                entry['upper-boundary'] = ub
+                bc_list.append(entry)
+
+            elif tmp[1] == "SL" and short_lived:
+
+                entry = {}
+                entry['name'] = spname
+                entry['type'] = 'short lived'
+                bc_list.append(entry)
+
+    out = {}
+    out['boundary-conditions'] = bc_list
+    out = FormatSettings_main(out)
+    return yaml.dump(out, Dumper=MyDumper ,sort_keys=False, width=70)
   
 def rx2dict(filename, with_citations = False):
 
