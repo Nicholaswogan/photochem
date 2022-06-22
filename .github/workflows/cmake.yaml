@@ -17,16 +17,16 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - uses: awvwgk/setup-fortran@main
+      id: setup-fortran
+      with:
+        compiler: gcc
+        version: 11
+
     - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
         python-version: 3.10
-
-    - uses: awvwgk/setup-fortran@main
-        id: setup-fortran
-        with:
-          compiler: gcc
-          version: 11
 
     - name: configure cmake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
