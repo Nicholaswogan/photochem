@@ -258,8 +258,8 @@ contains
     
   end subroutine
   
-  pure subroutine diffusion_coefficients(dat, var, den, mubar, &
-                                         DU, DD, DL, ADU, ADL, wfall, VH2_esc, VH_esc)
+  subroutine diffusion_coefficients(dat, var, den, mubar, &
+                                         DU, DD, DL, ADU, ADL, ADD, wfall, VH2_esc, VH_esc)
     use photochem_eqns, only: dynamic_viscosity_air, fall_velocity, slip_correction_factor, &
                               binary_diffusion_param
     use photochem_const, only: k_boltz, N_avo
@@ -271,7 +271,7 @@ contains
     real(dp), intent(in) :: mubar(:)
     
     real(dp), intent(out) :: DU(:,:), DL(:,:), DD(:,:) ! (nq,nz)
-    real(dp), intent(out) :: ADU(:,:), ADL(:,:) ! (nq,nz)
+    real(dp), intent(out) :: ADU(:,:), ADL(:,:), ADD(:,:) ! (nq,nz)
     real(dp), intent(out) :: wfall(:,:) ! (npq,nz)
     real(dp), intent(out) :: VH2_esc, VH_esc
     
@@ -308,7 +308,9 @@ contains
     denav_m = sqrt(den(var%nz)*den(var%nz-1))
     do j = 1,dat%nq
       DU(j,1) = (eddav_p*denav_p)/(den(1)*var%dz(1)**2.0_dp)
+      DD(j,1) = - DU(j,1)
       DL(j,var%nz) = (eddav_m*denav_m)/(den(var%nz)*var%dz(var%nz)**2.0_dp)
+      DD(j,var%nz) = - DL(j,var%nz)
     enddo
     
     ! Molecular diffusion. Only gas species
@@ -337,6 +339,7 @@ contains
                           
         ADU(j,i) = zeta_p/(2.0_dp*var%dz(i)*den(i)) 
         ADL(j,i) = - zeta_m/(2.0_dp*var%dz(i)*den(i))
+        ADD(j,i) = ADU(j,i) + ADL(j,i)
       enddo
     enddo
     ! top and bottom
@@ -351,10 +354,13 @@ contains
     do j = dat%ng_1, dat%nq
       bx1x2_p = binary_diffusion_param(dat%species_mass(j), mubar_p, tav_p)
       DU(j,i) = DU(j,i) + bx1x2_p/(var%dz(i)**2.0_dp*den(i))
+      DD(j,i) = - DU(j,i)
+
       zeta_p =  bx1x2_p*((dat%species_mass(j)*grav_p)/(k_boltz*tav_p*N_avo) &
                          - (mubar_p*grav_p)/(k_boltz*tav_p*N_avo) &
                          + 0.0_dp) ! zeroed out thermal diffusion   
       ADU(j,i) = zeta_p/(2.0_dp*var%dz(i)*den(i)) 
+      ADD(j,i) = ADU(j,i)
     enddo
     ! upper boundary
     i = var%nz
@@ -362,12 +368,14 @@ contains
       bx1x2_m = binary_diffusion_param(dat%species_mass(j), mubar_m, tav_m)
       
       DL(j,i) = DL(j,i) + bx1x2_m/(var%dz(i)**2.0_dp*den(i))
+      DD(j,i) = - DL(j,i)
       
       zeta_m =  bx1x2_m*((dat%species_mass(j)*grav_m)/(k_boltz*tav_m*N_avo) &
                         - (mubar_m*grav_m)/(k_boltz*tav_m*N_avo) &
                         + 0.0_dp) ! zeroed out thermal diffusion
                         
       ADL(j,i) = - zeta_m/(2.0_dp*var%dz(i)*den(i))
+      ADD(j,i) = ADL(j,i)
     enddo
     
     ! Falling particles. Only particles
@@ -401,6 +409,7 @@ contains
       
         ADU(j,i) = wfall_p*denav_p/(2.0_dp*var%dz(i)*den(i))
         ADL(j,i) = - wfall_m*denav_m/(2.0_dp*var%dz(i)*den(i))
+        ADD(j,i) = ADU(j,i) + ADL(j,i)
       enddo
     enddo
     ! top and bottom
@@ -425,6 +434,7 @@ contains
                  *slip_correction_factor(radius_p, denav_p)
     
       ADU(j,i) = wfall_p*denav_p/(2.0_dp*var%dz(i)*den(i))
+      ADD(j,i) = ADU(j,i)
     enddo
     ! Upper boundary
     i = var%nz
@@ -439,6 +449,7 @@ contains
                  *slip_correction_factor(radius_m, denav_m)
     
       ADL(j,i) = - wfall_m*denav_m/(2.0_dp*var%dz(i)*den(i))
+      ADD(j,i) = ADL(j,i)
     enddo
     
     ! option to turn off everything but eddy diffusion

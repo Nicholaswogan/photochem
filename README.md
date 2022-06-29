@@ -20,11 +20,11 @@ Clone or download this Gitub repository:
 git clone --depth=1 https://github.com/Nicholaswogan/photochem.git
 ```
 
-Navigate to the root directory with a terminal, activate your new `conda` environment, then install with setup.py:
+Navigate to the root directory with a terminal, activate your new `conda` environment, then install with pip:
 
 ```sh
 conda activate photochem
-python setup.py install
+python -m pip install --no-deps --no-build-isolation .
 ```
 
 **Fortran library only:** 

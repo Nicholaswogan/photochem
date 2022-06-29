@@ -192,23 +192,36 @@ contains
     wfall = (2.0_dp/9.0_dp)*grav*partical_radius**2.0_dp* &
             (particle_density - air_density)/(viscosity)
   end function
+
+  pure function mean_free_path(den, T, mubar) result(lambda)
+    use photochem_const, only: pi, k_boltz, N_avo
+    real(dp), intent(in) :: den ! molecules/cm3
+    real(dp), intent(in) :: T ! Kelvin
+    real(dp), intent(in) :: mubar ! g/mol
+    real(dp) :: lambda ! cm
+    
+    real(dp) :: eta ! dynamic viscosity [dynes s/cm^2]
+
+    eta = dynamic_viscosity_air(T)
+    lambda = (2.0_dp*eta/den)*sqrt(N_avo*pi/(8.0_dp*k_boltz*T*mubar))
+  end function
   
   pure function slip_correction_factor(partical_radius, density) result(correct_fac)
     real(dp), intent(in) :: partical_radius ! cm
     real(dp), intent(in) :: density ! molecules/cm3
     real(dp), parameter :: area_of_molecule = 6.0e-15_dp ! cm2
     real(dp) :: correct_fac
-    real(dp) :: mean_free_path
+    real(dp) :: lambda
     
     ! The density dependence really is nuts. I'm going to
     ! dampen out dependence with a power.
     ! mean_free_path = 1.0_dp/(density*area_of_molecule)
-    mean_free_path = 1.0_dp/(density**(1.5e0_dp)*area_of_molecule)
+    lambda = 1.0_dp/(density**(1.5e0_dp)*area_of_molecule)
     ! slip correction factor
     ! Equation 9.34 in Seinfeld (2006) 
     ! title: "Atmospheric Chemistry and Physics"
-    correct_fac =  1.0_dp + (mean_free_path/partical_radius)* &
-                          (1.257e0_dp + 0.4e0_dp*exp((-1.1e0_dp*partical_radius)/(mean_free_path)))
+    correct_fac = 1.0_dp + (lambda/partical_radius)* &
+                          (1.257e0_dp + 0.4e0_dp*exp((-1.1e0_dp*partical_radius)/(lambda)))
   end function
   
   pure function binary_diffusion_param(mu_i, mubar, T) result(b)

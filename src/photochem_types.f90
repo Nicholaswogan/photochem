@@ -428,6 +428,7 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: DL(:,:) ! (nq,nz)
     real(dp), allocatable :: ADU(:,:) ! (nq,nz)
     real(dp), allocatable :: ADL(:,:) ! (nq,nz)
+    real(dp), allocatable :: ADD(:,:) ! (nq,nz)
     real(dp) :: VH2_esc
     real(dp) :: VH_esc
     ! other
@@ -470,6 +471,7 @@ contains
       deallocate(self%DL)
       deallocate(self%ADU)
       deallocate(self%ADL)
+      deallocate(self%ADD)
       deallocate(self%upper_veff_copy)
       deallocate(self%lower_vdep_copy)
       deallocate(self%sum_usol)
@@ -498,6 +500,7 @@ contains
     allocate(self%DL(nq,nz))
     allocate(self%ADU(nq,nz))
     allocate(self%ADL(nq,nz))
+    allocate(self%ADD(nq,nz))
     allocate(self%upper_veff_copy(nq))
     allocate(self%lower_vdep_copy(nq))
     allocate(self%sum_usol(nz))
