@@ -216,7 +216,7 @@ contains
     ! The density dependence really is nuts. I'm going to
     ! dampen out dependence with a power.
     ! mean_free_path = 1.0_dp/(density*area_of_molecule)
-    lambda = 1.0_dp/(density**(1.5e0_dp)*area_of_molecule)
+    lambda = 1.0_dp/(density**(1.0e0_dp)*area_of_molecule)
     ! slip correction factor
     ! Equation 9.34 in Seinfeld (2006) 
     ! title: "Atmospheric Chemistry and Physics"

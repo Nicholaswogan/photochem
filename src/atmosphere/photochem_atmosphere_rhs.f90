@@ -396,10 +396,11 @@ contains
   
     if (dat%there_are_particles) then
       do i = 1,dat%np
+        ! Here we impose a lower boundary condition for particles. They fall out
+        ! of the model according to the fall velocity.
         wrk%lower_vdep_copy(i) = wrk%lower_vdep_copy(i) + wrk%wfall(i,1)
-        ! wrk%upper_veff_copy(i) = wrk%upper_veff_copy(i) + wrk%wfall(i,var%nz)
       enddo
-  
+      
       ! compute The saturation density
       do j = 1,var%nz
         do i = 1,dat%np

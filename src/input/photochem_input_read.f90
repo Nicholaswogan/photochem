@@ -989,6 +989,12 @@ contains
       sbc%mix = -huge(1.0_dp)
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
+
+      if (sbc%vel < 0.0_dp) then
+        err = 'Velocity '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
+              ' must be positive.'
+        return
+      endif
     elseif (bctype == "mix") then
       if (bc_kind == "upper") then
         err = 'Upper boundary conditions can not be "mix" for '//trim(sp_name)
@@ -1002,6 +1008,12 @@ contains
       sbc%vel = -huge(1.0_dp)
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
+
+      if (sbc%mix < 0.0_dp .or. sbc%mix > 1.0_dp) then
+        err = 'Fixed '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
+              ' must be between 0 and 1.'
+        return
+      endif
     elseif (bctype == "flux") then
       sbc%bc_type = FluxBC
       sbc%flux = bc%get_real("flux",error = io_err)
@@ -1027,7 +1039,22 @@ contains
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
       
       sbc%mix = -huge(1.0_dp)
-      
+
+      if (sbc%vel < 0.0_dp) then
+        err = 'Velocity '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
+              ' must be positive.'
+        return
+      endif
+      if (sbc%flux < 0.0_dp) then
+        err = 'Distributed flux in '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
+              ' must be positive.'
+        return
+      endif
+      if (sbc%height < 0.0_dp) then
+        err = 'Distributed height in '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
+              ' must be positive.'
+        return
+      endif
     elseif (bctype == "Moses") then
       sbc%bc_type = MosesBC
       
@@ -1287,6 +1314,18 @@ contains
               " if diff-lim-hydrogen-escape = True"
         return
       endif
+    endif
+
+    ! Make sure all lower boundary conditions for particles are deposition
+    ! velocities, so that particles actually fall out of the model.
+    if (dat%there_are_particles) then
+      do i = 1,dat%npq
+        if (var%lowerboundcond(i) /= VelocityBC) then
+          err = 'Particle "'//trim(dat%species_names(i))//'" must have deposition velocity '// &
+                'lower boundary condition.'
+          return
+        endif
+      enddo
     endif
 
     ! check for SL nonlinearities

@@ -132,7 +132,7 @@ contains
     ! chemical production + diffusion production = total change in lower cell    
     do i = 1,dat%nq
       diffusive_production = (wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
-                              - wrk%DU(i,1)*wrk%usol(i,1) + wrk%ADU(i,1)*wrk%usol(i,1)) &
+                            + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1)) &
                               *wrk%density(1)*var%dz(1)
       chemical_production = rhs(i)*wrk%density(1)*var%dz(1)
       surf_fluxes(i) = -(diffusive_production + chemical_production)
@@ -147,8 +147,8 @@ contains
     ! fluxes going into or out of the top of the atmosphere.
     do i = 1,dat%nq
       diffusive_production = &
-         (- wrk%DL(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz) &
-          + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1)) &
+         (wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
+        + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1)) &
           *wrk%density(var%nz)*var%dz(var%nz)
     
       chemical_production = rhs(i + (var%nz-1)*dat%nq)*wrk%density(var%nz)*var%dz(var%nz)

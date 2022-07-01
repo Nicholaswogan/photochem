@@ -78,21 +78,6 @@ boundary-conditions:
 - name: HCl
   lower-boundary: {type: vdep + dist flux, vdep: 0.02, flux: 1.0e8, height: 20.0}
   upper-boundary: {type: veff, veff: 0.0}
-- name: H2SO4aer
-  lower-boundary: {type: vdep, vdep: 0.01}
-  upper-boundary: {type: veff, veff: 0.0}
-- name: S8aer
-  lower-boundary: {type: vdep, vdep: 0.01}
-  upper-boundary: {type: veff, veff: 0.0}
-- name: HCaer1
-  lower-boundary: {type: vdep, vdep: 0.01}
-  upper-boundary: {type: veff, veff: 0.0}
-- name: HCaer2
-  lower-boundary: {type: vdep, vdep: 0.01}
-  upper-boundary: {type: veff, veff: 0.0}
-- name: HCaer3
-  lower-boundary: {type: vdep, vdep: 0.01}
-  upper-boundary: {type: veff, veff: 0.0}
 - name: O1D
   type: short lived
 - name: N2D

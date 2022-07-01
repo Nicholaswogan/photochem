@@ -55,15 +55,6 @@ boundary-conditions:
 - name: CH4
   lower-boundary: {type: mix, mix: 1.5e-2}
   upper-boundary: {type: veff, veff: 0.0}
-- name: HCaer1
-  lower-boundary: {type: vdep, vdep: 1.0e-2}
-  upper-boundary: {type: veff, veff: 0.0}
-- name: HCaer2
-  lower-boundary: {type: vdep, vdep: 1.0e-2}
-  upper-boundary: {type: veff, veff: 0.0}
-- name: HCaer3
-  lower-boundary: {type: vdep, vdep: 1.0e-2}
-  upper-boundary: {type: veff, veff: 0.0}
 - name: O1D
   type: short lived
 - name: N2D

@@ -274,18 +274,18 @@ contains
     real(dp), intent(out) :: ADU(:,:), ADL(:,:), ADD(:,:) ! (nq,nz)
     real(dp), intent(out) :: wfall(:,:) ! (npq,nz)
     real(dp), intent(out) :: VH2_esc, VH_esc
-    
+
     real(dp) :: eddav_p, eddav_m, denav_p, denav_m, tav_p, tav_m
     real(dp) :: bx1x2_p, bx1x2_m, zeta_p, zeta_m
     real(dp) :: grav_p, grav_m, mubar_p, mubar_m
     real(dp) :: bx1x2
     
     ! for particles
-    real(dp) :: air_density_p, air_density_m
-    real(dp) :: wfall_p, wfall_m
-    real(dp) :: viscosity_p, viscosity_m
-    real(dp) :: radius_p, radius_m
-    
+    real(dp) :: air_density_pp, air_density
+    real(dp) :: wfall_pp, wfall_i
+    real(dp) :: viscosity_pp, viscosity
+    real(dp) :: FF2, FF1
+
     integer :: i, j
     
     ! eddy diffusion. particles and gases
@@ -381,75 +381,55 @@ contains
     ! Falling particles. Only particles
     ! middle
     do i = 2,var%nz-1
-      denav_p = sqrt(den(i)*den(i+1))
-      denav_m = sqrt(den(i)*den(i-1))
-      tav_p = sqrt(var%temperature(i)*var%temperature(i+1))
-      tav_m = sqrt(var%temperature(i)*var%temperature(i-1))
-      grav_p = sqrt(var%grav(i)*var%grav(i+1))
-      grav_m = sqrt(var%grav(i)*var%grav(i-1))
-      mubar_p = sqrt(mubar(i)*mubar(i+1))
-      mubar_m = sqrt(mubar(i)*mubar(i-1))
       do j = 1,dat%npq
         
-        radius_p = sqrt(var%particle_radius(j,i)*var%particle_radius(j,i+1))
-        radius_m = sqrt(var%particle_radius(j,i)*var%particle_radius(j,i-1))
-        
-        air_density_p = (denav_p/N_avo)*mubar_p
-        viscosity_p = dynamic_viscosity_air(tav_p)
-        
-        wfall_p = fall_velocity(grav_p, radius_p, &
-                                dat%particle_density(j), air_density_p, viscosity_p) &
-                   *slip_correction_factor(radius_p, denav_p)
+        air_density = (den(i)/N_avo)*mubar(i)
+        viscosity = dynamic_viscosity_air(var%temperature(i))
+        wfall_i = fall_velocity(var%grav(i), var%particle_radius(j,i), &
+                              dat%particle_density(j), air_density, viscosity) &
+                   *slip_correction_factor(var%particle_radius(j,i), den(i))
 
-        air_density_m = (denav_m/N_avo)*mubar_m
-        viscosity_m = dynamic_viscosity_air(tav_m)
-        wfall_m = fall_velocity(grav_m, radius_m, &
-                                 dat%particle_density(j), air_density_m, viscosity_m) &
-                   *slip_correction_factor(radius_m, denav_m)
+        air_density_pp = (den(i+1)/N_avo)*mubar(i+1)
+        viscosity_pp = dynamic_viscosity_air(var%temperature(i+1))
+        wfall_pp = fall_velocity(var%grav(i+1), var%particle_radius(j,i+1), &
+                                 dat%particle_density(j), air_density_pp, viscosity_pp) &
+                   *slip_correction_factor(var%particle_radius(j,i+1), den(i+1))
+
+        FF2 = (wfall_pp*den(i+1))/(var%dz(i)*den(i))
+
+        FF1 = (-wfall_i)/(var%dz(i))
       
-        ADU(j,i) = wfall_p*denav_p/(2.0_dp*var%dz(i)*den(i))
-        ADL(j,i) = - wfall_m*denav_m/(2.0_dp*var%dz(i)*den(i))
-        ADD(j,i) = ADU(j,i) + ADL(j,i)
+        ADU(j,i) = FF2
+        ADD(j,i) = FF1
+        ADL(j,i) = 0.0_dp
       enddo
     enddo
-    ! top and bottom
-    denav_p = sqrt(den(1)*den(2))
-    denav_m = sqrt(den(var%nz)*den(var%nz-1))
-    tav_p = sqrt(var%temperature(1)*var%temperature(2))
-    tav_m = sqrt(var%temperature(var%nz)*var%temperature(var%nz-1))
-    grav_p = sqrt(var%grav(1)*var%grav(2))
-    grav_m = sqrt(var%grav(var%nz)*var%grav(var%nz-1))
-    mubar_p = sqrt(mubar(1)*mubar(2))
-    mubar_m = sqrt(mubar(var%nz)*mubar(var%nz-1))
-    ! lower boundary
+    ! Lower boundary
     i = 1
     do j = 1,dat%npq
-      radius_p = sqrt(var%particle_radius(j,i)*var%particle_radius(j,i+1))
-      
-      air_density_p = (denav_p/N_avo)*mubar_p
-      viscosity_p = dynamic_viscosity_air(tav_p)
-      
-      wfall_p = fall_velocity(grav_p, radius_p, &
-                              dat%particle_density(j), air_density_p, viscosity_p) &
-                 *slip_correction_factor(radius_p, denav_p)
-    
-      ADU(j,i) = wfall_p*denav_p/(2.0_dp*var%dz(i)*den(i))
-      ADD(j,i) = ADU(j,i)
+      air_density_pp = (den(i+1)/N_avo)*mubar(i+1)
+      viscosity_pp = dynamic_viscosity_air(var%temperature(i+1))
+      wfall_pp = fall_velocity(var%grav(i+1), var%particle_radius(j,i+1), &
+                                dat%particle_density(j), air_density_pp, viscosity_pp) &
+                  *slip_correction_factor(var%particle_radius(j,i+1), den(i+1))
+
+      FF2 = (wfall_pp*den(i+1))/(var%dz(i)*den(i))
+
+      ADU(j,i) = FF2
+      ADD(j,i) = 0.0_dp
     enddo
     ! Upper boundary
     i = var%nz
     do j = 1,dat%npq
-      
-      radius_m = sqrt(var%particle_radius(j,i)*var%particle_radius(j,i-1))
+      air_density = (den(i)/N_avo)*mubar(i)
+      viscosity = dynamic_viscosity_air(var%temperature(i))
+      wfall_i = fall_velocity(var%grav(i), var%particle_radius(j,i), &
+                              dat%particle_density(j), air_density, viscosity) &
+                  *slip_correction_factor(var%particle_radius(j,i), den(i))
+      FF1 = (-wfall_i)/(var%dz(i))
 
-      air_density_m = (denav_m/N_avo)*mubar_m
-      viscosity_m = dynamic_viscosity_air(tav_m)
-      wfall_m = fall_velocity(grav_m, radius_m, &
-                               dat%particle_density(j), air_density_m, viscosity_m) &
-                 *slip_correction_factor(radius_m, denav_m)
-    
-      ADL(j,i) = - wfall_m*denav_m/(2.0_dp*var%dz(i)*den(i))
-      ADD(j,i) = ADL(j,i)
+      ADD(j,i) = FF1
+      ADL(j,i) = 0.0_dp
     enddo
     
     ! option to turn off everything but eddy diffusion
@@ -457,6 +437,7 @@ contains
       if (var%only_eddy(i)) then
         ADL(i,:) = 0.0_dp
         ADU(i,:) = 0.0_dp
+        ADD(i,:) = 0.0_dp
       endif
     enddo
     
@@ -475,10 +456,10 @@ contains
     ! wfall in center of grid cells. For boundary fluxes
     do i = 1,var%nz
       do j = 1,dat%npq
-        air_density_m = (den(i)/N_avo)*mubar(i)
-        viscosity_m = dynamic_viscosity_air(var%temperature(i))
+        air_density = (den(i)/N_avo)*mubar(i)
+        viscosity = dynamic_viscosity_air(var%temperature(i))
         wfall(j,i) = fall_velocity(var%grav(i), var%particle_radius(j,i), &
-                                   dat%particle_density(j), air_density_m, viscosity_m) &
+                                   dat%particle_density(j), air_density, viscosity) &
                      *slip_correction_factor(var%particle_radius(j,i), den(i))
       enddo
     enddo
