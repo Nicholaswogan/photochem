@@ -21,7 +21,7 @@ planet:
   diurnal-averaging-factor: 0.5
   solar-zenith-angle: 50.0
   diff-lim-hydrogen-escape: false
-  default-lower-boundary: Moses
+  default-gas-lower-boundary: Moses
   water:
     fix-water-in-troposphere: false
     gas-rainout: false

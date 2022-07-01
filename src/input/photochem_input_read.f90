@@ -771,7 +771,7 @@ contains
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     
     ! default lower boundary
-    temp_char = trim(dict%get_string('default-lower-boundary',"deposition velocity",error = io_err))
+    temp_char = trim(dict%get_string('default-gas-lower-boundary',"deposition velocity",error = io_err))
     if (trim(temp_char) == 'deposition velocity') then
       s%default_lowerboundcond = VelocityBC
     elseif (trim(temp_char) == 'Moses') then
@@ -1130,7 +1130,7 @@ contains
       return
     endif
     
-    ! default-lower-boundary already applied to PhotoSettings
+    ! default-gas-lower-boundary already applied to PhotoSettings
     
     ! water
     dat%fix_water_in_trop = s%fix_water_in_trop
@@ -1255,7 +1255,8 @@ contains
     allocate(var%upper_flux(dat%nq))
     allocate(var%only_eddy(dat%nq))
     ! default boundary conditions
-    var%lowerboundcond = s%default_lowerboundcond ! can be -1 (Moses) or 0 (velocity)
+    var%lowerboundcond(:dat%np) = VelocityBC ! default particle BC is alway velocity
+    var%lowerboundcond(dat%ng_1:) = s%default_lowerboundcond ! can be -1 (Moses) or 0 (velocity)
     var%lower_vdep = 0.0_dp
     var%upperboundcond = VelocityBC
     var%upper_veff = 0.0_dp
