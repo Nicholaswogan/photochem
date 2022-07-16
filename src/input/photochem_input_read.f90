@@ -3,13 +3,14 @@ submodule (photochem_input) photochem_input_read
   
 contains
   
-  module subroutine read_all_files(mechanism_file, settings_file, flux_file, atmosphere_txt, &
+  module subroutine read_all_files(mechanism_file, settings_file, flux_file, atmosphere_txt, back_gas, &
                                    dat, var, err)
     use photochem_types, only: PhotoSettings
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
     character(len=*), intent(in) :: flux_file
     character(len=*), intent(in) :: atmosphere_txt
+    logical, intent(in) :: back_gas
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
@@ -20,13 +21,18 @@ contains
     if (allocated(err)) return
     
     ! stuff dat needs before entering get_photomech
-    dat%back_gas = s%back_gas
+    dat%back_gas = back_gas
     if (dat%back_gas) then
-      dat%back_gas_name = s%back_gas_name
+      if (allocated(s%back_gas_name)) then
+        dat%back_gas_name = s%back_gas_name
+      else
+        err = 'A background gas is required but not specified in '//trim(settings_file)
+        return
+      endif
     endif
     dat%nsl = s%nsl
     dat%SL_names = s%SL_names
-    
+
     call get_photomech(mechanism_file, dat, var, err)
     if (allocated(err)) return
     
@@ -102,7 +108,7 @@ contains
     ! temporary work variables
     character(len=str_len) :: tmpchar
     character(len=str_len) :: tmp
-    character(len=:), allocatable :: rxstring
+    character(len=:), allocatable :: rxstring, back_gas_name_tmp
     integer :: i, ii, j, k, kk, l, ind(1)
     logical :: reverse
     ! all_species causes a small memory leak. Not sure how to free the memory properly
@@ -287,8 +293,10 @@ contains
     
     if (dat%back_gas) then
       dat%nll = dat%ng - dat%nsl - 1 ! minus 1 for background
+      back_gas_name_tmp = dat%back_gas_name
     else
       dat%nll = dat%ng - dat%nsl
+      back_gas_name_tmp = "Not a => gas!"
     endif
     
     dat%ng_1 = dat%npq + 1 ! the long lived gas index
@@ -343,7 +351,7 @@ contains
           if (ind(1) /= 0) then ! short lived species
             j = dat%nq + l 
             l = l + 1
-          elseif (tmpchar == dat%back_gas_name) then ! background gas
+          elseif (tmpchar == back_gas_name_tmp) then ! background gas
             j = dat%nsp
           else ! long lived species
             j = kk
@@ -664,6 +672,7 @@ contains
     type(type_dictionary), pointer :: dict, tmp2, tmp3
     type(type_list), pointer :: list, bcs
     type(type_list_item), pointer :: item
+    type(type_scalar), pointer :: scalar
     type(type_error), allocatable :: io_err
     character(:), allocatable :: temp_char
     integer :: i, j
@@ -717,16 +726,9 @@ contains
     dict => root%get_dictionary('planet',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     
-    s%back_gas = dict%get_logical('use-background-gas',error = io_err)
-    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-      
-    if (s%back_gas) then
-      s%back_gas_name = trim(dict%get_string('background-gas',error = io_err))
-      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    else
-      err = "Currently, the model requires there to be a background gas."// &
-            " You must set 'use-background-gas: true'"
-      return
+    scalar => dict%get_scalar('background-gas',required=.false.,error = io_err)
+    if (associated(scalar)) then
+      s%back_gas_name = trim(scalar%string)
     endif
 
     s%P_surf = dict%get_real('surface-pressure',error = io_err)
@@ -1125,7 +1127,9 @@ contains
     ! dat%back_gas
     ! dat%back_gas_name
     ! already set earlier
-    var%surface_pressure = s%P_surf
+    if (dat%back_gas) then
+      var%surface_pressure = s%P_surf
+    endif
     dat%planet_mass = s%planet_mass
     dat%planet_radius = s%planet_radius
     var%surface_albedo = s%surface_albedo
@@ -1255,9 +1259,9 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
     
     if (dat%back_gas) then
-     ind = findloc(dat%species_names,trim(dat%back_gas_name))
-     dat%back_gas_ind = ind(1)
-     dat%back_gas_mu = dat%species_mass(ind(1))
+      ind = findloc(dat%species_names,trim(dat%back_gas_name))
+      dat%back_gas_ind = ind(1)
+      dat%back_gas_mu = dat%species_mass(ind(1))
     endif
     
     allocate(var%lowerboundcond(dat%nq))
@@ -1291,10 +1295,12 @@ contains
         ' in settings file is not in the reaction mechanism file.'
         return 
       endif
-      if ((ind(1) == dat%back_gas_ind) .and. (dat%back_gas)) then ! can't be background gas
-        err = "IOError: Species "//trim(s%sp_names(j))// &
-        ' in settings file is the background gas, and can not have boundary conditions.'
-        return
+      if (dat%back_gas) then
+        if (ind(1) == dat%back_gas_ind) then ! can't be background gas
+          err = "IOError: Species "//trim(s%sp_names(j))// &
+          ' in settings file is the background gas, and can not have boundary conditions.'
+          return
+        endif
       endif
       
       if (s%sp_types(j) == 'long lived') then
@@ -1318,7 +1324,15 @@ contains
     ! Make sure that upper boundary condition for H and H2 are
     ! effusion velocities, if diffusion limited escape
     if (dat%diff_H_escape) then
-      if (dat%back_gas_name /= "H2") then
+      if (dat%back_gas) then
+        if (dat%back_gas_name /= "H2") then
+          if (var%upperboundcond(dat%LH2) /= VelocityBC) then
+            err = "IOError: H2 must have a have a effusion velocity upper boundary"// &
+                  " if diff-lim-hydrogen-escape = True"
+            return
+          endif
+        endif
+      else
         if (var%upperboundcond(dat%LH2) /= VelocityBC) then
           err = "IOError: H2 must have a have a effusion velocity upper boundary"// &
                 " if diff-lim-hydrogen-escape = True"
@@ -2959,6 +2973,7 @@ contains
     allocate(dat%z_file(dat%nzf))
     allocate(dat%T_file(dat%nzf))
     allocate(dat%edd_file(dat%nzf))
+    allocate(dat%den_file(dat%nzf))
     allocate(dat%usol_file(dat%nq, dat%nzf))
     dat%z_file = 0.0_dp
     dat%T_file = 0.0_dp
@@ -3078,6 +3093,15 @@ contains
       dat%edd_file(:) = temp(ind(1),:)
     else
       err = '"eddy" was not found in input file '//trim(atmosphere_txt)
+      return
+    endif
+
+    ! reads in density.
+    ind = findloc(labels,'den')
+    if (ind(1) /= 0) then
+      dat%den_file(:) = temp(ind(1),:)
+    else
+      err = '"den" was not found in input file '//trim(atmosphere_txt)
       return
     endif
 

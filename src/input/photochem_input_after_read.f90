@@ -64,6 +64,14 @@ contains
       if (allocated(err)) return
     enddo
     var%usol_init = 10.0_dp**var%usol_init
+
+    ! density
+    call interp(var%nz, dat%nzf, var%z, dat%z_file, dat%den_file, var%den_init, err)
+    if (allocated(err)) return
+
+    do i = 1,dat%nq
+      var%dsol_init(i,:) = var%usol_init(i,:)*var%den_init(:)
+    enddo
     
     if (dat%there_are_particles) then
       do i = 1,dat%npq
@@ -83,7 +91,7 @@ contains
     endif
 
   end subroutine
-  
+
   module subroutine compute_gibbs_energy(dat, var, err)
     use photochem_eqns, only: gibbs_energy_eval
     
@@ -217,6 +225,8 @@ contains
     allocate(vars%edd(vars%nz))
     allocate(vars%grav(vars%nz))
     allocate(vars%usol_init(dat%nq,vars%nz))
+    allocate(vars%den_init(vars%nz))
+    allocate(vars%dsol_init(dat%nq,vars%nz))
     allocate(vars%particle_radius(dat%npq,vars%nz))
     allocate(vars%xs_x_qy(vars%nz,dat%kj,dat%nw))
     allocate(vars%usol_out(dat%nq,vars%nz))

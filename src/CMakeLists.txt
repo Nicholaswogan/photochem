@@ -21,10 +21,16 @@ set(PHOTOCHEM_ATMOSPHERE
     atmosphere/photochem_atmosphere_integrate.f90
     atmosphere/photochem_atmosphere_utils.f90)
 
+set(PHOTOCHEM_EVOATMOSPHERE
+    evoatmosphere/photochem_evoatmosphere.f90
+    evoatmosphere/photochem_evoatmosphere_init.f90
+    evoatmosphere/photochem_evoatmosphere_rhs.f90)
+
 set(PHOTOCHEM_SOURCES 
   ${PHOTOCHEM_MODULES}
   ${PHOTOCHEM_INPUT}
   ${PHOTOCHEM_ATMOSPHERE}
+  ${PHOTOCHEM_EVOATMOSPHERE}
   photochem.f90)
 
 # libphotochem.a

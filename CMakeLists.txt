@@ -35,6 +35,10 @@ if (BUILD_EXECUTABLES)
   add_executable(testrun ${CMAKE_SOURCE_DIR}/tests/testrun.f90)
   target_link_libraries(testrun photochem)
   target_include_directories(testrun PRIVATE ${CMAKE_BINARY_DIR}/modules)
+
+  add_executable(testevo ${CMAKE_SOURCE_DIR}/tests/testevo.f90)
+  target_link_libraries(testevo photochem)
+  target_include_directories(testevo PRIVATE ${CMAKE_BINARY_DIR}/modules)
   
   add_executable(memtest ${CMAKE_SOURCE_DIR}/tests/memtest.f90)
   target_link_libraries(memtest photochem)

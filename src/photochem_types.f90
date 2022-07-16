@@ -11,7 +11,7 @@ module photochem_types ! make a giant IO object
   private
   
   public :: PhotoSettings, SettingsBC
-  public :: PhotochemData, PhotochemVars, PhotochemWrk
+  public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
   public :: ProductionLoss, AtomConservation, ThermodynamicData
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
@@ -50,7 +50,6 @@ module photochem_types ! make a giant IO object
     real(dp) :: photon_scale_factor 
   
     ! planet
-    logical :: back_gas
     character(:), allocatable :: back_gas_name
     real(dp) :: P_surf
     real(dp) :: planet_mass
@@ -285,6 +284,7 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: z_file(:) ! (nzf) cm
     real(dp), allocatable :: T_file(:) ! (nzf) K
     real(dp), allocatable :: edd_file(:) ! (nzf) cm2/s
+    real(dp), allocatable :: den_file(:) ! (nzf) molecules/cm2
     real(dp), allocatable :: usol_file(:,:) ! (nq,nzf) mixing ratios
     real(dp), allocatable :: particle_radius_file(:,:) ! (np,nzf) cm
     
@@ -292,11 +292,11 @@ module photochem_types ! make a giant IO object
     logical :: regular_grid ! True of wavelength grid is evenly spaced
     real(dp) :: lower_wavelength ! nm
     real(dp) :: upper_wavelength ! nm
-    character(len=str_len) :: grid_file ! filename of grid file. Only if regular_grid == False
+    character(:), allocatable :: grid_file ! filename of grid file. Only if regular_grid == False
     logical :: back_gas ! True if background gas is used
-    character(len=str_len) :: back_gas_name ! Normally N2, but can be most any gas.
-    real(dp) :: back_gas_mu ! g/mol
-    integer :: back_gas_ind
+    character(:), allocatable :: back_gas_name ! Normally N2, but can be most any gas.
+    real(dp), allocatable :: back_gas_mu ! g/mol
+    integer, allocatable :: back_gas_ind
     real(dp) :: planet_mass ! grams
     real(dp) :: planet_radius ! cm
     logical :: fix_water_in_trop ! True if fixing water in troposphere
@@ -370,6 +370,8 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: edd(:) ! (nz) cm2/s
     real(dp), allocatable :: grav(:) ! (nz) cm/s2
     real(dp), allocatable :: usol_init(:,:) ! (nq,nz) mixing ratio
+    real(dp), allocatable :: den_init(:) ! (nz) molecules/cm2
+    real(dp), allocatable :: dsol_init(:,:) ! (nq,nz) molecules/cm3
     real(dp), allocatable :: particle_radius(:,:) ! (np,nz) cm
     real(dp), allocatable :: xs_x_qy(:,:,:) ! (nz,kj,nw) cm2/molecule
     type(ParticleXsections), allocatable :: particle_xs(:) ! (np) cm2/molecule
@@ -445,8 +447,30 @@ module photochem_types ! make a giant IO object
   contains
     procedure :: init => init_PhotochemWrk
   end type
+
+  type, extends(PhotochemWrk) :: PhotochemWrkEvo
+    real(dp), allocatable :: dsol(:,:) ! (nq,nz)
+
+  contains
+    procedure :: init => init_PhotochemWrkEvo
+
+  end type
   
 contains
+
+  subroutine init_PhotochemWrkEvo(self, nsp, np, nq, nz, nrT, kj, nw, trop_ind)
+    class(PhotochemWrkEvo), intent(inout) :: self
+    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw, trop_ind
+
+    call init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw, trop_ind)
+
+    if (allocated(self%dsol)) then
+      deallocate(self%dsol)
+    endif
+
+    allocate(self%dsol(nq,nz))
+
+  end subroutine
  
   subroutine init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw, trop_ind)
     class(PhotochemWrk), intent(inout) :: self
