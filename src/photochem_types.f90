@@ -66,6 +66,7 @@ module photochem_types ! make a giant IO object
     logical :: gas_rainout
     character(:), allocatable :: relative_humidity
     real(dp) :: rainfall_rate
+    character(s_str_len), allocatable :: rainout_species(:)
     real(dp) :: trop_alt
     real(dp) :: H2O_condensation_rate(3)
   

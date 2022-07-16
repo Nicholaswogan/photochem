@@ -32,6 +32,12 @@ contains
     
     call unpack_settings(settings_file, s, dat, var, err)
     if (allocated(err)) return
+
+    !!! henrys law !!!
+    if (dat%gas_rainout) then
+      call get_henry(dat, var, s, err)
+      if (allocated(err)) return
+    endif
     
     call get_photorad(dat, var, err)
     if (allocated(err)) return
@@ -563,7 +569,7 @@ contains
       dat%reaction_equations(i) = rxstring
     enddo
     
-    call check_for_duplicates(dat, duplicate, err)
+    call check_for_reaction_duplicates(dat, duplicate, err)
     if (allocated(err)) return
     
     ! Make sure particles are not being destroyed from reactions
@@ -576,11 +582,6 @@ contains
     enddo
     
     !!! end reactions !!!
-    
-    !!! henrys law !!!
-    call get_henry(dat, var, err)
-    if (allocated(err)) return
-    !!! end henrys law !!!
     
   end subroutine
   
@@ -799,6 +800,20 @@ contains
     if (s%gas_rainout) then
       s%rainfall_rate = tmp2%get_real('rainfall-rate',error = io_err)
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    endif
+
+    if (s%gas_rainout) then
+      nullify(list)
+      list => tmp2%get_list('rainout-species', required = .false., error = io_err)
+      if (associated(list)) then
+        call unpack_string_list(list, s%rainout_species, err)
+        if (allocated(err)) return
+        i = check_for_duplicates(s%rainout_species)
+        if (i /= 0) then
+          err = '"'//trim(s%rainout_species(i))//'" is a duplicate in '//trim(list%path)
+          return
+        endif
+      endif
     endif
     
     if (s%fix_water_in_trop .or. s%gas_rainout) then
@@ -1347,12 +1362,7 @@ contains
     class (type_list_item), pointer :: item
     integer :: j  
     
-    j = 0
-    item => root%first
-    do while(associated(item))
-      j = j + 1
-      item => item%next
-    enddo
+    j = root%size()
     
     allocate(henry_names(j))
     allocate(henry_data(2,j))
@@ -1374,19 +1384,20 @@ contains
     enddo
   end subroutine
   
-  subroutine get_henry(dat, var, err)
+  subroutine get_henry(dat, var, s, err)
+    use photochem_types, only: PhotoSettings
     use fortran_yaml_c, only : parse, error_length
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(in) :: var
+    type(PhotoSettings), intent(in) :: s
     character(:), allocatable :: err
     
     character(error_length) :: error
     class (type_node), pointer :: root
-    integer :: j, ind(1), i
+    integer :: j, ind, ind1, i
     
     character(len=s_str_len), allocatable :: henry_names(:)
     real(dp), allocatable :: henry_data(:,:)
-    
 
     ! parse yaml file
     root => parse(trim(var%data_dir)//"/henry/henry.yaml",error=error)
@@ -1403,22 +1414,51 @@ contains
     call root%finalize()
     deallocate(root)
     if (allocated(err)) return
-    
+
     allocate(dat%henry_data(2,dat%nsp))
     dat%henry_data = 0.0_dp
-    do j = 1,size(henry_names)
-      ind = findloc(dat%species_names,henry_names(j))
-      if (ind(1) /= 0) then
-        i = ind(1)
-        dat%henry_data(:,i) = henry_data(:,j)
-      endif
-    enddo
-    ! set particle solubility to super high number
-    dat%henry_data(1,1:dat%npq) = 7.e11_dp
-    
+
+    if (allocated(s%rainout_species)) then
+      do j = 1,size(s%rainout_species)
+        ind = findloc(dat%species_names, s%rainout_species(j), 1)
+        if (ind == 0) then
+          err = 'Rainout species "'//trim(s%rainout_species(j))//'" is not in the list of species.'
+          return
+        endif
+
+        ! particle or gas?
+        if (ind < dat%ng_1) then
+          ! particle
+          dat%henry_data(1,ind) = 7.e11_dp
+        else
+          ! gas
+          ! look for the gas in the henry data
+          ind1 = findloc(henry_names, s%rainout_species(j), 1)
+          if (ind1 == 0) then
+            err = 'No solubility data exits for rainout species "'//trim(s%rainout_species(j))//'"'
+            return
+          endif
+
+          dat%henry_data(:,ind) = henry_data(:,ind1)
+        endif
+
+      enddo
+    else
+      ! we do all possible rainout species
+      do j = 1,size(henry_names)
+        ind = findloc(dat%species_names,henry_names(j), 1)
+        if (ind /= 0) then
+          i = ind
+          dat%henry_data(:,i) = henry_data(:,j)
+        endif
+      enddo
+      ! set particle solubility to super high number
+      dat%henry_data(1,1:dat%npq) = 7.e11_dp
+    endif
+
   end subroutine  
   
-  subroutine check_for_duplicates(dat, duplicate, err)
+  subroutine check_for_reaction_duplicates(dat, duplicate, err)
     use futils, only: sort
     type(PhotochemData), intent(in) :: dat
     logical, intent(in) :: duplicate(:)
@@ -3041,6 +3081,46 @@ contains
       return
     endif
 
+  end subroutine
+
+  pure function check_for_duplicates(str_list) result(ind)
+    character(*), intent(in) :: str_list(:)
+    integer :: ind
+    integer :: i, j
+    ind = 0
+    do i = 1,size(str_list)-1
+      do j = i+1,size(str_list)
+        if (str_list(i) == str_list(j)) then
+          ind = i
+          exit
+        endif
+      enddo
+    enddo
+  end function
+
+  subroutine unpack_string_list(list, str_list, err)
+    type(type_list), intent(in) :: list
+    character(*), allocatable, intent(out) :: str_list(:)
+    character(:), allocatable, intent(out) :: err
+    
+    integer :: i
+    type(type_list_item), pointer :: item
+    
+    allocate(str_list(list%size()))
+    i = 1
+    item => list%first
+    do while (associated(item))
+      select type (it => item%node)
+      class is (type_scalar)
+        str_list(i) = trim(it%string)
+      class default
+        err = '"'//trim(it%path)//'" must be a scalar.'
+        return
+      end select
+      i = i + 1
+      item => item%next
+    enddo
+    
   end subroutine
   
 end submodule
