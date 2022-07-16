@@ -132,6 +132,9 @@ def FormatSettings(infile, outfile):
 def FormatSettings_main(data):
     
     if 'planet' in data:
+        if "rainout-species" in data['planet']['water'].keys():
+            data['planet']['water']['rainout-species'] = blockseqtrue(data['planet']['water']['rainout-species'])
+
         if "condensation-rate" in data['planet']['water'].keys():
             data['planet']['water']['condensation-rate'] = flowmap(data['planet']['water']['condensation-rate'])
     
