@@ -14,6 +14,7 @@ module photochem_const
   real(dp), parameter :: plank = 6.62607004e-34_dp ! planks constant (m2 kg / s)
   real(dp), parameter :: c_light = 299792458.0_dp ! Speed of light (m / s)
   real(dp), parameter :: N_avo = 6.02214076e23_dp ! avagadros number
+  real(dp), parameter :: T_crit_H2O = 647.0_dp ! critical point H2O (K)
   real(dp), parameter :: pi = 3.14159265358979323846e0_dp
 
   real(dp), parameter :: smallest_real = tiny(1.0_dp)

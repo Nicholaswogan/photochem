@@ -18,7 +18,7 @@ contains
     use photochem_enum, only: CondensingParticle
     use photochem_common, only: chempl, chempl_sl
     use photochem_eqns, only: damp_condensation_rate
-    use photochem_const, only: N_avo, pi, small_real
+    use photochem_const, only: N_avo, pi, small_real, T_crit_H2O
     
     class(Atmosphere), target, intent(in) :: self
     integer, intent(in) :: neqs, nsp, np, nsl, nq, nz, trop_ind, nrT
@@ -88,16 +88,20 @@ contains
         i = 1
       endif
       do j = i,var%nz
-        k = dat%LH2O + (j - 1) * dat%nq
-        H2O_cold_trap = var%H2O_condensation_rate(2)*H2O_sat_mix(j)
-        if (usol(dat%LH2O,j) >= H2O_cold_trap) then
-          
-          cond_rate = damp_condensation_rate(var%H2O_condensation_rate(1), &
-                                             var%H2O_condensation_rate(2), &
-                                             var%H2O_condensation_rate(3), &
-                                             usol(dat%LH2O,j)/H2O_sat_mix(j))
-          rhs(k) = rhs(k) - cond_rate*(usol(dat%LH2O,j) - H2O_cold_trap)
-           
+        if (var%temperature(j) < T_crit_H2O) then
+          ! water will condense if it is below the critical point.
+
+          k = dat%LH2O + (j - 1) * dat%nq
+          H2O_cold_trap = var%H2O_condensation_rate(2)*H2O_sat_mix(j)
+          if (usol(dat%LH2O,j) >= H2O_cold_trap) then
+            
+            cond_rate = damp_condensation_rate(var%H2O_condensation_rate(1), &
+                                              var%H2O_condensation_rate(2), &
+                                              var%H2O_condensation_rate(3), &
+                                              usol(dat%LH2O,j)/H2O_sat_mix(j))
+            rhs(k) = rhs(k) - cond_rate*(usol(dat%LH2O,j) - H2O_cold_trap)
+            
+          endif
         endif
       enddo
     endif
