@@ -132,8 +132,6 @@ contains
         ! return
 
       endif
-
-      print*,ze_file(1),ze(1)
       
       if (ze(1) /= ze_file(1)) then
         err = "Lowest edge of grid must be the same as the lowest edge in the 'atmosphere.txt' file"
