@@ -43,44 +43,114 @@ contains
   end subroutine
   
   subroutine interp2atmosfile(dat, var, err)
-    use futils, only: interp
+    use futils, only: interp, rebin, is_close
+    use photochem_const, only: small_real
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
-    integer :: i
+    integer :: i, j, k, ierr
     
+    call interp(var%nz, dat%nzf, var%z, dat%z_file, dat%T_file, var%Temperature, ierr)
+    if (ierr /= 0) then
+      err = 'Subroutine interp returned an error.'
+      return
+    endif
     
-    call interp(var%nz, dat%nzf, var%z, dat%z_file, dat%T_file, var%Temperature, err)
-    if (allocated(err)) return
-    
-    call interp(var%nz, dat%nzf, var%z, dat%z_file, dlog10(dabs(dat%edd_file)), var%edd, err)
-    if (allocated(err)) return
+    call interp(var%nz, dat%nzf, var%z, dat%z_file, log10(dabs(dat%edd_file)), var%edd, ierr)
+    if (ierr /= 0) then
+      err = 'Subroutine interp returned an error.'
+      return
+    endif
     var%edd = 10.0_dp**var%edd
-    
-    do i = 1,dat%nq
-      call interp(var%nz, dat%nzf, var%z, dat%z_file,&
-                  dlog10(dabs(dat%usol_file(i,:))), var%usol_init(i,:), err)
-      if (allocated(err)) return
-    enddo
-    var%usol_init = 10.0_dp**var%usol_init
 
-    ! density
-    call interp(var%nz, dat%nzf, var%z, dat%z_file, dat%den_file, var%den_init, err)
-    if (allocated(err)) return
-
-    if (.not. dat%back_gas) then
-      ! then usol is a density
+    if (dat%back_gas) then
       do i = 1,dat%nq
-        var%usol_init(i,:) = var%usol_init(i,:)*var%den_init(:)
+        call interp(var%nz, dat%nzf, var%z, dat%z_file,&
+                    log10(abs(dat%mix_file(i,:))), var%usol_init(i,:), ierr)
+        if (ierr /= 0) then
+          err = 'Subroutine interp returned an error.'
+          return
+        endif
       enddo
+      var%usol_init = 10.0_dp**var%usol_init
+
+    else
+    block
+      real(dp) :: dz_file
+      real(dp), allocatable :: densities_file(:,:) ! molecules/cm3
+      real(dp), allocatable :: ze_file(:), ze(:)
+
+      dz_file = dat%z_file(2)-dat%z_file(1)
+
+      allocate(densities_file(dat%nq,dat%nzf))
+      allocate(ze_file(dat%nzf+1))
+      allocate(ze(var%nz+1))
+
+      do i = 1,dat%nq
+        densities_file(i,:) = dat%mix_file(i,:)*dat%den_file
+      enddo
+
+      ze_file(1) = dat%z_file(1) - 0.5_dp*dz_file
+      do i = 1,dat%nzf
+        ze_file(i+1) = dat%z_file(i) + 0.5_dp*dz_file
+      enddo
+      ze = var%z(1) - 0.5_dp*var%dz(1)
+      do i = 1,var%nz
+        ze(i+1) = var%z(i) + 0.5_dp*var%dz(i)
+      enddo
+
+      do i = 1,dat%nq
+        call rebin(ze_file, densities_file(i,:), ze, var%usol_init(i,:))
+      enddo
+
+      if (ze(var%nz+1) >= ze_file(dat%nzf+1) .and. ze(var%nz) < ze_file(dat%nzf+1)) then
+        ! The model grid empasses the file grid. We are OK. No mass is lost.
+        ! <--down--|___|___|____|___| (grid)
+        ! <--down--|___|___|___|___| (file)
+      elseif (ze(var%nz) > ze_file(dat%nzf+1)) then
+        ! upper cell of grid is completely above upper cell in file.
+        ! We must re-distribute molecules to prevent program from crashing
+        ! <--down--|___|___|___|___| (grid)
+        ! <--down--|___|___|         (file)
+        do k = 1,var%nz
+          j = var%nz+1-k
+          if (all(var%usol_init(:,j) /= 0.0_dp)) then
+            exit
+          endif
+        enddo
+        ! distribute molecules in the upper most grid cell among the higher altitude cells
+        do i = 1,dat%nq
+          var%usol_init(i,j:) = var%usol_init(i,j)*var%dz(j)/sum(var%dz(j:))
+        enddo
+
+      elseif (ze(var%nz+1) < ze_file(dat%nzf+1)) then
+        ! we have lost mass
+        ! <--down--|___|___|___|___| (grid)
+        ! <--down--|___|___|____|____| (file)
+        ! err = "highest edge of the grid must be >= the highest edge in the 'atmosphere.txt' file"
+        ! return
+
+      endif
+
+      print*,ze_file(1),ze(1)
+      
+      if (ze(1) /= ze_file(1)) then
+        err = "Lowest edge of grid must be the same as the lowest edge in the 'atmosphere.txt' file"
+        return
+      endif
+
+    end block
     endif
     
     if (dat%there_are_particles) then
       do i = 1,dat%npq
         call interp(var%nz, dat%nzf, var%z, dat%z_file, &
-                    log10(abs(dat%particle_radius_file(i,:))), var%particle_radius(i,:), err)
-        if (allocated(err)) return
+                    log10(abs(dat%particle_radius_file(i,:))), var%particle_radius(i,:), ierr)
+        if (ierr /= 0) then
+          err = 'Subroutine interp returned an error.'
+          return
+        endif
       enddo
       var%particle_radius = 10.0_dp**var%particle_radius
     endif
@@ -140,7 +210,7 @@ contains
             T_temp(1) = var%temperature(j)
       
             call interp(1, dat%xs_data(i)%n_temps, T_temp, dat%xs_data(i)%xs_temps, &
-                        log10(abs(dat%xs_data(i)%xs(:,k))+smaller_real), val, err)
+                        log10(abs(dat%xs_data(i)%xs(:,k))+smaller_real), val)
                         
             var%xs_x_qy(j,i,k) = 10.0_dp**val(1)
           enddo
@@ -228,7 +298,6 @@ contains
     allocate(vars%edd(vars%nz))
     allocate(vars%grav(vars%nz))
     allocate(vars%usol_init(dat%nq,vars%nz))
-    allocate(vars%den_init(vars%nz))
     allocate(vars%particle_radius(dat%npq,vars%nz))
     allocate(vars%xs_x_qy(vars%nz,dat%kj,dat%nw))
     allocate(vars%usol_out(dat%nq,vars%nz))
@@ -251,5 +320,5 @@ contains
     endif
 
   end subroutine
-  
+
 end submodule

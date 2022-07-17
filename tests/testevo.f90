@@ -12,18 +12,18 @@ program testevo
 
   call pc%init("../photochem/data", &
                "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-               "../templates/ModernEarth/settings_ModernEarthEvo.yaml", &
+               "../templates/ModernEarth/settings_ModernEarthE.yaml", &
                "../templates/ModernEarth/Sun_now.txt", &
-               "../templates/ModernEarth/atmosphere_ModernEarthEvo.txt", &
+               "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
                err)
   if (allocated(err)) then
     print*,trim(err)
     stop 1
   endif
 
-  allocate(t_eval(100))
+  allocate(t_eval(200))
   from = 0
-  to = 1
+  to = 14
   do i = 1,size(t_eval)
     t_eval(i) = from + (to - from)*(i-1)/(size(t_eval)-1)
   enddo

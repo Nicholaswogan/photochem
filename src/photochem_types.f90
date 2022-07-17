@@ -286,7 +286,7 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: T_file(:) ! (nzf) K
     real(dp), allocatable :: edd_file(:) ! (nzf) cm2/s
     real(dp), allocatable :: den_file(:) ! (nzf) molecules/cm2
-    real(dp), allocatable :: usol_file(:,:) ! (nq,nzf) mixing ratios
+    real(dp), allocatable :: mix_file(:,:) ! (nq,nzf) mixing ratios
     real(dp), allocatable :: particle_radius_file(:,:) ! (np,nzf) cm
     
     ! settings
@@ -372,7 +372,6 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: edd(:) ! (nz) cm2/s
     real(dp), allocatable :: grav(:) ! (nz) cm/s2
     real(dp), allocatable :: usol_init(:,:) ! (nq,nz) mixing ratio (EvoAtmosphere) or densities (EvoAtmosphere).
-    real(dp), allocatable :: den_init(:) ! (nz) molecules/cm2
     real(dp), allocatable :: particle_radius(:,:) ! (np,nz) cm
     real(dp), allocatable :: xs_x_qy(:,:,:) ! (nz,kj,nw) cm2/molecule
     type(ParticleXsections), allocatable :: particle_xs(:) ! (np) cm2/molecule

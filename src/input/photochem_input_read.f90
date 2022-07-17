@@ -3036,11 +3036,11 @@ contains
     allocate(dat%T_file(dat%nzf))
     allocate(dat%edd_file(dat%nzf))
     allocate(dat%den_file(dat%nzf))
-    allocate(dat%usol_file(dat%nq, dat%nzf))
+    allocate(dat%mix_file(dat%nq, dat%nzf))
     dat%z_file = 0.0_dp
     dat%T_file = 0.0_dp
     dat%edd_file = 0.0_dp
-    dat%usol_file = 1.0e-40_dp
+    dat%mix_file = 1.0e-40_dp
     if (dat%there_are_particles) then
       allocate(dat%particle_radius_file(dat%npq, dat%nzf))
     endif
@@ -3087,7 +3087,7 @@ contains
     do i=1,dat%nq
       ind = findloc(labels,dat%species_names(i))
       if (ind(1) /= 0) then
-        dat%usol_file(i,:) = temp(ind(1),:)
+        dat%mix_file(i,:) = temp(ind(1),:)
       else
         missing = .true.
       endif

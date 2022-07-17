@@ -319,13 +319,15 @@ contains
       ADD(j,i) = ADD(j,i) + FF1
     enddo
 
-    do i = 1,dat%nq
-      if (var%only_eddy(i)) then
-        ADL(i,:) = 0.0_dp
-        ADU(i,:) = 0.0_dp
-        ADD(i,:) = 0.0_dp
-      endif
-    enddo
+    ! not going to work. Advection is required to 
+    ! maintain hydrostatic equilibrium
+    ! do i = 1,dat%nq
+    !   if (var%only_eddy(i)) then
+    !     ADL(i,:) = 0.0_dp
+    !     ADU(i,:) = 0.0_dp
+    !     ADD(i,:) = 0.0_dp
+    !   endif
+    ! enddo
     
     ! H2 escape
     if (dat%diff_H_escape) then
