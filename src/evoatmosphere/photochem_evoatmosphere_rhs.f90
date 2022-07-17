@@ -38,7 +38,10 @@ contains
     enddo
 
     do j = 1,var%nz
-      do i = 1,dat%nq
+      do i = 1,dat%npq
+        densities(i,j) = max(usol(i,j)*(1.0_dp/molecules_per_particle(i,j)), small_real)
+      enddo
+      do i = dat%ng_1,dat%nq
         densities(i,j) = usol(i,j)
       enddo
       densities(dat%nsp+1,j) = 1.0_dp ! for hv
@@ -97,7 +100,7 @@ contains
         call chempl(self%dat, self%var, densities, rx_rates, i, xp, xl)
         do j = 1,var%nz
           k = i + (j - 1) * dat%nq
-          rhs(k) = rhs(k) + (xp(j) - xl(j))/density(j)
+          rhs(k) = rhs(k) + (xp(j) - xl(j))
         enddo
       enddo
     
@@ -442,7 +445,10 @@ contains
 
     ! densities
     do j = 1,var%nz
-      do i = 1,dat%nq
+      do i = 1,dat%npq
+        wrk%densities(i,j) = max(wrk%usol(i,j)*(1.0_dp/wrk%molecules_per_particle(i,j)), small_real)
+      enddo
+      do i = dat%ng_1,dat%nq
         wrk%densities(i,j) = wrk%usol(i,j)
       enddo
       wrk%densities(dat%nsp+1,j) = 1.0_dp ! for hv
