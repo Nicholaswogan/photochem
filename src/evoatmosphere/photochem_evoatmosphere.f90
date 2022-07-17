@@ -17,6 +17,15 @@ module photochem_evoatmosphere
 
     !!! photochem_evoatmosphere_rhs.f90 !!!
     procedure :: prep_atmosphere => prep_all_evo_gas
+    procedure :: right_hand_side => rhs_evo_gas
+    procedure :: jacobian => jac_evo_gas
+
+    !!! photochem_evoatmosphere_integrate.f90 !!!
+    procedure :: evolve
+    procedure :: photochemical_equilibrium
+    procedure :: initialize_stepper
+    procedure :: step
+    procedure :: destroy_stepper
 
   end type
 
@@ -43,6 +52,94 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: dsol_in(:,:)
       character(:), allocatable, intent(out) :: err
     end subroutine
+
+    module subroutine rhs_evo_gas(self, neqs, dsol_flat, rhs, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      integer, intent(in) :: neqs
+      real(dp), target, intent(in) :: dsol_flat(neqs)
+      real(dp), intent(out) :: rhs(neqs)
+      character(:), allocatable, intent(out) :: err
+      ! Computes the right-hand-side of the ODEs describing atmospheric chemistry
+      ! and transport.
+    end subroutine
+    
+    module subroutine jac_evo_gas(self, lda_neqs, neqs, dsol_flat, jac, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      integer, intent(in) :: lda_neqs, neqs
+      real(dp), target, intent(in) :: dsol_flat(neqs)
+      real(dp), intent(out), target :: jac(lda_neqs)
+      character(:), allocatable, intent(out) :: err
+      ! The jacobian of the rhs_background_gas.
+    end subroutine
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!! photochem_evoatmosphere_integrate.f90 !!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    module function evolve(self, filename, tstart, dsol_start, t_eval, overwrite, err) result(success)
+      use, intrinsic :: iso_c_binding
+      class(EvoAtmosphere), target, intent(inout) :: self
+      character(len=*), intent(in) :: filename
+      real(c_double), intent(in) :: tstart
+      real(dp), intent(in) :: dsol_start(:,:)
+      real(c_double), intent(in) :: t_eval(:)
+      logical, optional, intent(in) :: overwrite
+      logical :: success
+      character(:), allocatable, intent(out) :: err
+      ! Evolve atmosphere through time, and saves output in a binary Fortran file.
+    end function
+    
+    module subroutine photochemical_equilibrium(self, success, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      logical, intent(out) :: success
+      character(:), allocatable, intent(out) :: err 
+      ! Integrates to photochemical equilibrium starting from self%var%usol_init
+    end subroutine
+    
+    module subroutine initialize_stepper(self, dsol_start, err)      
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: dsol_start(:,:)
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+    
+    module function step(self, err) result(tn)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      character(:), allocatable, intent(out) :: err
+      real(dp) :: tn
+    end function
+    
+    module subroutine destroy_stepper(self, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+    
+    module function RhsFn_evo(tn, sunvec_y, sunvec_f, user_data) &
+                          result(ierr) bind(c, name='RhsFn_evo')
+      use, intrinsic :: iso_c_binding
+      use fcvode_mod
+      use fsundials_nvector_mod
+      real(c_double), value :: tn
+      type(N_Vector)        :: sunvec_y
+      type(N_Vector)        :: sunvec_f
+      type(c_ptr), value    :: user_data
+      integer(c_int)        :: ierr
+    end function
+    
+    module function JacFn_evo(tn, sunvec_y, sunvec_f, sunmat_J, user_data, &
+                          tmp1, tmp2, tmp3) &
+                          result(ierr) bind(C,name='JacFn_evo')
+      use, intrinsic :: iso_c_binding
+      use fsundials_nvector_mod
+      use fnvector_serial_mod
+      use fsunmatrix_band_mod
+      use fsundials_matrix_mod
+      real(c_double), value :: tn
+      type(N_Vector)        :: sunvec_y 
+      type(N_Vector)        :: sunvec_f
+      type(SUNMatrix)       :: sunmat_J 
+      type(c_ptr), value    :: user_data 
+      type(N_Vector)        :: tmp1, tmp2, tmp3
+      integer(c_int)        :: ierr
+    end function
 
   end interface
 

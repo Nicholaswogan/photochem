@@ -4,10 +4,10 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_rhs
 
 
 contains
-  subroutine dochem(self, dsol, density, rx_rates, &
+  subroutine dochem(self, dsol, rx_rates, &
                     gas_sat_den, molecules_per_particle, &
                     H2O_sat_mix, rainout_rates, &
-                    usol, densities, xp, xl, rhs)                 
+                    density, usol, densities, xp, xl, rhs)                 
     use photochem_enum, only: CondensingParticle
     use photochem_common, only: chempl, chempl_sl
     use photochem_eqns, only: damp_condensation_rate
@@ -355,7 +355,7 @@ contains
 
     use photochem_enum, only: DensityBC
     use photochem_common, only: reaction_rates, rainout, photorates, gas_saturation_density
-    use photochem_eqns, only: sat_pressure_H2O
+    use photochem_eqns, only: sat_pressure_H2O, press_and_den
     use photochem_const, only: pi, k_boltz, N_avo, small_real
 
     class(EvoAtmosphere), target, intent(inout) :: self
@@ -367,6 +367,7 @@ contains
     type(PhotochemWrkEvo), pointer :: wrk
     integer :: i, j, k
     real(dp) :: P_surf
+    real(dp) :: density_hydro(self%var%nz), pressure_hydro(self%var%nz)
 
     dat => self%dat
     var => self%var
@@ -401,6 +402,8 @@ contains
     
     ! surface pressure by adding up all the mass in the atmosphere (dynes/cm2)
     P_surf = sum(wrk%density(:)*wrk%mubar(:)*var%grav(:)*var%dz(:))/N_avo
+    call press_and_den(var%nz, var%temperature, var%grav, P_surf, var%dz, &
+                       wrk%mubar, pressure_hydro, density_hydro)
     wrk%pressure(:) = wrk%density(:)*k_boltz*var%temperature(:)
 
     ! H2O saturation
@@ -459,6 +462,241 @@ contains
                    wrk%usol, wrk%density, wrk%rainout_rates)
     endif
 
+  end subroutine
+
+  module subroutine rhs_evo_gas(self, neqs, dsol_flat, rhs, err)
+    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
+    use iso_c_binding, only: c_ptr, c_f_pointer
+    use photochem_const, only: pi, small_real  
+    
+    class(EvoAtmosphere), target, intent(inout) :: self
+    integer, intent(in) :: neqs
+    real(dp), target, intent(in) :: dsol_flat(neqs)
+    real(dp), intent(out) :: rhs(neqs)
+    character(:), allocatable, intent(out) :: err
+    
+    real(dp) :: disth, ztop, ztop1    
+    integer :: i, k, j, jdisth
+    
+    real(dp), pointer :: dsol_in(:,:)
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+    
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+    ! reshape
+    dsol_in(1:dat%nq,1:var%nz) => dsol_flat(1:neqs)
+    
+    if (any(dsol_flat /= dsol_flat)) then
+      err = 'Input mixing ratios to the rhs contains NaNs. This is typically '//&
+            'related to some mixing ratios getting too negative.'
+      return 
+    endif
+    
+    ! fills self%wrk with data
+    call prep_all_evo_gas(self, dsol_in, err)
+    if (allocated(err)) return
+
+    call dochem(self, wrk%dsol, wrk%rx_rates, &
+                wrk%gas_sat_den, wrk%molecules_per_particle, &
+                wrk%H2O_sat_mix, wrk%rainout_rates, &
+                wrk%density, wrk%usol, wrk%densities, wrk%xp, wrk%xl, rhs)  
+
+    ! diffusion (interior grid points)
+    do j = 2,var%nz-1
+      do i = 1,dat%nq
+        k = i + (j-1)*dat%nq
+        rhs(k) = rhs(k) + wrk%DU(i,j)*wrk%dsol(i,j+1) + wrk%ADU(i,j)*wrk%dsol(i,j+1) &
+                        + wrk%DD(i,j)*wrk%dsol(i,j) + wrk%ADD(i,j)*wrk%dsol(i,j) &
+                        + wrk%DL(i,j)*wrk%dsol(i,j-1) + wrk%ADL(i,j)*wrk%dsol(i,j-1)
+      enddo
+    enddo
+    
+    ! Lower boundary
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == VelocityBC .or. &
+          var%lowerboundcond(i) == VelocityDistributedFluxBC) then
+        rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%dsol(i,2) + wrk%ADU(i,1)*wrk%dsol(i,2) &
+                        + wrk%DD(i,1)*wrk%dsol(i,1) + wrk%ADD(i,1)*wrk%dsol(i,1) &
+                        - wrk%lower_vdep_copy(i)*wrk%dsol(i,1)/var%dz(1)
+      elseif (var%lowerboundcond(i) == MixingRatioBC) then
+        rhs(i) = 0.0_dp
+      elseif (var%lowerboundcond(i) == FluxBC) then
+        rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%dsol(i,2) + wrk%ADU(i,1)*wrk%dsol(i,2) &
+                        + wrk%DD(i,1)*wrk%dsol(i,1) + wrk%ADD(i,1)*wrk%dsol(i,1) &
+                        + var%lower_flux(i)/var%dz(1)
+      ! Moses (2001) boundary condition for gas giants
+      ! A deposition velocity controled by how quickly gases
+      ! turbulantly mix vertically
+      elseif (var%lowerboundcond(i) == MosesBC) then
+        rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%dsol(i,2) + wrk%ADU(i,1)*wrk%dsol(i,2) &
+                        + wrk%DD(i,1)*wrk%dsol(i,1) + wrk%ADD(i,1)*wrk%dsol(i,1) &
+                        - (var%edd(1)/wrk%surface_scale_height)*wrk%dsol(i,1)/var%dz(1)
+      endif
+    enddo
+
+    ! Upper boundary
+    do i = 1,dat%nq
+      k = i + (var%nz-1)*dat%nq
+      if (var%upperboundcond(i) == VelocityBC) then
+        rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%dsol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%dsol(i,var%nz) &
+                        + wrk%DL(i,var%nz)*wrk%dsol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%dsol(i,var%nz-1) &
+                        - wrk%upper_veff_copy(i)*wrk%dsol(i,var%nz)/var%dz(var%nz)    
+      elseif (var%upperboundcond(i) == FluxBC) then
+        rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%dsol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%dsol(i,var%nz) &
+                        + wrk%DL(i,var%nz)*wrk%dsol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%dsol(i,var%nz-1) &
+                        - var%upper_flux(i)/var%dz(var%nz)
+      endif
+    enddo
+
+    ! Distributed (volcanic) sources
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == VelocityDistributedFluxBC) then
+        disth = var%lower_dist_height(i)*1.e5_dp        
+        jdisth = minloc(var%Z,1, var%Z >= disth) - 1
+        jdisth = max(jdisth,2)
+        ztop = var%z(jdisth)-var%z(1)
+        ztop1 = var%z(jdisth) + 0.5e0_dp*var%dz(jdisth)
+        do j = 2,jdisth
+          k = i + (j-1)*dat%nq
+          rhs(k) = rhs(k) + 2.0_dp*var%lower_flux(i)*(ztop1-var%z(j))/(ztop**2.0_dp)
+        enddo
+      endif
+    enddo 
+
+  end subroutine
+
+  module subroutine jac_evo_gas(self, lda_neqs, neqs, dsol_flat, jac, err)
+    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
+    use iso_c_binding, only: c_ptr, c_f_pointer
+    use photochem_const, only: pi, small_real
+    
+    class(EvoAtmosphere), target, intent(inout) :: self
+    integer, intent(in) :: lda_neqs, neqs
+    real(dp), target, intent(in) :: dsol_flat(neqs)
+    real(dp), intent(out), target :: jac(lda_neqs)
+    character(:), allocatable, intent(out) :: err
+    
+    real(dp), pointer :: dsol_in(:,:)
+    real(dp), pointer :: djac(:,:)
+    real(dp) :: dsol_perturb(self%dat%nq,self%var%nz)
+    real(dp) :: R(self%var%nz)
+    real(dp) :: rhs(self%var%neqs)
+    real(dp) :: rhs_perturb(self%var%neqs)
+    real(dp) :: density(self%var%nz), usol(self%dat%nq,self%var%nz)
+    real(dp) :: densities(self%dat%nsp+1,self%var%nz), xl(self%var%nz), xp(self%var%nz)
+  
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+
+    integer :: i, k, j, m, mm
+  
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+    ! reshape jac and input mixing ratios
+    dsol_in(1:dat%nq,1:var%nz) => dsol_flat(1:neqs)
+    djac(1:dat%lda,1:var%neqs) => jac
+    
+    if (any(dsol_flat /= dsol_flat)) then
+      err = 'Input mixing ratios to the rhs contains NaNs. This is typically '//&
+            'related to some mixing ratios getting too negative.'
+      return 
+    endif
+  
+    call prep_all_evo_gas(self, dsol_in, err)
+    if (allocated(err)) return
+  
+    ! compute chemistry contribution to jacobian using forward differences
+    jac = 0.0_dp
+    call dochem(self, wrk%dsol, wrk%rx_rates, &
+                wrk%gas_sat_den, wrk%molecules_per_particle, &
+                wrk%H2O_sat_mix, wrk%rainout_rates, &
+                density, usol, densities, xp, xl, rhs) 
+
+    !$omp parallel private(i, j, k, m, mm, dsol_perturb, R, density, usol, densities, xl, xp, rhs_perturb)
+    dsol_perturb = wrk%dsol
+    !$omp do
+    do i = 1,dat%nq
+      do j = 1,var%nz
+        R(j) = var%epsj*abs(wrk%dsol(i,j))
+        dsol_perturb(i,j) = wrk%dsol(i,j) + R(j)
+      enddo
+      
+      call dochem(self, dsol_perturb, wrk%rx_rates, &
+                  wrk%gas_sat_den, wrk%molecules_per_particle, &
+                  wrk%H2O_sat_mix, wrk%rainout_rates, &
+                  density, usol, densities, xp, xl, rhs_perturb) 
+  
+      do m = 1,dat%nq
+        mm = m - i + dat%kd
+        do j = 1,var%nz
+          k = i + (j-1)*dat%nq
+          djac(mm,k) = (rhs_perturb(m + (j-1)*dat%nq) - rhs(m + (j-1)*dat%nq))/R(j)
+        enddo
+      enddo
+  
+      do j= 1,var%nz
+        dsol_perturb(i,j) = wrk%dsol(i,j)
+      enddo
+    enddo
+    !$omp enddo
+    !$omp end parallel
+  
+    ! diffusion (interior grid points)
+    do j = 2,var%nz-1
+      do i = 1,dat%nq
+        k = i + (j-1)*dat%nq      
+        djac(dat%ku,k+dat%nq) = wrk%DU(i,j) + wrk%ADU(i,j)
+        djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,j) + wrk%ADD(i,j)     
+        djac(dat%kl,k-dat%nq) = wrk%DL(i,j) + wrk%ADL(i,j)
+      enddo
+    enddo
+  
+    ! Lower boundary
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == VelocityBC .or. var%lowerboundcond(i) == VelocityDistributedFluxBC) then
+
+        djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
+        djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) - wrk%lower_vdep_copy(i)/var%dz(1)
+      elseif (var%lowerboundcond(i) == MixingRatioBC) then
+
+        do m=1,dat%nq
+          mm = dat%kd + i - m
+          djac(mm,m) = 0.0_dp
+        enddo
+        djac(dat%ku,i+dat%nq) = 0.0_dp
+        ! For some reason this term makes the integration
+        ! much happier. I will keep it. Jacobians don't need to be perfect.
+        djac(dat%kd,i) = - wrk%DU(i,1)
+  
+      elseif (var%lowerboundcond(i) == FluxBC) then
+        djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
+        djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1)
+      elseif (var%lowerboundcond(i) == MosesBC) then
+        djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
+        djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) - &
+                         (var%edd(1)/wrk%surface_scale_height)/var%dz(1)
+      endif
+    enddo
+  
+    ! Upper boundary
+    do i = 1,dat%nq
+      k = i + (var%nz-1)*dat%nq
+      if (var%upperboundcond(i) == VelocityBC) then
+  
+        djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,var%nz) + wrk%ADD(i,var%nz) &
+                        - wrk%upper_veff_copy(i)/var%dz(var%nz) 
+        djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
+      elseif (var%upperboundcond(i) == FluxBC) then
+        djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,var%nz) + wrk%ADD(i,var%nz)
+        djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
+      endif
+    enddo
+  
   end subroutine
 
 
