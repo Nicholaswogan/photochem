@@ -465,7 +465,7 @@ contains
   end subroutine
 
   module subroutine rhs_evo_gas(self, neqs, usol_flat, rhs, err)
-    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, FluxBC, VelocityDistributedFluxBC
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
     
@@ -521,7 +521,7 @@ contains
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
                         + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
                         - wrk%lower_vdep_copy(i)*wrk%usol(i,1)/var%dz(1)
-      elseif (var%lowerboundcond(i) == MixingRatioBC) then
+      elseif (var%lowerboundcond(i) == DensityBC) then
         rhs(i) = 0.0_dp
       elseif (var%lowerboundcond(i) == FluxBC) then
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
@@ -569,7 +569,7 @@ contains
   end subroutine
 
   module subroutine jac_evo_gas(self, lda_neqs, neqs, usol_flat, jac, err)
-    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, FluxBC, VelocityDistributedFluxBC
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
@@ -662,7 +662,7 @@ contains
 
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
         djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) - wrk%lower_vdep_copy(i)/var%dz(1)
-      elseif (var%lowerboundcond(i) == MixingRatioBC) then
+      elseif (var%lowerboundcond(i) == DensityBC) then
 
         do m=1,dat%nq
           mm = dat%kd + i - m
