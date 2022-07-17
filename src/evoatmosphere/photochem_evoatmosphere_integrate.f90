@@ -122,7 +122,7 @@ contains
   module function evolve(self, filename, tstart, dsol_start, t_eval, overwrite, err) result(success)
                                    
     use, intrinsic :: iso_c_binding
-    use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSStolerances, &
+    use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSVtolerances, &
                           FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
                           FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
                           FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
@@ -154,6 +154,8 @@ contains
     
     ! solution vector, neq is set in the ode_mod module
     real(c_double) :: yvec(self%var%neqs)
+    real(c_double) :: abstol(self%var%neqs), density
+    type(N_Vector), pointer :: abstol_nvec
     integer(c_int64_t) :: neqs_long
     integer(c_int64_t) :: mu, ml
     integer(c_long) :: mxsteps_
@@ -215,9 +217,12 @@ contains
     
     ! initialize solution vector
     do j=1,var%nz
+      density = sum(dsol_start(:,j))
       do i=1,dat%nq
         k = i + (j-1)*dat%nq
         yvec(k) = dsol_start(i,j)
+        ! set abstol.
+        abstol(k) = density*var%atol
       enddo
     enddo
     do i = 1,dat%nq
@@ -225,6 +230,12 @@ contains
         yvec(i) = var%lower_fix_den(i)
       endif
     enddo
+
+    abstol_nvec => FN_VMake_Serial(neqs_long, abstol)
+    if (.not. associated(abstol_nvec)) then
+      err = "CVODE setup error."
+      return
+    end if
 
     ! create SUNDIALS N_Vector
     sunvec_y => FN_VMake_Serial(neqs_long, yvec)
@@ -253,7 +264,7 @@ contains
       return
     end if
     
-    ierr = FCVodeSStolerances(wrk%cvode_mem, var%rtol, var%atol)
+    ierr = FCVodeSVtolerances(wrk%cvode_mem, var%rtol, abstol_nvec)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return

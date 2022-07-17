@@ -231,7 +231,7 @@ contains
       DD(i,j) = - DL(i,j)
 
       ADL(i,j) = - gamma_i_gas_av(k,j-1)/(2.0_dp*var%dz(j))
-      ADD(i,j) = ADU(i,j)
+      ADD(i,j) = ADL(i,j)
     enddo
     
     ! particles (eddy diffusion)
@@ -265,7 +265,7 @@ contains
       DD(i,j) = - DL(i,j)
 
       ADL(i,j) = - gamma_i_part_av(i,j-1)/(2.0_dp*var%dz(j))
-      ADD(i,j) = ADU(i,j)
+      ADD(i,j) = ADL(i,j)
     enddo
 
     ! particles (falling)
@@ -290,7 +290,7 @@ contains
         FF1 = -wfall_i/var%dz(i)
       
         ADU(j,i) = ADU(j,i) + FF2
-        ADD(j,i) = ADU(j,i) + FF1
+        ADD(j,i) = ADD(j,i) + FF1
       enddo
     enddo
     ! Lower boundary
