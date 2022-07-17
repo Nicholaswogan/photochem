@@ -978,7 +978,7 @@ contains
   
   subroutine unpack_SettingsBC(bc, bc_kind, sp_name, filename, sbc, err)
     use photochem_types, only: SettingsBC
-    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC, DensityBC
     type(type_dictionary), intent(in) :: bc
     character(*), intent(in) :: bc_kind
     character(*), intent(in) :: sp_name
@@ -1006,6 +1006,7 @@ contains
       sbc%mix = -huge(1.0_dp)
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
+      sbc%den = -huge(1.0_dp)
 
       if (sbc%vel < 0.0_dp) then
         err = 'Velocity '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
@@ -1025,6 +1026,7 @@ contains
       sbc%vel = -huge(1.0_dp)
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
+      sbc%den = -huge(1.0_dp)
 
       if (sbc%mix < 0.0_dp .or. sbc%mix > 1.0_dp) then
         err = 'Fixed '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
@@ -1039,6 +1041,7 @@ contains
       sbc%vel = -huge(1.0_dp)
       sbc%mix = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
+      sbc%den = -huge(1.0_dp)
     elseif (bctype == "vdep + dist flux") then
       if (bc_kind == "upper") then
         err = 'Upper boundary conditions can not be "vdep + dist flux" for '//trim(sp_name)
@@ -1056,6 +1059,7 @@ contains
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
       
       sbc%mix = -huge(1.0_dp)
+      sbc%den = -huge(1.0_dp)
 
       if (sbc%vel < 0.0_dp) then
         err = 'Velocity '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
@@ -1072,6 +1076,26 @@ contains
               ' must be positive.'
         return
       endif
+    elseif (bctype == "den") then
+      if (bc_kind == "upper") then
+        err = 'Upper boundary conditions can not be "den" for '//trim(sp_name)
+        return
+      endif
+      
+      sbc%bc_type = DensityBC
+      sbc%den = bc%get_real("den",error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+      
+      sbc%vel = -huge(1.0_dp)
+      sbc%mix = -huge(1.0_dp)
+      sbc%flux = -huge(1.0_dp)
+      sbc%height = -huge(1.0_dp)
+
+      if (sbc%den < 0.0_dp) then
+        err = 'Fixed density '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
+              ' must be greater than 1.'
+        return
+      endif
     elseif (bctype == "Moses") then
       sbc%bc_type = MosesBC
       
@@ -1079,6 +1103,7 @@ contains
       sbc%mix = -huge(1.0_dp)
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
+      sbc%den = -huge(1.0_dp)
     else
       err = 'IOError: "'//trim(bctype)//'" is not a valid lower boundary condition for '//trim(sp_name)
       return
@@ -1089,7 +1114,7 @@ contains
   subroutine unpack_settings(infile, s, dat, var, err)
     use photochem_enum, only: H2SO4Saturation
     use photochem_enum, only: CondensingParticle
-    use photochem_enum, only: VelocityBC
+    use photochem_enum, only: VelocityBC, DensityBC, MixingRatioBC
     use photochem_types, only: PhotoSettings
     character(len=*), intent(in) :: infile
     type(PhotoSettings), intent(in) :: s
@@ -1153,12 +1178,16 @@ contains
     
     ! water
     dat%fix_water_in_trop = s%fix_water_in_trop
+    if (.not. dat%back_gas .and. dat%fix_water_in_trop) then
+      err = 'fix-water-in-troposphere must be false for class "EvoAtmosphere".'
+      return
+    endif
     dat%water_cond = s%water_cond
     dat%gas_rainout = s%gas_rainout
     ind = findloc(dat%species_names,'H2O')
     dat%LH2O = ind(1)
     if (ind(1) == 0 .and. dat%fix_water_in_trop) then
-      err = 'IOError: H2O must be a species if water-saturated-troposhere = True.'
+      err = 'IOError: H2O must be a species if fix-water-in-troposphere = True.'
       return
     elseif (ind(1) == 0 .and. dat%water_cond) then
       err = 'IOError: H2O must be a species if water-condensation = True.'
@@ -1268,7 +1297,11 @@ contains
     allocate(var%lower_vdep(dat%nq))
     allocate(var%lower_flux(dat%nq))
     allocate(var%lower_dist_height(dat%nq))
-    allocate(var%lower_fix_mr(dat%nq))
+    if (dat%back_gas) then
+      allocate(var%lower_fix_mr(dat%nq))
+    else
+      allocate(var%lower_fix_den(dat%nq))
+    endif
     allocate(var%upperboundcond(dat%nq))
     allocate(var%upper_veff(dat%nq))
     allocate(var%upper_flux(dat%nq))
@@ -1309,7 +1342,11 @@ contains
         var%lower_vdep(ind(1)) = s%lbcs(j)%vel
         var%lower_flux(ind(1)) = s%lbcs(j)%flux
         var%lower_dist_height(ind(1)) = s%lbcs(j)%height
-        var%lower_fix_mr(ind(1)) = s%lbcs(j)%mix
+        if (dat%back_gas) then
+          var%lower_fix_mr(ind(1)) = s%lbcs(j)%mix
+        else
+          var%lower_fix_den(ind(1)) = s%lbcs(j)%den
+        endif
         
         var%upperboundcond(ind(1)) = s%ubcs(j)%bc_type
         var%upper_veff(ind(1)) = s%ubcs(j)%vel
@@ -1356,6 +1393,19 @@ contains
           return
         endif
       enddo
+    endif
+
+    ! make sure bc work for the model
+    if (dat%back_gas) then
+      if (any(var%lowerboundcond == DensityBC)) then
+        err = 'Fixing density boundary conditions are not allowed for class "Atmosphere".'
+        return
+      endif
+    else
+      if (any(var%lowerboundcond == MixingRatioBC)) then
+        err = 'Fixing mixing ratio boundary conditions are not allowed for class "EvoAtmosphere".'
+        return
+      endif
     endif
 
     ! check for SL nonlinearities

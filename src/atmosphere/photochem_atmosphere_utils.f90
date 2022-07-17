@@ -55,6 +55,8 @@ contains
       tmp = dat%species_names(j)
       write(unit=1,fmt="(a27)",advance='no') tmp
     enddo
+    tmp = dat%back_gas_name
+    write(unit=1,fmt="(a27)",advance='no') tmp
     if (dat%there_are_particles) then
       do j = 1,dat%npq
         tmp = trim(dat%species_names(j))//"_r"
@@ -76,6 +78,8 @@ contains
           write(unit=1,fmt="(es27.17e3)",advance='no') wrk%usol(j,i)
         endif
       enddo
+      ! write the background gas
+      write(unit=1,fmt="(es27.17e3)",advance='no') 1.0_dp - sum(wrk%usol(dat%ng_1:,i))
       if (dat%there_are_particles) then
         do j = 1,dat%npq
           write(unit=1,fmt="(es27.17e3)",advance='no') var%particle_radius(j,i)

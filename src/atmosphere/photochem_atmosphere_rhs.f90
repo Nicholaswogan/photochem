@@ -339,6 +339,7 @@ contains
     use photochem_enum, only: ArrheniusSaturation, H2SO4Saturation
     use photochem_enum, only: MixingRatioBC
     use photochem_common, only: reaction_rates, diffusion_coefficients, rainout, photorates
+    use photochem_common, only: gas_saturation_density
     use photochem_eqns, only: saturation_density
     use photochem_const, only: pi, k_boltz, N_avo, small_real
   
@@ -350,8 +351,6 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
     integer :: i, j, k
-    real(dp) :: P_H2SO4
-  
   
     dat => self%dat
     var => self%var
@@ -404,27 +403,9 @@ contains
         ! of the model according to the fall velocity.
         wrk%lower_vdep_copy(i) = wrk%lower_vdep_copy(i) + wrk%wfall(i,1)
       enddo
-      
-      ! compute The saturation density
-      do j = 1,var%nz
-        do i = 1,dat%np
-          if (dat%particle_formation_method(i) == CondensingParticle) then
-            if (dat%particle_sat_type(i) == ArrheniusSaturation) then ! arrhenius
-              wrk%gas_sat_den(i,j) = saturation_density(var%temperature(j), &
-                                                   dat%particle_sat_params(1,i), &
-                                                   dat%particle_sat_params(2,i), &
-                                                   dat%particle_sat_params(3,i))
-            elseif (dat%particle_sat_type(i) == H2SO4Saturation) then ! interpolate to H2SO4 data
-              call dat%H2SO4_sat%evaluate(var%temperature(j), &
-                                          log10(wrk%usol(dat%LH2O,j)*wrk%pressure(j)/1.e6_dp),P_H2SO4)
-              P_H2SO4 = 10.0_dp**(P_H2SO4)
-              wrk%gas_sat_den(i,j) = (P_H2SO4*1.e6_dp)/(k_boltz*var%temperature(j))
-            endif
-          endif
-          wrk%molecules_per_particle(i,j) = (4.0_dp/3.0_dp)*pi*var%particle_radius(i,j)**3.0_dp* &
-                                            dat%particle_density(i)*(1/dat%species_mass(i))*N_avo
-        enddo
-      enddo
+
+      call gas_saturation_density(dat, var, wrk%usol, wrk%pressure, &
+                                  wrk%gas_sat_den, wrk%molecules_per_particle)
     endif
   
     ! densities include particle densities

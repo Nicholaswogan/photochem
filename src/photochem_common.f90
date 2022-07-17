@@ -704,5 +704,45 @@ contains
     enddo
     
   end subroutine
+
+  subroutine gas_saturation_density(dat, var, usol, pressure, &
+                                    gas_sat_den, molecules_per_particle)
+    use photochem_const, only: pi, N_avo, k_boltz
+    use photochem_enum, only: CondensingParticle
+    use photochem_enum, only: ArrheniusSaturation, H2SO4Saturation
+    use photochem_eqns, only: saturation_density
+
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(in) :: var
+    real(dp), intent(in) :: usol(:,:)
+    real(dp), intent(in) :: pressure(:)
+    real(dp), intent(out) :: gas_sat_den(:,:)
+    real(dp), intent(out) :: molecules_per_particle(:,:)
+
+    real(dp) :: P_H2SO4
+    integer :: i, j
+
+    ! compute The saturation density
+    do j = 1,var%nz
+      do i = 1,dat%np
+        if (dat%particle_formation_method(i) == CondensingParticle) then
+          if (dat%particle_sat_type(i) == ArrheniusSaturation) then ! arrhenius
+            gas_sat_den(i,j) = saturation_density(var%temperature(j), &
+                                                  dat%particle_sat_params(1,i), &
+                                                  dat%particle_sat_params(2,i), &
+                                                  dat%particle_sat_params(3,i))
+          elseif (dat%particle_sat_type(i) == H2SO4Saturation) then ! interpolate to H2SO4 data
+            call dat%H2SO4_sat%evaluate(var%temperature(j), &
+                                        log10(usol(dat%LH2O,j)*pressure(j)/1.e6_dp),P_H2SO4)
+            P_H2SO4 = 10.0_dp**(P_H2SO4)
+            gas_sat_den(i,j) = (P_H2SO4*1.e6_dp)/(k_boltz*var%temperature(j))
+          endif
+        endif
+        molecules_per_particle(i,j) = (4.0_dp/3.0_dp)*pi*var%particle_radius(i,j)**3.0_dp* &
+                                          dat%particle_density(i)*(1/dat%species_mass(i))*N_avo
+      enddo
+    enddo
+
+  end subroutine
   
 end module

@@ -10,7 +10,7 @@ program testevo
 
   call pc%init("../photochem/data", &
                "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-               "../templates/ModernEarth/settings_ModernEarth.yaml", &
+               "../templates/ModernEarth/settings_ModernEarthEvo.yaml", &
                "../templates/ModernEarth/Sun_now.txt", &
                "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
                err)
