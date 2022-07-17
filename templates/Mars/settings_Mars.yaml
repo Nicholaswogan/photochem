@@ -12,7 +12,6 @@ photolysis-grid:
   photon-scale-factor: 0.43
 
 planet:
-  use-background-gas: true
   background-gas: CO2
   surface-pressure: 0.0063
   planet-mass: 6.39e26

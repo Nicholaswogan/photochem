@@ -52,7 +52,7 @@ module photochem_types ! make a giant IO object
   
     ! planet
     character(:), allocatable :: back_gas_name
-    real(dp) :: P_surf
+    real(dp), allocatable :: P_surf
     real(dp) :: planet_mass
     real(dp) :: planet_radius
     real(dp) :: surface_albedo
@@ -339,7 +339,7 @@ module photochem_types ! make a giant IO object
     real(dp) :: bottom_atmos ! cm
     real(dp) :: top_atmos ! cm
     integer :: nz ! number of vertical layers
-    real(dp) :: surface_pressure ! bars
+    real(dp), allocatable :: surface_pressure ! bars
     real(dp) :: surface_albedo
     real(dp) :: diurnal_fac ! normally 0.5 cuz planets spin around.
     real(dp) :: solar_zenith 

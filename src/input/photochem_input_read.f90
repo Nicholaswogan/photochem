@@ -675,6 +675,7 @@ contains
     type(type_scalar), pointer :: scalar
     type(type_error), allocatable :: io_err
     character(:), allocatable :: temp_char
+    logical :: success
     integer :: i, j
     
     !!!!!!!!!!!!!!!!!!!!!!!
@@ -731,12 +732,19 @@ contains
       s%back_gas_name = trim(scalar%string)
     endif
 
-    s%P_surf = dict%get_real('surface-pressure',error = io_err)
-    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    if (s%P_surf <= 0.0_dp) then
-      err = 'IOError: Planet surface pressure must be greater than zero.'
-      return
+    scalar => dict%get_scalar('surface-pressure',required=.false.,error = io_err)
+    if (associated(scalar)) then
+      s%P_surf = scalar%to_real(-1.0_dp, success=success)
+      if (.not. success) then
+        err = trim(filename)//trim(scalar%path)//' can not be converted to a real number.'
+        return
+      endif
+      if (s%P_surf <= 0.0_dp) then
+        err = 'IOError: Planet surface pressure must be greater than zero.'
+        return
+      endif
     endif
+
     s%planet_mass = dict%get_real('planet-mass',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     if (s%planet_mass <= 0.0_dp) then
@@ -1153,6 +1161,10 @@ contains
     ! dat%back_gas_name
     ! already set earlier
     if (dat%back_gas) then
+      if (.not. allocated(s%P_surf)) then
+        err = 'The settings file does not contain a "surface-pressure"'
+        return
+      endif
       var%surface_pressure = s%P_surf
     endif
     dat%planet_mass = s%planet_mass

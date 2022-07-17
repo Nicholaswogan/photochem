@@ -13,7 +13,6 @@ photolysis-grid:
   # input-file: my/input/file.txt
 
 planet:
-  use-background-gas: true
   background-gas: N2
   surface-pressure: 1.013 # bar
   planet-mass: 5.972e27 # grams

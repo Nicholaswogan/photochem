@@ -12,7 +12,6 @@ photolysis-grid:
   photon-scale-factor: 0.01089
 
 planet:
-  use-background-gas: true
   background-gas: N2
   surface-pressure: 1.500 # bar
   planet-mass: 1.345e26 # grams
