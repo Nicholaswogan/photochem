@@ -404,7 +404,7 @@ contains
         wrk%lower_vdep_copy(i) = wrk%lower_vdep_copy(i) + wrk%wfall(i,1)
       enddo
 
-      call gas_saturation_density(dat, var, wrk%usol, wrk%pressure, &
+      call gas_saturation_density(dat, var, wrk%usol(dat%LH2O,:), wrk%pressure, &
                                   wrk%gas_sat_den, wrk%molecules_per_particle)
     endif
   
@@ -434,7 +434,7 @@ contains
     ! rainout rates
     if (dat%gas_rainout) then
       call rainout(self%dat, self%var, &
-                   wrk%usol, wrk%density, wrk%rainout_rates)
+                   wrk%usol(dat%LH2O,:), wrk%density, wrk%rainout_rates)
     endif
   
   end subroutine

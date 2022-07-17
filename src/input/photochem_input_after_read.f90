@@ -69,9 +69,12 @@ contains
     call interp(var%nz, dat%nzf, var%z, dat%z_file, dat%den_file, var%den_init, err)
     if (allocated(err)) return
 
-    do i = 1,dat%nq
-      var%dsol_init(i,:) = var%usol_init(i,:)*var%den_init(:)
-    enddo
+    if (.not. dat%back_gas) then
+      ! then usol is a density
+      do i = 1,dat%nq
+        var%usol_init(i,:) = var%usol_init(i,:)*var%den_init(:)
+      enddo
+    endif
     
     if (dat%there_are_particles) then
       do i = 1,dat%npq
@@ -226,7 +229,6 @@ contains
     allocate(vars%grav(vars%nz))
     allocate(vars%usol_init(dat%nq,vars%nz))
     allocate(vars%den_init(vars%nz))
-    allocate(vars%dsol_init(dat%nq,vars%nz))
     allocate(vars%particle_radius(dat%npq,vars%nz))
     allocate(vars%xs_x_qy(vars%nz,dat%kj,dat%nw))
     allocate(vars%usol_out(dat%nq,vars%nz))

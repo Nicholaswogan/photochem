@@ -21,18 +21,16 @@ program testevo
     stop 1
   endif
 
-  allocate(t_eval(200))
+  allocate(t_eval(100))
   from = 0
-  to = 15
+  to = 1
   do i = 1,size(t_eval)
     t_eval(i) = from + (to - from)*(i-1)/(size(t_eval)-1)
   enddo
   t_eval = 10.0_dp**t_eval
 
   
-  ! pc%var%dsol_init = 1.0_dp
-
-  success = pc%evolve('../test1.dat',0.0_dp,pc%var%dsol_init, t_eval, .true., err)
+  success = pc%evolve('../test1.dat',0.0_dp,pc%var%usol_init, t_eval, .true., err)
   if (allocated(err)) then
     print*,trim(err)
     stop 1

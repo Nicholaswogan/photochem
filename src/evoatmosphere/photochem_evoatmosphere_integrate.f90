@@ -119,7 +119,7 @@ contains
   
   end function
   
-  module function evolve(self, filename, tstart, dsol_start, t_eval, overwrite, err) result(success)
+  module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, err) result(success)
                                    
     use, intrinsic :: iso_c_binding
     use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSVtolerances, &
@@ -140,7 +140,7 @@ contains
     class(EvoAtmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: filename
     real(c_double), intent(in) :: tstart
-    real(dp), intent(in) :: dsol_start(:,:)
+    real(dp), intent(in) :: usol_start(:,:)
     ! real(c_double), intent(in) :: t_eval(num_t_eval)
     real(c_double), intent(in) :: t_eval(:)
     logical, optional, intent(in) :: overwrite
@@ -183,7 +183,7 @@ contains
     endif
     
     ! check dimensions
-    if (size(dsol_start,1) /= dat%nq .or. size(dsol_start,2) /= var%nz) then
+    if (size(usol_start,1) /= dat%nq .or. size(usol_start,2) /= var%nz) then
       err = "Problem!"
       return
     endif
@@ -217,10 +217,10 @@ contains
     
     ! initialize solution vector
     do j=1,var%nz
-      density = sum(dsol_start(:,j))
+      density = sum(usol_start(:,j))
       do i=1,dat%nq
         k = i + (j-1)*dat%nq
-        yvec(k) = dsol_start(i,j)
+        yvec(k) = usol_start(i,j)
         ! set abstol.
         abstol(k) = density*var%atol
       enddo
@@ -319,16 +319,16 @@ contains
         do j=1,var%nz
           do i=1,dat%nq  
             k = i + (j-1)*dat%nq
-            wrk%dsol(i,j) = yvec(k)
+            wrk%usol(i,j) = yvec(k)
           enddo
         enddo
         
-        call self%prep_atmosphere(wrk%dsol, err)
+        call self%prep_atmosphere(wrk%usol, err)
         if (allocated(err)) return
         
         open(1, file = filename, status='old', form="unformatted",position="append")
         write(1) tcur(1)
-        write(1) wrk%dsol
+        write(1) wrk%usol
         close(1)
                                
       endif
@@ -363,7 +363,7 @@ contains
     var => self%var
     wrk => self%wrk
     
-    call self%initialize_stepper(var%dsol_init, err)
+    call self%initialize_stepper(var%usol_init, err)
     if (allocated(err)) return
     
     success = .true.
@@ -384,7 +384,7 @@ contains
       endif
     enddo
     
-    ! var%dsol_out = wrk%dsol
+    var%usol_out = wrk%usol
     call self%destroy_stepper(err)
     if (allocated(err)) return
     
@@ -392,7 +392,7 @@ contains
     
   end subroutine
 
-  module subroutine initialize_stepper(self, dsol_start, err)
+  module subroutine initialize_stepper(self, usol_start, err)
     use, intrinsic :: iso_c_binding
     use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSStolerances, &
                           FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
@@ -409,7 +409,7 @@ contains
     use photochem_enum, only: DensityBC
     
     class(EvoAtmosphere), target, intent(inout) :: self
-    real(dp), intent(in) :: dsol_start(:,:)
+    real(dp), intent(in) :: usol_start(:,:)
     character(:), allocatable, intent(out) :: err
     
     real(c_double) :: tstart
@@ -430,8 +430,8 @@ contains
     var => self%var
     wrk => self%wrk
     
-    if (size(dsol_start,1) /= dat%nq .or. size(dsol_start,2) /= var%nz) then
-      err = "Input 'dsol_start' to 'initialize_stepper' is the wrong dimension"
+    if (size(usol_start,1) /= dat%nq .or. size(usol_start,2) /= var%nz) then
+      err = "Input 'usol_start' to 'initialize_stepper' is the wrong dimension"
       return
     endif
     
@@ -452,7 +452,7 @@ contains
     do j=1,var%nz
       do i=1,dat%nq
         k = i + (j-1)*dat%nq
-        wrk%yvec(k) = dsol_start(i,j)
+        wrk%yvec(k) = usol_start(i,j)
       enddo
     enddo
     do i = 1,dat%nq

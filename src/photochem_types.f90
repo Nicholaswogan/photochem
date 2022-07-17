@@ -371,9 +371,8 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: dz(:) ! (nz) cm
     real(dp), allocatable :: edd(:) ! (nz) cm2/s
     real(dp), allocatable :: grav(:) ! (nz) cm/s2
-    real(dp), allocatable :: usol_init(:,:) ! (nq,nz) mixing ratio
+    real(dp), allocatable :: usol_init(:,:) ! (nq,nz) mixing ratio (EvoAtmosphere) or densities (EvoAtmosphere).
     real(dp), allocatable :: den_init(:) ! (nz) molecules/cm2
-    real(dp), allocatable :: dsol_init(:,:) ! (nq,nz) molecules/cm3
     real(dp), allocatable :: particle_radius(:,:) ! (np,nz) cm
     real(dp), allocatable :: xs_x_qy(:,:,:) ! (nz,kj,nw) cm2/molecule
     type(ParticleXsections), allocatable :: particle_xs(:) ! (np) cm2/molecule
@@ -451,7 +450,7 @@ module photochem_types ! make a giant IO object
   end type
 
   type, extends(PhotochemWrk) :: PhotochemWrkEvo
-    real(dp), allocatable :: dsol(:,:) ! (nq,nz)
+    real(dp), allocatable :: mix(:,:) ! (nq,nz) mixing ratio.
 
   contains
     procedure :: init => init_PhotochemWrkEvo
@@ -466,11 +465,11 @@ contains
 
     call init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw, trop_ind)
 
-    if (allocated(self%dsol)) then
-      deallocate(self%dsol)
+    if (allocated(self%mix)) then
+      deallocate(self%mix)
     endif
 
-    allocate(self%dsol(nq,nz))
+    allocate(self%mix(nq,nz))
 
   end subroutine
  

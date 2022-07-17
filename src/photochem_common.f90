@@ -466,13 +466,13 @@ contains
     
   end subroutine
   
-  pure subroutine rainout(dat, var, usol, den, rainout_rates)
+  pure subroutine rainout(dat, var, fH2O, den, rainout_rates)
     use photochem_const, only: k_boltz, N_avo, small_real
     use photochem_eqns, only: henrys_law
     
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
-    real(dp), intent(in) :: usol(:,:) ! (nq,nz)
+    real(dp), intent(in) :: fH2O(:) ! (nz)
     real(dp), intent(in) :: den(:) ! (nz)
     real(dp), intent(out) :: rainout_rates(:,:) ! (nq,trop_ind)
     
@@ -502,9 +502,9 @@ contains
       eddav_p = sqrt(var%edd(i+1)*var%edd(i))
       denav_m = sqrt(den(i-1)*den(i))
       eddav_m = sqrt(var%edd(i-1)*var%edd(i))
-      wH2O(i) = (eddav_p*denav_p/var%dz(i)**2.0_dp) * usol(dat%LH2O,i+1) &
-              - (eddav_p*denav_p/var%dz(i)**2.0_dp + eddav_m*denav_m/var%dz(i)**2.0_dp) * usol(dat%lH2O,i) &
-              + (eddav_m*denav_m/var%dz(i)**2.0_dp) * usol(dat%lH2O,i-1)
+      wH2O(i) = (eddav_p*denav_p/var%dz(i)**2.0_dp) * fH2O(i+1) &
+              - (eddav_p*denav_p/var%dz(i)**2.0_dp + eddav_m*denav_m/var%dz(i)**2.0_dp) * fH2O(i) &
+              + (eddav_m*denav_m/var%dz(i)**2.0_dp) * fH2O(i-1)
       if (wH2O(i) < 0.0_dp) then
         wH2O(i) = 1.d-20
       endif
@@ -705,7 +705,7 @@ contains
     
   end subroutine
 
-  subroutine gas_saturation_density(dat, var, usol, pressure, &
+  subroutine gas_saturation_density(dat, var, fH2O, pressure, &
                                     gas_sat_den, molecules_per_particle)
     use photochem_const, only: pi, N_avo, k_boltz
     use photochem_enum, only: CondensingParticle
@@ -714,7 +714,7 @@ contains
 
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(in) :: var
-    real(dp), intent(in) :: usol(:,:)
+    real(dp), intent(in) :: fH2O(:)
     real(dp), intent(in) :: pressure(:)
     real(dp), intent(out) :: gas_sat_den(:,:)
     real(dp), intent(out) :: molecules_per_particle(:,:)
@@ -733,7 +733,7 @@ contains
                                                   dat%particle_sat_params(3,i))
           elseif (dat%particle_sat_type(i) == H2SO4Saturation) then ! interpolate to H2SO4 data
             call dat%H2SO4_sat%evaluate(var%temperature(j), &
-                                        log10(usol(dat%LH2O,j)*pressure(j)/1.e6_dp),P_H2SO4)
+                                        log10(fH2O(j)*pressure(j)/1.e6_dp),P_H2SO4)
             P_H2SO4 = 10.0_dp**(P_H2SO4)
             gas_sat_den(i,j) = (P_H2SO4*1.e6_dp)/(k_boltz*var%temperature(j))
           endif

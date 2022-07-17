@@ -47,26 +47,26 @@ module photochem_evoatmosphere
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_atmosphere_rhs.f90 !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    module subroutine prep_all_evo_gas(self, dsol_in, err)
+    module subroutine prep_all_evo_gas(self, usol_in, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: dsol_in(:,:)
+      real(dp), intent(in) :: usol_in(:,:)
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    module subroutine rhs_evo_gas(self, neqs, dsol_flat, rhs, err)
+    module subroutine rhs_evo_gas(self, neqs, usol_flat, rhs, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       integer, intent(in) :: neqs
-      real(dp), target, intent(in) :: dsol_flat(neqs)
+      real(dp), target, intent(in) :: usol_flat(neqs)
       real(dp), intent(out) :: rhs(neqs)
       character(:), allocatable, intent(out) :: err
       ! Computes the right-hand-side of the ODEs describing atmospheric chemistry
       ! and transport.
     end subroutine
     
-    module subroutine jac_evo_gas(self, lda_neqs, neqs, dsol_flat, jac, err)
+    module subroutine jac_evo_gas(self, lda_neqs, neqs, usol_flat, jac, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       integer, intent(in) :: lda_neqs, neqs
-      real(dp), target, intent(in) :: dsol_flat(neqs)
+      real(dp), target, intent(in) :: usol_flat(neqs)
       real(dp), intent(out), target :: jac(lda_neqs)
       character(:), allocatable, intent(out) :: err
       ! The jacobian of the rhs_background_gas.
@@ -75,12 +75,12 @@ module photochem_evoatmosphere
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_evoatmosphere_integrate.f90 !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    module function evolve(self, filename, tstart, dsol_start, t_eval, overwrite, err) result(success)
+    module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, err) result(success)
       use, intrinsic :: iso_c_binding
       class(EvoAtmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: filename
       real(c_double), intent(in) :: tstart
-      real(dp), intent(in) :: dsol_start(:,:)
+      real(dp), intent(in) :: usol_start(:,:)
       real(c_double), intent(in) :: t_eval(:)
       logical, optional, intent(in) :: overwrite
       logical :: success
@@ -95,9 +95,9 @@ module photochem_evoatmosphere
       ! Integrates to photochemical equilibrium starting from self%var%usol_init
     end subroutine
     
-    module subroutine initialize_stepper(self, dsol_start, err)      
+    module subroutine initialize_stepper(self, usol_start, err)      
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: dsol_start(:,:)
+      real(dp), intent(in) :: usol_start(:,:)
       character(:), allocatable, intent(out) :: err
     end subroutine
     
