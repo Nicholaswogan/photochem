@@ -51,6 +51,14 @@ contains
     val = con%in_dist
   end subroutine
 
+  subroutine atomconservation_in_other_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(AtomConservation), pointer :: con
+    call c_f_pointer(ptr, con)
+    val = con%in_other
+  end subroutine
+
   subroutine atomconservation_out_surf_get(ptr, val) bind(c)
     type(c_ptr), intent(in) :: ptr
     real(c_double), intent(out) :: val

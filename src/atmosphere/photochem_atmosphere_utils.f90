@@ -139,11 +139,6 @@ contains
                               *wrk%density(1)*var%dz(1)
       chemical_production = rhs(i)*wrk%density(1)*var%dz(1)
       surf_fluxes(i) = -(diffusive_production + chemical_production)
-      if (dat%fix_water_in_trop) then
-        if (i == dat%LH2O) then
-          surf_fluxes(i) = 0.0_dp
-        endif
-      endif
     enddo
     
     ! fluxes going into or out of the top of the atmosphere.
@@ -163,6 +158,7 @@ contains
     use photochem_enum, only: VelocityDistributedFluxBC
     use photochem_eqns, only: damp_condensation_rate
     use photochem_types, only: AtomConservation
+    use photochem_const, only: fast_arbitrary_rate
     class(Atmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: atom
     character(:), allocatable, intent(out) :: err
@@ -171,7 +167,7 @@ contains
     real(dp) :: surf_fluxes(self%dat%nq)
     real(dp) :: top_fluxes(self%dat%nq)
     real(dp) :: integrated_rainout(self%dat%nq)
-    real(dp) :: cond_rate
+    real(dp) :: cond_rate, con_evap_rate
     
     integer :: ind(1), i, j, kk
     
@@ -196,20 +192,13 @@ contains
       return 
     endif
     
-    if (dat%fix_water_in_trop) then
-      if (atom == "H" .or. atom == "O") then
-        err = "Atom "//trim(atom)//" is not conserved in this model because"// &
-              " H2O is fixed in the troposphere"
-        return
-      endif
-    endif
-    
     call self%gas_fluxes(surf_fluxes, top_fluxes, err)
     if (allocated(err)) return
     
     con%in_surf = 0
     con%in_top = 0
     con%in_dist = 0
+    con%in_other = 0
     con%out_surf = 0
     con%out_top = 0
     con%out_rain = 0
@@ -250,6 +239,18 @@ contains
         con%out_rain = con%out_rain + integrated_rainout(i)*dat%species_composition(kk,i)
       enddo
     endif
+
+    if (dat%fix_water_in_trop) then
+      do j = 1,var%trop_ind
+        con_evap_rate = fast_arbitrary_rate*(wrk%H2O_sat_mix(j)*wrk%H2O_rh(j) - wrk%usol(dat%LH2O,j)) &
+                        *wrk%density(j)*var%dz(j)*dat%species_composition(kk,dat%LH2O)
+        if (con_evap_rate > 0.0_dp) then
+          con%in_other = con%in_other + con_evap_rate
+        else
+          con%out_other = con%out_other + (-1.0_dp)*con_evap_rate
+        endif
+      enddo
+    endif
     
     if (dat%water_cond) then
       if (dat%fix_water_in_trop) then
@@ -271,10 +272,10 @@ contains
       enddo
     endif
     
-    con%net = con%in_surf + con%in_top + con%in_dist &
+    con%net = con%in_surf + con%in_top + con%in_dist + con%in_other &
             - con%out_surf - con%out_top - con%out_rain - con%out_other
     
-    con%factor = abs(con%net/maxval([con%in_surf, con%in_top, con%in_dist, &
+    con%factor = abs(con%net/maxval([con%in_surf, con%in_top, con%in_dist, con%in_other, &
                                      con%out_surf, con%out_top, con%out_rain, con%out_other]))
     
   end function

@@ -94,6 +94,7 @@ module photochem_types ! make a giant IO object
     real(dp) :: in_surf
     real(dp) :: in_top
     real(dp) :: in_dist
+    real(dp) :: in_other
     real(dp) :: out_surf
     real(dp) :: out_top
     real(dp) :: out_rain
