@@ -335,6 +335,7 @@ contains
     enddo
     
     ! free memory
+    call FN_VDestroy(abstol_nvec)
     call FN_VDestroy(sunvec_y)
     call FCVodeFree(wrk%cvode_mem)
     ierr = FSUNLinSolFree(sunlin)
