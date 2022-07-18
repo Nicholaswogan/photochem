@@ -160,7 +160,6 @@ contains
     type(SUNMatrix), pointer :: sunmat
     type(SUNLinearSolver), pointer :: sunlin
     
-    ! real(dp) :: fH2O(self%var%trop_ind)
     integer :: i, j, k, ii, io
     
     type(c_ptr)    :: user_data
@@ -225,22 +224,6 @@ contains
         yvec(i) = var%lower_fix_mr(i)
       endif
     enddo
-    if (dat%fix_water_in_trop) then
-      call self%prep_atmosphere(usol_start, err)
-      if (allocated(err)) return 
-      do j = 1,var%trop_ind
-        k = dat%LH2O + (j-1)*dat%nq
-        yvec(k) = self%wrk%fH2O(j)
-      enddo
-      ! if there is no water profile, then we should extrapolate H2O
-      ! above the tropopause
-      if (var%no_water_profile) then
-        do j = var%trop_ind+1,var%nz
-          k = dat%LH2O + (j-1)*dat%nq
-          yvec(k) = self%wrk%fH2O(var%trop_ind)
-        enddo
-      endif
-    endif
 
     ! create SUNDIALS N_Vector
     sunvec_y => FN_VMake_Serial(neqs_long, yvec)
@@ -466,20 +449,6 @@ contains
         wrk%yvec(i) = var%lower_fix_mr(i)
       endif
     enddo
-    if (dat%fix_water_in_trop) then
-      call self%prep_atmosphere(usol_start, err)
-      if (allocated(err)) return 
-      do j = 1,var%trop_ind
-        k = dat%LH2O + (j-1)*dat%nq
-        wrk%yvec(k) = self%wrk%fH2O(j)
-      enddo
-      if (var%no_water_profile) then
-        do j = var%trop_ind+1,var%nz
-          k = dat%LH2O + (j-1)*dat%nq
-          wrk%yvec(k) = self%wrk%fH2O(var%trop_ind)
-        enddo
-      endif
-    endif
     
     ! create SUNDIALS N_Vector
     wrk%sunvec_y => FN_VMake_Serial(neqs_long, wrk%yvec)

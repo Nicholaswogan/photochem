@@ -3093,21 +3093,9 @@ contains
       endif
     enddo
     
-    var%no_water_profile = .false.
-    if (dat%fix_water_in_trop) then
-      ind = findloc(labels,'H2O')
-      if (ind(1) == 0) then
-        var%no_water_profile = .true. 
-      endif
-    endif
-    
     if (missing) then
       message = 'Warning: Did not find initial data for some species in '// &
                 trim(atmosphere_txt)//' . The program will assume initial mixing ratios of 1.0e-40'
-      if (var%no_water_profile) then
-        message = message // " except H2O, which will be set to saturation in troposphere with constant "//&
-                              "extrapolation above the tropopause."
-      endif
       print*,message
     endif
     

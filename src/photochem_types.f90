@@ -358,9 +358,6 @@ module photochem_types ! make a giant IO object
     ! particles
     ! condensation rate of particles
     real(dp), allocatable :: condensation_rate(:,:) ! (3,np)
-    
-    ! switch for dealing with H2O if not read in. in some cases
-    logical :: no_water_profile
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! set AFTER file read-in !!!
@@ -415,7 +412,7 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: rx_rates(:,:) ! (nz,nrT)
     real(dp), allocatable :: mubar(:) ! (nz)
     real(dp), allocatable :: pressure(:) ! (nz)
-    real(dp), allocatable :: fH2O(:) ! (nz)
+    real(dp), allocatable :: H2O_rh(:) ! (nz)
     real(dp), allocatable :: H2O_sat_mix(:) ! (nz)
     real(dp), allocatable :: prates(:,:) ! (nz,kj)
     real(dp), allocatable :: surf_radiance(:) ! (nw)
@@ -481,7 +478,7 @@ contains
       deallocate(self%mubar)
       deallocate(self%pressure)
       deallocate(self%density)
-      deallocate(self%fH2O)
+      deallocate(self%H2O_rh)
       deallocate(self%H2O_sat_mix)
       deallocate(self%densities)
       deallocate(self%rx_rates)
@@ -510,7 +507,7 @@ contains
     allocate(self%mubar(nz))
     allocate(self%pressure(nz))
     allocate(self%density(nz))
-    allocate(self%fH2O(trop_ind))
+    allocate(self%H2O_rh(trop_ind))
     allocate(self%H2O_sat_mix(nz))
     allocate(self%densities(nsp+1,nz))
     allocate(self%rx_rates(nz,nrT))

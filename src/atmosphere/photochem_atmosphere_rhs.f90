@@ -13,12 +13,12 @@ contains
   
   subroutine dochem(self, neqs, nsp, np, nsl, nq, nz, trop_ind, nrT, usol, density, rx_rates, &
                     gas_sat_den, molecules_per_particle, &
-                    H2O_sat_mix, rainout_rates, &
+                    H2O_sat_mix, H2O_rh, rainout_rates, &
                     densities, xp, xl, rhs)                 
     use photochem_enum, only: CondensingParticle
     use photochem_common, only: chempl, chempl_sl
     use photochem_eqns, only: damp_condensation_rate
-    use photochem_const, only: N_avo, pi, small_real, T_crit_H2O
+    use photochem_const, only: N_avo, pi, small_real, T_crit_H2O, fast_arbitrary_rate
     
     class(Atmosphere), target, intent(in) :: self
     integer, intent(in) :: neqs, nsp, np, nsl, nq, nz, trop_ind, nrT
@@ -26,7 +26,7 @@ contains
     real(dp), intent(in) :: rx_rates(nz,nrT)
     real(dp), intent(in) :: gas_sat_den(np,nz)
     real(dp), intent(in) :: molecules_per_particle(np,nz)
-    real(dp), intent(in) :: H2O_sat_mix(nz)
+    real(dp), intent(in) :: H2O_sat_mix(nz), H2O_rh(trop_ind)
     real(dp), intent(in) :: rainout_rates(nq, trop_ind)
     real(dp), intent(inout) :: densities(nsp+1,nz), xp(nz), xl(nz)
     real(dp), intent(out) :: rhs(neqs)
@@ -77,8 +77,17 @@ contains
       enddo
     endif
     
-    ! if stratospheric water condesation is on, then condense
-    ! water in the stratosphere.
+    !!! Deal with H2O !!!
+
+    ! to fix water in the troposphere, we produce or destroy water
+    ! in the troposphere so that it reaches the target relative humidity
+    if (dat%fix_water_in_trop) then
+      do j = 1,var%trop_ind
+        k = dat%LH2O + (j - 1) * dat%nq
+        rhs(k) = rhs(k) + fast_arbitrary_rate*(H2O_sat_mix(j)*H2O_rh(j) - usol(dat%LH2O,j))
+      enddo
+    endif
+    ! H2O condensation
     if (dat%water_cond) then
       if (dat%fix_water_in_trop) then
         ! need to start above tropopause if fixing
@@ -158,43 +167,23 @@ contains
   end subroutine
   
   subroutine prep_atm_background_gas(self, usol, sum_usol, &
-                                     density, mubar, pressure, fH2O, H2O_sat_mix, err)
+                                     density, mubar, pressure, H2O_rh, H2O_sat_mix, err)
     use photochem_eqns, only: sat_pressure_H2O, molar_weight, press_and_den
-    use, intrinsic :: iso_c_binding, only : c_loc, c_ptr
-    use cminpack_wrapper, only: hybrd1 ! interface to hybrd1 from cminpack
     
     type(Atmosphere), target, intent(inout) :: self
     real(dp), intent(inout) :: usol(:,:)
     real(dp), intent(out) :: sum_usol(:)
     real(dp), intent(out) :: density(:)
-    real(dp), intent(out) :: mubar(:), pressure(:), fH2O(:), H2O_sat_mix(:)
+    real(dp), intent(out) :: mubar(:), pressure(:), H2O_rh(:), H2O_sat_mix(:)
     character(:), allocatable, intent(out) :: err
     
     real(dp) :: rel
     integer :: i
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(Atmosphere), pointer :: self_ptr
-    
-    ! hybrd1 varibles for cminpack
-    integer :: info
-    real(dp), parameter :: tol = 1.d-8
-    integer :: lwa
-    real(dp), allocatable :: fvec(:)
-    real(dp), allocatable :: wa(:)
-    type(c_ptr) :: ptr ! void c pointer for cminpack
-    ! end hybrd1 varibles
     
     dat => self%dat
     var => self%var
-    
-    ! If water is fixed in the troposhere, lets set it to zero.
-    ! This will be to get an initial guess for the non-linear solve.
-    if (dat%fix_water_in_trop) then
-      do i = 1,var%trop_ind
-        usol(dat%LH2O,i) = 0.0_dp
-      enddo
-    endif 
     
     do i = 1,var%nz
       sum_usol(i) = sum(usol(dat%ng_1:,i))
@@ -211,9 +200,8 @@ contains
     
     call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.e6_dp, var%dz, &
                        mubar, pressure, density)
-                       
+    
     if (dat%fix_water_in_trop) then
-      ! Compute initial guess for fH2O
       do i = 1,var%trop_ind
         if (var%use_manabe) then
           ! manabe formula
@@ -222,117 +210,15 @@ contains
           rel = var%relative_humidity 
         endif
         
-        fH2O(i) = rel*sat_pressure_H2O(var%temperature(i))/pressure(i)
-      enddo
-      ! Here we compute self-consistent water profile.
-      ! hybrd1 is nonlinear solver from cminpack. Takes negligable time.
-      self_ptr => self
-      ptr = c_loc(self_ptr) ! void pointer to usol. Be careful!!!
-      lwa = (var%trop_ind*(3*var%trop_ind+13))/2 + 2
-      allocate(fvec(var%trop_ind))
-      allocate(wa(lwa))
-      ! Call hybrd1 from cminpack (c re-write of minpack). I wrote a fortran
-      ! interface to cminpack. We pass usol, the atmosphere, via a pointer.
-      call hybrd1(fcn_fH2O, ptr, var%trop_ind, fH2O, fvec, tol, info, wa, lwa)
-      if (info /= 1) then
-        err = "Non-linear solve for water profile failed."
-        return
-      endif
-      deallocate(fvec, wa)
-      
-      ! use the solution for tropospheric H2O to compute molar weight
-      ! and pressure and density.
-      do i = 1,var%trop_ind
-        usol(dat%LH2O,i) = fH2O(i)
-      enddo
-      
-      do i = 1,var%nz
-        sum_usol(i) = sum(usol(dat%ng_1:,i))
-      enddo
-      
-      do i = 1,var%nz
-        call molar_weight(dat%nll, usol(dat%ng_1:,i), sum_usol(i), &
-                          dat%species_mass(dat%ng_1:), dat%back_gas_mu, mubar(i))
-      enddo
-      
-      call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.e6_dp, var%dz, &
-                         mubar, pressure, density)
-      
-    endif 
-    
-    if (dat%water_cond) then
-      ! compute H2O saturation mixing ratio at all altitudes
-      do i = 1,var%nz
-        H2O_sat_mix(i) = sat_pressure_H2O(var%temperature(i))/pressure(i)
+        H2O_rh(i) = rel
       enddo
     endif
     
-  end subroutine
-  
-  module function fcn_fH2O(ptr, n, x, fvec, iflag) result(res) bind(c)
-    use photochem_eqns, only: sat_pressure_H2O, molar_weight, press_and_den
-    use, intrinsic :: iso_c_binding, only : c_f_pointer, c_ptr, c_double, c_int
-  
-    type(c_ptr) :: ptr ! void pointer. Be careful!
-    integer(c_int), value :: n, iflag ! n == trop_ind
-    real(c_double), intent(in) :: x(n) ! x == fH2O
-    real(c_double), intent(out) :: fvec(n) ! fvec == residual
-    integer(c_int) :: res
-  
-    real(dp) :: fH2O(n)
-    real(dp), pointer :: usol(:,:)
-    real(dp), pointer :: sum_usol(:) 
-    real(dp), pointer :: mubar(:)
-    real(dp), pointer :: density(:)
-    real(dp), pointer :: pressure(:)
-    type(PhotochemData), pointer :: dat
-    type(PhotochemVars), pointer :: var
-    type(Atmosphere), pointer :: self
-  
-    integer :: i
-    real(dp) :: rel
-  
-    ! dereferences the pointer. Takes the void ptr, then
-    ! declares it to be pointing to a usol shaped array of doubles.
-    call c_f_pointer(ptr, self)
+    do i = 1,var%nz
+      H2O_sat_mix(i) = sat_pressure_H2O(var%temperature(i))/pressure(i)
+    enddo
     
-    dat => self%dat
-    var => self%var
-    sum_usol => self%wrk%sum_usol
-    mubar => self%wrk%mubar
-    density => self%wrk%density
-    pressure => self%wrk%pressure
-    usol => self%wrk%usol
-  
-    do i = 1,n
-      usol(dat%LH2O,i) = x(i)
-    enddo
-  
-    do i = 1,var%nz
-      sum_usol(i) = sum(usol(dat%ng_1:,i))
-    enddo
-  
-    do i = 1,var%nz
-      call molar_weight(dat%nll, usol(dat%ng_1:,i), sum_usol(i), &
-                        dat%species_mass(dat%ng_1:), dat%back_gas_mu, mubar(i))
-    enddo
-  
-    call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.e6_dp, var%dz, &
-                       mubar, pressure, density)
-  
-    do i = 1,n
-      if (var%use_manabe) then
-        ! manabe formula ()
-        rel = 0.77e0_dp*(pressure(i)/pressure(1)-0.02e0_dp)/0.98e0_dp
-      else
-        rel = var%relative_humidity 
-      endif
-      fH2O(i) = rel*sat_pressure_H2O(var%temperature(i))/pressure(i)
-    enddo  
-  
-    fvec = x - fH2O
-    res = 0
-  end function
+  end subroutine
   
   module subroutine prep_all_background_gas(self, usol_in, err)
     use photochem_enum, only: CondensingParticle
@@ -378,7 +264,7 @@ contains
     enddo
   
     call prep_atm_background_gas(self, wrk%usol, wrk%sum_usol, &
-                                 wrk%density, wrk%mubar, wrk%pressure, wrk%fH2O, wrk%H2O_sat_mix, err)  
+                                 wrk%density, wrk%mubar, wrk%pressure, wrk%H2O_rh, wrk%H2O_sat_mix, err)  
     if (allocated(err)) return  
   
     ! diffusion coefficients
@@ -478,7 +364,7 @@ contains
     call dochem(self, var%neqs, dat%nsp, dat%np, dat%nsl, dat%nq, var%nz, &
                 var%trop_ind, dat%nrT, wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
-                wrk%H2O_sat_mix, wrk%rainout_rates, &
+                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
                 wrk%densities, wrk%xp, wrk%xl, rhs) 
     
     ! diffusion (interior grid points)
@@ -543,13 +429,6 @@ contains
       endif
     enddo 
     
-    if (dat%fix_water_in_trop) then
-      do j = 1,var%trop_ind
-        k = dat%LH2O + (j-1)*dat%nq
-        rhs(k) = 0.0_dp
-      enddo
-    endif
-    
   end subroutine
   
   module subroutine jac_background_gas(self, lda_neqs, neqs, usol_flat, jac, err)
@@ -602,7 +481,7 @@ contains
     call dochem(self, var%neqs, dat%nsp, dat%np, dat%nsl, dat%nq, var%nz, var%trop_ind, dat%nrT, &
                 wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
-                wrk%H2O_sat_mix, wrk%rainout_rates, &
+                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
                 densities, xp, xl, rhs) 
     !$omp parallel private(i, j, k, m, mm, usol_perturb, R, densities, xl, xp, rhs_perturb)
     usol_perturb = wrk%usol
@@ -616,7 +495,7 @@ contains
       call dochem(self, var%neqs, dat%nsp, dat%np, dat%nsl, dat%nq, var%nz, var%trop_ind, dat%nrT, &
                   usol_perturb, wrk%density, wrk%rx_rates, &
                   wrk%gas_sat_den, wrk%molecules_per_particle, &
-                  wrk%H2O_sat_mix, wrk%rainout_rates, &
+                  wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
                   densities, xp, xl, rhs_perturb) 
   
       do m = 1,dat%nq
@@ -688,23 +567,6 @@ contains
       endif
     enddo
   
-    if (dat%fix_water_in_trop) then
-      do j = 1,var%trop_ind
-        k = dat%LH2O + (j-1)*dat%nq
-        do m = 1,dat%nq
-          mm = m - dat%LH2O + dat%kd
-          djac(mm,k) = 0.0_dp
-        enddo
-        ! For some reason this term makes the integration
-        ! much happier. I will keep it. Jacobians don't need to be perfect.
-        djac(dat%kd,k) = - wrk%DU(dat%LH2O,j)
-        djac(dat%ku,k+dat%nq) = 0.0_dp
-        if (j /= 1) then
-          djac(dat%kl,k-dat%nq) = 0.0_dp
-        endif
-      enddo
-    endif
-  
   end subroutine
   
   module subroutine right_hand_side_chem(self, usol, rhs, err)
@@ -733,7 +595,7 @@ contains
     call dochem(self, var%neqs, dat%nsp, dat%np, dat%nsl, dat%nq, var%nz, &
                 var%trop_ind, dat%nrT, wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
-                wrk%H2O_sat_mix, wrk%rainout_rates, &
+                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
                 wrk%densities, wrk%xp, wrk%xl, rhs)
                               
   end subroutine

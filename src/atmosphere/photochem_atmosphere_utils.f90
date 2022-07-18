@@ -97,7 +97,6 @@ contains
     
     if (self%var%at_photo_equilibrium) then
       self%var%usol_init = self%var%usol_out
-      self%var%no_water_profile = .false.
     else
       err = "Can not set output to input without first converging to photochemical equilibrium."
       return
@@ -140,10 +139,9 @@ contains
                               *wrk%density(1)*var%dz(1)
       chemical_production = rhs(i)*wrk%density(1)*var%dz(1)
       surf_fluxes(i) = -(diffusive_production + chemical_production)
-      ! We don't count chemical production for water
       if (dat%fix_water_in_trop) then
         if (i == dat%LH2O) then
-          surf_fluxes(i) = - diffusive_production
+          surf_fluxes(i) = 0.0_dp
         endif
       endif
     enddo
