@@ -69,7 +69,7 @@ contains
       do j = 1,var%trop_ind
         do i = 1,dat%nq
           k = i + (j - 1) * dat%nq
-          rhs(k) = rhs(k) - rainout_rates(i,j)*densities(i,j)
+          rhs(k) = rhs(k) - rainout_rates(i,j)*usol(i,j)
         enddo
       enddo
     endif
