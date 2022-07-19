@@ -1190,10 +1190,6 @@ contains
     
     ! water
     dat%fix_water_in_trop = s%fix_water_in_trop
-    if (.not. dat%back_gas .and. dat%fix_water_in_trop) then
-      err = 'fix-water-in-troposphere must be false for class "EvoAtmosphere".'
-      return
-    endif
     dat%water_cond = s%water_cond
     dat%gas_rainout = s%gas_rainout
     ind = findloc(dat%species_names,'H2O')

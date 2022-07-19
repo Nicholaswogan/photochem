@@ -162,7 +162,6 @@ contains
     type(SUNMatrix), pointer :: sunmat
     type(SUNLinearSolver), pointer :: sunlin
     
-    ! real(dp) :: fH2O(self%var%trop_ind)
     integer :: i, j, k, ii, io
     
     type(c_ptr)    :: user_data

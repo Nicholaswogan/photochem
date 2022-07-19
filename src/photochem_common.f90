@@ -463,28 +463,6 @@ contains
                      *slip_correction_factor(var%particle_radius(j,i), den(i))
       enddo
     enddo
-
-    if (dat%fix_water_in_trop) then
-      ! Then we turn off water transport.
-      ! H2O will be controlled by a production rate.
-      do i = 1,var%trop_ind-1
-        DU(dat%LH2O,i) = 0.0_dp
-        DD(dat%LH2O,i) = 0.0_dp
-        DL(dat%LH2O,i) = 0.0_dp
-        ADU(dat%LH2O,i) = 0.0_dp
-        ADD(dat%LH2O,i) = 0.0_dp
-        ADL(dat%LH2O,i) = 0.0_dp
-      enddo
-      ! tropopause layer must still communicate with
-      ! rest of the atmosphere
-      i = var%trop_ind
-      ! DU(dat%LH2O,i) ! OK
-      DD(dat%LH2O,i) = - DU(dat%LH2O,i)
-      DL(dat%LH2O,i) = 0.0_dp
-      ! ADU(dat%LH2O,i) ! OK
-      ADD(dat%LH2O,i) = ADU(dat%LH2O,i)
-      ADL(dat%LH2O,i) = 0.0_dp
-    endif
     
   end subroutine
   

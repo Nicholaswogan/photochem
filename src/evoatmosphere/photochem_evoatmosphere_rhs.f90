@@ -6,19 +6,19 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_rhs
 contains
   subroutine dochem(self, usol, rx_rates, &
                     gas_sat_den, molecules_per_particle, &
-                    H2O_sat_mix, rainout_rates, &
+                    H2O_sat_mix, H2O_rh, rainout_rates, &
                     density, mix, densities, xp, xl, rhs)                 
     use photochem_enum, only: CondensingParticle
     use photochem_common, only: chempl, chempl_sl
     use photochem_eqns, only: damp_condensation_rate
-    use photochem_const, only: N_avo, pi, small_real, T_crit_H2O
+    use photochem_const, only: N_avo, pi, small_real, T_crit_H2O, fast_arbitrary_rate
 
     class(EvoAtmosphere), target, intent(in) :: self
     real(dp), intent(in) :: usol(:,:)
     real(dp), intent(in) :: rx_rates(:,:)
     real(dp), intent(in) :: gas_sat_den(:,:)
     real(dp), intent(in) :: molecules_per_particle(:,:)
-    real(dp), intent(in) :: H2O_sat_mix(:)
+    real(dp), intent(in) :: H2O_sat_mix(:), H2O_rh(:)
     real(dp), intent(in) :: rainout_rates(:,:)
     real(dp), intent(inout) :: density(:), mix(:,:), densities(:,:), xp(:), xl(:)
     real(dp), intent(out) :: rhs(:) ! neqs
@@ -74,8 +74,19 @@ contains
       enddo
     endif
 
+    if (dat%fix_water_in_trop) then
+      do j = 1,var%trop_ind
+        k = dat%LH2O + (j - 1) * dat%nq
+        rhs(k) = rhs(k) + fast_arbitrary_rate*(density(j)*H2O_sat_mix(j)*H2O_rh(j) - usol(dat%LH2O,j))
+      enddo
+    endif
     if (dat%water_cond) then
-      do j = 1,var%nz
+      if (dat%fix_water_in_trop) then
+        i = var%trop_ind+1
+      else
+        i = 1
+      endif
+      do j = i,var%nz
         if (var%temperature(j) < T_crit_H2O) then
           ! water will condense if it is below the critical point.
 
@@ -411,6 +422,16 @@ contains
                        wrk%mubar, pressure_hydro, density_hydro)
     wrk%pressure(:) = wrk%density(:)*k_boltz*var%temperature(:)
 
+    if (dat%fix_water_in_trop) then
+      do i = 1,var%trop_ind
+        if (var%use_manabe) then
+          ! manabe formula
+          wrk%H2O_rh(i) = 0.77e0_dp*(wrk%pressure(i)/wrk%pressure(1)-0.02e0_dp)/0.98e0_dp
+        else
+          wrk%H2O_rh(i) = var%relative_humidity 
+        endif
+      enddo
+    endif
     ! H2O saturation
     if (dat%water_cond) then
       ! compute H2O saturation mixing ratio at all altitudes
@@ -509,7 +530,7 @@ contains
 
     call dochem(self, wrk%usol, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
-                wrk%H2O_sat_mix, wrk%rainout_rates, &
+                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
                 wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs)  
 
     ! diffusion (interior grid points)
@@ -622,7 +643,7 @@ contains
     jac = 0.0_dp
     call dochem(self, wrk%usol, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
-                wrk%H2O_sat_mix, wrk%rainout_rates, &
+                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
                 density, mix, densities, xp, xl, rhs) 
 
     !$omp parallel private(i, j, k, m, mm, usol_perturb, R, density, mix, densities, xl, xp, rhs_perturb)
@@ -636,7 +657,7 @@ contains
       
       call dochem(self, usol_perturb, wrk%rx_rates, &
                   wrk%gas_sat_den, wrk%molecules_per_particle, &
-                  wrk%H2O_sat_mix, wrk%rainout_rates, &
+                  wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
                   density, mix, densities, xp, xl, rhs_perturb) 
   
       do m = 1,dat%nq

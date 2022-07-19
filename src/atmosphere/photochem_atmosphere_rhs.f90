@@ -69,7 +69,7 @@ contains
     
     if (dat%gas_rainout) then
       ! rainout rates
-      do j = 1,var%trop_ind
+      do j = 1,trop_ind
         do i = 1,dat%nq
           k = i + (j - 1) * dat%nq
           rhs(k) = rhs(k) - rainout_rates(i,j)*usol(i,j)
@@ -82,7 +82,7 @@ contains
     ! to fix water in the troposphere, we produce or destroy water
     ! in the troposphere so that it reaches the target relative humidity
     if (dat%fix_water_in_trop) then
-      do j = 1,var%trop_ind
+      do j = 1,trop_ind
         k = dat%LH2O + (j - 1) * dat%nq
         rhs(k) = rhs(k) + fast_arbitrary_rate*(H2O_sat_mix(j)*H2O_rh(j) - usol(dat%LH2O,j))
       enddo
@@ -92,7 +92,7 @@ contains
       if (dat%fix_water_in_trop) then
         ! need to start above tropopause if fixing
         ! water in troposphere
-        i = var%trop_ind+1
+        i = trop_ind+1
       else
         i = 1
       endif
