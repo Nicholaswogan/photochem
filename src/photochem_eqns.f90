@@ -102,6 +102,49 @@ contains
 
   end subroutine
 
+  pure function heat_capacity_shomate(coeffs, T) result(cp)
+    real(dp), intent(in) :: coeffs(7)
+    real(dp), intent(in) :: T !! K
+    real(dp) :: cp !! J/(mol K)
+    
+    real(dp) :: TT
+    
+    TT = T/1000.0_dp
+    cp = coeffs(1) + coeffs(2)*TT + coeffs(3)*TT**2 + &
+         coeffs(4)*TT**3 + coeffs(5)/TT**2
+  end function
+  
+  pure subroutine heat_capacity_eval(thermo, T, found, cp)
+    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial
+    use photochem_types, only: ThermodynamicData
+  
+    type(ThermodynamicData), intent(in) :: thermo
+    real(dp), intent(in) :: T !! K
+    logical, intent(out) :: found
+    real(dp), intent(out) :: cp !! J/(mol*K)
+  
+    integer :: k
+
+    found = .false.
+    do k = 1,thermo%ntemps
+      if (T >= thermo%temps(k) .and. &
+          T <  thermo%temps(k+1)) then
+  
+        found = .true.
+        if (thermo%dtype == ShomatePolynomial) then
+          cp = heat_capacity_shomate(thermo%data(1:7,k), T)
+        elseif (thermo%dtype == Nasa9Polynomial) then
+          ! gibbs_energy = heat_capacity_nasa9(thermo%data(1:9,k), T)
+          found = .false.         
+        endif
+  
+        exit
+  
+      endif
+    enddo
+
+  end subroutine
+
   pure subroutine press_and_den(nz, T, grav, Psurf, dz, &
                            mubar, pressure, density)
     use photochem_const, only: k_boltz, N_avo

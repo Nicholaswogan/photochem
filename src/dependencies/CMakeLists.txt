@@ -8,14 +8,14 @@ CPMAddPackage(
 )
 
 CPMAddPackage(
-  NAME finterp
+  NAME finterp_
   VERSION 1.3.0
   GITHUB_REPOSITORY "jacobwilliams/finterp"
   GIT_TAG "1.3.0"
   DOWNLOAD_ONLY ON
 )
 
-add_library(finterp ${finterp_SOURCE_DIR}/src/linear_interpolation_module.F90)
+add_library(finterp_ ${finterp__SOURCE_DIR}/src/linear_interpolation_module.F90)
 
 CPMAddPackage(
   NAME fortran-yaml-c

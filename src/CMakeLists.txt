@@ -25,6 +25,7 @@ set(PHOTOCHEM_EVOATMOSPHERE
     evoatmosphere/photochem_evoatmosphere.f90
     evoatmosphere/photochem_evoatmosphere_init.f90
     evoatmosphere/photochem_evoatmosphere_rhs.f90
+    evoatmosphere/photochem_evoatmosphere_rhs_climate.f90
     evoatmosphere/photochem_evoatmosphere_integrate.f90)
 
 set(PHOTOCHEM_SOURCES 
@@ -38,7 +39,7 @@ set(PHOTOCHEM_SOURCES
 add_library(photochem 
             ${CMAKE_BINARY_DIR}/photochem_version.f90
             ${PHOTOCHEM_SOURCES})
-target_link_libraries(photochem fortran-yaml-c sundials_fcvode_mod sundials_cvode futils finterp)
+target_link_libraries(photochem fortran-yaml-c sundials_fcvode_mod sundials_cvode futils finterp_)
 target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules")
 
