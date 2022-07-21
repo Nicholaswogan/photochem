@@ -10,6 +10,7 @@ contains
   module subroutine Atmosphere_init(self, data_dir, mechanism_file, settings_file, flux_file, atmosphere_txt, err)
     use iso_c_binding, only : c_associated
     use photochem_input, only: setup
+    use photochem_types, only: PhotoSettings
     
     class(Atmosphere), intent(inout) :: self
     character(len=*), intent(in) :: data_dir
@@ -18,6 +19,11 @@ contains
     character(len=*), intent(in) :: flux_file
     character(len=*), intent(in) :: atmosphere_txt
     character(:), allocatable, intent(out) :: err
+
+    type(PhotoSettings) :: s
+
+    s = PhotoSettings(settings_file, err)
+    if (allocated(err)) return
     
     if (allocated(self%dat)) then
       if (c_associated(self%wrk%cvode_mem)) then
@@ -34,7 +40,7 @@ contains
     allocate(self%wrk)
     
     self%var%data_dir = data_dir
-    call setup(mechanism_file, settings_file, flux_file, atmosphere_txt, .true., &
+    call setup(mechanism_file, s, flux_file, atmosphere_txt, .true., &
                self%dat, self%var, err)
     if (allocated(err)) return 
     

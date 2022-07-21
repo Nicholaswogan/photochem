@@ -36,6 +36,7 @@ module photochem_types ! make a giant IO object
   end type
   
   type :: PhotoSettings
+    character(:), allocatable :: filename
   
     ! atmosphere-grid
     real(dp) :: bottom
@@ -85,6 +86,17 @@ module photochem_types ! make a giant IO object
     character(s_str_len), allocatable :: SL_names(:)
     
   end type
+
+  interface
+    module function create_PhotoSettings(filename, err) result(s)
+      character(*), intent(in) :: filename
+      character(:), allocatable, intent(out) :: err
+      type(PhotoSettings) :: s
+    end function
+  end interface
+  interface PhotoSettings
+    module procedure :: create_PhotoSettings
+  end interface
   
   !!!!!!!!!!!!!!!!!
   !!! Utilities !!!

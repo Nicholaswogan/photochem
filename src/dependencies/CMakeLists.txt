@@ -15,7 +15,7 @@ CPMAddPackage(
   DOWNLOAD_ONLY ON
 )
 
-add_library(finterp ${finterp_SOURCE_DIR}/src/linear_interpolation_module.F90)
+add_library(photochem_finterp ${finterp_SOURCE_DIR}/src/linear_interpolation_module.F90)
 
 CPMAddPackage(
   NAME fortran-yaml-c
@@ -43,6 +43,6 @@ CPMAddPackage(
   DOWNLOAD_ONLY ON
 )
 
-add_library(minpack
+add_library(photochem_minpack
   ${minpack_SOURCE_DIR}/src/minpack.f90
 )

@@ -7,6 +7,7 @@ set(PHOTOCHEM_MODULES
   photochem_eqns.f90 
   photochem_enum.f90
   photochem_types.f90
+  photochem_types_create.f90
   photochem_common.f90)
 
 set(PHOTOCHEM_INPUT
@@ -39,7 +40,14 @@ set(PHOTOCHEM_SOURCES
 add_library(photochem 
             ${CMAKE_BINARY_DIR}/photochem_version.f90
             ${PHOTOCHEM_SOURCES})
-target_link_libraries(photochem fortran-yaml-c sundials_fcvode_mod sundials_cvode futils finterp minpack)
+target_link_libraries(photochem 
+  fortran-yaml-c 
+  sundials_fcvode_mod 
+  sundials_cvode 
+  futils
+  photochem_finterp 
+  photochem_minpack
+)
 target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules")
 
