@@ -46,8 +46,8 @@ target_link_libraries(photochem
   sundials_cvode 
   futils
   clima
-  photochem_finterp 
-  photochem_minpack
+  finterp 
+  minpack
 )
 target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules")

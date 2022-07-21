@@ -7,15 +7,15 @@ CPMAddPackage(
   EXCLUDE_FROM_ALL ON
 )
 
-CPMAddPackage(
-  NAME finterp
-  VERSION 1.3.0
-  GITHUB_REPOSITORY "jacobwilliams/finterp"
-  GIT_TAG "1.3.0"
-  DOWNLOAD_ONLY ON
-)
+# CPMAddPackage(
+#   NAME finterp
+#   VERSION 1.3.0
+#   GITHUB_REPOSITORY "jacobwilliams/finterp"
+#   GIT_TAG "1.3.0"
+#   DOWNLOAD_ONLY ON
+# )
 
-add_library(photochem_finterp ${finterp_SOURCE_DIR}/src/linear_interpolation_module.F90)
+# add_library(finterp ${finterp_SOURCE_DIR}/src/linear_interpolation_module.F90)
 
 CPMAddPackage(
   NAME fortran-yaml-c
@@ -43,7 +43,7 @@ CPMAddPackage(
   DOWNLOAD_ONLY ON
 )
 
-add_library(photochem_minpack
+add_library(minpack
   ${minpack_SOURCE_DIR}/src/minpack.f90
 )
 
@@ -52,6 +52,6 @@ CPMAddPackage(
   VERSION 0.0.1
   OPTIONS 
     "BUILD_WITH_OPENMP ${BUILD_WITH_OPENMP}" 
-  URL "https://github.com/Nicholaswogan/clima/archive/2e3238d5f62b6bb99249dcb42a2cb756f4f94b6a.zip"
+  URL "https://github.com/Nicholaswogan/clima/archive/c15e376fcad66bbceced6a896d99d33e3d7521f1.zip"
   EXCLUDE_FROM_ALL ON
 )
