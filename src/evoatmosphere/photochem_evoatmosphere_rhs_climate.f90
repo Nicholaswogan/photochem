@@ -3,11 +3,8 @@ submodule(photochem_evoatmosphere:photochem_evoatmosphere_rhs) photochem_evoatmo
 
 contains
 
-  module subroutine dumbsub()
-  end subroutine
-
-  subroutine equlibrium_climate(self, usol_den, T_trop, T_surf_guess, &
-                                 T_surf, T, z_trop, err)
+  module subroutine equilibrium_climate(self, usol_den, T_trop, T_surf_guess, &
+                                        T_surf, T, z_trop, err)
     use minpack_module, only: hybrd1
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_den(:,:)
@@ -39,8 +36,12 @@ contains
 
     x(1) = log10(T_surf_guess)
     call hybrd1(fcn, n, x, fvec, tol, info, wa, lwa)
-    if (info == 1 .or. info > 4) then
+    if (info == 0 .or. info > 1) then
       err = 'hybrd1 root solve failed'
+      return
+    endif
+    if (info < 0) then
+      ! err is already set
       return
     endif
 
@@ -59,23 +60,22 @@ contains
         iflag = -1
         return
       endif
-
       ! do raditative transfer
-      ! call self%rad%radiate(T_surf, temperature, pressure, densities, var%dz, err)
-      ! if (allocated(err)) then
-      !   iflag = -1
-      !   return
-      ! endif
+      call self%rad%radiate(T_surf, T, P, densities, var%dz, err)
+      if (allocated(err)) then
+        iflag = -1
+        return
+      endif
 
-      ! fvec_(1) = self%rad%wrk_ir%fdn_n(var%nz+1) - self%rad%wrk_ir%fup_n(var%nz+1) + &
-      !            self%rad%wrk_sol%fdn_n(var%nz+1) - self%rad%wrk_sol%fup_n(var%nz+1)
+      fvec_(1) = self%rad%wrk_ir%fdn_n(var%nz+1) - self%rad%wrk_ir%fup_n(var%nz+1) + &
+                 self%rad%wrk_sol%fdn_n(var%nz+1) - self%rad%wrk_sol%fup_n(var%nz+1)
 
     end subroutine
   end subroutine
 
-  module subroutine make_profile_discrete(self, usol_den, T_surf, T_trop, &
-                                          T, P, densities, &
-                                          z_trop, err)
+  subroutine make_profile_discrete(self, usol_den, T_surf, T_trop, &
+                                   T, P, densities, &
+                                   z_trop, err)
     use photochem_const, only: k_boltz, T_crit_H2O
     use photochem_eqns, only: sat_pressure_H2O
     class(EvoAtmosphere), target, intent(inout) :: self
@@ -155,9 +155,8 @@ contains
     enddo
 
   end subroutine
-
   
-  module subroutine integrate_moist(self, usol_den, n_dry, mu_dry, T_surf, T_trop, temperature, trop_ind, z_trop, err)
+  subroutine integrate_moist(self, usol_den, n_dry, mu_dry, T_surf, T_trop, temperature, trop_ind, z_trop, err)
     use futils, only: interp
     use photochem_const, only: k_boltz
     use photochem_eqns, only: heat_capacity_eval

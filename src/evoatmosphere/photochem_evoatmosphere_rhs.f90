@@ -3,7 +3,14 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_rhs
   implicit none
 
   interface
-    module subroutine dumbsub()
+    module subroutine equilibrium_climate(self, usol_den, T_trop, T_surf_guess, &
+                                          T_surf, T, z_trop, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: usol_den(:,:)
+      real(dp), intent(in) :: T_trop, T_surf_guess
+      real(dp), intent(out) :: T_surf, T(:)
+      real(dp), intent(out) :: z_trop
+      character(:), allocatable, intent(out) :: err
     end subroutine
   end interface
 
@@ -403,6 +410,19 @@ contains
         endif
       enddo
     enddo
+
+    ! climate model
+    if (self%evolve_climate) then
+      block
+      real(dp) :: z_trop, T_surf_guess
+
+      T_surf_guess = self%T_surf
+      call equilibrium_climate(self, wrk%usol, self%T_trop, T_surf_guess, &
+                               self%T_surf, var%temperature, z_trop, err)
+      if (allocated(err)) return
+      
+      end block
+    endif
 
     wrk%upper_veff_copy = var%upper_veff
     wrk%lower_vdep_copy = var%lower_vdep

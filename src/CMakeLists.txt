@@ -45,6 +45,7 @@ target_link_libraries(photochem
   sundials_fcvode_mod 
   sundials_cvode 
   futils
+  clima
   photochem_finterp 
   photochem_minpack
 )

@@ -46,8 +46,13 @@ contains
       loc_ierr = FCVodeGetCurrentStep(self%wrk%cvode_mem, hcur)
       
       if (self%var%verbose == 1) then
-        print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,'max(dy/dt) = ',es11.5)", &
-             nsteps, tn, hcur(1),maxval(abs(fvec))
+        if (self%evolve_climate) then
+          print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,'max(dy/dt) = ',es11.5,3x,'T_surf = ',f11.5)", &
+              nsteps, tn, hcur(1),maxval(abs(fvec)),self%T_surf
+        else
+          print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,'max(dy/dt) = ',es11.5)", &
+              nsteps, tn, hcur(1),maxval(abs(fvec))
+        endif
              
       elseif (self%var%verbose == 2) then
         ! Find the fastest changing variable

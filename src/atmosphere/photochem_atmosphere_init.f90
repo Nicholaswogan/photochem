@@ -24,6 +24,12 @@ contains
 
     s = PhotoSettings(settings_file, err)
     if (allocated(err)) return
+
+    ! climate can not evolve
+    if (s%evolve_climate) then
+      err = 'evolve-climate can not be true in '//s%filename//' for class Atmosphere'
+      return
+    endif
     
     if (allocated(self%dat)) then
       if (c_associated(self%wrk%cvode_mem)) then

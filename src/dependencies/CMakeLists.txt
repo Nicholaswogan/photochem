@@ -46,3 +46,12 @@ CPMAddPackage(
 add_library(photochem_minpack
   ${minpack_SOURCE_DIR}/src/minpack.f90
 )
+
+CPMAddPackage(
+  NAME clima 
+  VERSION 0.0.1
+  OPTIONS 
+    "BUILD_WITH_OPENMP ${BUILD_WITH_OPENMP}" 
+  URL "https://github.com/Nicholaswogan/clima/archive/2e3238d5f62b6bb99249dcb42a2cb756f4f94b6a.zip"
+  EXCLUDE_FROM_ALL ON
+)

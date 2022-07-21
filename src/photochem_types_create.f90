@@ -168,11 +168,19 @@ contains
       err = "IOError: Only 'deposition velocity' or 'Moses' can be default boundary conditions."
       return
     endif
+
+    ! climate
+    s%evolve_climate = dict%get_logical('evolve-climate',default=.false.,error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     
     tmp2 => dict%get_dictionary('water',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     s%fix_water_in_trop = tmp2%get_logical('fix-water-in-troposphere',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    if (s%evolve_climate .and. .not. s%fix_water_in_trop) then
+      err = 'fix-water-in-troposphere must be true if evolve-climate is true in '//filename
+      return
+    endif
     s%water_cond = tmp2%get_logical('water-condensation',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     s%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
@@ -181,6 +189,11 @@ contains
     
       s%relative_humidity = trim(tmp2%get_string('relative-humidity',error = io_err))
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+
+      if (s%evolve_climate .and. s%relative_humidity == 'manabe') then
+        err = 'relative-humidity must not be "manabe" if evolve-climate is true in '//filename
+        return
+      endif
       
     endif
     

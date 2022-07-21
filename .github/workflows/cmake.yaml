@@ -28,8 +28,10 @@ jobs:
       with:
         python-version: 3.9
 
-    - name: install valgrind
-      run: sudo apt-get install valgrind
+    - name: install dependencies
+      run: |
+        sudo apt-get install valgrind
+        pip install fypp
 
     - name: configure cmake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}

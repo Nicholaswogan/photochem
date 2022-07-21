@@ -1,6 +1,7 @@
 module photochem_evoatmosphere
   use photochem_const, only: dp
   use photochem_types, only : PhotochemData, PhotochemVars, PhotochemWrkEvo
+  use clima_radtran, only: Radtran
   implicit none
 
   private
@@ -10,6 +11,11 @@ module photochem_evoatmosphere
     type(PhotochemData), allocatable :: dat
     type(PhotochemVars), allocatable :: var
     type(PhotochemWrkEvo), allocatable :: wrk
+
+    logical :: evolve_climate
+    real(dp) :: T_surf
+    real(dp) :: T_trop = 200.0_dp
+    type(Radtran), allocatable :: rad
 
   contains
   !!! photochem_evoatmosphere_init.f90 !!!
