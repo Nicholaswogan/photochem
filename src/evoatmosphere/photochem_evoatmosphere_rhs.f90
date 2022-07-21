@@ -3,14 +3,7 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_rhs
   implicit none
 
   interface
-    module subroutine temperature_objective(self, usol_den, T_surf, T_trop, temperature, err)
-      use photochem_const, only: k_boltz
-      use photochem_eqns, only: sat_pressure_H2O
-      class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_den(:,:)
-      real(dp), intent(in) :: T_surf, T_trop
-      real(dp), intent(out) :: temperature(:)
-      character(:), allocatable, intent(out) :: err
+    module subroutine dumbsub()
     end subroutine
   end interface
 
