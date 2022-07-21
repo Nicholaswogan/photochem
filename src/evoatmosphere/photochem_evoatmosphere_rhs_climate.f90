@@ -207,7 +207,6 @@ contains
       if (temperature(j+1) <= T_trop) then
         trop_hit = .true.
         trop_ind = j+1
-        temperature(j+1:) = temperature(j+1)
         exit
       endif
     enddo
@@ -231,6 +230,7 @@ contains
       return
     endif
 
+    temperature(trop_ind:) = T_trop
     z_trop = z_trop_(1)
 
   end subroutine
