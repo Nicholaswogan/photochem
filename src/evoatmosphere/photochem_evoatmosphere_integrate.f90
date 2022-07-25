@@ -135,14 +135,18 @@ contains
     integer(c_int) :: ierr
 
     real(c_double), pointer :: yvec(:)
+    real(dp), pointer :: usol_in(:,:)
     type(EvoAtmosphere), pointer :: self
-
+    character(:), allocatable :: err
+    
     ierr = 0
 
     call c_f_pointer(user_data, self)
     yvec(1:self%var%neqs) => FN_VGetArrayPointer(sunvec_y)
+
+    usol_in(1:self%dat%nq,1:self%var%nz) => yvec(1:self%var%neqs)
     
-    
+    ! call self%prep_atm_evo_gas(usol_in, self%wrk%usol, self%wrk%molecules_per_particle, err)
 
     gvec(1) = 1.0_dp
 

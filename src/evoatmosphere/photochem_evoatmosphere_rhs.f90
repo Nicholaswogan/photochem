@@ -379,59 +379,61 @@ contains
 
   end subroutine
 
-  module subroutine prep_all_evo_gas(self, usol_in, err)
-
+  module subroutine prep_atm_evo_gas(self, usol_in, usol, molecules_per_particle, err)
+    use photochem_common, only: molec_per_particle
+    use photochem_const, only: small_real
     use photochem_enum, only: DensityBC
-    use photochem_common, only: reaction_rates, rainout, photorates
-    use photochem_common, only: gas_saturation_density, molec_per_particle
-    use photochem_eqns, only: sat_pressure_H2O, press_and_den
-    use photochem_const, only: pi, k_boltz, N_avo, small_real
     use photochem_input, only: compute_gibbs_energy
-
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
+    real(dp), intent(out) :: usol(:,:)
+    real(dp), intent(out) :: molecules_per_particle(:,:)
     character(:), allocatable, intent(out) :: err
 
+    real(dp) :: T_surf_guess
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
-    integer :: i, j, k
-    real(dp) :: P_surf, T_surf_guess
-    real(dp) :: density_hydro(self%var%nz), pressure_hydro(self%var%nz)
+    integer :: i, j
 
     dat => self%dat
     var => self%var
-    wrk => self%wrk
 
-    ! make a copy of the densities.
+    !!! alter input usol
     do j = 1,var%nz
       do i = 1,dat%nq
         if (usol_in(i,j) < 0.0_dp) then
-          wrk%usol(i,j) = min(usol_in(i,j),-small_real)
+          usol(i,j) = min(usol_in(i,j),-small_real)
         else
-          wrk%usol(i,j) = max(usol_in(i,j), small_real)
+          usol(i,j) = max(usol_in(i,j), small_real)
         endif
       enddo
     enddo
 
-    if (dat%there_are_particles) then
-      call molec_per_particle(dat, var, wrk%molecules_per_particle)
-    endif
-
-    wrk%upper_veff_copy = var%upper_veff
-    wrk%lower_vdep_copy = var%lower_vdep
-
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == DensityBC) then
-        wrk%usol(i,1) = var%lower_fix_den(i)
+        usol(i,1) = var%lower_fix_den(i)
       endif
     enddo
 
-    ! climate model
+    !!! molecules/particle
+    if (dat%there_are_particles) then
+      call molec_per_particle(dat, var, molecules_per_particle)
+    endif
+
+    !!! climate model
     if (self%evolve_climate) then
+      ! This block changes the following variables, which normally do not change
+      ! during integration.
+      ! self%T_surf
+      ! var%temperature
+      ! var%trop_alt
+      ! var%xs_x_qy (NOT YET BUT WILL SOON)
+      ! var%gibbs_energy
+      ! var%trop_ind (SHOULD NOT ALTER THIS)
+
       T_surf_guess = self%T_surf
       ! update the temperature profile
-      call equilibrium_climate(self, wrk%usol, wrk%molecules_per_particle, self%T_trop, T_surf_guess, &
+      call equilibrium_climate(self, usol, molecules_per_particle, self%T_trop, T_surf_guess, &
                                self%T_surf, var%temperature, var%trop_alt, err)
       if (allocated(err)) return
 
@@ -449,7 +451,34 @@ contains
       var%trop_ind = minloc(var%z, 1, var%z >= var%trop_alt) - 1
     endif
 
-    ! total density and mixing ratio
+  end subroutine
+
+  module subroutine prep_all_evo_gas(self, usol_in, err)
+
+    use photochem_common, only: reaction_rates, rainout, photorates
+    use photochem_common, only: gas_saturation_density
+    use photochem_eqns, only: sat_pressure_H2O, press_and_den
+    use photochem_const, only: pi, k_boltz, N_avo, small_real
+
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol_in(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+    integer :: i, j, k
+    real(dp) :: P_surf
+    real(dp) :: density_hydro(self%var%nz), pressure_hydro(self%var%nz)
+
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+
+    call prep_atm_evo_gas(self, usol_in, wrk%usol, wrk%molecules_per_particle, err)
+    if (allocated(err)) return
+
+    !!! pressure, density and mean molcular weight
     do j = 1,var%nz
       wrk%density(j) = sum(wrk%usol(dat%ng_1:,j))
       wrk%mix(:,j) = wrk%usol(:,j)/wrk%density(j) ! mixing ratios
@@ -462,6 +491,7 @@ contains
                        wrk%mubar, pressure_hydro, density_hydro)
     wrk%pressure(:) = wrk%density(:)*k_boltz*var%temperature(:)
 
+    !!! H2O saturation
     if (dat%fix_water_in_trop) then
       do i = 1,var%trop_ind
         if (var%use_manabe) then
@@ -472,27 +502,28 @@ contains
         endif
       enddo
     endif
-    ! H2O saturation
+    
     if (dat%water_cond) then
-      ! compute H2O saturation mixing ratio at all altitudes
       do i = 1,var%nz
         wrk%H2O_sat_mix(i) = sat_pressure_H2O(var%temperature(i))/wrk%pressure(i)
       enddo
     endif
 
-    ! diffusion coefficients
+    !!! diffusion and advection coefficients
     call diffusion_coefficients_evo(dat, var, wrk%density, wrk%mubar, &
     wrk%DU, wrk%DD, wrk%DL, wrk%ADU, wrk%ADL, wrk%ADD, wrk%wfall, wrk%VH2_esc, wrk%VH_esc)
     
-    ! surface scale height
     wrk%surface_scale_height = (k_boltz*var%temperature(1)*N_avo)/(wrk%mubar(1)*var%grav(1))
     
-    ! H and H2 escape
+    !!! H and H2 escape
+    wrk%upper_veff_copy = var%upper_veff
+    wrk%lower_vdep_copy = var%lower_vdep
     if (dat%diff_H_escape) then
       wrk%upper_veff_copy(dat%LH2) = wrk%VH2_esc                     
       wrk%upper_veff_copy(dat%LH) = wrk%VH_esc 
     endif
 
+    !!! Particle lower boundary, and saturation properties
     if (dat%there_are_particles) then
       do i = 1,dat%np
         ! Here we impose a lower boundary condition for particles. They fall out
@@ -504,7 +535,7 @@ contains
                                   wrk%gas_sat_den)
     endif
 
-    ! densities
+    !!! densities
     do j = 1,var%nz
       do i = 1,dat%npq
         wrk%densities(i,j) = max(wrk%usol(i,j)*(1.0_dp/wrk%molecules_per_particle(i,j)), small_real)
@@ -515,6 +546,7 @@ contains
       wrk%densities(dat%nsp+1,j) = 1.0_dp ! for hv
     enddo
 
+    !!! reaction rates
     call reaction_rates(self%dat, self%var, wrk%density, wrk%densities, wrk%rx_rates)
     
     call photorates(dat, var, wrk%densities, &
@@ -526,6 +558,7 @@ contains
       wrk%rx_rates(:,k) = wrk%prates(:,i) 
     enddo
 
+    !!! rainout rates
     if (dat%gas_rainout) then
       call rainout(self%dat, self%var, &
                    wrk%mix(dat%LH2O,:), wrk%density, wrk%rainout_rates)

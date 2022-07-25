@@ -165,68 +165,54 @@ contains
     endif
     
   end subroutine
-  
-  subroutine prep_atm_background_gas(self, usol, sum_usol, &
-                                     density, mubar, pressure, H2O_rh, H2O_sat_mix, err)
-    use photochem_eqns, only: sat_pressure_H2O, molar_weight, press_and_den
-    
-    type(Atmosphere), target, intent(inout) :: self
-    real(dp), intent(inout) :: usol(:,:)
-    real(dp), intent(out) :: sum_usol(:)
-    real(dp), intent(out) :: density(:)
-    real(dp), intent(out) :: mubar(:), pressure(:), H2O_rh(:), H2O_sat_mix(:)
-    character(:), allocatable, intent(out) :: err
-    
-    real(dp) :: rel
-    integer :: i
+
+  subroutine prep_atm_background_gas(self, usol_in, usol, molecules_per_particle)
+    use photochem_common, only: molec_per_particle
+    use photochem_const, only: small_real
+    use photochem_enum, only: MixingRatioBC
+    class(Atmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol_in(:,:)
+    real(dp), intent(out) :: usol(:,:)
+    real(dp), intent(out) :: molecules_per_particle(:,:)
+
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    
+    integer :: i, j
+
     dat => self%dat
     var => self%var
     
-    do i = 1,var%nz
-      sum_usol(i) = sum(usol(dat%ng_1:,i))
-      if (sum_usol(i) > 1.0e0_dp) then
-        err = 'Mixing ratios sum to >1.0 at some altitude (should be <=1).' // &
-              ' The atmosphere is probably in a run-away state'
-        return
+    !!! alter input usol
+    do j = 1,var%nz
+      do i = 1,dat%nq
+        if (usol_in(i,j) < 0.0_dp) then
+          usol(i,j) = min(usol_in(i,j),-small_real)
+        else
+          usol(i,j) = max(usol_in(i,j), small_real)
+        endif
+      enddo
+    enddo
+
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == MixingRatioBC) then
+        usol(i,1) = var%lower_fix_mr(i)
       endif
     enddo
-    
-    do i = 1,var%nz
-      call molar_weight(dat%nll, usol(dat%ng_1:,i), sum_usol(i), dat%species_mass(dat%ng_1:), dat%back_gas_mu, mubar(i))
-    enddo
-    
-    call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.e6_dp, var%dz, &
-                       mubar, pressure, density)
-    
-    if (dat%fix_water_in_trop) then
-      do i = 1,var%trop_ind
-        if (var%use_manabe) then
-          ! manabe formula
-          rel = 0.77e0_dp*(pressure(i)/pressure(1)-0.02e0_dp)/0.98e0_dp
-        else
-          rel = var%relative_humidity 
-        endif
-        
-        H2O_rh(i) = rel
-      enddo
+
+    !!! molecules/particle
+    if (dat%there_are_particles) then
+      call molec_per_particle(dat, var, molecules_per_particle)
     endif
-    
-    do i = 1,var%nz
-      H2O_sat_mix(i) = sat_pressure_H2O(var%temperature(i))/pressure(i)
-    enddo
-    
+
   end subroutine
   
   module subroutine prep_all_background_gas(self, usol_in, err)
     use photochem_enum, only: CondensingParticle
     use photochem_enum, only: ArrheniusSaturation, H2SO4Saturation
-    use photochem_enum, only: MixingRatioBC
     use photochem_common, only: reaction_rates, diffusion_coefficients, rainout, photorates
-    use photochem_common, only: gas_saturation_density, molec_per_particle
+    use photochem_common, only: gas_saturation_density
     use photochem_eqns, only: saturation_density
+    use photochem_eqns, only: sat_pressure_H2O, molar_weight, press_and_den
     use photochem_const, only: pi, k_boltz, N_avo, small_real
   
     class(Atmosphere), target, intent(inout) :: self
@@ -242,51 +228,61 @@ contains
     var => self%var
     wrk => self%wrk
     
-    ! make a copy of the mixing ratios. You can not alter the input mixing ratios
-    ! this will make CVODE unstable. Guard against division by zero
-    do j = 1,var%nz
-      do i = 1,dat%nq
-        if (usol_in(i,j) < 0.0_dp) then
-          wrk%usol(i,j) = min(usol_in(i,j),-small_real)
-        else
-          wrk%usol(i,j) = max(usol_in(i,j), small_real)
-        endif
-      enddo
-    enddo
+    call prep_atm_background_gas(self, usol_in, wrk%usol, wrk%molecules_per_particle)
 
-    if (dat%there_are_particles) then
-      call molec_per_particle(dat, var, wrk%molecules_per_particle)
-    endif
-
-    wrk%upper_veff_copy = var%upper_veff
-    wrk%lower_vdep_copy = var%lower_vdep
-  
-    do i = 1,dat%nq
-      if (var%lowerboundcond(i) == MixingRatioBC) then
-        wrk%usol(i,1) = var%lower_fix_mr(i)
+    !!! pressure, density and mean molcular weight
+    do i = 1,var%nz
+      wrk%sum_usol(i) = sum(wrk%usol(dat%ng_1:,i))
+      if (wrk%sum_usol(i) > 1.0e0_dp) then
+        err = 'Mixing ratios sum to >1.0 at some altitude (should be <=1).' // &
+              ' The atmosphere is probably in a run-away state'
+        return
       endif
     enddo
+
+    do i = 1,var%nz
+      call molar_weight(dat%nll, wrk%usol(dat%ng_1:,i), wrk%sum_usol(i), dat%species_mass(dat%ng_1:), dat%back_gas_mu, wrk%mubar(i))
+    enddo
+    
+    call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.e6_dp, var%dz, &
+                       wrk%mubar, wrk%pressure, wrk%density)
+    
+    !!! H2O saturation
+    if (dat%fix_water_in_trop) then
+      do i = 1,var%trop_ind
+        if (var%use_manabe) then
+          ! manabe formula
+          wrk%H2O_rh(i) = 0.77e0_dp*(wrk%pressure(i)/wrk%pressure(1)-0.02e0_dp)/0.98e0_dp
+        else
+          wrk%H2O_rh(i) = var%relative_humidity 
+        endif
+      enddo
+    endif
+
+    if (dat%water_cond) then
+      do i = 1,var%nz
+        wrk%H2O_sat_mix(i) = sat_pressure_H2O(var%temperature(i))/wrk%pressure(i)
+      enddo
+    endif
   
-    call prep_atm_background_gas(self, wrk%usol, wrk%sum_usol, &
-                                 wrk%density, wrk%mubar, wrk%pressure, wrk%H2O_rh, wrk%H2O_sat_mix, err)  
-    if (allocated(err)) return  
-  
-    ! diffusion coefficients
+    !!! diffusion and advection coefficients
     call diffusion_coefficients(dat, var, wrk%density, wrk%mubar, &
                                 wrk%DU, wrk%DD, wrk%DL, wrk%ADU, wrk%ADL, wrk%ADD, &
                                 wrk%wfall, wrk%VH2_esc, wrk%VH_esc)
-  
-    ! surface scale height
+
     wrk%surface_scale_height = (k_boltz*var%temperature(1)*N_avo)/(wrk%mubar(1)*var%grav(1))
-  
-    ! H and H2 escape
+
+    !!! H and H2 escape
+    wrk%upper_veff_copy = var%upper_veff
+    wrk%lower_vdep_copy = var%lower_vdep
     if (dat%diff_H_escape) then
       if (dat%back_gas_name /= "H2") then
         wrk%upper_veff_copy(dat%LH2) = wrk%VH2_esc                     
       endif
       wrk%upper_veff_copy(dat%LH) = wrk%VH_esc 
     endif
-  
+
+    !!! Particle lower boundary, and saturation properties
     if (dat%there_are_particles) then
       do i = 1,dat%np
         ! Here we impose a lower boundary condition for particles. They fall out
@@ -298,7 +294,7 @@ contains
                                   wrk%gas_sat_den)
     endif
   
-    ! densities include particle densities
+    !!! densities
     do j = 1,var%nz
       do i = 1,dat%npq
         wrk%densities(i,j) = max(wrk%usol(i,j)*(wrk%density(j)/wrk%molecules_per_particle(i,j)), small_real)
@@ -310,6 +306,7 @@ contains
       wrk%densities(dat%nsp+1,j) = 1.0_dp ! for hv
     enddo
     
+    !!! reaction rates
     call reaction_rates(self%dat, self%var, wrk%density, wrk%densities, wrk%rx_rates)
 
     call photorates(dat, var, wrk%densities, &
@@ -321,7 +318,7 @@ contains
       wrk%rx_rates(:,k) = wrk%prates(:,i) 
     enddo 
   
-    ! rainout rates
+    !!! rainout rates
     if (dat%gas_rainout) then
       call rainout(self%dat, self%var, &
                    wrk%usol(dat%LH2O,:), wrk%density, wrk%rainout_rates)

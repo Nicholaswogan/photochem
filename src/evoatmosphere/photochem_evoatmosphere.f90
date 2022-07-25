@@ -22,6 +22,7 @@ module photochem_evoatmosphere
     procedure :: init => EvoAtmosphere_init
 
     !!! photochem_evoatmosphere_rhs.f90 !!!
+    procedure :: prep_atm_evo_gas
     procedure :: prep_atmosphere => prep_all_evo_gas
     procedure :: right_hand_side => rhs_evo_gas
     procedure :: jacobian => jac_evo_gas
@@ -53,6 +54,14 @@ module photochem_evoatmosphere
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_atmosphere_rhs.f90 !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    module subroutine prep_atm_evo_gas(self, usol_in, usol, molecules_per_particle, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: usol_in(:,:)
+      real(dp), intent(out) :: usol(:,:)
+      real(dp), intent(out) :: molecules_per_particle(:,:)
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
     module subroutine prep_all_evo_gas(self, usol_in, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:)
