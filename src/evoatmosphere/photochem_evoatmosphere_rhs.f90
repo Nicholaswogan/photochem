@@ -393,7 +393,7 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
     integer :: i, j, k
-    real(dp) :: P_surf
+    real(dp) :: P_surf, T_surf_guess
     real(dp) :: density_hydro(self%var%nz), pressure_hydro(self%var%nz)
 
     dat => self%dat
@@ -413,15 +413,11 @@ contains
 
     ! climate model
     if (self%evolve_climate) then
-      block
-      real(dp) :: z_trop, T_surf_guess
-
       T_surf_guess = self%T_surf
       call equilibrium_climate(self, wrk%usol, self%T_trop, T_surf_guess, &
-                               self%T_surf, var%temperature, z_trop, err)
+                               self%T_surf, var%temperature, var%trop_alt, err)
       if (allocated(err)) return
-      
-      end block
+      var%trop_ind = minloc(var%z, 1, var%z >= var%trop_alt)
     endif
 
     wrk%upper_veff_copy = var%upper_veff

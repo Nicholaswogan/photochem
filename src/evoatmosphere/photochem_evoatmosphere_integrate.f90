@@ -47,8 +47,9 @@ contains
       
       if (self%var%verbose == 1) then
         if (self%evolve_climate) then
-          print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,'max(dy/dt) = ',es11.5,3x,'T_surf = ',f11.5)", &
-              nsteps, tn, hcur(1),maxval(abs(fvec)),self%T_surf
+          print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,"// &
+               "3x,'max(dy/dt) = ',es11.5,3x,'T_surf = ',f11.5,3x,'trop_ind = ',i4)", &
+              nsteps, tn, hcur(1),maxval(abs(fvec)),self%T_surf,self%var%trop_ind
         else
           print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,'max(dy/dt) = ',es11.5)", &
               nsteps, tn, hcur(1),maxval(abs(fvec))
@@ -333,6 +334,8 @@ contains
         open(1, file = filename, status='old', form="unformatted",position="append")
         write(1) tcur(1)
         write(1) wrk%usol
+        write(1) var%temperature
+        write(1) self%T_surf
         close(1)
                                
       endif

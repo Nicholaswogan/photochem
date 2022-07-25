@@ -470,11 +470,11 @@ module photochem_types ! make a giant IO object
   
 contains
 
-  subroutine init_PhotochemWrkEvo(self, nsp, np, nq, nz, nrT, kj, nw, trop_ind)
+  subroutine init_PhotochemWrkEvo(self, nsp, np, nq, nz, nrT, kj, nw)
     class(PhotochemWrkEvo), intent(inout) :: self
-    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw, trop_ind
+    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw
 
-    call init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw, trop_ind)
+    call init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw)
 
     if (allocated(self%mix)) then
       deallocate(self%mix)
@@ -484,9 +484,9 @@ contains
 
   end subroutine
  
-  subroutine init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw, trop_ind)
+  subroutine init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw)
     class(PhotochemWrk), intent(inout) :: self
-    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw, trop_ind
+    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw
     
     if (allocated(self%usol)) then
       deallocate(self%usol)
@@ -522,7 +522,7 @@ contains
     allocate(self%mubar(nz))
     allocate(self%pressure(nz))
     allocate(self%density(nz))
-    allocate(self%H2O_rh(trop_ind))
+    allocate(self%H2O_rh(nz))
     allocate(self%H2O_sat_mix(nz))
     allocate(self%densities(nsp+1,nz))
     allocate(self%rx_rates(nz,nrT))
@@ -544,7 +544,7 @@ contains
     allocate(self%wfall(np,nz))
     allocate(self%gas_sat_den(np,nz))
     allocate(self%molecules_per_particle(np,nz))
-    allocate(self%rainout_rates(nq,trop_ind))
+    allocate(self%rainout_rates(nq,nz))
   end subroutine
   
 end module

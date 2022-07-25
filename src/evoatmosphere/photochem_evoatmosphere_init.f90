@@ -42,7 +42,7 @@ contains
     
     call self%wrk%init(self%dat%nsp, self%dat%np, self%dat%nq, &
                        self%var%nz, self%dat%nrT, self%dat%kj, &
-                       self%dat%nw, self%var%trop_ind)
+                       self%dat%nw)
     
     if (s%evolve_climate) then
       ! allocate
