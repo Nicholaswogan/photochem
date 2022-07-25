@@ -190,7 +190,7 @@ contains
         n = var%nz+1-k
         do i = 1,dat%np
           if (var%particle_xs(i)%ThereIsData) then
-            taup_1 = var%particle_xs(i)%qext(k,l)*pi*var%particle_radius(i,j)**2 &
+            taup_1 = var%particle_xs(i)%qext(k,l)*pi*var%particle_radius(i,k)**2 &
                      *densities(i,k)*var%dz(k)
             taup(n) = taup(n) + taup_1
             tausp_1(i,n) = var%particle_xs(i)%w0(k,l)*taup_1
