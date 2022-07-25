@@ -1,13 +1,8 @@
-name: CMake
+name: test
 
-on:
-  push:
-    branches: [ "main", "dev"]
-  pull_request:
-    branches: [ "main" ]
+on: push
 
 env:
-  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
 
 jobs:
@@ -17,21 +12,24 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - uses: awvwgk/setup-fortran@main
+    - name: Setup Fortran
+      uses: awvwgk/setup-fortran@main
       id: setup-fortran
       with:
         compiler: gcc
         version: 11
 
-    - name: Set up Python
+    - name: Setup Python
       uses: actions/setup-python@v3
       with:
         python-version: 3.9
 
     - name: install dependencies
       run: |
+        python -m pip install --upgrade pip
+        python -m pip install h5py
         sudo apt-get install valgrind
-        pip install fypp
+        sudo apt-get install libhdf5-dev
 
     - name: configure cmake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
@@ -39,13 +37,11 @@ jobs:
     - name: build fortran
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
-    - name: testrun
+    - name: test fortran
       working-directory: ${{github.workspace}}/build
-      run: ./testrun
-
-    - name: memtest
-      working-directory: ${{github.workspace}}/build
-      run: valgrind --error-exitcode=1 --leak-check=full ./memtest
+      run: |
+        ./testrun
+        valgrind --error-exitcode=1 --leak-check=full ./memtest
 
     - name: build python
       run: python -m pip install . -v
