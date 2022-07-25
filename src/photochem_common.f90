@@ -706,8 +706,8 @@ contains
   end subroutine
 
   subroutine gas_saturation_density(dat, var, fH2O, pressure, &
-                                    gas_sat_den, molecules_per_particle)
-    use photochem_const, only: pi, N_avo, k_boltz
+                                    gas_sat_den)
+    use photochem_const, only: k_boltz
     use photochem_enum, only: CondensingParticle
     use photochem_enum, only: ArrheniusSaturation, H2SO4Saturation
     use photochem_eqns, only: saturation_density
@@ -717,7 +717,6 @@ contains
     real(dp), intent(in) :: fH2O(:)
     real(dp), intent(in) :: pressure(:)
     real(dp), intent(out) :: gas_sat_den(:,:)
-    real(dp), intent(out) :: molecules_per_particle(:,:)
 
     real(dp) :: P_H2SO4
     integer :: i, j
@@ -738,8 +737,23 @@ contains
             gas_sat_den(i,j) = (P_H2SO4*1.e6_dp)/(k_boltz*var%temperature(j))
           endif
         endif
+      enddo
+    enddo
+
+  end subroutine
+
+  subroutine molec_per_particle(dat, var, molecules_per_particle)
+    use photochem_const, only: pi, N_avo
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(in) :: var
+    real(dp), intent(out) :: molecules_per_particle(:,:)
+
+    integer :: i, j
+
+    do j = 1,var%nz
+      do i = 1,dat%np
         molecules_per_particle(i,j) = (4.0_dp/3.0_dp)*pi*var%particle_radius(i,j)**3.0_dp* &
-                                          dat%particle_density(i)*(1/dat%species_mass(i))*N_avo
+                                       dat%particle_density(i)*(1/dat%species_mass(i))*N_avo
       enddo
     enddo
 

@@ -124,6 +124,29 @@ contains
     return
   
   end function
+
+  function RootFn(tn, sunvec_y, gvec, user_data) result(ierr) bind(c,name='RootFn')
+    use, intrinsic :: iso_c_binding
+    use fsundials_nvector_mod
+    real(c_double), value :: tn        ! current time
+    type(N_Vector) :: sunvec_y  ! solution N_Vector
+    real(c_double) :: gvec(*)
+    type(c_ptr), value :: user_data ! user-defined data
+    integer(c_int) :: ierr
+
+    real(c_double), pointer :: yvec(:)
+    type(EvoAtmosphere), pointer :: self
+
+    ierr = 0
+
+    call c_f_pointer(user_data, self)
+    yvec(1:self%var%neqs) => FN_VGetArrayPointer(sunvec_y)
+    
+    
+
+    gvec(1) = 1.0_dp
+
+  end function
   
   module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, err) result(success)
                                    
@@ -132,7 +155,7 @@ contains
                           FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
                           FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
                           FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
-                          FCVodeSetUserData
+                          FCVodeSetUserData, FCVodeRootInit
     use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
     use fnvector_serial_mod, only: FN_VMake_Serial   
     use fsunmatrix_band_mod, only: FSUNBandMatrix
@@ -313,6 +336,17 @@ contains
       err = "CVODE setup error."
       return
     end if
+
+    if (self%evolve_climate) then
+    block
+      integer(c_int), parameter :: nrtfn = 1
+      ierr = FCVodeRootInit(wrk%cvode_mem, nrtfn, c_funloc(RootFn))
+      if (ierr /= 0) then
+        err = "CVODE setup error."
+        return
+      end if
+    end block
+    endif
     
     do ii = 1, size(t_eval)
       ierr = FCVode(wrk%cvode_mem, t_eval(ii), sunvec_y, tcur, CV_NORMAL)

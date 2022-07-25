@@ -3,11 +3,12 @@ submodule(photochem_evoatmosphere:photochem_evoatmosphere_rhs) photochem_evoatmo
 
 contains
 
-  module subroutine equilibrium_climate(self, usol_den, T_trop, T_surf_guess, &
+  module subroutine equilibrium_climate(self, usol_den, molecules_per_particle, T_trop, T_surf_guess, &
                                         T_surf, T, z_trop, err)
     use minpack_module, only: hybrd1
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_den(:,:)
+    real(dp), intent(in) :: molecules_per_particle(:,:)
     real(dp), intent(in) :: T_trop, T_surf_guess
     real(dp), intent(out) :: T_surf, T(:)
     real(dp), intent(out) :: z_trop
@@ -15,6 +16,7 @@ contains
 
     real(dp), allocatable :: densities(:,:)
     real(dp), allocatable :: P(:)
+    real(dp), allocatable :: pdensities(:,:), radii(:,:)
 
     ! minpack variables
     integer, parameter :: n = 1
@@ -25,6 +27,8 @@ contains
     integer, parameter :: lwa = (n*(3*n+13))/2 + 1
     real(dp) :: wa(lwa)
 
+    integer :: i
+
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
 
@@ -33,6 +37,15 @@ contains
 
     allocate(densities(var%nz,dat%nll))
     allocate(P(var%nz))
+
+    ! compute particle densities (particles/cm3)
+    ! and the radii
+    allocate(pdensities(var%nz,dat%np))
+    allocate(radii(var%nz,dat%np))
+    do i = 1,dat%np
+      pdensities(:,i) = usol_den(i,:)*(1.0_dp/molecules_per_particle(i,:))
+      radii(:,i) = var%particle_radius(i,:)
+    enddo
 
     x(1) = log10(T_surf_guess)
     call hybrd1(fcn, n, x, fvec, tol, info, wa, lwa)
@@ -61,7 +74,7 @@ contains
         return
       endif
       ! do raditative transfer
-      call self%rad%radiate(T_surf, T, P, densities, var%dz, err)
+      call self%rad%radiate(T_surf, T, P, densities, var%dz, pdensities, radii, err)
       if (allocated(err)) then
         iflag = -1
         return

@@ -3,10 +3,11 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_rhs
   implicit none
 
   interface
-    module subroutine equilibrium_climate(self, usol_den, T_trop, T_surf_guess, &
+    module subroutine equilibrium_climate(self, usol_den, molecules_per_particle, T_trop, T_surf_guess, &
                                           T_surf, T, z_trop, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_den(:,:)
+      real(dp), intent(in) :: molecules_per_particle(:,:)
       real(dp), intent(in) :: T_trop, T_surf_guess
       real(dp), intent(out) :: T_surf, T(:)
       real(dp), intent(out) :: z_trop
@@ -381,9 +382,11 @@ contains
   module subroutine prep_all_evo_gas(self, usol_in, err)
 
     use photochem_enum, only: DensityBC
-    use photochem_common, only: reaction_rates, rainout, photorates, gas_saturation_density
+    use photochem_common, only: reaction_rates, rainout, photorates
+    use photochem_common, only: gas_saturation_density, molec_per_particle
     use photochem_eqns, only: sat_pressure_H2O, press_and_den
     use photochem_const, only: pi, k_boltz, N_avo, small_real
+    use photochem_input, only: compute_gibbs_energy
 
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
@@ -411,13 +414,8 @@ contains
       enddo
     enddo
 
-    ! climate model
-    if (self%evolve_climate) then
-      T_surf_guess = self%T_surf
-      call equilibrium_climate(self, wrk%usol, self%T_trop, T_surf_guess, &
-                               self%T_surf, var%temperature, var%trop_alt, err)
-      if (allocated(err)) return
-      var%trop_ind = minloc(var%z, 1, var%z >= var%trop_alt)
+    if (dat%there_are_particles) then
+      call molec_per_particle(dat, var, wrk%molecules_per_particle)
     endif
 
     wrk%upper_veff_copy = var%upper_veff
@@ -428,6 +426,28 @@ contains
         wrk%usol(i,1) = var%lower_fix_den(i)
       endif
     enddo
+
+    ! climate model
+    if (self%evolve_climate) then
+      T_surf_guess = self%T_surf
+      ! update the temperature profile
+      call equilibrium_climate(self, wrk%usol, wrk%molecules_per_particle, self%T_trop, T_surf_guess, &
+                               self%T_surf, var%temperature, var%trop_alt, err)
+      if (allocated(err)) return
+
+      ! Update all things that depend on temperature
+
+      ! Need to interpolate xsections, but more work is needed
+      ! call interp2xsdata(dat, var, err)
+      ! if (allocated(err)) return
+
+      if (dat%reverse) then
+        call compute_gibbs_energy(dat, var, err)
+        if (allocated(err)) return
+      endif
+
+      var%trop_ind = minloc(var%z, 1, var%z >= var%trop_alt) - 1
+    endif
 
     ! total density and mixing ratio
     do j = 1,var%nz
@@ -481,7 +501,7 @@ contains
       enddo
 
       call gas_saturation_density(dat, var, wrk%mix(dat%LH2O,:), wrk%pressure, &
-                                  wrk%gas_sat_den, wrk%molecules_per_particle)
+                                  wrk%gas_sat_den)
     endif
 
     ! densities

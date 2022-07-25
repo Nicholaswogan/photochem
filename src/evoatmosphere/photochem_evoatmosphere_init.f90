@@ -56,11 +56,12 @@ contains
 
       ! create radtran
       self%rad = Radtran(data_dir, self%dat%species_names(self%dat%ng_1:self%dat%nq), &
+                         self%dat%species_names(1:self%dat%np), &
                          cs, flux_file, &
                          s%solar_zenith, s%surface_albedo, self%var%nz, err)
       if (allocated(err)) return
 
-      ! other
+      ! The initial guess for T_surf
       self%T_surf = self%var%temperature(1)
     else
       self%evolve_climate = .false.

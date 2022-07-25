@@ -225,7 +225,7 @@ contains
     use photochem_enum, only: ArrheniusSaturation, H2SO4Saturation
     use photochem_enum, only: MixingRatioBC
     use photochem_common, only: reaction_rates, diffusion_coefficients, rainout, photorates
-    use photochem_common, only: gas_saturation_density
+    use photochem_common, only: gas_saturation_density, molec_per_particle
     use photochem_eqns, only: saturation_density
     use photochem_const, only: pi, k_boltz, N_avo, small_real
   
@@ -253,6 +253,10 @@ contains
         endif
       enddo
     enddo
+
+    if (dat%there_are_particles) then
+      call molec_per_particle(dat, var, wrk%molecules_per_particle)
+    endif
 
     wrk%upper_veff_copy = var%upper_veff
     wrk%lower_vdep_copy = var%lower_vdep
@@ -291,7 +295,7 @@ contains
       enddo
 
       call gas_saturation_density(dat, var, wrk%usol(dat%LH2O,:), wrk%pressure, &
-                                  wrk%gas_sat_den, wrk%molecules_per_particle)
+                                  wrk%gas_sat_den)
     endif
   
     ! densities include particle densities
