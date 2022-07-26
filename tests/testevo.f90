@@ -21,10 +21,10 @@ program testevo
     stop 1
   endif
 
-  pc%var%atol = 1.0e-33_dp
+  pc%var%atol = 1.0e-28_dp
 
   allocate(t_eval(400))
-  from = 5
+  from = 0
   to = 15
   do i = 1,size(t_eval)
     t_eval(i) = from + (to - from)*(i-1)/(size(t_eval)-1)

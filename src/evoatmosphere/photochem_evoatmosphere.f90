@@ -57,11 +57,15 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    module subroutine prep_atm_evo_gas(self, usol_in, usol, molecules_per_particle, err)
+    module subroutine prep_atm_evo_gas(self, usol_in, usol, &
+                                      molecules_per_particle, pressure, density, mix, mubar, &
+                                      pressure_hydro, density_hydro, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:)
       real(dp), intent(out) :: usol(:,:)
       real(dp), intent(out) :: molecules_per_particle(:,:)
+      real(dp), intent(out) :: pressure(:), density(:), mix(:,:), mubar(:)
+      real(dp), intent(out) :: pressure_hydro(:), density_hydro(:)
       character(:), allocatable, intent(out) :: err
     end subroutine
 

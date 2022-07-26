@@ -379,15 +379,20 @@ contains
 
   end subroutine
 
-  module subroutine prep_atm_evo_gas(self, usol_in, usol, molecules_per_particle, err)
+  module subroutine prep_atm_evo_gas(self, usol_in, usol, &
+                                     molecules_per_particle, pressure, density, mix, mubar, &
+                                     pressure_hydro, density_hydro, err)
+    use photochem_eqns, only: press_and_den
     use photochem_common, only: molec_per_particle
-    use photochem_const, only: small_real
+    use photochem_const, only: small_real, N_avo, k_boltz
     use photochem_enum, only: DensityBC
-    use photochem_input, only: compute_gibbs_energy
+    use photochem_input, only: compute_gibbs_energy, interp2xsdata
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
     real(dp), intent(out) :: usol(:,:)
     real(dp), intent(out) :: molecules_per_particle(:,:)
+    real(dp), intent(out) :: pressure(:), density(:), mix(:,:), mubar(:)
+    real(dp), intent(out) :: pressure_hydro(:), density_hydro(:)
     character(:), allocatable, intent(out) :: err
 
     real(dp) :: T_surf_guess
@@ -439,8 +444,8 @@ contains
       ! Update all things that depend on temperature
 
       ! Need to interpolate xsections, but more work is needed
-      ! call interp2xsdata(dat, var, err)
-      ! if (allocated(err)) return
+      call interp2xsdata(dat, var, err)
+      if (allocated(err)) return
 
       if (dat%reverse) then
         call compute_gibbs_energy(dat, var, err)
@@ -449,6 +454,19 @@ contains
 
     endif
 
+    !!! pressure, density and mean molcular weight
+    do j = 1,var%nz
+      density(j) = sum(usol(dat%ng_1:,j))
+      mix(:,j) = usol(:,j)/density(j) ! mixing ratios
+      mubar(j) = sum(dat%species_mass(dat%ng_1:dat%nq)*mix(dat%ng_1:,j))
+    enddo
+    
+    ! surface pressure by adding up all the mass in the atmosphere (bars)
+    var%surface_pressure = sum(density(:)*mubar(:)*var%grav(:)*var%dz(:))/N_avo/1.0e6_dp
+    call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.0e6_dp, var%dz, &
+                       mubar, pressure_hydro, density_hydro)
+    pressure(:) = density(:)*k_boltz*var%temperature(:)
+
   end subroutine
 
   module subroutine set_trop_ind(self, usol_in, err)
@@ -456,12 +474,18 @@ contains
     real(dp), intent(in) :: usol_in(:,:)
     character(:), allocatable, intent(out) :: err
 
+    type(PhotochemWrkEvo), pointer :: wrk
+
+    wrk => self%wrk
+
     if (.not. self%evolve_climate) then
       err = 'You can only call "set_trop_ind" if climate is being evolved'
       return
     endif
 
-    call prep_atm_evo_gas(self, usol_in, self%wrk%usol, self%wrk%molecules_per_particle, err)
+    call prep_atm_evo_gas(self, usol_in, wrk%usol, &
+                          wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
+                          wrk%pressure_hydro, wrk%density_hydro, err)
     if (allocated(err)) return
 
     self%var%trop_ind = minloc(abs(self%var%z - self%var%trop_alt), 1) - 1
@@ -478,8 +502,8 @@ contains
 
     use photochem_common, only: reaction_rates, rainout, photorates
     use photochem_common, only: gas_saturation_density
-    use photochem_eqns, only: sat_pressure_H2O, press_and_den
-    use photochem_const, only: pi, k_boltz, N_avo, small_real
+    use photochem_eqns, only: sat_pressure_H2O
+    use photochem_const, only: pi, N_avo, small_real, k_boltz
 
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
@@ -489,28 +513,15 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
     integer :: i, j, k
-    real(dp) :: P_surf
-    real(dp) :: density_hydro(self%var%nz), pressure_hydro(self%var%nz)
 
     dat => self%dat
     var => self%var
     wrk => self%wrk
 
-    call prep_atm_evo_gas(self, usol_in, wrk%usol, wrk%molecules_per_particle, err)
+    call prep_atm_evo_gas(self, usol_in, wrk%usol, &
+                          wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
+                          wrk%pressure_hydro, wrk%density_hydro, err)
     if (allocated(err)) return
-
-    !!! pressure, density and mean molcular weight
-    do j = 1,var%nz
-      wrk%density(j) = sum(wrk%usol(dat%ng_1:,j))
-      wrk%mix(:,j) = wrk%usol(:,j)/wrk%density(j) ! mixing ratios
-      wrk%mubar(j) = sum(dat%species_mass(dat%ng_1:dat%nq)*wrk%mix(dat%ng_1:,j))
-    enddo
-    
-    ! surface pressure by adding up all the mass in the atmosphere (dynes/cm2)
-    P_surf = sum(wrk%density(:)*wrk%mubar(:)*var%grav(:)*var%dz(:))/N_avo
-    call press_and_den(var%nz, var%temperature, var%grav, P_surf, var%dz, &
-                       wrk%mubar, pressure_hydro, density_hydro)
-    wrk%pressure(:) = wrk%density(:)*k_boltz*var%temperature(:)
 
     !!! H2O saturation
     if (dat%fix_water_in_trop) then

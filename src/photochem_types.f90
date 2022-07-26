@@ -354,7 +354,7 @@ module photochem_types ! make a giant IO object
     real(dp) :: bottom_atmos ! cm
     real(dp) :: top_atmos ! cm
     integer :: nz ! number of vertical layers
-    real(dp), allocatable :: surface_pressure ! bars
+    real(dp) :: surface_pressure ! bars
     real(dp) :: surface_albedo
     real(dp) :: diurnal_fac ! normally 0.5 cuz planets spin around.
     real(dp) :: solar_zenith 
@@ -462,6 +462,8 @@ module photochem_types ! make a giant IO object
 
   type, extends(PhotochemWrk) :: PhotochemWrkEvo
     real(dp), allocatable :: mix(:,:) ! (nq,nz) mixing ratio.
+    real(dp), allocatable :: pressure_hydro(:) ! (nz)
+    real(dp), allocatable :: density_hydro(:) ! (nz)
 
   contains
     procedure :: init => init_PhotochemWrkEvo
@@ -478,9 +480,13 @@ contains
 
     if (allocated(self%mix)) then
       deallocate(self%mix)
+      deallocate(self%pressure_hydro)
+      deallocate(self%density_hydro)
     endif
 
     allocate(self%mix(nq,nz))
+    allocate(self%pressure_hydro(nz))
+    allocate(self%density_hydro(nz))
 
   end subroutine
  

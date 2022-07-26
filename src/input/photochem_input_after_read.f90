@@ -22,6 +22,9 @@ contains
                  var%nz, var%z, var%grav)
     call interp2atmosfile(dat, var, err)
     if (allocated(err)) return
+
+    call interp2particlexsdata(dat, var, err)
+    if (allocated(err)) return
     
     ! all below depends on Temperature
     call interp2xsdata(dat, var, err)
@@ -163,10 +166,8 @@ contains
 
     character(:), allocatable, intent(out) :: err
     
-    integer :: i, j, k, jj
+    integer :: i, j, k
     real(dp) :: val(1), T_temp(1)
-    real(dp) :: dr, slope, intercept
-    
 
     do k = 1, dat%nw
       do i = 1,dat%kj
@@ -181,11 +182,24 @@ contains
           enddo
         else
           do j = 1,var%nz
-            var%xs_x_qy(j,i,k) = 10.0_dp**log10(abs(dat%xs_data(i)%xs(1,k))+smaller_real)   
+            var%xs_x_qy(j,i,k) = abs(dat%xs_data(i)%xs(1,k))+smaller_real
           enddo
         endif
       enddo
     enddo
+
+  end subroutine
+
+  subroutine interp2particlexsdata(dat, var, err)
+    use futils, only: interp
+    use photochem_const, only: smaller_real
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+
+    character(:), allocatable, intent(out) :: err
+    
+    integer :: i, j, k, jj
+    real(dp) :: dr, slope, intercept
     
     ! particles
     if (dat%there_are_particles) then
@@ -245,8 +259,6 @@ contains
       enddo
     endif
     
-    
-
   end subroutine
   
   subroutine allocate_nz_vars(dat, vars)

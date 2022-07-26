@@ -153,7 +153,9 @@ contains
     yvec(1:var%neqs) => FN_VGetArrayPointer(sunvec_y)
     usol_in(1:dat%nq,1:var%nz) => yvec(1:var%neqs)
     
-    call self%prep_atm_evo_gas(usol_in, usol_in, wrk%molecules_per_particle, err)
+    call self%prep_atm_evo_gas(usol_in, wrk%usol, &
+                               wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
+                               wrk%pressure_hydro, wrk%density_hydro, err)
 
     ! tropopause
     gvec(1) = var%trop_alt - (var%z(var%trop_ind+1) + (0.5_dp+tol)*var%dz(var%trop_ind+1))
@@ -198,7 +200,7 @@ contains
     integer(c_int) :: rootsfound(2)
     real(c_double), pointer :: yvec_usol(:,:)
     real(c_double), target :: yvec(self%var%neqs)
-    real(c_double) :: abstol(self%var%neqs), density
+    real(c_double) :: abstol(self%var%neqs)
     type(N_Vector), pointer :: abstol_nvec
     integer(c_int64_t) :: neqs_long
     integer(c_int64_t) :: mu, ml
@@ -259,13 +261,11 @@ contains
     user_data = c_loc(self_ptr)
     
     ! initialize solution vector
+    yvec_usol(1:dat%nq,1:var%nz) => yvec
     do j=1,var%nz
-      density = sum(usol_start(:,j))
       do i=1,dat%nq
         k = i + (j-1)*dat%nq
         yvec(k) = usol_start(i,j)
-        ! set abstol.
-        abstol(k) = density*var%atol
       enddo
     enddo
     do i = 1,dat%nq
@@ -273,7 +273,15 @@ contains
         yvec(i) = var%lower_fix_den(i)
       endif
     enddo
-    yvec_usol(1:dat%nq,1:var%nz) => yvec
+    ! set abstol
+    call self%prep_atmosphere(yvec_usol, err)
+    if (allocated(err)) return
+    do j=1,var%nz
+      do i=1,dat%nq
+        k = i + (j-1)*dat%nq
+        abstol(k) = self%wrk%density_hydro(j)*var%atol
+      enddo
+    enddo
 
     abstol_nvec => FN_VMake_Serial(neqs_long, abstol)
     if (.not. associated(abstol_nvec)) then
@@ -353,8 +361,7 @@ contains
       return
     end if
 
-    if (self%evolve_climate) then
-    block
+    if (self%evolve_climate) then; block
       integer(c_int), parameter :: nrtfn = 2
     
       ! set the tropopause index
@@ -366,8 +373,7 @@ contains
         err = "CVODE setup error."
         return
       end if
-    end block
-    endif
+    end block; endif
     
     do ii = 1, size(t_eval)
       do
@@ -401,10 +407,9 @@ contains
           if (ierr /= 0) exit
 
           do j=1,var%nz
-            density = sum(yvec_usol(:,j))
             do i=1,dat%nq
               k = i + (j-1)*dat%nq
-              abstol(k) = density*var%atol
+              abstol(k) = wrk%density_hydro(j)*var%atol
             enddo
           enddo
           ierr = FCVodeSVtolerances(wrk%cvode_mem, var%rtol, abstol_nvec)
