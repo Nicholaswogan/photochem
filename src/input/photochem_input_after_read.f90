@@ -42,13 +42,13 @@ contains
   end subroutine
   
   subroutine interp2atmosfile(dat, var, err)
-    use futils, only: interp, rebin, is_close
+    use futils, only: interp, conserving_rebin
     use photochem_const, only: small_real
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
-    integer :: i, j, k, ierr
+    integer :: i, ierr
     
     call interp(var%nz, dat%nzf, var%z, dat%z_file, dat%T_file, var%Temperature, ierr)
     if (ierr /= 0) then
@@ -74,8 +74,7 @@ contains
       enddo
       var%usol_init = 10.0_dp**var%usol_init
 
-    else
-    block
+    else; block
       real(dp) :: dz_file
       real(dp), allocatable :: densities_file(:,:) ! molecules/cm3
       real(dp), allocatable :: ze_file(:), ze(:)
@@ -100,45 +99,14 @@ contains
       enddo
 
       do i = 1,dat%nq
-        call rebin(ze_file, densities_file(i,:), ze, var%usol_init(i,:))
+        call conserving_rebin(ze_file, densities_file(i,:), ze, var%usol_init(i,:), ierr)
+        if (ierr /= 0) then
+          err = 'subroutine conserving_rebin returned an error'
+          return
+        endif
       enddo
 
-      if (ze(var%nz+1) >= ze_file(dat%nzf+1) .and. ze(var%nz) < ze_file(dat%nzf+1)) then
-        ! The model grid empasses the file grid. We are OK. No mass is lost.
-        ! <--down--|___|___|____|___| (grid)
-        ! <--down--|___|___|___|___| (file)
-      elseif (ze(var%nz) > ze_file(dat%nzf+1)) then
-        ! upper cell of grid is completely above upper cell in file.
-        ! We must re-distribute molecules to prevent program from crashing
-        ! <--down--|___|___|___|___| (grid)
-        ! <--down--|___|___|         (file)
-        do k = 1,var%nz
-          j = var%nz+1-k
-          if (all(var%usol_init(:,j) /= 0.0_dp)) then
-            exit
-          endif
-        enddo
-        ! distribute molecules in the upper most grid cell among the higher altitude cells
-        do i = 1,dat%nq
-          var%usol_init(i,j:) = var%usol_init(i,j)*var%dz(j)/sum(var%dz(j:))
-        enddo
-
-      elseif (ze(var%nz+1) < ze_file(dat%nzf+1)) then
-        ! we have lost mass
-        ! <--down--|___|___|___|___| (grid)
-        ! <--down--|___|___|____|____| (file)
-        ! err = "highest edge of the grid must be >= the highest edge in the 'atmosphere.txt' file"
-        ! return
-
-      endif
-      
-      if (ze(1) /= ze_file(1)) then
-        err = "Lowest edge of grid must be the same as the lowest edge in the 'atmosphere.txt' file"
-        return
-      endif
-
-    end block
-    endif
+    endblock; endif
     
     if (dat%there_are_particles) then
       do i = 1,dat%npq
