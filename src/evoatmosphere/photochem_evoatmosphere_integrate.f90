@@ -47,9 +47,9 @@ contains
       
       if (self%var%verbose == 1) then
         if (self%evolve_climate) then
-          print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,"// &
-               "3x,'max(dy/dt) = ',es11.5,3x,'T_surf = ',f11.5,3x,'trop_ind = ',i4)", &
-              nsteps, tn, hcur(1),maxval(abs(fvec)),self%T_surf,self%var%trop_ind
+          print"(1x,'N =',i6,2x,'Time = ',es11.5,2x,'dt = ',es11.5,"// &
+               "2x,'max(dy/dt) = ',es11.5,2x,'T_surf = ',f11.5,2x,'trop_ind = ',i3,2x,'Ptop = ',es11.5)", &
+              nsteps, tn, hcur(1),maxval(abs(fvec)),self%T_surf,self%var%trop_ind,self%wrk%pressure_hydro(self%var%nz)/1.0e6_dp
         else
           print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,'max(dy/dt) = ',es11.5)", &
               nsteps, tn, hcur(1),maxval(abs(fvec))
@@ -161,6 +161,10 @@ contains
     gvec(1) = var%trop_alt - (var%z(var%trop_ind+1) + (0.5_dp+tol)*var%dz(var%trop_ind+1))
     gvec(2) = var%trop_alt - (var%z(var%trop_ind+1) - (0.5_dp+tol)*var%dz(var%trop_ind+1))
 
+    ! pressure at the top of the atmosphere
+    gvec(3) = wrk%pressure_hydro(var%nz)/1.0e6_dp - 1.0e-8_dp
+    gvec(4) = wrk%pressure_hydro(var%nz)/1.0e6_dp - 1.0e-7_dp
+
   end function
   
   module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, err) result(success)
@@ -197,7 +201,9 @@ contains
     type(N_Vector), pointer :: sunvec_y ! sundials vector
     
     ! solution vector, neq is set in the ode_mod module
-    integer(c_int) :: rootsfound(2)
+    integer(c_int), parameter :: nrtfn = 4
+    integer(c_int) :: rootsfound(nrtfn)
+    real(c_double) :: usol_new(self%dat%nq,self%var%nz)
     real(c_double), pointer :: yvec_usol(:,:)
     real(c_double), target :: yvec(self%var%neqs)
     real(c_double) :: abstol(self%var%neqs)
@@ -245,7 +251,6 @@ contains
     endif
     write(1) dat%nq
     write(1) var%nz
-    write(1) var%z
     write(1) dat%species_names(1:dat%nq)
     write(1) size(t_eval)
     close(1)
@@ -362,7 +367,6 @@ contains
     end if
 
     if (self%evolve_climate) then; block
-      integer(c_int), parameter :: nrtfn = 2
     
       ! set the tropopause index
       call self%set_trop_ind(yvec_usol, err)
@@ -390,7 +394,21 @@ contains
           ierr = FCVodeGetRootInfo(wrk%cvode_mem, rootsfound)
           if (ierr /= 0) exit
 
-          if (rootsfound(1) /= 0 .or. rootsfound(2) /= 0) then
+          if (rootsfound(3) == -1) then
+            ! pressure at the top of the atmosphere is going down
+            ! we must decrease the top of the atmosphere
+            call self%update_vertical_grid(yvec_usol, 0.99_dp*var%top_atmos, usol_new, err)
+            if (allocated(err)) exit
+            yvec_usol = usol_new
+
+          elseif (rootsfound(4) == 1) then
+            ! pressure at the top of the atmosphere is going up
+            ! we must increase the top of the atmosphere
+            call self%update_vertical_grid(yvec_usol, 1.01_dp*var%top_atmos, usol_new, err)
+            if (allocated(err)) exit
+            yvec_usol = usol_new
+
+          elseif (rootsfound(1) /= 0 .or. rootsfound(2) /= 0) then
             ! tropopause index needs changing
           
             ! set the tropopause index
@@ -444,6 +462,7 @@ contains
         
         open(1, file = filename, status='old', form="unformatted",position="append")
         write(1) tcur(1)
+        write(1) var%z
         write(1) wrk%usol
         write(1) var%temperature
         write(1) self%T_surf
