@@ -429,7 +429,6 @@ contains
       ! var%trop_alt
       ! var%xs_x_qy (NOT YET BUT WILL SOON)
       ! var%gibbs_energy
-      ! var%trop_ind (SHOULD NOT ALTER THIS)
 
       T_surf_guess = self%T_surf
       ! update the temperature profile
@@ -448,8 +447,24 @@ contains
         if (allocated(err)) return
       endif
 
-      var%trop_ind = minloc(var%z, 1, var%z >= var%trop_alt) - 1
     endif
+
+  end subroutine
+
+  module subroutine set_trop_ind(self, usol_in, err)
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol_in(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    if (.not. self%evolve_climate) then
+      err = 'You can only call "set_trop_ind" if climate is being evolved'
+      return
+    endif
+
+    call prep_atm_evo_gas(self, usol_in, self%wrk%usol, self%wrk%molecules_per_particle, err)
+    if (allocated(err)) return
+
+    self%var%trop_ind = minloc(self%var%z, 1, self%var%z >= self%var%trop_alt) - 1
 
   end subroutine
 

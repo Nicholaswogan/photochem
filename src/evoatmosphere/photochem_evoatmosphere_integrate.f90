@@ -138,17 +138,27 @@ contains
     real(dp), pointer :: usol_in(:,:)
     type(EvoAtmosphere), pointer :: self
     character(:), allocatable :: err
+    real(dp), parameter :: tol = 1.0e-5
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
     
     ierr = 0
 
     call c_f_pointer(user_data, self)
-    yvec(1:self%var%neqs) => FN_VGetArrayPointer(sunvec_y)
-
-    usol_in(1:self%dat%nq,1:self%var%nz) => yvec(1:self%var%neqs)
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+    yvec(1:var%neqs) => FN_VGetArrayPointer(sunvec_y)
+    usol_in(1:dat%nq,1:var%nz) => yvec(1:var%neqs)
     
-    ! call self%prep_atm_evo_gas(usol_in, self%wrk%usol, self%wrk%molecules_per_particle, err)
+    call self%prep_atm_evo_gas(usol_in, usol_in, wrk%molecules_per_particle, err)
 
-    gvec(1) = 1.0_dp
+    gvec(1) = var%trop_alt - (var%z(var%trop_ind+1) + (0.5_dp+tol)*var%dz(var%trop_ind+1))
+    gvec(2) = var%trop_alt - (var%z(var%trop_ind+1) - (0.5_dp+tol)*var%dz(var%trop_ind+1))
+
+    ! print*,gvec(1:2)/1.0e5_dp
 
   end function
   
@@ -159,7 +169,7 @@ contains
                           FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
                           FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
                           FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
-                          FCVodeSetUserData, FCVodeRootInit
+                          FCVodeSetUserData, FCVodeRootInit, FCVodeReInit, FCVodeGetRootInfo
     use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
     use fnvector_serial_mod, only: FN_VMake_Serial   
     use fsunmatrix_band_mod, only: FSUNBandMatrix
@@ -186,7 +196,9 @@ contains
     type(N_Vector), pointer :: sunvec_y ! sundials vector
     
     ! solution vector, neq is set in the ode_mod module
-    real(c_double) :: yvec(self%var%neqs)
+    integer(c_int) :: rootsfound(2)
+    real(c_double), pointer :: yvec_usol(:,:)
+    real(c_double), target :: yvec(self%var%neqs)
     real(c_double) :: abstol(self%var%neqs), density
     type(N_Vector), pointer :: abstol_nvec
     integer(c_int64_t) :: neqs_long
@@ -262,6 +274,7 @@ contains
         yvec(i) = var%lower_fix_den(i)
       endif
     enddo
+    yvec_usol(1:dat%nq,1:var%nz) => yvec
 
     abstol_nvec => FN_VMake_Serial(neqs_long, abstol)
     if (.not. associated(abstol_nvec)) then
@@ -343,7 +356,12 @@ contains
 
     if (self%evolve_climate) then
     block
-      integer(c_int), parameter :: nrtfn = 1
+      integer(c_int), parameter :: nrtfn = 2
+    
+      ! set the tropopause index
+      call self%set_trop_ind(yvec_usol, err)
+      if (allocated(err)) return
+
       ierr = FCVodeRootInit(wrk%cvode_mem, nrtfn, c_funloc(RootFn))
       if (ierr /= 0) then
         err = "CVODE setup error."
@@ -353,8 +371,59 @@ contains
     endif
     
     do ii = 1, size(t_eval)
-      ierr = FCVode(wrk%cvode_mem, t_eval(ii), sunvec_y, tcur, CV_NORMAL)
-      if (ierr /= 0) then
+      do
+        ierr = FCVode(wrk%cvode_mem, t_eval(ii), sunvec_y, tcur, CV_NORMAL)
+
+        ! if error, then exit
+        if (ierr < 0) exit 
+
+        ! if successful return then exit
+        if (ierr == 0 .or. ierr == 1 .or. ierr == 99) exit 
+
+        ! root was found
+        if (ierr == 2) then
+          ierr = FCVodeGetRootInfo(wrk%cvode_mem, rootsfound)
+          if (ierr /= 0) exit
+
+          if (rootsfound(1) /= 0 .or. rootsfound(2) /= 0) then
+            ! tropopause index needs changing
+          
+            ! set the tropopause index
+            call self%set_trop_ind(yvec_usol, err)
+            if (allocated(err)) then
+              ierr = -1
+              exit
+            endif
+            
+          endif
+
+          ! reinitialize
+          ierr = FCVodeReInit(wrk%cvode_mem, tcur(1), sunvec_y)
+          if (ierr /= 0) exit
+
+          do j=1,var%nz
+            density = sum(yvec_usol(:,j))
+            do i=1,dat%nq
+              k = i + (j-1)*dat%nq
+              abstol(k) = density*var%atol
+            enddo
+          enddo
+          ierr = FCVodeSVtolerances(wrk%cvode_mem, var%rtol, abstol_nvec)
+          if (ierr /= 0) then
+            err = "CVODE setup error."
+            exit
+          end if
+
+          ierr = FCVodeSetInitStep(wrk%cvode_mem, 0.0_c_double)
+          if (ierr /= 0) then
+            err = "CVODE setup error."
+            exit
+          end if
+
+        endif
+        
+      enddo
+      if (ierr < 0) then
         success = .false.
         exit
       else
@@ -367,7 +436,7 @@ contains
         enddo
         
         call self%prep_atmosphere(wrk%usol, err)
-        if (allocated(err)) return
+        if (allocated(err)) exit
         
         open(1, file = filename, status='old', form="unformatted",position="append")
         write(1) tcur(1)
