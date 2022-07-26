@@ -34,7 +34,7 @@ contains
     
     if (dat%fix_water_in_trop .or. dat%gas_rainout) then
       ! we have a tropopause
-      var%trop_ind = minloc(var%z, 1, var%z >= var%trop_alt) - 1
+      var%trop_ind = minloc(abs(var%z - var%trop_alt), 1) - 1
     else
       var%trop_ind = 0
     endif

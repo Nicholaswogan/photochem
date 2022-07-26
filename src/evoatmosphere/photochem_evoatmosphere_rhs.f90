@@ -464,7 +464,13 @@ contains
     call prep_atm_evo_gas(self, usol_in, self%wrk%usol, self%wrk%molecules_per_particle, err)
     if (allocated(err)) return
 
-    self%var%trop_ind = minloc(self%var%z, 1, self%var%z >= self%var%trop_alt) - 1
+    self%var%trop_ind = minloc(abs(self%var%z - self%var%trop_alt), 1) - 1
+
+    if (self%var%trop_ind < 3) then
+      err = 'Tropopause is too low.'
+    elseif (self%var%trop_ind > self%var%nz-2) then
+      err = 'Tropopause is too high.'
+    endif
 
   end subroutine
 

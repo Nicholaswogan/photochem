@@ -30,10 +30,6 @@ module photochem_evoatmosphere
 
     !!! photochem_evoatmosphere_integrate.f90 !!!
     procedure :: evolve
-    procedure :: photochemical_equilibrium
-    procedure :: initialize_stepper
-    procedure :: step
-    procedure :: destroy_stepper
 
   end type
 
@@ -109,30 +105,6 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
       ! Evolve atmosphere through time, and saves output in a binary Fortran file.
     end function
-    
-    module subroutine photochemical_equilibrium(self, success, err)
-      class(EvoAtmosphere), target, intent(inout) :: self
-      logical, intent(out) :: success
-      character(:), allocatable, intent(out) :: err 
-      ! Integrates to photochemical equilibrium starting from self%var%usol_init
-    end subroutine
-    
-    module subroutine initialize_stepper(self, usol_start, err)      
-      class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_start(:,:)
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-    
-    module function step(self, err) result(tn)
-      class(EvoAtmosphere), target, intent(inout) :: self
-      character(:), allocatable, intent(out) :: err
-      real(dp) :: tn
-    end function
-    
-    module subroutine destroy_stepper(self, err)
-      class(EvoAtmosphere), target, intent(inout) :: self
-      character(:), allocatable, intent(out) :: err
-    end subroutine
     
     module function RhsFn_evo(tn, sunvec_y, sunvec_f, user_data) &
                           result(ierr) bind(c, name='RhsFn_evo')
