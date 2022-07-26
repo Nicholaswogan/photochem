@@ -27,7 +27,8 @@ set(PHOTOCHEM_EVOATMOSPHERE
     evoatmosphere/photochem_evoatmosphere_init.f90
     evoatmosphere/photochem_evoatmosphere_rhs.f90
     evoatmosphere/photochem_evoatmosphere_rhs_climate.f90
-    evoatmosphere/photochem_evoatmosphere_integrate.f90)
+    evoatmosphere/photochem_evoatmosphere_integrate.f90
+    evoatmosphere/photochem_evoatmosphere_utils.f90)
 
 set(PHOTOCHEM_SOURCES 
   ${PHOTOCHEM_MODULES}

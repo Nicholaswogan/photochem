@@ -31,6 +31,9 @@ module photochem_evoatmosphere
     !!! photochem_evoatmosphere_integrate.f90 !!!
     procedure :: evolve
 
+    !!! photochem_evoatmosphere_utils.f90 !!!
+    procedure :: update_vertical_grid
+
   end type
 
   interface
@@ -138,6 +141,18 @@ module photochem_evoatmosphere
       type(N_Vector)        :: tmp1, tmp2, tmp3
       integer(c_int)        :: ierr
     end function
+
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!! photochem_evoatmosphere_utils.f90 !!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    module subroutine update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: usol_old(:,:)
+      real(dp), intent(in) :: top_atmos
+      real(dp), intent(out) :: usol_new(:,:)
+      character(:), allocatable, intent(out) :: err
+    end subroutine
 
   end interface
 

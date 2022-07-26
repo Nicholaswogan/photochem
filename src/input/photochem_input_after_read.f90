@@ -190,7 +190,7 @@ contains
 
   end subroutine
 
-  subroutine interp2particlexsdata(dat, var, err)
+  module subroutine interp2particlexsdata(dat, var, err)
     use futils, only: interp
     use photochem_const, only: smaller_real
     type(PhotochemData), intent(in) :: dat
