@@ -1,5 +1,5 @@
 
-submodule(photochem_evoatmosphere) photochem_evoatmosphere_rhs
+submodule(photochem_evoatmosphere) photochem_evoatmosphere_utils
   implicit none
 
 contains
