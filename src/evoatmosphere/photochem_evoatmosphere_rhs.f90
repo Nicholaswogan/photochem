@@ -6,11 +6,11 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_rhs
     module subroutine equilibrium_climate(self, usol_den, molecules_per_particle, T_trop, T_surf_guess, &
                                           T_surf, T, z_trop, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_den(:,:)
+      real(dp), target, intent(in) :: usol_den(:,:)
       real(dp), intent(in) :: molecules_per_particle(:,:)
-      real(dp), intent(in) :: T_trop, T_surf_guess
-      real(dp), intent(out) :: T_surf, T(:)
-      real(dp), intent(out) :: z_trop
+      real(dp), target, intent(in) :: T_trop, T_surf_guess
+      real(dp), target, intent(out) :: T_surf, T(:)
+      real(dp), target, intent(out) :: z_trop
       character(:), allocatable, intent(out) :: err
     end subroutine
   end interface

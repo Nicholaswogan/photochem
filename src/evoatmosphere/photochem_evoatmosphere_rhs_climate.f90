@@ -1,5 +1,32 @@
 submodule(photochem_evoatmosphere:photochem_evoatmosphere_rhs) photochem_evoatmosphere_rhs_climate
+  use futils, only: brent_class
   implicit none
+
+  type :: EvoClimateData
+
+    ! inputs
+    real(dp), pointer :: usol_den(:,:)
+    real(dp), pointer :: T_trop
+    
+    ! calculated from inputs
+    real(dp), allocatable :: pdensities(:,:)
+    real(dp), allocatable :: radii(:,:)
+
+    ! outputs
+    real(dp), pointer :: T_surf
+    real(dp), pointer :: T(:)
+    real(dp), pointer :: z_trop
+
+    ! work
+    real(dp), allocatable :: densities(:,:)
+    real(dp), allocatable :: P(:)
+
+  end type
+
+  type, extends(brent_class) :: brent_custom
+    type(EvoAtmosphere), pointer :: self
+    type(EvoClimateData), pointer :: d
+  end type
 
 contains
 
@@ -7,16 +34,12 @@ contains
                                         T_surf, T, z_trop, err)
     use minpack_module, only: hybrd1
     class(EvoAtmosphere), target, intent(inout) :: self
-    real(dp), intent(in) :: usol_den(:,:)
+    real(dp), target, intent(in) :: usol_den(:,:)
     real(dp), intent(in) :: molecules_per_particle(:,:)
-    real(dp), intent(in) :: T_trop, T_surf_guess
-    real(dp), intent(out) :: T_surf, T(:)
-    real(dp), intent(out) :: z_trop
+    real(dp), target, intent(in) :: T_trop, T_surf_guess
+    real(dp), target, intent(out) :: T_surf, T(:)
+    real(dp), target, intent(out) :: z_trop
     character(:), allocatable, intent(out) :: err
-
-    real(dp), allocatable :: densities(:,:)
-    real(dp), allocatable :: P(:)
-    real(dp), allocatable :: pdensities(:,:), radii(:,:)
 
     ! minpack variables
     integer, parameter :: n = 1
@@ -31,60 +54,116 @@ contains
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
+    type(EvoClimateData), target :: d
 
     dat => self%dat
     var => self%var
 
-    allocate(densities(var%nz,dat%nll))
-    allocate(P(var%nz))
-
     ! compute particle densities (particles/cm3)
     ! and the radii
-    allocate(pdensities(var%nz,dat%np))
-    allocate(radii(var%nz,dat%np))
+    allocate(d%pdensities(var%nz,dat%np))
+    allocate(d%radii(var%nz,dat%np))
     do i = 1,dat%np
-      pdensities(:,i) = usol_den(i,:)*(1.0_dp/molecules_per_particle(i,:))
-      radii(:,i) = var%particle_radius(i,:)
+      d%pdensities(:,i) = usol_den(i,:)*(1.0_dp/molecules_per_particle(i,:))
+      d%radii(:,i) = var%particle_radius(i,:)
     enddo
+
+    ! allocate work space
+    allocate(d%densities(var%nz,dat%nll))
+    allocate(d%P(var%nz))
+    ! associate
+    d%usol_den => usol_den
+    d%T_trop => T_trop
+    d%T_surf => T_surf
+    d%T => T
+    d%z_trop => z_trop
 
     x(1) = log10(T_surf_guess)
     call hybrd1(fcn, n, x, fvec, tol, info, wa, lwa)
-    if (info == 0 .or. info > 1) then
-      err = 'hybrd1 root solve failed'
-      return
-    endif
-    if (info < 0) then
-      ! err is already set
-      return
-    endif
+    if (info /= 1) then; block
+      type(brent_custom) :: brent
+      real(dp) :: T_surf_small, T_surf_big
+      ! hybrd1 failed to find the root.
+      ! Fallback on brent's method. 
+      call brent%set_function(fcn_brent)
+      brent%self => self
+      brent%d => d
+      
+      T_surf_small = T_surf_guess*0.99_dp
+      T_surf_big = T_surf_guess*1.01_dp
+      call brent%find_zero(log10(T_surf_small), log10(T_surf_big), tol, x(1), fvec(1), info)
+      if (info /= 0) then
+        err = 'Non-linear solve for temperature structure failed.'
+        return
+      endif
+
+    endblock; endif
+
+    ! output T_surf
+    T_surf = 10.0_dp**x(1)
+    ! output T(:) and z_trop from calling make_profile one more time
+    ! with the solution T_surf.
+    call make_profile_discrete(self, usol_den, T_surf, T_trop, &
+                               T, d%P, d%densities, &
+                               z_trop, err)
+    if (allocated(err)) return
 
   contains
-    subroutine fcn(n_, x_, fvec_, iflag)
+    subroutine fcn(n_, x_, fvec_, iflag_)
       integer, intent(in) :: n_
       real(dp), intent(in) :: x_(n_)
       real(dp), intent(out) :: fvec_(n_)
-      integer, intent(inout) :: iflag
-      T_surf = 10.0_dp**x_(1)
+      integer, intent(inout) :: iflag_
 
-      call make_profile_discrete(self, usol_den, T_surf, T_trop, &
-                                 T, P, densities, &
-                                 z_trop, err)
-      if (allocated(err)) then
-        iflag = -1
+      character(:), allocatable :: err_
+
+      ! self and d are passed in by scope
+      d%T_surf = 10.0_dp**x_(1)
+      fvec_(1) = equilibrium_climate_equation(self, d, err_)
+      if (allocated(err_)) then
+        iflag_ = -1
         return
       endif
-      ! do raditative transfer
-      call self%rad%radiate(T_surf, T, P, densities, var%dz, pdensities, radii, err)
-      if (allocated(err)) then
-        iflag = -1
-        return
-      endif
-
-      fvec_(1) = self%rad%wrk_ir%fdn_n(var%nz+1) - self%rad%wrk_ir%fup_n(var%nz+1) + &
-                 self%rad%wrk_sol%fdn_n(var%nz+1) - self%rad%wrk_sol%fup_n(var%nz+1)
-
+      
     end subroutine
   end subroutine
+
+  function fcn_brent(me, x) result(f)
+    class(brent_class),intent(inout) :: me
+    real(dp),intent(in) :: x
+    real(dp) :: f
+
+    character(:), allocatable :: err
+
+    select type (me)
+    class is (brent_custom)
+        me%d%T_surf = 10.0_dp**x
+        f = equilibrium_climate_equation(me%self, me%d, err)
+    end select
+
+  end function
+
+  function equilibrium_climate_equation(self, d, err) result(F_in)
+    type(EvoAtmosphere), intent(inout) :: self
+    type(EvoClimateData), intent(inout) :: d
+    character(:), allocatable, intent(out) :: err
+    real(dp) :: F_in
+
+    ! make a T profile
+    call make_profile_discrete(self, d%usol_den, d%T_surf, d%T_trop, &
+                               d%T, d%P, d%densities, &
+                               d%z_trop, err)
+    if (allocated(err)) return
+
+    ! do raditative transfer
+    call self%rad%radiate(d%T_surf, d%T, d%P, d%densities, self%var%dz, d%pdensities, d%radii, err)
+    if (allocated(err)) return
+
+    ! compute the energy going into the atmosphere
+    F_in = self%rad%wrk_ir%fdn_n(self%var%nz+1) - self%rad%wrk_ir%fup_n(self%var%nz+1) + &
+           self%rad%wrk_sol%fdn_n(self%var%nz+1) - self%rad%wrk_sol%fup_n(self%var%nz+1)
+
+  end function
 
   subroutine make_profile_discrete(self, usol_den, T_surf, T_trop, &
                                    T, P, densities, &
