@@ -162,8 +162,8 @@ contains
     gvec(2) = var%trop_alt - (var%z(var%trop_ind+1) - (0.5_dp+tol)*var%dz(var%trop_ind+1))
 
     ! pressure at the top of the atmosphere
-    gvec(3) = wrk%pressure_hydro(var%nz)/1.0e6_dp - 1.0e-8_dp
-    gvec(4) = wrk%pressure_hydro(var%nz)/1.0e6_dp - 1.0e-7_dp
+    gvec(3) = wrk%pressure_hydro(var%nz)/1.0e6_dp - self%P_top_min
+    gvec(4) = wrk%pressure_hydro(var%nz)/1.0e6_dp - self%P_top_max
 
   end function
   
@@ -279,7 +279,7 @@ contains
       endif
     enddo
     ! set abstol
-    call self%prep_atmosphere(yvec_usol, err)
+    call self%set_trop_ind(yvec_usol, err)
     if (allocated(err)) return
     do j=1,var%nz
       do i=1,dat%nq
@@ -366,19 +366,12 @@ contains
       return
     end if
 
-    if (self%evolve_climate) then; block
-    
-      ! set the tropopause index
-      call self%set_trop_ind(yvec_usol, err)
-      if (allocated(err)) return
+    ierr = FCVodeRootInit(wrk%cvode_mem, nrtfn, c_funloc(RootFn))
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
 
-      ierr = FCVodeRootInit(wrk%cvode_mem, nrtfn, c_funloc(RootFn))
-      if (ierr /= 0) then
-        err = "CVODE setup error."
-        return
-      end if
-    end block; endif
-    
     do ii = 1, size(t_eval)
       do
         ierr = FCVode(wrk%cvode_mem, t_eval(ii), sunvec_y, tcur, CV_NORMAL)
@@ -390,22 +383,32 @@ contains
         if (ierr == 0 .or. ierr == 1 .or. ierr == 99) exit 
 
         ! root was found
-        if (ierr == 2) then
+        if (ierr == 2) then; block
+          real(dp) :: new_top_atmos
+
           ierr = FCVodeGetRootInfo(wrk%cvode_mem, rootsfound)
           if (ierr /= 0) exit
 
           if (rootsfound(3) == -1) then
             ! pressure at the top of the atmosphere is going down
             ! we must decrease the top of the atmosphere
-            call self%update_vertical_grid(yvec_usol, 0.99_dp*var%top_atmos, usol_new, err)
-            if (allocated(err)) exit
+            new_top_atmos = (1.0_dp-self%top_atmos_adjust_frac)*var%top_atmos
+            call self%update_vertical_grid(yvec_usol, new_top_atmos, usol_new, err)
+            if (allocated(err)) then
+              ierr = -1
+              exit
+            endif
             yvec_usol = usol_new
 
           elseif (rootsfound(4) == 1) then
             ! pressure at the top of the atmosphere is going up
             ! we must increase the top of the atmosphere
-            call self%update_vertical_grid(yvec_usol, 1.01_dp*var%top_atmos, usol_new, err)
-            if (allocated(err)) exit
+            new_top_atmos = (1.0_dp+self%top_atmos_adjust_frac)*var%top_atmos
+            call self%update_vertical_grid(yvec_usol, new_top_atmos, usol_new, err)
+            if (allocated(err)) then
+              ierr = -1
+              exit
+            endif
             yvec_usol = usol_new
 
           elseif (rootsfound(1) /= 0 .or. rootsfound(2) /= 0) then
@@ -442,7 +445,7 @@ contains
             exit
           end if
 
-        endif
+        endblock; endif
         
       enddo
       if (ierr < 0) then

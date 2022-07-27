@@ -159,7 +159,7 @@ contains
         densities(j,i) = usol_den(k,j)
       enddo
     enddo
-    k = dat%LH2O + dat%npq
+    k = dat%LH2O - dat%npq
     densities(:,k) = n_H2O
 
     do j = 1,var%nz

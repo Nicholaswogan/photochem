@@ -478,11 +478,6 @@ contains
 
     wrk => self%wrk
 
-    if (.not. self%evolve_climate) then
-      err = 'You can only call "set_trop_ind" if climate is being evolved'
-      return
-    endif
-
     call prep_atm_evo_gas(self, usol_in, wrk%usol, &
                           wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
                           wrk%pressure_hydro, wrk%density_hydro, err)

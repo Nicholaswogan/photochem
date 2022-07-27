@@ -17,6 +17,10 @@ module photochem_evoatmosphere
     real(dp) :: T_trop = 200.0_dp
     type(Radtran), allocatable :: rad
 
+    real(dp) :: P_top_min = 1.0e-9_dp ! bars
+    real(dp) :: P_top_max = 1.0e-6_dp ! bars
+    real(dp) :: top_atmos_adjust_frac = 0.05 ! fraction
+
   contains
   !!! photochem_evoatmosphere_init.f90 !!!
     procedure :: init => EvoAtmosphere_init
