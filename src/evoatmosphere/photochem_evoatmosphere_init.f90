@@ -61,11 +61,11 @@ contains
                          s%solar_zenith, s%surface_albedo, self%var%nz, err)
       if (allocated(err)) return
 
-      ! The initial guess for T_surf
-      self%T_surf = self%var%temperature(1)
     else
       self%evolve_climate = .false.
     endif
+    ! The initial guess for T_surf
+    self%T_surf = self%var%temperature(1)
     
     call self%prep_atmosphere(self%var%usol_init, err)
     if (allocated(err)) return   
