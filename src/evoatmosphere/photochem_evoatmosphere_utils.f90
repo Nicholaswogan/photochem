@@ -50,6 +50,7 @@ contains
       err = 'Subroutine interp returned an error.'
       return
     endif
+    var%edd = 10.0_dp**var%edd
 
     if (dat%there_are_particles) then
       do i = 1,dat%npq
