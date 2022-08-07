@@ -1,0 +1,175 @@
+
+atmosphere-grid:
+  bottom: 0.0 # cm
+  top: 1.0e7 # cm
+  number-of-layers: 50
+
+photolysis-grid:
+  regular-grid: true
+  lower-wavelength: 92.5 # nm
+  upper-wavelength: 855.0 # nm
+  number-of-bins: 200
+
+planet:
+  planet-mass: 5.972e27 # grams
+  planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
+  surface-albedo: 0.2 # cm
+  diurnal-averaging-factor: 0.5
+  solar-zenith-angle: 60.0
+  hydrogen-escape:
+    type: diffusion limited
+  evolve-climate: true
+  water:
+    fix-water-in-troposphere: true
+    relative-humidity: 0.7
+    gas-rainout: true
+    rainfall-rate: 1 # relative to modern earth's rainfall rate
+    # rainout-species: [H2SO4aer] # specify rainout species. If omitted, then model will use all species with data.
+    tropopause-altitude: 1.1e6 # cm. required if gas-rainout or fix-water-in-troposphere
+    water-condensation: true
+    condensation-rate: {A: 1.0e-5, rhc: 0.01, rh0: 0.015}
+
+particles:
+- name: H2SO4aer
+  condensation-rate: {A: 1.0e-5, rhc: 1.0, rh0: 1.05}
+- name: HCNaer
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
+- name: HCCCNaer
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
+- name: CH3CNaer
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
+- name: C2H2aer
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
+- name: C2H4aer
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
+- name: C2H6aer
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
+- name: C4H4aer
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
+- name: N2Oaer
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
+- name: NH3aer
+  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
+
+optical-properties:
+  ir:
+    k-method: RandomOverlapResortRebin
+    number-of-bins: 8
+    opacities:
+      k-distributions: [H2O, CO2, CH4, O3]
+      CIA: [N2-N2, O2-O2, N2-O2, CH4-CH4, CO2-CO2, H2-CH4, H2-H2]
+      rayleigh: true
+      photolysis-xs: true
+      water-continuum: MT_CKD
+  solar:
+    k-method: RandomOverlapResortRebin
+    number-of-bins: 8
+    opacities:
+      k-distributions: [H2O, CO2, CH4, O3]
+      CIA: [N2-N2, O2-O2, N2-O2, CH4-CH4, CO2-CO2, H2-CH4, H2-H2]
+      rayleigh: true
+      photolysis-xs: true
+      water-continuum: MT_CKD
+      particle-xs:
+        - {name: HCaer1, data: khare1984}
+        - {name: HCaer2, data: khare1984}
+        - {name: HCaer3, data: khare1984}
+
+boundary-conditions:
+- name: N2
+  lower-boundary: {type: den, den: 1.9091467479365386e+19}
+  upper-boundary: {type: veff, veff: 1.0e-8}
+- name: O2
+  lower-boundary: {type: flux, flux: 529988353109.4235}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: H2
+  lower-boundary: {type: vdep, vdep: 0.002101353876412517}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: CO2
+  lower-boundary: {type: vdep, vdep: 1.022423385788315e-05}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: CH4
+  lower-boundary: {type: flux, flux: 57208927884.609665}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: CO
+  lower-boundary: {type: flux, flux: 48199295836.73972}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: N2O
+  lower-boundary: {type: flux, flux: 1320333762.837339}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HCl
+  lower-boundary: {type: vdep + dist flux, vdep: 0.02, flux: 1.0e8, height: 20.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: O1D
+  type: short lived
+- name: N2D
+  type: short lived
+
+# standard stuff
+- name: O
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: H
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: OH
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HO2
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: H2O2
+  lower-boundary: {type: vdep, vdep: 0.2}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HCO
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: H2CO
+  lower-boundary: {type: vdep, vdep: 2e-1}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: CH3
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: "NO"
+  lower-boundary: {type: vdep, vdep: 0.0003}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: NO2
+  lower-boundary: {type: vdep, vdep: 0.003}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: O3
+  lower-boundary: {type: vdep, vdep: 0.07}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HNO3
+  lower-boundary: {type: vdep, vdep: 0.2}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: H2S
+  lower-boundary: {type: vdep + dist flux, vdep: 0.02, flux: 1.0e8, height: 10.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: OCS
+  lower-boundary: {type: vdep + dist flux, vdep: 0.003, flux: 5.0e7, height: 10.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HSO
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: H2SO4
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: SO2
+  lower-boundary: {type: vdep + dist flux, vdep: 1.0, flux: 1.0e9, height: 10.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HNCO
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HCN
+  lower-boundary: {type: vdep, vdep: 0.007}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HCCCN
+  lower-boundary: {type: vdep, vdep: 0.007}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: NCO
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: CN
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+      
