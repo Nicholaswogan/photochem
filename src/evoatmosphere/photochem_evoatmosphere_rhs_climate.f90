@@ -394,15 +394,16 @@ contains
 
     real(dp) :: dPdT_dry, dPdT_H2O
     real(dp) :: P_H2O, n_H2O
-    real(dp) :: cp_H2O, L_H2O
+    real(dp) :: cp_H2O
     real(dp) :: P_dry
     real(dp) :: n_tot, mubar
 
     real(dp), parameter :: mu_H2O = 18.0_dp
+    !! latent heat of H2O vaporization/condensation (erg/g)
+    real(dp), parameter :: L_H2O = 2307.61404e7_dp
 
     P_H2O = rh*sat_pressure_H2O(T)
     n_H2O = P_H2O/(k_boltz*T)
-    L_H2O = latent_heat_vap_H2O(T)
     cp_H2O = heat_capacity_H2O(T) ! J/(mol*K)
     cp_H2O = cp_H2O*(1.0_dp/(mu_H2O*1.0e-3_dp)) ! J/(kg*K)
     cp_H2O = cp_H2O*1.0e4_dp ! convert to erg/(g*K)
@@ -419,13 +420,6 @@ contains
     
     dTdz = (-grav*mubar*n_tot/N_avo) * (dPdT_dry + dPdT_H2O)**(-1.0_dp)
 
-  end function
-
-  pure function latent_heat_vap_H2O(T) result(L_H2O)
-    real(dp), intent(in) :: T ! K
-    real(dp) :: L_H2O ! erg/g
-    L_H2O = 1.91846e6_dp*(T/(T - 33.91_dp))**2.0_dp ! J/kg
-    L_H2O = L_H2O*1.0e4_dp ! convert to erg/g
   end function
 
   pure function heat_capacity_H2O(T) result(cp)

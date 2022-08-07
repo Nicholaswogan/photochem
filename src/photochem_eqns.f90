@@ -317,16 +317,21 @@ contains
   
   pure function sat_pressure_H2O(T) result(p_H2O)
     real(dp), intent(in) :: T ! temperature in K
-    real(dp) :: p_H2O
-    real(dp), parameter :: lc = 2.5e6_dp ! specific enthalpy of H2O vaporization
-    real(dp), parameter :: Rc = 461.0_dp ! gas constant for water
-    real(dp), parameter :: e0 = 611.0_dp ! Pascals
-    real(dp), parameter :: T0 = 273.15_dp ! K
-    ! Catling and Kasting (Equation 1.49)
-    p_H2O = 10.0_dp*e0*exp(lc/Rc*(1/T0 - 1/T))
-    ! output is in dynes/cm2
+    real(dp) :: p_H2O ! dynes/cm2
+    
+    real(dp) :: Tc ! temperature in C
+
+    ! From Ackerman and Marley 2001, Equation A2a and A2b
+
+    Tc = T - 273.15_dp
+    
+    if (T < 273.15) then
+      p_H2O = 6111.5_dp*exp((23.036_dp*Tc - Tc**2.0_dp/333.7_dp)/(Tc + 279.82_dp))
+    else
+      p_H2O = 6111.5_dp*exp((18.729_dp*Tc - Tc**2.0_dp/227.3_dp)/(Tc + 257.87_dp))
+    endif
   end function
-  
+
   pure function damp_condensation_rate(A, rhc, rh0, rh) result(k)
     use photochem_const, only: pi
     real(dp), intent(in) :: A
