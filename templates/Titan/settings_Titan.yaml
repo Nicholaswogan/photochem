@@ -19,7 +19,8 @@ planet:
   surface-albedo: 0.1 # cm
   diurnal-averaging-factor: 0.5
   solar-zenith-angle: 50.0
-  diff-lim-hydrogen-escape: true
+  hydrogen-escape:
+    type: diffusion limited
   water:
     fix-water-in-troposphere: false
     gas-rainout: false

@@ -33,7 +33,6 @@ module photochem_types ! make a giant IO object
     real(dp) :: flux
     real(dp) :: height
     real(dp) :: den
-    real(dp) :: mix_dep_flux
   end type
   
   type :: PhotoSettings
@@ -60,7 +59,8 @@ module photochem_types ! make a giant IO object
     real(dp) :: surface_albedo
     real(dp) :: diurnal_fac
     real(dp) :: solar_zenith
-    logical :: diff_H_escape
+    integer :: H_escape_type
+    real(dp), allocatable :: H_escape_S1
     integer :: default_lowerboundcond
     ! climate
     logical :: evolve_climate
@@ -320,7 +320,8 @@ module photochem_types ! make a giant IO object
     integer :: LH2O ! index of H2O
     logical :: water_cond ! True if water should condense out of the atmosphere
     logical :: gas_rainout ! True if gas rains out
-    logical :: diff_H_escape ! True of diffusion limited H escape
+    integer :: H_escape_type ! Diffusion-limited, Zahnle, or None
+    real(dp), allocatable :: H_escape_coeff ! Coefficient for zahnle hydrogen escape
     integer :: LH2 ! H2 index
     integer :: LH ! H index
     
@@ -346,11 +347,9 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: lower_dist_height(:)
     real(dp), allocatable :: lower_fix_mr(:)
     real(dp), allocatable :: lower_fix_den(:)
-    real(dp), allocatable :: lower_mix_dep_flux(:)
     integer, allocatable :: upperboundcond(:) ! 0 or 2
     real(dp), allocatable :: upper_veff(:)
     real(dp), allocatable :: upper_flux(:)
-    real(dp), allocatable :: upper_mix_dep_flux(:)
     logical, allocatable :: only_eddy(:) ! True if only use eddy
     
     ! Atmospheres structure

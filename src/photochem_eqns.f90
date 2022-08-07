@@ -346,5 +346,20 @@ contains
     real(dp) :: H ! mol/(kg * Pa)
     H = A*exp(B*(1.0_dp/298.15_dp - 1.0_dp/T))
   end function
+
+  pure function zahnle_Hescape_coeff(S1) result(coeff)
+    real(dp), intent(in) :: S1 ! EUV radiation relative to Modern Earth
+    real(dp) :: coeff ! molecules/cm2/s
+
+    real(dp), parameter :: A = 2.0e12_dp ! molecules/cm2/s
+    real(dp), parameter :: B2 = 0.006_dp ! no units
+
+    ! Equation 47 in Zahnle et al. (2020), PSJ.
+    ! `coeff` is the hydrogen escape coefficient, such that
+    ! [Hydrogen Escape] = coeff*[H2 mixing ratio] 
+
+    coeff = (A*S1)/sqrt(1.0_dp + B2*S1**2.0_dp)
+
+  end function
   
 end module

@@ -488,6 +488,7 @@ contains
     
   module subroutine set_upper_bc(self, species, bc_type, veff, flux, err)
     use photochem_enum, only: VelocityBC, FluxBC
+    use photochem_enum, only: DiffusionLimHydrogenEscape
     class(Atmosphere), intent(inout) :: self
     character(len=*), intent(in) :: species
     character(len=*), intent(in) :: bc_type
@@ -505,7 +506,7 @@ contains
       return
     endif
     
-    if (self%dat%diff_H_escape) then
+    if (self%dat%H_escape_type == DiffusionLimHydrogenEscape) then
       if (species == "H2") then
         err = "You can not change the boundary condition for H2 because"// &
               " diffusion limited H2 escape is on."

@@ -19,7 +19,8 @@ planet:
   surface-albedo: 0.343
   diurnal-averaging-factor: 0.5
   solar-zenith-angle: 50.0
-  diff-lim-hydrogen-escape: false
+  hydrogen-escape:
+    type: none
   default-gas-lower-boundary: Moses
   water:
     fix-water-in-troposphere: false

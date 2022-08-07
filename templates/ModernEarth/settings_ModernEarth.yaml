@@ -18,7 +18,9 @@ planet:
   surface-albedo: 0.25 # cm
   diurnal-averaging-factor: 0.5
   solar-zenith-angle: 50.0
-  diff-lim-hydrogen-escape: true
+  hydrogen-escape:
+    type: diffusion limited # options are "diffusion limited", "zahnle" and "none"
+    # S1: 20 # required for type zahnle
   water:
     fix-water-in-troposphere: false
     # relative-humidity: manabe

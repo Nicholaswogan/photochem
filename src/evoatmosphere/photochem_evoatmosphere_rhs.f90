@@ -173,6 +173,7 @@ contains
     use photochem_eqns, only: dynamic_viscosity_air, fall_velocity, slip_correction_factor, &
     binary_diffusion_param
     use photochem_const, only: k_boltz, N_avo
+    use photochem_enum, only: DiffusionLimHydrogenEscape
 
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
@@ -356,7 +357,7 @@ contains
     ! enddo
     
     ! H2 escape
-    if (dat%diff_H_escape) then
+    if (dat%H_escape_type == DiffusionLimHydrogenEscape) then
       bx1x2 = binary_diffusion_param(dat%species_mass(dat%LH2), mubar(var%nz), var%temperature(var%nz))
       VH2_esc = bx1x2/den(var%nz)*(-(dat%species_mass(dat%LH2)*var%grav(var%nz))/(k_boltz*var%temperature(var%nz)*N_avo) &
                                 + (mubar(var%nz)*var%grav(var%nz))/(k_boltz*var%temperature(var%nz)*N_avo))                     
@@ -499,6 +500,7 @@ contains
     use photochem_common, only: gas_saturation_density
     use photochem_eqns, only: sat_pressure_H2O
     use photochem_const, only: pi, N_avo, small_real, k_boltz
+    use photochem_enum, only: DiffusionLimHydrogenEscape
 
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
@@ -545,7 +547,7 @@ contains
     !!! H and H2 escape
     wrk%upper_veff_copy = var%upper_veff
     wrk%lower_vdep_copy = var%lower_vdep
-    if (dat%diff_H_escape) then
+    if (dat%H_escape_type == DiffusionLimHydrogenEscape) then
       wrk%upper_veff_copy(dat%LH2) = wrk%VH2_esc                     
       wrk%upper_veff_copy(dat%LH) = wrk%VH_esc 
     endif
@@ -594,7 +596,8 @@ contains
   end subroutine
 
   module subroutine rhs_evo_gas(self, neqs, usol_flat, rhs, err)
-    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, FluxBC, VelocityDistributedFluxBC, MixDependentFluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: ZahnleHydrogenEscape
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
     
@@ -663,10 +666,6 @@ contains
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
                         + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
                         - (var%edd(1)/wrk%surface_scale_height)*wrk%usol(i,1)/var%dz(1)
-      elseif (var%lowerboundcond(i) == MixDependentFluxBC) then
-        rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
-                        + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
-                        + var%lower_mix_dep_flux(i)*wrk%mix(i,1)/var%dz(1)
       endif
     enddo
 
@@ -681,10 +680,6 @@ contains
         rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
                         + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
                         - var%upper_flux(i)/var%dz(var%nz)
-      elseif (var%upperboundcond(i) == MixDependentFluxBC) then
-        rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
-                        + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
-                        - var%upper_mix_dep_flux(i)*wrk%mix(i,var%nz)/var%dz(var%nz)
       endif
     enddo
 
@@ -703,10 +698,22 @@ contains
       endif
     enddo 
 
+    ! zahnle hydrogen escape
+    if (dat%H_escape_type == ZahnleHydrogenEscape) then
+
+      ! for Zahnle hydrogen escape, we pull H2 out of 
+      ! the bottom grid cell of the model.
+
+      rhs(dat%LH2) = rhs(dat%LH2) &
+      - dat%H_escape_coeff*wrk%mix(dat%LH2,1)/var%dz(1)
+      
+    endif
+
   end subroutine
 
   module subroutine jac_evo_gas(self, lda_neqs, neqs, usol_flat, jac, err)
-    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, FluxBC, VelocityDistributedFluxBC, MixDependentFluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: ZahnleHydrogenEscape
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
@@ -729,7 +736,7 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
 
-    integer :: i, k, kk, j, m, mm
+    integer :: i, k, j, m, mm
   
     dat => self%dat
     var => self%var
@@ -817,22 +824,6 @@ contains
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
         djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) - &
                          (var%edd(1)/wrk%surface_scale_height)/var%dz(1)
-      elseif (var%lowerboundcond(i) == MixDependentFluxBC) then
-        djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
-        djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) &
-                        + (var%lower_mix_dep_flux(i)/var%dz(1)) &
-                          *((wrk%density(1) - wrk%usol(i,1))/wrk%density(1)**2.0_dp)
-        
-        ! I think these are the off-diagonal terms, but 
-        ! the program appears to not perform well when I include these.
-        do m = dat%ng_1,dat%nq 
-          if (m /= i) then
-            mm = dat%kd + i - m
-            djac(mm,m) = djac(mm,m) + (var%lower_mix_dep_flux(i)/var%dz(1)) &
-                                      *(-wrk%usol(i,1)/wrk%density(1)**2.0_dp)
-          endif
-        enddo
-
       endif
     enddo
   
@@ -847,25 +838,25 @@ contains
       elseif (var%upperboundcond(i) == FluxBC) then
         djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,var%nz) + wrk%ADD(i,var%nz)
         djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
-      elseif (var%upperboundcond(i) == MixDependentFluxBC) then
-        djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,var%nz) + wrk%ADD(i,var%nz) &
-                        - (var%upper_mix_dep_flux(i)/var%dz(var%nz)) &
-                          *((wrk%density(var%nz) - wrk%usol(i,var%nz))/wrk%density(var%nz)**2.0_dp)
-        djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
-
-        ! I think these are the off-diagonal terms, but 
-        ! the program appears to not perform well when I include these.
-        do m = dat%ng_1,dat%nq 
-          if (m /= i) then
-            kk = m + (var%nz-1)*dat%nq
-            mm = dat%kd + i - m
-            djac(mm,kk) = djac(mm,kk) + (var%upper_mix_dep_flux(i)/var%dz(var%nz)) &
-                                      *(-wrk%usol(i,var%nz)/wrk%density(var%nz)**2.0_dp)
-          endif
-        enddo
-
       endif
     enddo
+
+    ! zahnle hydrogen escape
+    if (dat%H_escape_type == ZahnleHydrogenEscape) then
+
+      djac(dat%kd,dat%LH2) = djac(dat%kd,dat%LH2) &
+      - (dat%H_escape_coeff/var%dz(1)) &
+        *((wrk%density(1) - wrk%usol(dat%LH2,1))/wrk%density(1)**2.0_dp)
+
+      do m = dat%ng_1,dat%nq 
+        if (m /= dat%LH2) then
+          mm = dat%kd + dat%LH2 - m
+          djac(mm,m) = djac(mm,m) &
+          - (dat%H_escape_coeff/var%dz(1)) &
+            *(-wrk%usol(dat%LH2,1)/wrk%density(1)**2.0_dp)
+        endif
+      enddo
+    endif
   
   end subroutine
 

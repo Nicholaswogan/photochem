@@ -629,6 +629,7 @@ contains
     use photochem_enum, only: H2SO4Saturation
     use photochem_enum, only: CondensingParticle
     use photochem_enum, only: VelocityBC, DensityBC, MixingRatioBC
+    use photochem_enum, only: DiffusionLimHydrogenEscape, ZahnleHydrogenEscape, NoHydrogenEscape
     use photochem_types, only: PhotoSettings
     character(len=*), intent(in) :: infile
     type(PhotoSettings), intent(in) :: s
@@ -678,8 +679,10 @@ contains
     var%surface_albedo = s%surface_albedo
     var%diurnal_fac = s%diurnal_fac
     var%solar_zenith = s%solar_zenith
-    dat%diff_H_escape = s%diff_H_escape
-    if (dat%diff_H_escape) then
+    dat%H_escape_type = s%H_escape_type
+    if (dat%H_escape_type /= NoHydrogenEscape) then
+
+      ! make sure H2 and H are in the model
       ind = findloc(dat%species_names,'H2')
       dat%LH2 = ind(1)
       if (ind(1) == 0) then
@@ -704,6 +707,21 @@ contains
         err = 'H must not be short lived if hydrogen escape is on'
         return
       endif
+
+      if (dat%H_escape_type == ZahnleHydrogenEscape) then; block
+        use photochem_eqns, only: zahnle_Hescape_coeff
+
+        allocate(dat%H_escape_coeff)
+        dat%H_escape_coeff = zahnle_Hescape_coeff(s%H_escape_S1)
+
+        if (dat%back_gas) then
+          if (dat%back_gas_name == "H2") then
+            err = "zahnle hydrogen escape does not work when the background gas is H2."
+            return
+          endif
+        endif
+
+      endblock; endif
 
     endif
     
@@ -833,11 +851,10 @@ contains
     else
       allocate(var%lower_fix_den(dat%nq))
     endif
-    allocate(var%lower_mix_dep_flux(dat%nq))
     allocate(var%upperboundcond(dat%nq))
     allocate(var%upper_veff(dat%nq))
     allocate(var%upper_flux(dat%nq))
-    allocate(var%upper_mix_dep_flux(dat%nq))
+
     allocate(var%only_eddy(dat%nq))
     ! default boundary conditions
     var%lowerboundcond(:dat%np) = VelocityBC ! default particle BC is alway velocity
@@ -880,12 +897,10 @@ contains
         else
           var%lower_fix_den(ind(1)) = s%lbcs(j)%den
         endif
-        var%lower_mix_dep_flux(ind(1)) = s%lbcs(j)%mix_dep_flux
         
         var%upperboundcond(ind(1)) = s%ubcs(j)%bc_type
         var%upper_veff(ind(1)) = s%ubcs(j)%vel
         var%upper_flux(ind(1)) = s%ubcs(j)%flux
-        var%upper_mix_dep_flux(ind(1)) = s%ubcs(j)%mix_dep_flux
         
         var%only_eddy(ind(1)) = s%only_eddy(j)
         
@@ -895,25 +910,25 @@ contains
     
     ! Make sure that upper boundary condition for H and H2 are
     ! effusion velocities, if diffusion limited escape
-    if (dat%diff_H_escape) then
+    if (dat%H_escape_type == DiffusionLimHydrogenEscape) then
       if (dat%back_gas) then
         if (dat%back_gas_name /= "H2") then
           if (var%upperboundcond(dat%LH2) /= VelocityBC) then
             err = "IOError: H2 must have a have a effusion velocity upper boundary"// &
-                  " if diff-lim-hydrogen-escape = True"
+                  " for diffusion limited hydrogen escape"
             return
           endif
         endif
       else
         if (var%upperboundcond(dat%LH2) /= VelocityBC) then
           err = "IOError: H2 must have a have a effusion velocity upper boundary"// &
-                " if diff-lim-hydrogen-escape = True"
+                " for diffusion limited hydrogen escape"
           return
         endif
       endif
       if (var%upperboundcond(dat%LH) /= VelocityBC) then
         err = "IOError: H must have a have a effusion velocity upper boundary"// &
-              " if diff-lim-hydrogen-escape = True"
+              " for diffusion limited hydrogen escape"
         return
       endif
     endif

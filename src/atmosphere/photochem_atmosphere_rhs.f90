@@ -209,6 +209,7 @@ contains
   module subroutine prep_all_background_gas(self, usol_in, err)
     use photochem_enum, only: CondensingParticle
     use photochem_enum, only: ArrheniusSaturation, H2SO4Saturation
+    use photochem_enum, only: DiffusionLimHydrogenEscape
     use photochem_common, only: reaction_rates, diffusion_coefficients, rainout, photorates
     use photochem_common, only: gas_saturation_density
     use photochem_eqns, only: saturation_density
@@ -275,7 +276,7 @@ contains
     !!! H and H2 escape
     wrk%upper_veff_copy = var%upper_veff
     wrk%lower_vdep_copy = var%lower_vdep
-    if (dat%diff_H_escape) then
+    if (dat%H_escape_type == DiffusionLimHydrogenEscape) then
       if (dat%back_gas_name /= "H2") then
         wrk%upper_veff_copy(dat%LH2) = wrk%VH2_esc                     
       endif
@@ -327,7 +328,8 @@ contains
   end subroutine
   
   module subroutine rhs_background_gas(self, neqs, usol_flat, rhs, err)
-    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC, MixDependentFluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: ZahnleHydrogenEscape
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
     
@@ -398,10 +400,6 @@ contains
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
                         + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
                         - (var%edd(1)/wrk%surface_scale_height)*wrk%usol(i,1)/var%dz(1)
-      elseif (var%lowerboundcond(i) == MixDependentFluxBC) then
-        rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
-                        + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
-                        + var%lower_mix_dep_flux(i)*wrk%usol(i,1)/(wrk%density(1)*var%dz(1))
       endif
     enddo
 
@@ -416,10 +414,6 @@ contains
         rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
                         + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
                         - var%upper_flux(i)/(wrk%density(var%nz)*var%dz(var%nz))
-      elseif (var%upperboundcond(i) == MixDependentFluxBC) then
-        rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
-                        + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
-                        - var%upper_mix_dep_flux(i)*wrk%usol(i,var%nz)/(wrk%density(var%nz)*var%dz(var%nz))
       endif
     enddo
     
@@ -437,11 +431,22 @@ contains
         enddo
       endif
     enddo 
+
+    ! zahnle hydrogen escape
+    if (dat%H_escape_type == ZahnleHydrogenEscape) then
+
+      ! for Zahnle hydrogen escape, we pull H2 out of 
+      ! the bottom grid cell of the model.
+
+      rhs(dat%LH2) = rhs(dat%LH2) &
+      - dat%H_escape_coeff*wrk%usol(dat%LH2,1)/(wrk%density(1)*var%dz(1))
+    endif
     
   end subroutine
   
   module subroutine jac_background_gas(self, lda_neqs, neqs, usol_flat, jac, err)
-    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC, MixDependentFluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: ZahnleHydrogenEscape
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
@@ -556,10 +561,10 @@ contains
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
         djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) - &
                          (var%edd(1)/wrk%surface_scale_height)/var%dz(1)
-      elseif (var%lowerboundcond(i) == MixDependentFluxBC) then
-        djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
-        djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) &
-                         + var%lower_mix_dep_flux(i)/(wrk%density(1)*var%dz(1))
+      ! elseif (var%lowerboundcond(i) == MixDependentFluxBC) then
+      !   djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
+      !   djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) &
+      !                    + var%lower_mix_dep_flux(i)/(wrk%density(1)*var%dz(1))
       endif
     enddo
   
@@ -577,12 +582,14 @@ contains
       elseif (var%upperboundcond(i) == FluxBC) then
         djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,var%nz) + wrk%ADD(i,var%nz)
         djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
-      elseif (var%upperboundcond(i) == MixDependentFluxBC) then
-        djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,var%nz) + wrk%ADD(i,var%nz) &
-                        - var%upper_mix_dep_flux(i)/(wrk%density(var%nz)*var%dz(var%nz))
-        djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
       endif
     enddo
+
+    ! zahnle hydrogen escape
+    if (dat%H_escape_type == ZahnleHydrogenEscape) then
+      djac(dat%kd,dat%LH2) = djac(dat%kd,dat%LH2) + &
+      - dat%H_escape_coeff/(wrk%density(1)*var%dz(1))
+    endif
   
   end subroutine
   

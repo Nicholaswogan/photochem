@@ -263,7 +263,8 @@ contains
     use photochem_eqns, only: dynamic_viscosity_air, fall_velocity, slip_correction_factor, &
                               binary_diffusion_param
     use photochem_const, only: k_boltz, N_avo
-    
+    use photochem_enum, only: DiffusionLimHydrogenEscape
+
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
 
@@ -442,7 +443,7 @@ contains
     enddo
     
     ! H2 escape
-    if (dat%diff_H_escape) then
+    if (dat%H_escape_type == DiffusionLimHydrogenEscape) then
       if (dat%back_gas_name /= "H2") then
         bx1x2 = binary_diffusion_param(dat%species_mass(dat%LH2), mubar(var%nz), var%temperature(var%nz))
         VH2_esc = bx1x2/den(var%nz)*(-(dat%species_mass(dat%LH2)*var%grav(var%nz))/(k_boltz*var%temperature(var%nz)*N_avo) &

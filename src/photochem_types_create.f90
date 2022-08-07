@@ -36,6 +36,7 @@ contains
   
   function unpack_PhotoSettings(root, filename, err) result(s)
     use photochem_enum, only: VelocityBC, MosesBC
+    use photochem_enum, only: DiffusionLimHydrogenEscape, ZahnleHydrogenEscape, NoHydrogenEscape
     use photochem_types, only: PhotoSettings
     type(type_dictionary), intent(in) :: root
     character(*), intent(in) :: filename
@@ -155,8 +156,24 @@ contains
     endif
     
     ! H2 escape
-    s%diff_H_escape = dict%get_logical('diff-lim-hydrogen-escape',error = io_err)
+    tmp2 => dict%get_dictionary('hydrogen-escape',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    temp_char = tmp2%get_string('type',error=io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    temp_char = trim(temp_char)
+    if (temp_char == 'diffusion limited') then
+      s%H_escape_type = DiffusionLimHydrogenEscape
+    elseif (temp_char == 'zahnle') then
+      s%H_escape_type = ZahnleHydrogenEscape
+      allocate(s%H_escape_S1)
+      s%H_escape_S1 = tmp2%get_real('S1',error=io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    elseif (temp_char == 'none') then
+      s%H_escape_type = NoHydrogenEscape
+    else
+      err = '"'//temp_char//'" is not an a valid hydrogen escape type in '//trim(filename)
+      return
+    endif
     
     ! default lower boundary
     temp_char = trim(dict%get_string('default-gas-lower-boundary',"deposition velocity",error = io_err))
@@ -377,7 +394,7 @@ contains
   subroutine unpack_SettingsBC(bc, bc_kind, sp_name, filename, sbc, err)
     use photochem_types, only: SettingsBC
     use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC
-    use photochem_enum, only: VelocityDistributedFluxBC, DensityBC, MixDependentFluxBC
+    use photochem_enum, only: VelocityDistributedFluxBC, DensityBC
     type(type_dictionary), intent(in) :: bc
     character(*), intent(in) :: bc_kind
     character(*), intent(in) :: sp_name
@@ -406,7 +423,6 @@ contains
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
       sbc%den = -huge(1.0_dp)
-      sbc%mix_dep_flux = -huge(1.0_dp)
 
       if (sbc%vel < 0.0_dp) then
         err = 'Velocity '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
@@ -427,7 +443,6 @@ contains
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
       sbc%den = -huge(1.0_dp)
-      sbc%mix_dep_flux = -huge(1.0_dp)
 
       if (sbc%mix < 0.0_dp .or. sbc%mix > 1.0_dp) then
         err = 'Fixed '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
@@ -443,7 +458,6 @@ contains
       sbc%mix = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
       sbc%den = -huge(1.0_dp)
-      sbc%mix_dep_flux = -huge(1.0_dp)
     elseif (bctype == "vdep + dist flux") then
       if (bc_kind == "upper") then
         err = 'Upper boundary conditions can not be "vdep + dist flux" for '//trim(sp_name)
@@ -462,7 +476,6 @@ contains
       
       sbc%mix = -huge(1.0_dp)
       sbc%den = -huge(1.0_dp)
-      sbc%mix_dep_flux = -huge(1.0_dp)
 
       if (sbc%vel < 0.0_dp) then
         err = 'Velocity '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
@@ -493,7 +506,6 @@ contains
       sbc%mix = -huge(1.0_dp)
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
-      sbc%mix_dep_flux = -huge(1.0_dp)
 
       if (sbc%den < 0.0_dp) then
         err = 'Fixed density '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
@@ -508,19 +520,6 @@ contains
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
       sbc%den = -huge(1.0_dp)
-      sbc%mix_dep_flux = -huge(1.0_dp)
-    elseif (bctype == "mix dep flux") then
-
-      sbc%bc_type = MixDependentFluxBC
-      sbc%mix_dep_flux = bc%get_real("mix-dep-flux",error = io_err)
-      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-
-      sbc%vel = -huge(1.0_dp)
-      sbc%mix = -huge(1.0_dp)
-      sbc%flux = -huge(1.0_dp)
-      sbc%height = -huge(1.0_dp)
-      sbc%den = -huge(1.0_dp)
-
     else
       err = 'IOError: "'//trim(bctype)//'" is not a valid lower boundary condition for '//trim(sp_name)
       return
