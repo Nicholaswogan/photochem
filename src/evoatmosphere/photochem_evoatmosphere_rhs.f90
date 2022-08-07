@@ -432,7 +432,7 @@ contains
       ! self%T_surf
       ! var%temperature
       ! var%trop_alt
-      ! var%xs_x_qy (NOT YET BUT WILL SOON)
+      ! var%xs_x_qy
       ! var%gibbs_energy
 
       T_surf_guess = self%T_surf
@@ -594,7 +594,7 @@ contains
   end subroutine
 
   module subroutine rhs_evo_gas(self, neqs, usol_flat, rhs, err)
-    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, FluxBC, VelocityDistributedFluxBC, MixDependentFluxBC
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
     
@@ -663,6 +663,10 @@ contains
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
                         + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
                         - (var%edd(1)/wrk%surface_scale_height)*wrk%usol(i,1)/var%dz(1)
+      elseif (var%lowerboundcond(i) == MixDependentFluxBC) then
+        rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
+                        + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
+                        + var%lower_mix_dep_flux(i)*wrk%mix(i,1)/var%dz(1)
       endif
     enddo
 
@@ -677,6 +681,10 @@ contains
         rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
                         + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
                         - var%upper_flux(i)/var%dz(var%nz)
+      elseif (var%upperboundcond(i) == MixDependentFluxBC) then
+        rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
+                        + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
+                        - var%upper_mix_dep_flux(i)*wrk%mix(i,var%nz)/var%dz(var%nz)
       endif
     enddo
 
@@ -698,7 +706,7 @@ contains
   end subroutine
 
   module subroutine jac_evo_gas(self, lda_neqs, neqs, usol_flat, jac, err)
-    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, FluxBC, VelocityDistributedFluxBC, MixDependentFluxBC
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
@@ -721,7 +729,7 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
 
-    integer :: i, k, j, m, mm
+    integer :: i, k, kk, j, m, mm
   
     dat => self%dat
     var => self%var
@@ -809,6 +817,22 @@ contains
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
         djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) - &
                          (var%edd(1)/wrk%surface_scale_height)/var%dz(1)
+      elseif (var%lowerboundcond(i) == MixDependentFluxBC) then
+        djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
+        djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) &
+                        + (var%lower_mix_dep_flux(i)/var%dz(1)) &
+                          *((wrk%density(1) - wrk%usol(i,1))/wrk%density(1)**2.0_dp)
+        
+        ! I think these are the off-diagonal terms, but 
+        ! the program appears to not perform well when I include these.
+        do m = dat%ng_1,dat%nq 
+          if (m /= i) then
+            mm = dat%kd + i - m
+            djac(mm,m) = djac(mm,m) + (var%lower_mix_dep_flux(i)/var%dz(1)) &
+                                      *(-wrk%usol(i,1)/wrk%density(1)**2.0_dp)
+          endif
+        enddo
+
       endif
     enddo
   
@@ -823,11 +847,27 @@ contains
       elseif (var%upperboundcond(i) == FluxBC) then
         djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,var%nz) + wrk%ADD(i,var%nz)
         djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
+      elseif (var%upperboundcond(i) == MixDependentFluxBC) then
+        djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,var%nz) + wrk%ADD(i,var%nz) &
+                        - (var%upper_mix_dep_flux(i)/var%dz(var%nz)) &
+                          *((wrk%density(var%nz) - wrk%usol(i,var%nz))/wrk%density(var%nz)**2.0_dp)
+        djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
+
+        ! I think these are the off-diagonal terms, but 
+        ! the program appears to not perform well when I include these.
+        do m = dat%ng_1,dat%nq 
+          if (m /= i) then
+            kk = m + (var%nz-1)*dat%nq
+            mm = dat%kd + i - m
+            djac(mm,kk) = djac(mm,kk) + (var%upper_mix_dep_flux(i)/var%dz(var%nz)) &
+                                      *(-wrk%usol(i,var%nz)/wrk%density(var%nz)**2.0_dp)
+          endif
+        enddo
+
       endif
     enddo
   
   end subroutine
-
 
 end submodule
 

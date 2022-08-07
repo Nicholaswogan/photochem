@@ -376,7 +376,8 @@ contains
   
   subroutine unpack_SettingsBC(bc, bc_kind, sp_name, filename, sbc, err)
     use photochem_types, only: SettingsBC
-    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC, DensityBC
+    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC
+    use photochem_enum, only: VelocityDistributedFluxBC, DensityBC, MixDependentFluxBC
     type(type_dictionary), intent(in) :: bc
     character(*), intent(in) :: bc_kind
     character(*), intent(in) :: sp_name
@@ -405,6 +406,7 @@ contains
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
       sbc%den = -huge(1.0_dp)
+      sbc%mix_dep_flux = -huge(1.0_dp)
 
       if (sbc%vel < 0.0_dp) then
         err = 'Velocity '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
@@ -425,6 +427,7 @@ contains
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
       sbc%den = -huge(1.0_dp)
+      sbc%mix_dep_flux = -huge(1.0_dp)
 
       if (sbc%mix < 0.0_dp .or. sbc%mix > 1.0_dp) then
         err = 'Fixed '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
@@ -440,6 +443,7 @@ contains
       sbc%mix = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
       sbc%den = -huge(1.0_dp)
+      sbc%mix_dep_flux = -huge(1.0_dp)
     elseif (bctype == "vdep + dist flux") then
       if (bc_kind == "upper") then
         err = 'Upper boundary conditions can not be "vdep + dist flux" for '//trim(sp_name)
@@ -458,6 +462,7 @@ contains
       
       sbc%mix = -huge(1.0_dp)
       sbc%den = -huge(1.0_dp)
+      sbc%mix_dep_flux = -huge(1.0_dp)
 
       if (sbc%vel < 0.0_dp) then
         err = 'Velocity '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
@@ -488,6 +493,7 @@ contains
       sbc%mix = -huge(1.0_dp)
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
+      sbc%mix_dep_flux = -huge(1.0_dp)
 
       if (sbc%den < 0.0_dp) then
         err = 'Fixed density '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
@@ -502,6 +508,19 @@ contains
       sbc%flux = -huge(1.0_dp)
       sbc%height = -huge(1.0_dp)
       sbc%den = -huge(1.0_dp)
+      sbc%mix_dep_flux = -huge(1.0_dp)
+    elseif (bctype == "mix dep flux") then
+
+      sbc%bc_type = MixDependentFluxBC
+      sbc%mix_dep_flux = bc%get_real("mix-dep-flux",error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+
+      sbc%vel = -huge(1.0_dp)
+      sbc%mix = -huge(1.0_dp)
+      sbc%flux = -huge(1.0_dp)
+      sbc%height = -huge(1.0_dp)
+      sbc%den = -huge(1.0_dp)
+
     else
       err = 'IOError: "'//trim(bctype)//'" is not a valid lower boundary condition for '//trim(sp_name)
       return

@@ -39,7 +39,8 @@ module photochem_enum
     MixingRatioBC = 1, &
     FluxBC = 2, &
     VelocityDistributedFluxBC = 3, &
-    DensityBC = 4
-    
+    DensityBC = 4, &
+    MixDependentFluxBC = 5
+
   end enum
 end module

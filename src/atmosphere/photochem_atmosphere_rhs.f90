@@ -327,7 +327,7 @@ contains
   end subroutine
   
   module subroutine rhs_background_gas(self, neqs, usol_flat, rhs, err)
-    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC, MixDependentFluxBC
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
     
@@ -398,6 +398,10 @@ contains
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
                         + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
                         - (var%edd(1)/wrk%surface_scale_height)*wrk%usol(i,1)/var%dz(1)
+      elseif (var%lowerboundcond(i) == MixDependentFluxBC) then
+        rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
+                        + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
+                        + var%lower_mix_dep_flux(i)*wrk%usol(i,1)/(wrk%density(1)*var%dz(1))
       endif
     enddo
 
@@ -412,6 +416,10 @@ contains
         rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
                         + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
                         - var%upper_flux(i)/(wrk%density(var%nz)*var%dz(var%nz))
+      elseif (var%upperboundcond(i) == MixDependentFluxBC) then
+        rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
+                        + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
+                        - var%upper_mix_dep_flux(i)*wrk%usol(i,var%nz)/(wrk%density(var%nz)*var%dz(var%nz))
       endif
     enddo
     
@@ -433,7 +441,7 @@ contains
   end subroutine
   
   module subroutine jac_background_gas(self, lda_neqs, neqs, usol_flat, jac, err)
-    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC, MixDependentFluxBC
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
@@ -548,6 +556,10 @@ contains
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
         djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) - &
                          (var%edd(1)/wrk%surface_scale_height)/var%dz(1)
+      elseif (var%lowerboundcond(i) == MixDependentFluxBC) then
+        djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
+        djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) &
+                         + var%lower_mix_dep_flux(i)/(wrk%density(1)*var%dz(1))
       endif
     enddo
   
@@ -564,6 +576,10 @@ contains
         djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
       elseif (var%upperboundcond(i) == FluxBC) then
         djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,var%nz) + wrk%ADD(i,var%nz)
+        djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
+      elseif (var%upperboundcond(i) == MixDependentFluxBC) then
+        djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,var%nz) + wrk%ADD(i,var%nz) &
+                        - var%upper_mix_dep_flux(i)/(wrk%density(var%nz)*var%dz(var%nz))
         djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
       endif
     enddo

@@ -679,17 +679,32 @@ contains
     var%diurnal_fac = s%diurnal_fac
     var%solar_zenith = s%solar_zenith
     dat%diff_H_escape = s%diff_H_escape
-    ind = findloc(dat%species_names,'H2')
-    dat%LH2 = ind(1)
-    if (ind(1) == 0 .and. dat%diff_H_escape) then
-      err = 'IOError: H2 must be a species if diff-lim-hydrogen-escape = True.'
-      return
-    endif
-    ind = findloc(dat%species_names,'H')
-    dat%LH = ind(1)
-    if (ind(1) == 0 .and. dat%diff_H_escape) then
-      err = 'IOError: H must be a species if diff-lim-hydrogen-escape = True.'
-      return
+    if (dat%diff_H_escape) then
+      ind = findloc(dat%species_names,'H2')
+      dat%LH2 = ind(1)
+      if (ind(1) == 0) then
+        err = 'IOError: H2 must be a species if hydrogen-escape is on.'
+        return
+      endif
+      ind = findloc(dat%species_names,'H')
+      dat%LH = ind(1)
+      if (ind(1) == 0) then
+        err = 'IOError: H must be a species if hydrogen-escape is on.'
+        return
+      endif
+
+      ! make sure H2 and H are not short-lived
+      ind = findloc(dat%species_names(dat%nq+1:dat%nq+dat%nsl),'H2')
+      if (ind(1) /= 0) then
+        err = 'H2 must not be short lived if hydrogen escape is on'
+        return
+      endif
+      ind = findloc(dat%species_names(dat%nq+1:dat%nq+dat%nsl),'H')
+      if (ind(1) /= 0) then
+        err = 'H must not be short lived if hydrogen escape is on'
+        return
+      endif
+
     endif
     
     ! default-gas-lower-boundary already applied to PhotoSettings
@@ -818,9 +833,11 @@ contains
     else
       allocate(var%lower_fix_den(dat%nq))
     endif
+    allocate(var%lower_mix_dep_flux(dat%nq))
     allocate(var%upperboundcond(dat%nq))
     allocate(var%upper_veff(dat%nq))
     allocate(var%upper_flux(dat%nq))
+    allocate(var%upper_mix_dep_flux(dat%nq))
     allocate(var%only_eddy(dat%nq))
     ! default boundary conditions
     var%lowerboundcond(:dat%np) = VelocityBC ! default particle BC is alway velocity
@@ -863,10 +880,12 @@ contains
         else
           var%lower_fix_den(ind(1)) = s%lbcs(j)%den
         endif
+        var%lower_mix_dep_flux(ind(1)) = s%lbcs(j)%mix_dep_flux
         
         var%upperboundcond(ind(1)) = s%ubcs(j)%bc_type
         var%upper_veff(ind(1)) = s%ubcs(j)%vel
         var%upper_flux(ind(1)) = s%ubcs(j)%flux
+        var%upper_mix_dep_flux(ind(1)) = s%ubcs(j)%mix_dep_flux
         
         var%only_eddy(ind(1)) = s%only_eddy(j)
         
