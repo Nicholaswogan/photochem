@@ -34,4 +34,6 @@ program testevo
     stop 1
   endif
 
+  deallocate(t_eval)
+
 end program
