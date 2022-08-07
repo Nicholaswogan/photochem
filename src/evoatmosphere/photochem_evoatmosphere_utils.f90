@@ -4,18 +4,32 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_utils
 
 contains
 
-  module subroutine update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
-    use photochem_input, only: interp2particlexsdata, interp2xsdata, compute_gibbs_energy
-    use photochem_eqns, only: vertical_grid, gravity
-    use futils, only: interp, conserving_rebin
+  module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_old(:,:)
     real(dp), intent(in) :: top_atmos
     real(dp), intent(out) :: usol_new(:,:)
     character(:), allocatable, intent(out) :: err
 
-    real(dp), allocatable :: ze_old(:), ze(:)
-    real(dp), allocatable :: z_old(:), dz_old(:)
+    call rebin_densities(self, usol_old, top_atmos, usol_new, err)
+    if(allocated(err)) return
+    call update_vertical_grid(self, usol_new, top_atmos, err)
+    if(allocated(err)) return
+
+  end subroutine
+
+  subroutine rebin_densities(self, usol_old, top_atmos, usol_new, err)
+    use photochem_input, only: interp2particlexsdata, interp2xsdata, compute_gibbs_energy
+    use photochem_eqns, only: vertical_grid, gravity
+    use futils, only: interp, conserving_rebin
+    class(EvoAtmosphere), target, intent(in) :: self
+    real(dp), intent(in) :: usol_old(:,:)
+    real(dp), intent(in) :: top_atmos
+    real(dp), intent(out) :: usol_new(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: ze_old(:), ze_new(:)
+    real(dp), allocatable :: z_old(:), dz_old(:), z_new(:), dz_new(:)
     integer :: i, ierr
 
     type(PhotochemData), pointer :: dat
@@ -26,8 +40,53 @@ contains
 
     ! save z and dz
     allocate(z_old(var%nz), dz_old(var%nz))
+    allocate(z_new(var%nz), dz_new(var%nz))
     z_old = var%z
     dz_old = var%dz
+
+    ! compute the new grid
+    call vertical_grid(var%bottom_atmos, top_atmos, &
+                       var%nz, z_new, dz_new)
+
+    ! We do a conserving rebin of the densities
+    allocate(ze_old(var%nz+1))
+    allocate(ze_new(var%nz+1))
+
+    ze_old(1) = z_old(1) - 0.5_dp*dz_old(1)
+    do i = 1,size(z_old)
+      ze_old(i+1) = z_old(i) + 0.5_dp*dz_old(i)
+    enddo
+    ze_new = z_new(1) - 0.5_dp*dz_new(1)
+    do i = 1,var%nz
+      ze_new(i+1) = z_new(i) + 0.5_dp*dz_new(i)
+    enddo
+
+    do i = 1,dat%nq
+      call conserving_rebin(ze_old, usol_old(i,:), ze_new, usol_new(i,:), ierr)
+      if (ierr /= 0) then
+        err = 'subroutine conserving_rebin returned an error'
+        return
+      endif
+    enddo
+
+  end subroutine
+
+  subroutine update_vertical_grid(self, usol_new, top_atmos, err)
+    use photochem_input, only: interp2particlexsdata, interp2xsdata, compute_gibbs_energy
+    use photochem_eqns, only: gravity, vertical_grid
+    use futils, only: interp
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol_new(:,:)
+    real(dp), intent(in) :: top_atmos
+    character(:), allocatable, intent(out) :: err
+
+    integer :: i, ierr
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+
+    dat => self%dat
+    var => self%var
 
     ! set the new top of the  atmosphere
     var%top_atmos = top_atmos
@@ -64,27 +123,6 @@ contains
       var%particle_radius = 10.0_dp**var%particle_radius
     endif
 
-    ! We do a conserving rebin of the densities
-    allocate(ze_old(size(z_old)+1))
-    allocate(ze(var%nz+1))
-
-    ze_old(1) = z_old(1) - 0.5_dp*dz_old(1)
-    do i = 1,size(z_old)
-      ze_old(i+1) = z_old(i) + 0.5_dp*dz_old(i)
-    enddo
-    ze = var%z(1) - 0.5_dp*var%dz(1)
-    do i = 1,var%nz
-      ze(i+1) = var%z(i) + 0.5_dp*var%dz(i)
-    enddo
-
-    do i = 1,dat%nq
-      call conserving_rebin(ze_old, usol_old(i,:), ze, usol_new(i,:), ierr)
-      if (ierr /= 0) then
-        err = 'subroutine conserving_rebin returned an error'
-        return
-      endif
-    enddo
-
     call interp2particlexsdata(dat, var, err)
     if (allocated(err)) return
 
@@ -100,7 +138,7 @@ contains
     if (dat%fix_water_in_trop .or. dat%gas_rainout) then
       call self%set_trop_ind(usol_new, err)
     else
-      var%trop_ind = 0
+      var%trop_ind = 1
     endif
 
   end subroutine

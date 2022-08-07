@@ -67,6 +67,16 @@ contains
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     s%nz = dict%get_integer('number-of-layers',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+
+    if (s%top < s%bottom) then
+      err = 'The top of the atmosphere must be bigger than the bottom'
+      return
+    endif
+
+    if (s%nz < 10) then
+      err = "The number of vertical layers must be greater than 10"
+      return
+    endif
   
     !!!!!!!!!!!!!!!!!!!!!!!
     !!! photolysis-grid !!!

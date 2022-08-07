@@ -484,12 +484,16 @@ contains
                           wrk%pressure_hydro, wrk%density_hydro, err)
     if (allocated(err)) return
 
-    self%var%trop_ind = minloc(abs(self%var%z - self%var%trop_alt), 1) - 1
-
-    if (self%var%trop_ind < 3) then
-      err = 'Tropopause is too low.'
-    elseif (self%var%trop_ind > self%var%nz-2) then
-      err = 'Tropopause is too high.'
+    if (self%dat%fix_water_in_trop .or. self%dat%gas_rainout) then
+      self%var%trop_ind = max(minloc(abs(self%var%z - self%var%trop_alt), 1) - 1, 1)
+      
+      if (self%var%trop_ind < 3) then
+        err = 'Tropopause is too low.'
+      elseif (self%var%trop_ind > self%var%nz-2) then
+        err = 'Tropopause is too high.'
+      endif
+    else
+      self%var%trop_ind = 1
     endif
 
   end subroutine

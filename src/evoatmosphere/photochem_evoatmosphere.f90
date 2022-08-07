@@ -36,7 +36,7 @@ module photochem_evoatmosphere
     procedure :: evolve
 
     !!! photochem_evoatmosphere_utils.f90 !!!
-    procedure :: update_vertical_grid
+    procedure :: rebin_update_vertical_grid
 
   end type
 
@@ -150,7 +150,7 @@ module photochem_evoatmosphere
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_evoatmosphere_utils.f90 !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    module subroutine update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
+    module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_old(:,:)
       real(dp), intent(in) :: top_atmos

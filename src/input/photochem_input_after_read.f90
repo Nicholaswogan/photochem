@@ -37,9 +37,15 @@ contains
     
     if (dat%fix_water_in_trop .or. dat%gas_rainout) then
       ! we have a tropopause
-      var%trop_ind = minloc(abs(var%z - var%trop_alt), 1) - 1
+      var%trop_ind = max(minloc(abs(var%z - var%trop_alt), 1) - 1, 1)
+
+      if (var%trop_ind < 3) then
+        err = 'Tropopause is too low.'
+      elseif (var%trop_ind > var%nz-2) then
+        err = 'Tropopause is too high.'
+      endif
     else
-      var%trop_ind = 0
+      var%trop_ind = 1
     endif
     
   end subroutine

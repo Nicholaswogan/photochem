@@ -158,6 +158,8 @@ contains
                                wrk%pressure_hydro, wrk%density_hydro, err)
 
     ! tropopause
+    ! if trop_ind isn't needed in the model, then var%trop_alt is a really negative number, such that
+    ! These roots are never reached during integration.
     gvec(1) = var%trop_alt - (var%z(var%trop_ind+1) + (0.5_dp+tol)*var%dz(var%trop_ind+1))
     gvec(2) = var%trop_alt - (var%z(var%trop_ind+1) - (0.5_dp+tol)*var%dz(var%trop_ind+1))
 
@@ -393,7 +395,7 @@ contains
             ! pressure at the top of the atmosphere is going down
             ! we must decrease the top of the atmosphere
             new_top_atmos = (1.0_dp-self%top_atmos_adjust_frac)*var%top_atmos
-            call self%update_vertical_grid(yvec_usol, new_top_atmos, usol_new, err)
+            call self%rebin_update_vertical_grid(yvec_usol, new_top_atmos, usol_new, err)
             if (allocated(err)) then
               ierr = -1
               exit
@@ -404,7 +406,7 @@ contains
             ! pressure at the top of the atmosphere is going up
             ! we must increase the top of the atmosphere
             new_top_atmos = (1.0_dp+self%top_atmos_adjust_frac)*var%top_atmos
-            call self%update_vertical_grid(yvec_usol, new_top_atmos, usol_new, err)
+            call self%rebin_update_vertical_grid(yvec_usol, new_top_atmos, usol_new, err)
             if (allocated(err)) then
               ierr = -1
               exit
