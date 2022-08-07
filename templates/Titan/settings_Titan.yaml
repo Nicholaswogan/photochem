@@ -18,7 +18,7 @@ planet:
   planet-radius: 2.575e8 # cm. Radius to bottom of atmosphere-grid
   surface-albedo: 0.1 # cm
   diurnal-averaging-factor: 0.5
-  solar-zenith-angle: 50.0
+  solar-zenith-angle: 60.0
   hydrogen-escape:
     type: diffusion limited
   water:

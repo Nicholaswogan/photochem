@@ -18,7 +18,7 @@ planet:
   planet-radius: 58.232e8 
   surface-albedo: 0.342
   diurnal-averaging-factor: 0.5
-  solar-zenith-angle: 50.0
+  solar-zenith-angle: 60.0
   hydrogen-escape:
     type: none
   default-gas-lower-boundary: Moses
