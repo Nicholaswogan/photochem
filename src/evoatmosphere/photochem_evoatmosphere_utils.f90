@@ -19,9 +19,8 @@ contains
   end subroutine
 
   subroutine rebin_densities(self, usol_old, top_atmos, usol_new, err)
-    use photochem_input, only: interp2particlexsdata, interp2xsdata, compute_gibbs_energy
-    use photochem_eqns, only: vertical_grid, gravity
-    use futils, only: interp, conserving_rebin
+    use photochem_eqns, only: vertical_grid
+    use futils, only: conserving_rebin
     class(EvoAtmosphere), target, intent(in) :: self
     real(dp), intent(in) :: usol_old(:,:)
     real(dp), intent(in) :: top_atmos
@@ -140,6 +139,19 @@ contains
     else
       var%trop_ind = 1
     endif
+
+  end subroutine
+
+  module subroutine regrid_prep_atmosphere(self, usol_new, top_atmos, err)
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol_new(:,:)
+    real(dp), intent(in) :: top_atmos
+    character(:), allocatable, intent(out) :: err
+
+    call update_vertical_grid(self, usol_new, top_atmos, err)
+    if(allocated(err)) return
+    call self%prep_atmosphere(usol_new, err)
+    if(allocated(err)) return
 
   end subroutine
 

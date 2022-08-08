@@ -467,10 +467,9 @@ contains
         
         open(1, file = filename, status='old', form="unformatted",position="append")
         write(1) tcur(1)
+        write(1) var%top_atmos
         write(1) var%z
         write(1) wrk%usol
-        write(1) var%temperature
-        write(1) self%T_surf
         close(1)
                                
       endif

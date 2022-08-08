@@ -37,6 +37,7 @@ module photochem_evoatmosphere
 
     !!! photochem_evoatmosphere_utils.f90 !!!
     procedure :: rebin_update_vertical_grid
+    procedure :: regrid_prep_atmosphere
 
   end type
 
@@ -155,6 +156,13 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: usol_old(:,:)
       real(dp), intent(in) :: top_atmos
       real(dp), intent(out) :: usol_new(:,:)
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    module subroutine regrid_prep_atmosphere(self, usol_new, top_atmos, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: usol_new(:,:)
+      real(dp), intent(in) :: top_atmos
       character(:), allocatable, intent(out) :: err
     end subroutine
 

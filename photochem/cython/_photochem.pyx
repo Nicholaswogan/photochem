@@ -9,11 +9,13 @@ DEF STR_LEN = 1024;
 DEF ERR_LEN = 1024;
 
 include "Atmosphere.pyx"
+include "EvoAtmosphere.pyx"
 include "PhotochemData.pyx"
 include "PhotochemVars.pyx"
 include "PhotochemWrk.pyx"
 include "ProductionLoss.pyx"
 include "AtomConservation.pyx"
+
 
 # version
 cdef extern void photochem_version_get(char *version_c)
