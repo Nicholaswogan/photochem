@@ -4,9 +4,11 @@ project(Photochem LANGUAGES Fortran C VERSION "0.3.0")
 include(FortranCInterface)
 FortranCInterface_VERIFY()
 
-if ("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
+if ("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU" AND 
+    "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "arm64" AND
+    "${CMAKE_SYSTEM_NAME}" MATCHES "Darwin")
   if (${CMAKE_Fortran_COMPILER_VERSION} LESS "11.3.0")
-    message (FATAL_ERROR "Photochem will only work with gfortran >= 11.3.0")
+    message (FATAL_ERROR "Photochem will only work with gfortran >= 11.3.0 for MacOS M1")
   endif()
 endif()
 
