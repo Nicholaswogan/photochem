@@ -598,8 +598,17 @@ contains
       endif
       
       var%trop_alt = trop_alt
-      var%trop_ind = minloc(var%z,1, &
-                      var%z .ge. var%trop_alt) - 1
+      var%trop_ind = max(minloc(abs(var%z - var%trop_alt), 1) - 1, 1)
+
+      if (var%trop_ind < 3) then
+        var = var_save
+        err = 'Tropopause is too low.'
+        return
+      elseif (var%trop_ind > var%nz-2) then
+        var = var_save
+        err = 'Tropopause is too high.'
+        return
+      endif
                       
       call self%wrk%init(self%dat%nsp, self%dat%np, self%dat%nq, &
                          self%var%nz, self%dat%nrT, self%dat%kj, &

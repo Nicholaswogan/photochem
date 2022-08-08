@@ -74,7 +74,7 @@ contains
     endif
 
     if (s%nz < 10) then
-      err = "The number of vertical layers must be greater than 10"
+      err = "The number of vertical layers must be >= 10"
       return
     endif
   

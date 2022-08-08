@@ -53,6 +53,9 @@ target_link_libraries(photochem
 target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules")
 
+# This is important for making Python wrapper
+set_property(TARGET photochem PROPERTY POSITION_INDEPENDENT_CODE ON)
+
 # Add special compiler flags
 if ("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
   target_compile_options(photochem PRIVATE -Wunused -fimplicit-none)

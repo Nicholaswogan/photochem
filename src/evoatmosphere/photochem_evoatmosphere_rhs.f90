@@ -489,8 +489,10 @@ contains
       
       if (self%var%trop_ind < 3) then
         err = 'Tropopause is too low.'
+        return
       elseif (self%var%trop_ind > self%var%nz-2) then
         err = 'Tropopause is too high.'
+        return
       endif
     else
       self%var%trop_ind = 1

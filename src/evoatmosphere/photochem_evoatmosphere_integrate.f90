@@ -158,10 +158,14 @@ contains
                                wrk%pressure_hydro, wrk%density_hydro, err)
 
     ! tropopause
-    ! if trop_ind isn't needed in the model, then var%trop_alt is a really negative number, such that
-    ! These roots are never reached during integration.
-    gvec(1) = var%trop_alt - (var%z(var%trop_ind+1) + (0.5_dp+tol)*var%dz(var%trop_ind+1))
-    gvec(2) = var%trop_alt - (var%z(var%trop_ind+1) - (0.5_dp+tol)*var%dz(var%trop_ind+1))
+    ! We only dynamically adjust the tropopause when climate is evolving
+    if (self%evolve_climate) then
+      gvec(1) = var%trop_alt - (var%z(var%trop_ind+1) + (0.5_dp+tol)*var%dz(var%trop_ind+1))
+      gvec(2) = var%trop_alt - (var%z(var%trop_ind+1) - (0.5_dp+tol)*var%dz(var%trop_ind+1))
+    else
+      gvec(1) = 1.0_dp
+      gvec(2) = 1.0_dp
+    endif
 
     ! pressure at the top of the atmosphere
     gvec(3) = wrk%pressure_hydro(var%nz)/1.0e6_dp - self%P_top_min

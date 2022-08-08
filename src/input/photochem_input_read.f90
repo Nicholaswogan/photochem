@@ -776,8 +776,6 @@ contains
     if (dat%fix_water_in_trop .or. dat%gas_rainout) then
       ! we need a tropopause altitude
       var%trop_alt = s%trop_alt
-    else
-      var%trop_alt = -sqrt(huge(1.0_dp))
     endif
     
     if (dat%water_cond) then        

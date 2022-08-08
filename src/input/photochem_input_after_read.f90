@@ -41,8 +41,10 @@ contains
 
       if (var%trop_ind < 3) then
         err = 'Tropopause is too low.'
+        return
       elseif (var%trop_ind > var%nz-2) then
         err = 'Tropopause is too high.'
+        return
       endif
     else
       var%trop_ind = 1
