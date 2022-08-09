@@ -1,6 +1,7 @@
 from skbuild import setup
-
+from setuptools import find_namespace_packages
 from os import path
+
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
@@ -14,7 +15,7 @@ with open("CMakeLists.txt",'r') as fil:
             
 setup(
     name="photochem",
-    packages=['photochem','photochem.utils'],
+    packages=find_namespace_packages(),
     python_requires='>=3.6',
     version=version,
     license="GNU General Public License v3.0",
@@ -28,7 +29,8 @@ setup(
     include_package_data=True,
     cmake_args=['-DSKBUILD=ON',\
                 '-DBUILD_PYTHON_PHOTOCHEM=ON',\
-                '-DBUILD_EXECUTABLES=OFF']
+                '-DBUILD_EXECUTABLES=OFF',\
+                '-DBUILD_WITH_OPENMP=ON']
 )
 
 
