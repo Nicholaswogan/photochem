@@ -55,7 +55,7 @@ contains
     do i = 1,size(z_old)
       ze_old(i+1) = z_old(i) + 0.5_dp*dz_old(i)
     enddo
-    ze_new = z_new(1) - 0.5_dp*dz_new(1)
+    ze_new(1) = z_new(1) - 0.5_dp*dz_new(1)
     do i = 1,var%nz
       ze_new(i+1) = z_new(i) + 0.5_dp*dz_new(i)
     enddo
