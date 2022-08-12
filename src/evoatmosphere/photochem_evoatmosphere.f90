@@ -17,9 +17,11 @@ module photochem_evoatmosphere
     real(dp) :: T_trop = 200.0_dp
     type(Radtran), allocatable :: rad
 
-    real(dp) :: P_top_min = 1.0e-9_dp ! bars
+    ! Modern Earth has a pressure of 4e-7 at 100 km
+    ! so it makes sense to try to keep pressure between these values
+    real(dp) :: P_top_min = 1.0e-7_dp ! bars
     real(dp) :: P_top_max = 1.0e-6_dp ! bars
-    real(dp) :: top_atmos_adjust_frac = 0.05 ! fraction
+    real(dp) :: top_atmos_adjust_frac = 0.02 ! fraction
 
   contains
   !!! photochem_evoatmosphere_init.f90 !!!
