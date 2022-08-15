@@ -407,6 +407,23 @@ module photochem_types ! make a giant IO object
     real(dp) :: epsj = 1.d-9 ! perturbation for jacobian calculation
     integer :: verbose = 1 ! 0 == no printing. 1 == some printing. 2 == bunch of printing.
   end type
+
+  type :: SundialsData
+    ! cvode memory
+    type(c_ptr) :: cvode_mem = c_null_ptr
+    ! solution vector
+    real(c_double), allocatable :: yvec(:)
+    type(N_Vector), pointer :: sunvec_y => NULL()
+    ! absolute tolerance
+    real(c_double), allocatable :: abstol(:)
+    type(N_Vector), pointer :: abstol_nvec => NULL()
+    ! matrix and linear solver
+    type(SUNMatrix), pointer :: sunmat => NULL()
+    type(SUNLinearSolver), pointer :: sunlin => NULL()
+  contains
+    procedure :: finalize => SundialsData_finalize
+    final :: SundialsData_final
+  end type
   
   type :: PhotochemWrk
     ! PhotochemWrk are work variables that change
@@ -414,12 +431,7 @@ module photochem_types ! make a giant IO object
     
     ! used in cvode
     integer(c_long) :: nsteps_previous = -10
-    type(c_ptr) :: cvode_mem = c_null_ptr
-    real(c_double) :: tcur(1)
-    type(N_Vector), pointer :: sunvec_y ! sundials vector
-    type(SUNMatrix), pointer :: sunmat
-    type(SUNLinearSolver), pointer :: sunlin
-    real(c_double), allocatable :: yvec(:)
+    type(SundialsData) :: sun
     
     ! Used in prep_all_background_gas
     ! work arrays
@@ -553,6 +565,59 @@ contains
     allocate(self%gas_sat_den(np,nz))
     allocate(self%molecules_per_particle(np,nz))
     allocate(self%rainout_rates(nq,nz))
+  end subroutine
+
+  subroutine SundialsData_finalize(self, err)
+    use iso_c_binding, only: c_associated, c_null_ptr, c_int
+    use fcvode_mod, only: FCVodeFree
+    use fsundials_nvector_mod, only: FN_VDestroy
+    use fsundials_matrix_mod, only: FSUNMatDestroy
+    use fsundials_linearsolver_mod, only: FSUNLinSolFree
+    class(SundialsData), intent(inout) :: self
+    character(:), allocatable, intent(out) :: err
+
+    integer(c_int) :: ierr
+
+    if (allocated(self%yvec)) then
+      deallocate(self%yvec)
+    endif
+    if (associated(self%sunvec_y)) then
+      call FN_VDestroy(self%sunvec_y)
+      nullify(self%sunvec_y)
+    endif
+
+    if (allocated(self%abstol)) then
+      deallocate(self%abstol)
+    endif
+    if (associated(self%abstol_nvec)) then
+      call FN_VDestroy(self%abstol_nvec)
+      nullify(self%abstol_nvec)
+    endif
+
+    if (c_associated(self%cvode_mem)) then
+      call FCVodeFree(self%cvode_mem)
+      self%cvode_mem = c_null_ptr
+    endif
+
+    if (associated(self%sunlin)) then
+      ierr = FSUNLinSolFree(self%sunlin)
+      if (ierr /= 0) then
+        err = "Sundials failed to deallocated linear solver"
+      end if
+      nullify(self%sunlin)
+    endif
+
+    if (associated(self%sunmat)) then
+      call FSUNMatDestroy(self%sunmat)
+      nullify(self%sunmat)
+    endif
+
+  end subroutine
+
+  subroutine SundialsData_final(self)
+    type(SundialsData), intent(inout) :: self
+    character(:), allocatable :: err
+    call SundialsData_finalize(self, err)
   end subroutine
   
 end module

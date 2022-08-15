@@ -32,10 +32,8 @@ contains
     endif
     
     if (allocated(self%dat)) then
-      if (c_associated(self%wrk%cvode_mem)) then
-        call self%destroy_stepper(err)
-        if (allocated(err)) return 
-      endif
+      call self%destroy_stepper(err)
+      if (allocated(err)) return
       deallocate(self%dat)
       deallocate(self%var)
       deallocate(self%wrk)
