@@ -1,9 +1,9 @@
 
 CPMAddPackage(
   NAME futils
-  VERSION 0.1.5
+  VERSION 0.1.6
   GITHUB_REPOSITORY "Nicholaswogan/futils"
-  GIT_TAG "v0.1.5"
+  GIT_TAG "v0.1.6"
   EXCLUDE_FROM_ALL ON
 )
 
@@ -35,23 +35,23 @@ CPMAddPackage(
   EXCLUDE_FROM_ALL ON
 )
 
-CPMAddPackage(
-  NAME minpack
-  VERSION 2.0.0
-  GITHUB_REPOSITORY "fortran-lang/minpack"
-  GIT_TAG "v2.0.0-rc.1"
-  DOWNLOAD_ONLY ON
-)
+# CPMAddPackage(
+#   NAME minpack
+#   VERSION 2.0.0
+#   GITHUB_REPOSITORY "fortran-lang/minpack"
+#   GIT_TAG "v2.0.0-rc.1"
+#   DOWNLOAD_ONLY ON
+# )
 
-add_library(minpack
-  ${minpack_SOURCE_DIR}/src/minpack.f90
-)
+# add_library(minpack
+#   ${minpack_SOURCE_DIR}/src/minpack.f90
+# )
 
 CPMAddPackage(
   NAME clima 
-  VERSION 0.0.1
+  VERSION 0.2.0
   OPTIONS 
     "BUILD_WITH_OPENMP ${BUILD_WITH_OPENMP}"
-  URL "https://github.com/Nicholaswogan/clima/archive/b14562eac73e85e7172e02869fd576c09436b7cc.zip"
+  URL "https://github.com/Nicholaswogan/clima/archive/9b6189bf2dd2f41a97456e961a6730b0572d50b6.zip"
   EXCLUDE_FROM_ALL ON
 )

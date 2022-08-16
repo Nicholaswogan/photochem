@@ -504,7 +504,7 @@ contains
 
     use photochem_common, only: reaction_rates, rainout, photorates
     use photochem_common, only: gas_saturation_density
-    use photochem_eqns, only: sat_pressure_H2O
+    use clima_eqns_water, only: sat_pressure_H2O
     use photochem_const, only: pi, N_avo, small_real, k_boltz
     use photochem_enum, only: DiffusionLimHydrogenEscape
 

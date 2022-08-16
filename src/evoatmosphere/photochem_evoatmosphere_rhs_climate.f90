@@ -169,7 +169,7 @@ contains
                                    T, P, densities, &
                                    z_trop, err)
     use photochem_const, only: k_boltz, T_crit_H2O
-    use photochem_eqns, only: sat_pressure_H2O
+    use clima_eqns_water, only: sat_pressure_H2O
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_den(:,:)
     real(dp), intent(in) :: T_surf, T_trop
@@ -360,13 +360,11 @@ contains
   end function
 
   pure function dP_dry_dT(T, P_dry, mu_dry, cp_dry, P_H2O, mu_H2O, cp_H2O, L_H2O) result(dPdT)
-    use photochem_const, only: Rgas_SI => Rgas
+    use clima_eqns_water, only: Rgas
     real(dp), intent(in) :: T
     real(dp), intent(in) :: P_dry, mu_dry, cp_dry
     real(dp), intent(in) :: P_H2O, mu_H2O, cp_H2O, L_H2O
     real(dp) :: dPdT
-
-    real(dp), parameter :: Rgas = Rgas_SI*1.0e7_dp
 
     dPdT = (P_dry*mu_dry*cp_dry)/(Rgas*T)*&
            (P_dry + (cp_H2O/cp_dry + (L_H2O*mu_H2O/(Rgas*T) - 1.0_dp)&
@@ -375,18 +373,15 @@ contains
   end function
   
   pure function dP_H2O_dT(T, P_H2O, mu_H2O, L_H2O) result(dPdT)
-    use photochem_const, only: Rgas_SI => Rgas
+    use clima_eqns_water, only: Rgas
     real(dp), intent(in) :: T
     real(dp), intent(in) :: P_H2O, mu_H2O, L_H2O
     real(dp) :: dPdT
-
-    real(dp), parameter :: Rgas = Rgas_SI*1.0e7_dp
-
     dPdT = (L_H2O*mu_H2O*P_H2O)/(Rgas*T**2.0_dp)
   end function
 
-  pure function dT_dz_moist(T, rh, n_dry, mu_dry, cp_dry, grav) result(dTdz)
-    use photochem_eqns, only: sat_pressure_H2O
+  function dT_dz_moist(T, rh, n_dry, mu_dry, cp_dry, grav) result(dTdz)
+    use clima_eqns_water, only: latent_heat_H2O, sat_pressure_H2O, mu_H2O
     use photochem_const, only: k_boltz, N_avo
     real(dp), intent(in) :: T, rh
     real(dp), intent(in) :: n_dry, mu_dry, cp_dry, grav
@@ -398,10 +393,10 @@ contains
     real(dp) :: P_dry
     real(dp) :: n_tot, mubar
 
-    real(dp), parameter :: mu_H2O = 18.0_dp
     !! latent heat of H2O vaporization/condensation (erg/g)
-    real(dp), parameter :: L_H2O = 2307.61404e7_dp
+    real(dp) :: L_H2O
 
+    L_H2O = latent_heat_H2O(T)
     P_H2O = rh*sat_pressure_H2O(T)
     n_H2O = P_H2O/(k_boltz*T)
     cp_H2O = heat_capacity_H2O(T) ! J/(mol*K)

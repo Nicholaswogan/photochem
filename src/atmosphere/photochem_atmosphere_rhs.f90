@@ -213,7 +213,8 @@ contains
     use photochem_common, only: reaction_rates, diffusion_coefficients, rainout, photorates
     use photochem_common, only: gas_saturation_density
     use photochem_eqns, only: saturation_density
-    use photochem_eqns, only: sat_pressure_H2O, molar_weight, press_and_den
+    use clima_eqns_water, only: sat_pressure_H2O
+    use photochem_eqns, only: molar_weight, press_and_den
     use photochem_const, only: pi, k_boltz, N_avo, small_real
   
     class(Atmosphere), target, intent(inout) :: self
