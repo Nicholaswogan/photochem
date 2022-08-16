@@ -52,6 +52,6 @@ CPMAddPackage(
   VERSION 0.2.0
   OPTIONS 
     "BUILD_WITH_OPENMP ${BUILD_WITH_OPENMP}"
-  URL "https://github.com/Nicholaswogan/clima/archive/9b6189bf2dd2f41a97456e961a6730b0572d50b6.zip"
+  URL "https://github.com/Nicholaswogan/clima/archive/04656063738825f5d91978ee5def7751f999f3df.zip"
   EXCLUDE_FROM_ALL ON
 )
