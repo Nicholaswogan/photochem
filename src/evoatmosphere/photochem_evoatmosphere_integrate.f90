@@ -173,7 +173,7 @@ contains
 
   end function
   
-  module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, err) result(success)
+  module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, restart_from_file, err) result(success)
                                    
     use, intrinsic :: iso_c_binding
     use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSVtolerances, &
@@ -194,11 +194,11 @@ contains
     ! in/out
     class(EvoAtmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: filename
-    real(c_double), intent(in) :: tstart
-    real(dp), intent(in) :: usol_start(:,:)
-    ! real(c_double), intent(in) :: t_eval(num_t_eval)
+    real(c_double), intent(inout) :: tstart
+    real(dp), intent(inout) :: usol_start(:,:)
     real(c_double), intent(in) :: t_eval(:)
     logical, optional, intent(in) :: overwrite
+    logical, optional, intent(in) :: restart_from_file
     logical :: success
     character(:), allocatable, intent(out) :: err
     
@@ -219,6 +219,8 @@ contains
     logical :: reinitialize
     
     integer :: i, j, k, ii, io
+    integer :: istart
+    logical :: overwrite_, restart_from_file_
     
     type(SundialsDataFinalizer) :: sunfin
     type(c_ptr)    :: user_data
@@ -235,6 +237,18 @@ contains
     ! goes out of scope (when we leave this function)
     sunfin%sun => self%wrk%sun
 
+    ! deal with optional arguments
+    if (present(overwrite)) then
+      overwrite_ = overwrite
+    else
+      overwrite_ = .false.
+    endif
+    if (present(restart_from_file)) then
+      restart_from_file_ = restart_from_file
+    else
+      restart_from_file_ = .false.
+    endif
+
     ! free memory if possible
     call wrk%sun%finalize(err)
     if (allocated(err)) return
@@ -244,22 +258,41 @@ contains
       err = "'usol_start' has the wrong dimensions"
       return
     endif
-    
-    ! file prep
-    if (overwrite) then
-      open(1, file = filename, status='replace', form="unformatted")
-    else
-      open(1, file = filename, status='new', form="unformatted",iostat=io)
-      if (io /= 0) then
-        err = "Unable to create file "//trim(filename)//" because it already exists"
-        return
+
+    if (restart_from_file_) then; block
+      real(dp) :: top_atmos
+      integer :: restart_index
+
+      ! read the file
+      call read_end_of_evo_file(self, filename, t_eval, restart_index, tstart, top_atmos, usol_start, err)
+      if (allocated(err)) return
+
+      call self%regrid_prep_atmosphere(usol_start, top_atmos, err)
+      if (allocated(err)) return
+
+      istart = restart_index
+    endblock; else
+      ! file prep
+      if (overwrite_) then
+        open(1, file = filename, status='replace', form="unformatted",iostat=io)
+        if (io /= 0) then
+          err = "Unable to replace "//trim(filename)
+          return
+        endif
+      else
+        open(1, file = filename, status='new', form="unformatted",iostat=io)
+        if (io /= 0) then
+          err = "Unable to create file "//trim(filename)//" because it already exists"
+          return
+        endif
       endif
+      write(1) dat%nq
+      write(1) var%nz
+      write(1) dat%species_names(1:dat%nq)
+      write(1) size(t_eval)
+      close(1)
+      istart = 1
     endif
-    write(1) dat%nq
-    write(1) var%nz
-    write(1) dat%species_names(1:dat%nq)
-    write(1) size(t_eval)
-    close(1)
     
     ! settings
     mxsteps_ = var%mxsteps
@@ -382,7 +415,7 @@ contains
     end if
 
     error_reinit_attempts = 0
-    do ii = 1, size(t_eval)
+    do ii = istart, size(t_eval)
       success = .false.
       do
         ierr = FCVode(wrk%sun%cvode_mem, t_eval(ii), wrk%sun%sunvec_y, tcur, CV_NORMAL)
@@ -512,5 +545,122 @@ contains
     if (allocated(err)) return
 
   end function
+
+  subroutine read_end_of_evo_file(self, filename, t_eval, restart_index, tcur, top_atmos, usol, err)
+    use photochem_const, only: s_str_len
+    use futils, only: is_close
+    use iso_c_binding, only: c_double
+    type(EvoAtmosphere), target, intent(in) :: self
+    character(*), intent(in) :: filename
+    real(dp), intent(in) :: t_eval(:)
+    integer, intent(out) :: restart_index
+    real(dp), intent(out) :: tcur, top_atmos
+    real(dp), intent(out) :: usol(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    integer :: io
+    integer :: nq, nz
+    character(s_str_len), allocatable :: species_names(:)
+    integer :: nt
+    real(dp), allocatable :: z(:)
+    integer :: i
+
+    open(1, file = filename, status='old', form="unformatted",iostat=io)
+    if (io /= 0) then
+      err = 'Unable to open '//filename
+      return
+    endif
+
+    read(1,iostat=io) nq
+    if (io /= 0) then
+      err = 'Problem reading '//filename
+      close(1)
+      return
+    endif
+    if (nq /= self%dat%nq) then
+      err = 'nq does not match EvoAtmosphere state in '//filename
+      close(1)
+      return
+    endif
+
+    read(1,iostat=io) nz
+    if (io /= 0) then
+      err = 'Problem reading '//filename
+      close(1)
+      return
+    endif
+    if (nz /= self%var%nz) then
+      err = 'nz does not match EvoAtmosphere state in '//filename
+      close(1)
+      return
+    endif
+
+    allocate(species_names(nq))
+    read(1,iostat=io) species_names
+    if (io /= 0) then
+      err = 'Problem reading '//filename
+      close(1)
+      return
+    endif
+    if (any(species_names /= self%dat%species_names)) then
+      err = 'species_names does not match EvoAtmosphere state in '//filename
+      close(1)
+      return
+    endif
+
+    read(1,iostat=io) nt
+    if (io /= 0) then
+      err = 'Problem reading '//filename
+      close(1)
+      return
+    endif
+
+    allocate(z(nz))
+    do i = 1,nt
+      read(1,iostat=io) tcur
+      if (io == -1) then
+        ! end of file
+        close(1)
+        exit
+      elseif (io < -1) then
+        err = 'Problem reading '//filename
+        close(1)
+        return
+      endif
+      read(1,iostat=io) top_atmos
+      if (io /= 0) then
+        err = 'Problem reading '//filename
+        close(1)
+        return
+      endif
+      read(1,iostat=io) z
+      if (io /= 0) then
+        err = 'Problem reading '//filename
+        close(1)
+        return
+      endif
+      read(1,iostat=io) usol
+      if (io /= 0) then
+        err = 'Problem reading '//filename
+        close(1)
+        return
+      endif
+    enddo
+
+    ! tcur is the end of the file
+    restart_index = -1
+    do i = 1,size(t_eval)
+      if (t_eval(i) > tcur) then
+        restart_index = i
+        exit
+      endif
+    enddo
+
+    if (restart_index == -1) then
+      err = 'Was unable to fine a time in t_eval that is greater than tcur in '//filename
+      return
+    endif
+    
+  end subroutine
   
 end submodule

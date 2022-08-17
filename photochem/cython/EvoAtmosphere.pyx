@@ -67,7 +67,7 @@ cdef class EvoAtmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     
-  def evolve(self, str filename, double tstart, ndarray[double, ndim=2] usol_, ndarray[double, ndim=1] t_eval, bool overwrite = False):
+  def evolve(self, str filename, double tstart, ndarray[double, ndim=2] usol_, ndarray[double, ndim=1] t_eval, bool overwrite = False, bool restart_from_file = False):
     cdef bytes filename_b = pystring2cstring(filename)
     cdef char *filename_c = filename_b
     cdef char err[ERR_LEN+1]
@@ -79,7 +79,7 @@ cdef class EvoAtmosphere:
     if usol.shape[0] != nq or usol.shape[1] != nz:
       raise PhotoException("Input usol is the wrong size.")
       
-    ea_pxd.evoatmosphere_evolve_wrapper(&self._ptr, filename_c, &tstart, &nq, &nz, <double *>usol.data, &nt, <double *>t_eval.data, &overwrite, &success, err)
+    ea_pxd.evoatmosphere_evolve_wrapper(&self._ptr, filename_c, &tstart, &nq, &nz, <double *>usol.data, &nt, <double *>t_eval.data, &overwrite, &restart_from_file, &success, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     return success

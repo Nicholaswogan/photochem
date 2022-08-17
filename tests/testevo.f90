@@ -6,6 +6,7 @@ program testevo
   type(EvoAtmosphere) :: pc
   logical :: success
   integer :: i, j
+  real(dp) :: tstart
   real(dp), allocatable :: t_eval(:)
   
   print*,'photochem version == ',trim(version)
@@ -28,8 +29,9 @@ program testevo
   allocate(t_eval(100))
   call linspace(5.0_dp, 17.0_dp, t_eval)
   t_eval = 10.0_dp**t_eval
+  tstart = 0.0_dp
 
-  success = pc%evolve('testevo.dat', 0.0_dp, pc%var%usol_init, t_eval, .true., err)
+  success = pc%evolve('testevo.dat', tstart, pc%var%usol_init, t_eval, overwrite=.true., restart_from_file=.false., err=err)
   if (allocated(err)) then
     print*,trim(err)
     stop 1

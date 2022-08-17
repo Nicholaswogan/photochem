@@ -100,19 +100,21 @@ contains
     endif
   end subroutine
   
-  subroutine evoatmosphere_evolve_wrapper(ptr, filename, tstart, nq, nz, usol, nt, t_eval, overwrite, success, err) bind(c)
+  subroutine evoatmosphere_evolve_wrapper(ptr, filename, tstart, nq, nz, usol, nt, t_eval, overwrite, restart_from_file, &
+                                          success, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     character(kind=c_char), intent(in) :: filename(*)
-    real(c_double), intent(in) :: tstart
+    real(c_double), intent(inout) :: tstart
     integer(c_int), intent(in) :: nq, nz
-    real(c_double), intent(in) :: usol(nq, nz)
+    real(c_double), intent(inout) :: usol(nq, nz)
     integer(c_int), intent(in) :: nt
     real(c_double), intent(in) :: t_eval(nt)
     logical(c_bool), intent(in) :: overwrite
+    logical(c_bool), intent(in) :: restart_from_file
     logical(c_bool), intent(out) :: success
     character(kind=c_char), intent(out) :: err(err_len+1)
     
-    logical :: overwrite_f, success_f
+    logical :: overwrite_f, success_f, restart_from_file_f
     character(len=:), allocatable :: filename_f
     character(:), allocatable :: err_f
     type(EvoAtmosphere), pointer :: pc
@@ -122,8 +124,10 @@ contains
     allocate(character(len=len_cstring(filename))::filename_f)
     call copy_string_ctof(filename, filename_f)
     overwrite_f = overwrite
+    restart_from_file_f = restart_from_file
     
-    success_f = pc%evolve(filename_f, tstart, usol, t_eval, overwrite=overwrite_f, err=err_f)
+    success_f = pc%evolve(filename_f, tstart, usol, t_eval, overwrite=overwrite_f, &
+                          restart_from_file=restart_from_file_f, err=err_f)
     success = success_f
     err(1) = c_null_char
     if (allocated(err_f)) then

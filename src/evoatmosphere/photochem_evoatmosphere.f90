@@ -107,14 +107,15 @@ module photochem_evoatmosphere
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_evoatmosphere_integrate.f90 !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, err) result(success)
+    module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, restart_from_file, err) result(success)
       use, intrinsic :: iso_c_binding
       class(EvoAtmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: filename
-      real(c_double), intent(in) :: tstart
-      real(dp), intent(in) :: usol_start(:,:)
+      real(c_double), intent(inout) :: tstart
+      real(dp), intent(inout) :: usol_start(:,:)
       real(c_double), intent(in) :: t_eval(:)
       logical, optional, intent(in) :: overwrite
+      logical, optional, intent(in) :: restart_from_file
       logical :: success
       character(:), allocatable, intent(out) :: err
       ! Evolve atmosphere through time, and saves output in a binary Fortran file.

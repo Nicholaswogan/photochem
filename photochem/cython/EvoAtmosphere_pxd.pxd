@@ -16,7 +16,7 @@ cdef extern void evoatmosphere_regrid_prep_atmosphere_wrapper(void *ptr, int *nq
 
 cdef extern void evoatmosphere_evolve_wrapper(void *ptr, char *filename, 
                 double *tstart, int *nq, int *nz, double *usol, 
-                int *nt, double *t_eval, bool *overwrite, bool *success, char *err)
+                int *nt, double *t_eval, bool *overwrite, bool *restart_from_file, bool *success, char *err)
 
 
 # getters and setters

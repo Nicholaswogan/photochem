@@ -161,6 +161,7 @@ contains
     ! type(SUNLinearSolver), pointer :: sunlin
     
     integer :: i, j, k, ii, io
+    logical :: overwrite_
     
     type(c_ptr)    :: user_data
     type(PhotochemData), pointer :: dat
@@ -171,6 +172,12 @@ contains
     dat => self%dat
     var => self%var
     wrk => self%wrk
+
+    if (present(overwrite)) then
+      overwrite_ = overwrite
+    else 
+      overwrite_ = .false.
+    endif
     
     call wrk%sun%finalize(err)
     if (allocated(err)) return
@@ -182,7 +189,7 @@ contains
     endif
     
     ! file prep
-    if (overwrite) then
+    if (overwrite_) then
       open(1, file = filename, status='replace', form="unformatted")
     else
       open(1, file = filename, status='new', form="unformatted",iostat=io)
