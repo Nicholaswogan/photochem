@@ -30,6 +30,9 @@ cdef extern void photochemvars_z_get(void *ptr, int *dim1, double *z)
 cdef extern void photochemvars_surface_pressure_get(void *ptr, double *val)
 cdef extern void photochemvars_surface_pressure_set(void *ptr, double *val)
 
+cdef extern void photochemvars_max_error_reinit_attempts_get(void *ptr, int *val)
+cdef extern void photochemvars_max_error_reinit_attempts_set(void *ptr, int *val)
+
 cdef extern void photochemvars_rtol_get(void *ptr, double *val)
 cdef extern void photochemvars_rtol_set(void *ptr, double *val)
 

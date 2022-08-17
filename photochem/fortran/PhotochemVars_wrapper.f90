@@ -162,6 +162,22 @@ contains
     call c_f_pointer(ptr, var)
     var%surface_pressure = val
   end subroutine
+
+  subroutine photochemvars_max_error_reinit_attempts_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%max_error_reinit_attempts
+  end subroutine
+  
+  subroutine photochemvars_max_error_reinit_attempts_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%max_error_reinit_attempts = val
+  end subroutine
   
   subroutine photochemvars_rtol_get(ptr, val) bind(c)
     type(c_ptr), intent(in) :: ptr

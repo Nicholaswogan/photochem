@@ -83,7 +83,14 @@ cdef class PhotochemVars:
       return val
     def __set__(self, double val):
       var_pxd.photochemvars_surface_pressure_set(&self._ptr, &val)
-  
+
+  property max_error_reinit_attempts:
+    def __get__(self):
+      cdef int val
+      var_pxd.photochemvars_max_error_reinit_attempts_get(&self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      var_pxd.photochemvars_max_error_reinit_attempts_set(&self._ptr, &val)
   
   property rtol:
     def __get__(self):

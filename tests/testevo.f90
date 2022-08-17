@@ -21,7 +21,8 @@ program testevo
     stop 1
   endif
 
-  ! Just take 3 steps
+  ! Just take a few steps
+  pc%var%max_error_reinit_attempts = 0
   pc%var%mxsteps = 3
 
   allocate(t_eval(100))

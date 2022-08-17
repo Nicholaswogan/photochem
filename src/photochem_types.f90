@@ -15,6 +15,7 @@ module photochem_types ! make a giant IO object
   public :: ProductionLoss, AtomConservation, ThermodynamicData
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
+  public :: SundialsDataFinalizer
   
   !!!!!!!!!!!!!!!!
   !!! Settings !!!
@@ -396,6 +397,9 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: usol_out(:,:)
     
     ! other 
+    ! number of times we initialize CVODE when it returns
+    ! a potentially recoverable error. ONLY USED IN EVOATMOSPHERE (NOT ATMOSPHERE)
+    integer :: max_error_reinit_attempts = 2 
     real(c_double) :: rtol = 1.d-3 ! integration relative tolerance
     real(c_double) :: atol = 1.d-27 ! integration absolute tolerance
     integer :: mxsteps = 10000 ! max number of steps before integrator will give up.
@@ -423,6 +427,12 @@ module photochem_types ! make a giant IO object
   contains
     procedure :: finalize => SundialsData_finalize
     final :: SundialsData_final
+  end type
+
+  type :: SundialsDataFinalizer
+    type(SundialsData), pointer :: sun => NULL()
+  contains
+    final :: SundialsDataFinalizer_final
   end type
   
   type :: PhotochemWrk
@@ -618,6 +628,14 @@ contains
     type(SundialsData), intent(inout) :: self
     character(:), allocatable :: err
     call SundialsData_finalize(self, err)
+  end subroutine
+
+  subroutine SundialsDataFinalizer_final(self)
+    type(SundialsDataFinalizer), intent(inout) :: self
+    character(:), allocatable :: err
+    if (associated(self%sun)) then
+      call self%sun%finalize(err)
+    endif
   end subroutine
   
 end module

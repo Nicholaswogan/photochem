@@ -189,6 +189,7 @@ contains
     use fsunlinsol_band_mod, only: FSUNLinSol_Band
     
     use photochem_enum, only: DensityBC
+    use photochem_types, only: SundialsDataFinalizer
     
     ! in/out
     class(EvoAtmosphere), target, intent(inout) :: self
@@ -204,24 +205,22 @@ contains
     ! local variables
     real(c_double) :: tcur(1)    ! current time
     integer(c_int) :: ierr       ! error flag from C functions
-    ! type(N_Vector), pointer :: sunvec_y ! sundials vector
     
     ! solution vector, neq is set in the ode_mod module
     integer(c_int), parameter :: nrtfn = 4
     integer(c_int) :: rootsfound(nrtfn)
     real(c_double) :: usol_new(self%dat%nq,self%var%nz)
     real(c_double), pointer :: yvec_usol(:,:)
-    ! real(c_double), target :: yvec(self%var%neqs)
-    ! real(c_double) :: abstol(self%var%neqs)
-    ! type(N_Vector), pointer :: abstol_nvec
     integer(c_int64_t) :: neqs_long
     integer(c_int64_t) :: mu, ml
     integer(c_long) :: mxsteps_
-    ! type(SUNMatrix), pointer :: sunmat
-    ! type(SUNLinearSolver), pointer :: sunlin
+    real(dp) :: new_atol
+    integer :: error_reinit_attempts
+    logical :: reinitialize
     
     integer :: i, j, k, ii, io
     
+    type(SundialsDataFinalizer) :: sunfin
     type(c_ptr)    :: user_data
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -231,6 +230,10 @@ contains
     dat => self%dat
     var => self%var
     wrk => self%wrk
+    ! The below association will make sure that all
+    ! sundials data is destroyed after `sunfin`
+    ! goes out of scope (when we leave this function)
+    sunfin%sun => self%wrk%sun
 
     ! free memory if possible
     call wrk%sun%finalize(err)
@@ -264,6 +267,7 @@ contains
     tcur = tstart
     mu = dat%nq
     ml = dat%nq
+    new_atol = var%atol
     
     self_ptr => self
     user_data = c_loc(self_ptr)
@@ -377,32 +381,65 @@ contains
       return
     end if
 
+    error_reinit_attempts = 0
     do ii = 1, size(t_eval)
+      success = .false.
       do
         ierr = FCVode(wrk%sun%cvode_mem, t_eval(ii), wrk%sun%sunvec_y, tcur, CV_NORMAL)
 
-        ! if error, then exit
-        if (ierr < 0) exit 
+        reinitialize = .false.
+        if (any(ierr == [-1, -2, -3, -4])) then; block
+          use photochem_const, only: small_real
+          real(dp) :: rnd_num
+          ! -1 == The solver took mxstep internal steps but could not reach tout.
+          ! -2 == The solver could not satisfy the accuracy demanded by the user
+          ! for some internal step.
+          ! -3 == Error test failures occurred too many times during one internal 
+          ! time step or minimum step size was reached.
+          ! -4 == Convergence test failures occurred too many times during one 
+          ! internal time step or minimum step size was reached.
+          !
+          ! We will try to reinitialize a few times for all of these errors
 
-        ! if successful return then exit
-        if (ierr == 0 .or. ierr == 1 .or. ierr == 99) exit 
+          if (error_reinit_attempts >= var%max_error_reinit_attempts) then
+            ! we give up
+            return
+          endif
 
-        ! root was found
-        if (ierr == 2) then; block
+          ! clip the results
+          yvec_usol(:,:) = max(yvec_usol(:,:), small_real)
+
+          ! Try setting a new absolute tolerance. We select
+          ! a number from a 2 order of magnitude log-normal 
+          ! distribution centered at var%atol.
+          call random_number(rnd_num)
+          rnd_num = rnd_num*2.0_dp - 1.0_dp + log10(var%atol)
+          new_atol = 10.0_dp**rnd_num
+
+          error_reinit_attempts = error_reinit_attempts + 1
+          reinitialize = .true.
+        endblock; elseif (ierr <= -5) then
+          ! bunch of errors that we can not recover from
+          return
+        elseif (ierr == 0 .or. ierr == 1 .or. ierr == 99) then
+          ! Successful return. Go save the results, and continue integrating.
+          exit
+        elseif (ierr == 2) then; block
           real(dp) :: new_top_atmos
+          ! root was found
 
           ierr = FCVodeGetRootInfo(wrk%sun%cvode_mem, rootsfound)
-          if (ierr /= 0) exit
+          if (ierr /= 0) then
+            err = 'CVODE roots error.'
+            return
+          endif
 
           if (rootsfound(3) == -1) then
             ! pressure at the top of the atmosphere is going down
             ! we must decrease the top of the atmosphere
             new_top_atmos = (1.0_dp-self%top_atmos_adjust_frac)*var%top_atmos
             call self%rebin_update_vertical_grid(yvec_usol, new_top_atmos, usol_new, err)
-            if (allocated(err)) then
-              ierr = -1
-              exit
-            endif
+            if (allocated(err)) return
             yvec_usol = usol_new
 
           elseif (rootsfound(4) == 1) then
@@ -410,10 +447,7 @@ contains
             ! we must increase the top of the atmosphere
             new_top_atmos = (1.0_dp+self%top_atmos_adjust_frac)*var%top_atmos
             call self%rebin_update_vertical_grid(yvec_usol, new_top_atmos, usol_new, err)
-            if (allocated(err)) then
-              ierr = -1
-              exit
-            endif
+            if (allocated(err)) return
             yvec_usol = usol_new
 
           elseif (rootsfound(1) /= 0 .or. rootsfound(2) /= 0) then
@@ -421,55 +455,56 @@ contains
           
             ! set the tropopause index
             call self%set_trop_ind(yvec_usol, err)
-            if (allocated(err)) then
-              ierr = -1
-              exit
-            endif
+            if (allocated(err)) return
             
           endif
 
-          ! reinitialize
+          reinitialize = .true.
+        endblock; else
+          ! in case we missed a scenario, then we assume its a failure
+          err = 'Unknown CVODE return code'
+          return
+        endif
+
+        if (reinitialize) then
           ierr = FCVodeReInit(wrk%sun%cvode_mem, tcur(1), wrk%sun%sunvec_y)
-          if (ierr /= 0) exit
+          if (ierr /= 0) then
+            err = "CVODE reinit error."
+            return
+          endif
 
           do j=1,var%nz
             do i=1,dat%nq
               k = i + (j-1)*dat%nq
-              wrk%sun%abstol(k) = wrk%density_hydro(j)*var%atol
+              wrk%sun%abstol(k) = wrk%density_hydro(j)*new_atol
             enddo
           enddo
           ierr = FCVodeSVtolerances(wrk%sun%cvode_mem, var%rtol, wrk%sun%abstol_nvec)
           if (ierr /= 0) then
             err = "CVODE setup error."
-            exit
+            return
           end if
 
           ierr = FCVodeSetInitStep(wrk%sun%cvode_mem, 0.0_c_double)
           if (ierr /= 0) then
             err = "CVODE setup error."
-            exit
+            return
           end if
-
-        endblock; endif
+        endif
         
       enddo
-      if (ierr < 0) then
-        success = .false.
-        exit
-      else
-        success = .true.
 
-        call self%prep_atmosphere(yvec_usol, err)
-        if (allocated(err)) exit
-        
-        open(1, file = filename, status='old', form="unformatted",position="append")
-        write(1) tcur(1)
-        write(1) var%top_atmos
-        write(1) var%z
-        write(1) wrk%usol
-        close(1)
-                               
-      endif
+      success = .true.
+
+      call self%prep_atmosphere(yvec_usol, err)
+      if (allocated(err)) return
+      
+      open(1, file = filename, status='old', form="unformatted",position="append")
+      write(1) tcur(1)
+      write(1) var%top_atmos
+      write(1) var%z
+      write(1) wrk%usol
+      close(1)
     enddo
     
     ! free memory
