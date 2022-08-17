@@ -146,6 +146,14 @@ contains
     call c_f_pointer(ptr, pc)
     val = pc%T_surf
   end subroutine
+
+  subroutine evoatmosphere_t_surf_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(EvoAtmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+    pc%T_surf = val
+  end subroutine
   
   subroutine evoatmosphere_t_trop_get(ptr, val) bind(c)
     type(c_ptr), intent(in) :: ptr

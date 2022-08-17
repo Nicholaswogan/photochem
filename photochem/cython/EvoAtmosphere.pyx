@@ -89,6 +89,8 @@ cdef class EvoAtmosphere:
       cdef double val
       ea_pxd.evoatmosphere_t_surf_get(&self._ptr, &val)
       return val
+    def __set__(self, double val):
+      ea_pxd.evoatmosphere_t_surf_set(&self._ptr, &val)
 
   property T_trop:
     def __get__(self):

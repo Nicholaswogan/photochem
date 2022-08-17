@@ -21,6 +21,7 @@ cdef extern void evoatmosphere_evolve_wrapper(void *ptr, char *filename,
 
 # getters and setters
 cdef extern void evoatmosphere_t_surf_get(void *ptr, double *val)
+cdef extern void evoatmosphere_t_surf_set(void *ptr, double *val)
 
 cdef extern void evoatmosphere_t_trop_get(void *ptr, double *val)
 cdef extern void evoatmosphere_t_trop_set(void *ptr, double *val)
