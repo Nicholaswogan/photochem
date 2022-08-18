@@ -84,6 +84,25 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
     return success
 
+  def production_and_loss(self, str species, ndarray[double, ndim=2] usol_, double top_atmos):
+    cdef bytes species_b = pystring2cstring(species)
+    cdef char *species_c = species_b
+    cdef char err[ERR_LEN+1]
+    
+    cdef int nq = self.dat.nq
+    cdef int nz = self.var.nz
+    cdef ndarray usol = np.asfortranarray(usol_)
+    if usol.shape[0] != nq or usol.shape[1] != nz:
+      raise PhotoException("Input usol is the wrong size.")
+      
+    cdef void *pl_ptr
+    ea_pxd.evoatmosphere_production_and_loss_wrapper(&self._ptr, species_c, &nq, &nz, <double *>usol.data, &top_atmos, &pl_ptr, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    pl = ProductionLoss()
+    pl._ptr = pl_ptr
+    return pl
+
   property T_surf:
     def __get__(self):
       cdef double val

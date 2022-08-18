@@ -639,7 +639,7 @@ contains
   
     real(dp) :: xl(self%var%nz), xp(self%var%nz)
     integer, allocatable :: prod_inds(:), loss_inds(:)
-    integer :: ind(1), sp_ind
+    integer :: sp_ind
     integer :: i, j, k, np, nl, nlT
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -655,8 +655,7 @@ contains
       return
     endif
   
-    ind = findloc(dat%species_names(1:dat%nsp),species)
-    sp_ind = ind(1)
+    sp_ind = findloc(dat%species_names(1:dat%nsp),species,1)
     if (sp_ind == 0) then
       err = "Species "//trim(species)//" is not in the list of species."
       return
@@ -715,7 +714,7 @@ contains
     pl%integrated_loss(nl+1) = 0.0_dp
     if (dat%gas_rainout .and. sp_ind <= dat%nq) then
       pl%loss(1:var%trop_ind,nl+1) = &
-          wrk%rainout_rates(sp_ind,1:var%trop_ind)*wrk%densities(sp_ind,1:var%trop_ind)
+          wrk%rainout_rates(sp_ind,1:var%trop_ind)*wrk%usol(sp_ind,1:var%trop_ind)*wrk%density(1:var%trop_ind)
       pl%integrated_loss(nl+1) = sum(pl%loss(:,nl+1)*var%dz)
     endif
     

@@ -18,6 +18,8 @@ cdef extern void evoatmosphere_evolve_wrapper(void *ptr, char *filename,
                 double *tstart, int *nq, int *nz, double *usol, 
                 int *nt, double *t_eval, bool *overwrite, bool *restart_from_file, bool *success, char *err)
 
+cdef extern void evoatmosphere_production_and_loss_wrapper(void *ptr, char *species, int *nq, 
+                                                        int *nz, double *usol, double *top_atmos, void *pl_ptr, char *err)
 
 # getters and setters
 cdef extern void evoatmosphere_t_surf_get(void *ptr, double *val)

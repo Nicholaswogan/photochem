@@ -2,7 +2,7 @@
 atmosphere-grid:
   bottom: 0.0 # cm
   top: 1.0e7 # cm
-  number-of-layers: 50
+  number-of-layers: 100
 
 photolysis-grid:
   regular-grid: true

@@ -135,6 +135,39 @@ contains
     endif
   end subroutine
 
+  subroutine evoatmosphere_production_and_loss_wrapper(ptr, species, nq, nz, usol, top_atmos, pl_ptr, err) bind(c)
+    use photochem, only: ProductionLoss
+    type(c_ptr), intent(in) :: ptr
+    character(kind=c_char), intent(in) :: species(*)
+    integer(c_int), intent(in) :: nq, nz
+    real(c_double), intent(in) :: usol(nq, nz)
+    real(c_double), intent(in) :: top_atmos
+    type(c_ptr), intent(out) :: pl_ptr
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(len=:), allocatable :: species_f
+    character(:), allocatable :: err_f
+    type(EvoAtmosphere), pointer :: pc
+    type(ProductionLoss), pointer :: pl
+    
+    call c_f_pointer(ptr, pc)
+    allocate(pl)
+    
+    allocate(character(len=len_cstring(species))::species_f)
+    call copy_string_ctof(species, species_f)
+    
+    call pc%production_and_loss(species_f, usol, top_atmos, pl, err_f)
+    if (allocated(err_f)) then
+      deallocate(pl)
+    else
+      pl_ptr = c_loc(pl)
+    endif
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif
+  end subroutine
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! getters and setters !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
