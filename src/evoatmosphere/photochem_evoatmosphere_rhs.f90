@@ -866,6 +866,116 @@ contains
   
   end subroutine
 
+  module subroutine production_and_loss(self, species, usol, top_atmos, pl, err)     
+    use futils, only: argsort            
+    use photochem_common, only: chempl_sl, chempl_t
+    use photochem_types, only: ProductionLoss
+    use photochem_const, only: small_real
+  
+    class(EvoAtmosphere), target, intent(inout) :: self
+    character(len=*), intent(in) :: species
+    real(dp), intent(in) :: usol(:,:)
+    real(dp), intent(in) :: top_atmos
+    type(ProductionLoss), intent(out) :: pl
+    character(:), allocatable, intent(out) :: err
+  
+    real(dp) :: xl(self%var%nz), xp(self%var%nz)
+    integer, allocatable :: prod_inds(:), loss_inds(:)
+    integer :: sp_ind
+    integer :: i, j, k, np, nl, nlT
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+  
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+  
+    if (size(usol,1) /= dat%nq .or. size(usol,2) /= var%nz) then
+      err = "Input usol to production_and_loss has the wrong dimensions"
+      return
+    endif
+  
+    sp_ind = findloc(dat%species_names(1:dat%nsp),species,1)
+    if (sp_ind == 0) then
+      err = "Species "//trim(species)//" is not in the list of species."
+      return
+    endif
+    
+    call self%regrid_prep_atmosphere(usol, top_atmos, err)
+    if (allocated(err)) return
+  
+    np = dat%pl(sp_ind)%nump
+    nl = dat%pl(sp_ind)%numl
+    nlT = nl + 1 ! + 1 for rainout
+    
+    allocate(pl%production(var%nz,np))
+    allocate(pl%loss(var%nz,nlT))
+    allocate(pl%integrated_production(np), pl%integrated_loss(nlT))
+    allocate(pl%loss_rx(nlT),pl%production_rx(np))
+    allocate(prod_inds(np), loss_inds(nlT))
+  
+    do j = 1,var%nz
+      do i = 1,dat%npq
+        wrk%densities(i,j) = max(wrk%usol(i,j)*(1.0_dp/wrk%molecules_per_particle(i,j)), small_real)
+      enddo
+      do i = dat%ng_1,dat%nq
+        wrk%densities(i,j) = wrk%usol(i,j)
+      enddo
+      wrk%densities(dat%nsp+1,j) = 1.0_dp ! for hv
+    enddo
+  
+    if (sp_ind <= dat%nq) then ! long lived or particle
+      do k = dat%nq+1,dat%nq+dat%nsl
+        call chempl_sl(self%dat, self%var, wrk%densities, wrk%rx_rates, &
+                       k, xp, xl) 
+        wrk%densities(k,:) = xp/xl
+      enddo
+    endif
+    
+    call chempl_t(self%dat, self%var, &
+                  wrk%densities, wrk%rx_rates, sp_ind, pl%production, pl%loss)
+  
+    do i = 1,np
+      pl%integrated_production(i) = sum(pl%production(:,i)*var%dz)
+      k = dat%pl(sp_ind)%iprod(i) ! reaction number
+      pl%production_rx(i) = dat%reaction_equations(k)
+    enddo
+    do i = 1,nl
+      pl%integrated_loss(i) = sum(pl%loss(:,i)*var%dz)
+      k = dat%pl(sp_ind)%iloss(i) ! reaction number
+      pl%loss_rx(i) = dat%reaction_equations(k)
+    enddo
+    
+    ! rainout
+    pl%loss_rx(nl+1) = "rainout"
+    pl%loss(:,nl+1) = 0.0_dp
+    pl%integrated_loss(nl+1) = 0.0_dp
+    if (dat%gas_rainout .and. sp_ind <= dat%nq) then
+      pl%loss(1:var%trop_ind,nl+1) = &
+          wrk%rainout_rates(sp_ind,1:var%trop_ind)*wrk%usol(sp_ind,1:var%trop_ind)
+      pl%integrated_loss(nl+1) = sum(pl%loss(:,nl+1)*var%dz)
+    endif
+    
+    ! ignoring condensation, and fluxes
+    
+    ! sort 
+    prod_inds = argsort(pl%integrated_production)
+    loss_inds = argsort(pl%integrated_loss)
+    prod_inds = prod_inds(np:1:-1)
+    loss_inds = loss_inds(nlT:1:-1)
+  
+    pl%integrated_production = pl%integrated_production(prod_inds)
+    pl%integrated_loss = pl%integrated_loss(loss_inds)
+    
+    pl%production = pl%production(:,prod_inds)
+    pl%loss = pl%loss(:,loss_inds)
+    
+    pl%production_rx = pl%production_rx(prod_inds)
+    pl%loss_rx = pl%loss_rx(loss_inds)
+    
+  end subroutine
+
 end submodule
 
 

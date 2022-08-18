@@ -21,6 +21,18 @@ cdef class PhotochemVars:
       cdef int nz
       var_pxd.photochemvars_nz_get(&self._ptr, &nz)
       return nz
+
+  property top_atmos:
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_top_atmos_get(&self._ptr, &val)
+      return val
+
+  property bottom_atmos:
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_bottom_atmos_get(&self._ptr, &val)
+      return val
       
   property usol_init:
     def __get__(self):

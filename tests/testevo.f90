@@ -1,6 +1,6 @@
 program testevo
   use futils, only: linspace
-  use photochem, only: EvoAtmosphere, version, dp
+  use photochem, only: EvoAtmosphere, version, dp, ProductionLoss
   implicit none
   character(:), allocatable :: err
   type(EvoAtmosphere) :: pc
@@ -8,6 +8,7 @@ program testevo
   integer :: i, j
   real(dp) :: tstart
   real(dp), allocatable :: t_eval(:)
+  type(ProductionLoss) :: pl
   
   print*,'photochem version == ',trim(version)
 
@@ -38,5 +39,11 @@ program testevo
   endif
 
   deallocate(t_eval)
+
+  call pc%production_and_loss('CH4', pc%var%usol_init, pc%var%top_atmos, pl, err)  
+  if (allocated(err)) then
+    print*,trim(err)
+    stop 1
+  endif
 
 end program

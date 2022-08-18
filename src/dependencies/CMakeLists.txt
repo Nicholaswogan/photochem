@@ -1,9 +1,9 @@
 
 CPMAddPackage(
   NAME futils
-  VERSION 0.1.6
+  VERSION 0.1.7
   GITHUB_REPOSITORY "Nicholaswogan/futils"
-  GIT_TAG "v0.1.6"
+  GIT_TAG "v0.1.7"
   EXCLUDE_FROM_ALL ON
 )
 
@@ -52,6 +52,6 @@ CPMAddPackage(
   VERSION 0.2.0
   OPTIONS 
     "BUILD_WITH_OPENMP ${BUILD_WITH_OPENMP}"
-  URL "https://github.com/Nicholaswogan/clima/archive/04656063738825f5d91978ee5def7751f999f3df.zip"
+  URL "https://github.com/Nicholaswogan/clima/archive/c6f8998a23412ba6bec7fa1db133d9b9b72050db.zip"
   EXCLUDE_FROM_ALL ON
 )

@@ -423,7 +423,8 @@ contains
         reinitialize = .false.
         if (any(ierr == [-1, -2, -3, -4])) then; block
           use photochem_const, only: small_real
-          real(dp) :: rnd_num
+          use futils, only: linspace
+          real(dp), allocatable :: atol_arr(:)
           ! -1 == The solver took mxstep internal steps but could not reach tout.
           ! -2 == The solver could not satisfy the accuracy demanded by the user
           ! for some internal step.
@@ -442,12 +443,12 @@ contains
           ! clip the results
           yvec_usol(:,:) = max(yvec_usol(:,:), small_real)
 
-          ! Try setting a new absolute tolerance. We select
-          ! a number from a 2 order of magnitude log-normal 
-          ! distribution centered at var%atol.
-          call random_number(rnd_num)
-          rnd_num = rnd_num*2.0_dp - 1.0_dp + log10(var%atol)
-          new_atol = 10.0_dp**rnd_num
+          ! Try setting a new absolute tolerance in the 
+          ! vicinity of the old one.
+          allocate(atol_arr(var%max_error_reinit_attempts))
+          call linspace(log10(var%atol)-1.0_dp, log10(var%atol)+1.0_dp ,atol_arr)
+          atol_arr = 10.0_dp**atol_arr
+          new_atol = atol_arr(error_reinit_attempts+1)
 
           error_reinit_attempts = error_reinit_attempts + 1
           reinitialize = .true.
@@ -548,7 +549,7 @@ contains
 
   subroutine read_end_of_evo_file(self, filename, t_eval, restart_index, tcur, top_atmos, usol, err)
     use photochem_const, only: s_str_len
-    use futils, only: is_close
+    use futils, only: is_close, FileCloser
     use iso_c_binding, only: c_double
     type(EvoAtmosphere), target, intent(in) :: self
     character(*), intent(in) :: filename
@@ -564,34 +565,32 @@ contains
     integer :: nt
     real(dp), allocatable :: z(:)
     integer :: i
-
+    type(FileCloser) :: file
+    
     open(1, file = filename, status='old', form="unformatted",iostat=io)
     if (io /= 0) then
       err = 'Unable to open '//filename
       return
     endif
+    file%unit = 1
 
     read(1,iostat=io) nq
     if (io /= 0) then
       err = 'Problem reading '//filename
-      close(1)
       return
     endif
     if (nq /= self%dat%nq) then
       err = 'nq does not match EvoAtmosphere state in '//filename
-      close(1)
       return
     endif
 
     read(1,iostat=io) nz
     if (io /= 0) then
       err = 'Problem reading '//filename
-      close(1)
       return
     endif
     if (nz /= self%var%nz) then
       err = 'nz does not match EvoAtmosphere state in '//filename
-      close(1)
       return
     endif
 
@@ -599,50 +598,50 @@ contains
     read(1,iostat=io) species_names
     if (io /= 0) then
       err = 'Problem reading '//filename
-      close(1)
       return
     endif
     if (any(species_names /= self%dat%species_names)) then
       err = 'species_names does not match EvoAtmosphere state in '//filename
-      close(1)
       return
     endif
 
     read(1,iostat=io) nt
     if (io /= 0) then
       err = 'Problem reading '//filename
-      close(1)
       return
     endif
+
+    ! check that there is data
+    read(1,iostat=io) tcur
+    if (io == -1) then
+      err = 'There is no saved data in '//filename
+      return
+    endif
+    backspace(1)
 
     allocate(z(nz))
     do i = 1,nt
       read(1,iostat=io) tcur
       if (io == -1) then
         ! end of file
-        close(1)
         exit
       elseif (io < -1) then
         err = 'Problem reading '//filename
-        close(1)
         return
       endif
       read(1,iostat=io) top_atmos
       if (io /= 0) then
         err = 'Problem reading '//filename
-        close(1)
         return
       endif
       read(1,iostat=io) z
       if (io /= 0) then
         err = 'Problem reading '//filename
-        close(1)
         return
       endif
       read(1,iostat=io) usol
       if (io /= 0) then
         err = 'Problem reading '//filename
-        close(1)
         return
       endif
     enddo

@@ -33,6 +33,7 @@ module photochem_evoatmosphere
     procedure :: prep_atmosphere => prep_all_evo_gas
     procedure :: right_hand_side => rhs_evo_gas
     procedure :: jacobian => jac_evo_gas
+    procedure :: production_and_loss
 
     !!! photochem_evoatmosphere_integrate.f90 !!!
     procedure :: evolve
@@ -102,6 +103,16 @@ module photochem_evoatmosphere
       real(dp), intent(out), target :: jac(lda_neqs)
       character(:), allocatable, intent(out) :: err
       ! The jacobian of the rhs_background_gas.
+    end subroutine
+
+    module subroutine production_and_loss(self, species, usol, top_atmos, pl, err)  
+      use photochem_types, only: ProductionLoss   
+      class(EvoAtmosphere), target, intent(inout) :: self
+      character(len=*), intent(in) :: species
+      real(dp), intent(in) :: usol(:,:)
+      real(dp), intent(in) :: top_atmos
+      type(ProductionLoss), intent(out) :: pl
+      character(:), allocatable, intent(out) :: err
     end subroutine
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

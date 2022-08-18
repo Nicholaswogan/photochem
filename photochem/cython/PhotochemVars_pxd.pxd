@@ -7,6 +7,10 @@ cdef extern void deallocate_photochemvars(void *ptr)
 
 cdef extern void photochemvars_nz_get(void *ptr, int *nz)
 
+cdef extern void photochemvars_top_atmos_get(void *ptr, double *val)
+
+cdef extern void photochemvars_bottom_atmos_get(void *ptr, double *val)
+
 cdef extern void photochemvars_at_photo_equilibrium_get(void *ptr, bool *at_photo_equilibrium)
 
 cdef extern void photochemvars_usol_init_get_size(void *ptr, int *dim1, int *dim2)
