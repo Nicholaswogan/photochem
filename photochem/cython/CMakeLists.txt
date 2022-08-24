@@ -6,9 +6,18 @@ if(WIN32)
 endif()
 
 add_library(_photochem MODULE ${_photochem})
-set_source_files_properties(_photochem.pyx 
-PROPERTIES OBJECT_DEPENDS Atmosphere.pyx PhotochemData.pyx PhotochemVars.pyx
-                          ProductionLoss.pyx AtomConservation.pyx)
+set(_photochem_deps
+  EvoAtmosphere.pyx
+  Atmosphere.pyx 
+  PhotochemData.pyx 
+  PhotochemVars.pyx
+  ProductionLoss.pyx 
+  AtomConservation.pyx
+)
+foreach(PDEP ${_photochem_deps})
+  set_source_files_properties(_photochem.pyx PROPERTIES OBJECT_DEPENDS ${PDEP})
+endforeach()
+
 python_extension_module(_photochem)
 
 target_link_libraries(_photochem photochem_wrapper)

@@ -7,6 +7,10 @@ cdef extern void deallocate_photochemvars(void *ptr)
 
 cdef extern void photochemvars_nz_get(void *ptr, int *nz)
 
+cdef extern void photochemvars_top_atmos_get(void *ptr, double *val)
+
+cdef extern void photochemvars_bottom_atmos_get(void *ptr, double *val)
+
 cdef extern void photochemvars_at_photo_equilibrium_get(void *ptr, bool *at_photo_equilibrium)
 
 cdef extern void photochemvars_usol_init_get_size(void *ptr, int *dim1, int *dim2)
@@ -29,6 +33,9 @@ cdef extern void photochemvars_z_get(void *ptr, int *dim1, double *z)
 
 cdef extern void photochemvars_surface_pressure_get(void *ptr, double *val)
 cdef extern void photochemvars_surface_pressure_set(void *ptr, double *val)
+
+cdef extern void photochemvars_max_error_reinit_attempts_get(void *ptr, int *val)
+cdef extern void photochemvars_max_error_reinit_attempts_set(void *ptr, int *val)
 
 cdef extern void photochemvars_rtol_get(void *ptr, double *val)
 cdef extern void photochemvars_rtol_set(void *ptr, double *val)

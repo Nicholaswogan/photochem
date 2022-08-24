@@ -263,7 +263,8 @@ contains
     use photochem_eqns, only: dynamic_viscosity_air, fall_velocity, slip_correction_factor, &
                               binary_diffusion_param
     use photochem_const, only: k_boltz, N_avo
-    
+    use photochem_enum, only: DiffusionLimHydrogenEscape
+
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
 
@@ -442,7 +443,7 @@ contains
     enddo
     
     ! H2 escape
-    if (dat%diff_H_escape) then
+    if (dat%H_escape_type == DiffusionLimHydrogenEscape) then
       if (dat%back_gas_name /= "H2") then
         bx1x2 = binary_diffusion_param(dat%species_mass(dat%LH2), mubar(var%nz), var%temperature(var%nz))
         VH2_esc = bx1x2/den(var%nz)*(-(dat%species_mass(dat%LH2)*var%grav(var%nz))/(k_boltz*var%temperature(var%nz)*N_avo) &
@@ -466,13 +467,13 @@ contains
     
   end subroutine
   
-  pure subroutine rainout(dat, var, usol, den, rainout_rates)
+  pure subroutine rainout(dat, var, fH2O, den, rainout_rates)
     use photochem_const, only: k_boltz, N_avo, small_real
     use photochem_eqns, only: henrys_law
     
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
-    real(dp), intent(in) :: usol(:,:) ! (nq,nz)
+    real(dp), intent(in) :: fH2O(:) ! (nz)
     real(dp), intent(in) :: den(:) ! (nz)
     real(dp), intent(out) :: rainout_rates(:,:) ! (nq,trop_ind)
     
@@ -502,9 +503,9 @@ contains
       eddav_p = sqrt(var%edd(i+1)*var%edd(i))
       denav_m = sqrt(den(i-1)*den(i))
       eddav_m = sqrt(var%edd(i-1)*var%edd(i))
-      wH2O(i) = (eddav_p*denav_p/var%dz(i)**2.0_dp) * usol(dat%LH2O,i+1) &
-              - (eddav_p*denav_p/var%dz(i)**2.0_dp + eddav_m*denav_m/var%dz(i)**2.0_dp) * usol(dat%lH2O,i) &
-              + (eddav_m*denav_m/var%dz(i)**2.0_dp) * usol(dat%lH2O,i-1)
+      wH2O(i) = (eddav_p*denav_p/var%dz(i)**2.0_dp) * fH2O(i+1) &
+              - (eddav_p*denav_p/var%dz(i)**2.0_dp + eddav_m*denav_m/var%dz(i)**2.0_dp) * fH2O(i) &
+              + (eddav_m*denav_m/var%dz(i)**2.0_dp) * fH2O(i-1)
       if (wH2O(i) < 0.0_dp) then
         wH2O(i) = 1.d-20
       endif
@@ -703,6 +704,60 @@ contains
       enddo
     enddo
     
+  end subroutine
+
+  subroutine gas_saturation_density(dat, var, fH2O, pressure, &
+                                    gas_sat_den)
+    use photochem_const, only: k_boltz
+    use photochem_enum, only: CondensingParticle
+    use photochem_enum, only: ArrheniusSaturation, H2SO4Saturation
+    use photochem_eqns, only: saturation_density
+
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(in) :: var
+    real(dp), intent(in) :: fH2O(:)
+    real(dp), intent(in) :: pressure(:)
+    real(dp), intent(out) :: gas_sat_den(:,:)
+
+    real(dp) :: P_H2SO4
+    integer :: i, j
+
+    ! compute The saturation density
+    do j = 1,var%nz
+      do i = 1,dat%np
+        if (dat%particle_formation_method(i) == CondensingParticle) then
+          if (dat%particle_sat_type(i) == ArrheniusSaturation) then ! arrhenius
+            gas_sat_den(i,j) = saturation_density(var%temperature(j), &
+                                                  dat%particle_sat_params(1,i), &
+                                                  dat%particle_sat_params(2,i), &
+                                                  dat%particle_sat_params(3,i))
+          elseif (dat%particle_sat_type(i) == H2SO4Saturation) then ! interpolate to H2SO4 data
+            call dat%H2SO4_sat%evaluate(var%temperature(j), &
+                                        log10(fH2O(j)*pressure(j)/1.e6_dp),P_H2SO4)
+            P_H2SO4 = 10.0_dp**(P_H2SO4)
+            gas_sat_den(i,j) = (P_H2SO4*1.e6_dp)/(k_boltz*var%temperature(j))
+          endif
+        endif
+      enddo
+    enddo
+
+  end subroutine
+
+  subroutine molec_per_particle(dat, var, molecules_per_particle)
+    use photochem_const, only: pi, N_avo
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(in) :: var
+    real(dp), intent(out) :: molecules_per_particle(:,:)
+
+    integer :: i, j
+
+    do j = 1,var%nz
+      do i = 1,dat%np
+        molecules_per_particle(i,j) = (4.0_dp/3.0_dp)*pi*var%particle_radius(i,j)**3.0_dp* &
+                                       dat%particle_density(i)*(1/dat%species_mass(i))*N_avo
+      enddo
+    enddo
+
   end subroutine
   
 end module

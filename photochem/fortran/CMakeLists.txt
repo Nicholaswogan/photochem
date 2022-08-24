@@ -1,6 +1,7 @@
 
 add_library(photochem_wrapper wrapper_utils.f90 
                               Atmosphere_wrapper.f90 
+                              EvoAtmosphere_wrapper.f90 
                               PhotochemData_wrapper.f90
                               PhotochemVars_wrapper.f90
                               PhotochemWrk_wrapper.f90

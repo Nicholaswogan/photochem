@@ -2,7 +2,7 @@
 atmosphere-grid:
   bottom: 0.0 # cm
   top: 1.0e7 # cm
-  number-of-layers: 200
+  number-of-layers: 100
 
 photolysis-grid:
   regular-grid: true
@@ -11,26 +11,24 @@ photolysis-grid:
   number-of-bins: 200
 
 planet:
-  background-gas: N2
-  surface-pressure: 1.013 # bar
   planet-mass: 5.972e27 # grams
   planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
-  surface-albedo: 0.25 # cm
+  surface-albedo: 0.2 # cm
   diurnal-averaging-factor: 0.5
   solar-zenith-angle: 60.0
   hydrogen-escape:
-    type: diffusion limited # options are "diffusion limited", "zahnle" and "none"
-    # S1: 20 # required for type zahnle
+    type: diffusion limited
+  evolve-climate: true
   water:
-    fix-water-in-troposphere: false
-    # relative-humidity: manabe
+    fix-water-in-troposphere: true
+    relative-humidity: 0.7
     gas-rainout: true
     rainfall-rate: 1 # relative to modern earth's rainfall rate
     # rainout-species: [H2SO4aer] # specify rainout species. If omitted, then model will use all species with data.
     tropopause-altitude: 1.1e6 # cm. required if gas-rainout or fix-water-in-troposphere
     water-condensation: true
     condensation-rate: {A: 1.0e-5, rhc: 0.01, rh0: 0.015}
-    
+
 particles:
 - name: H2SO4aer
   condensation-rate: {A: 1.0e-5, rhc: 1.0, rh0: 1.05}
@@ -53,29 +51,51 @@ particles:
 - name: NH3aer
   condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 
-# Assumes veff = vdep = 0 boundary condition for species not specified.
-# Assumes species is long-lived unless specified
+optical-properties:
+  ir:
+    k-method: RandomOverlapResortRebin
+    number-of-bins: 8
+    opacities:
+      k-distributions: [H2O, CO2, CH4, O3]
+      CIA: [N2-N2, O2-O2, N2-O2, CH4-CH4, CO2-CO2, H2-CH4, H2-H2]
+      rayleigh: true
+      photolysis-xs: true
+      water-continuum: MT_CKD
+  solar:
+    k-method: RandomOverlapResortRebin
+    number-of-bins: 8
+    opacities:
+      k-distributions: [H2O, CO2, CH4, O3]
+      CIA: [N2-N2, O2-O2, N2-O2, CH4-CH4, CO2-CO2, H2-CH4, H2-H2]
+      rayleigh: true
+      photolysis-xs: true
+      water-continuum: MT_CKD
+      particle-xs:
+        - {name: HCaer1, data: khare1984}
+        - {name: HCaer2, data: khare1984}
+        - {name: HCaer3, data: khare1984}
+
 boundary-conditions:
-- name: H2O
-  lower-boundary: {type: mix, mix: 0.0175}
-  upper-boundary: {type: veff, veff: 0.0}
+- name: N2
+  lower-boundary: {type: den, den: 1.9091467479365386e+19}
+  upper-boundary: {type: veff, veff: 1.0e-8}
 - name: O2
-  lower-boundary: {type: mix, mix: 0.21}
+  lower-boundary: {type: flux, flux: 529988353109.4235}
   upper-boundary: {type: veff, veff: 0.0}
 - name: H2
-  lower-boundary: {type: mix, mix: 5.3e-07}
+  lower-boundary: {type: vdep, vdep: 0.002101353876412517}
   upper-boundary: {type: veff, veff: 0.0}
 - name: CO2
-  lower-boundary: {type: mix, mix: 0.00036}
+  lower-boundary: {type: vdep, vdep: 1.022423385788315e-05}
   upper-boundary: {type: veff, veff: 0.0}
 - name: CH4
-  lower-boundary: {type: mix, mix: 1.8e-06}
+  lower-boundary: {type: flux, flux: 57208927884.609665}
   upper-boundary: {type: veff, veff: 0.0}
 - name: CO
-  lower-boundary: {type: mix, mix: 1.1e-07}
+  lower-boundary: {type: flux, flux: 48199295836.73972}
   upper-boundary: {type: veff, veff: 0.0}
 - name: N2O
-  lower-boundary: {type: mix, mix: 3.1e-07}
+  lower-boundary: {type: flux, flux: 1320333762.837339}
   upper-boundary: {type: veff, veff: 0.0}
 - name: HCl
   lower-boundary: {type: vdep + dist flux, vdep: 0.02, flux: 1.0e8, height: 20.0}

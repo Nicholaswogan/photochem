@@ -12,15 +12,15 @@ photolysis-grid:
   photon-scale-factor: 0.01089
 
 planet:
-  use-background-gas: true
   background-gas: N2
   surface-pressure: 1.500 # bar
   planet-mass: 1.345e26 # grams
   planet-radius: 2.575e8 # cm. Radius to bottom of atmosphere-grid
   surface-albedo: 0.1 # cm
   diurnal-averaging-factor: 0.5
-  solar-zenith-angle: 50.0
-  diff-lim-hydrogen-escape: true
+  solar-zenith-angle: 60.0
+  hydrogen-escape:
+    type: diffusion limited
   water:
     fix-water-in-troposphere: false
     gas-rainout: false

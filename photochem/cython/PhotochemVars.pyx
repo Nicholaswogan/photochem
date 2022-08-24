@@ -21,6 +21,18 @@ cdef class PhotochemVars:
       cdef int nz
       var_pxd.photochemvars_nz_get(&self._ptr, &nz)
       return nz
+
+  property top_atmos:
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_top_atmos_get(&self._ptr, &val)
+      return val
+
+  property bottom_atmos:
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_bottom_atmos_get(&self._ptr, &val)
+      return val
       
   property usol_init:
     def __get__(self):
@@ -83,7 +95,14 @@ cdef class PhotochemVars:
       return val
     def __set__(self, double val):
       var_pxd.photochemvars_surface_pressure_set(&self._ptr, &val)
-  
+
+  property max_error_reinit_attempts:
+    def __get__(self):
+      cdef int val
+      var_pxd.photochemvars_max_error_reinit_attempts_get(&self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      var_pxd.photochemvars_max_error_reinit_attempts_set(&self._ptr, &val)
   
   property rtol:
     def __get__(self):

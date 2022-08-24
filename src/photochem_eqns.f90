@@ -102,6 +102,49 @@ contains
 
   end subroutine
 
+  pure function heat_capacity_shomate(coeffs, T) result(cp)
+    real(dp), intent(in) :: coeffs(7)
+    real(dp), intent(in) :: T !! K
+    real(dp) :: cp !! J/(mol K)
+    
+    real(dp) :: TT
+    
+    TT = T/1000.0_dp
+    cp = coeffs(1) + coeffs(2)*TT + coeffs(3)*TT**2 + &
+         coeffs(4)*TT**3 + coeffs(5)/TT**2
+  end function
+  
+  pure subroutine heat_capacity_eval(thermo, T, found, cp)
+    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial
+    use photochem_types, only: ThermodynamicData
+  
+    type(ThermodynamicData), intent(in) :: thermo
+    real(dp), intent(in) :: T !! K
+    logical, intent(out) :: found
+    real(dp), intent(out) :: cp !! J/(mol*K)
+  
+    integer :: k
+
+    found = .false.
+    do k = 1,thermo%ntemps
+      if (T >= thermo%temps(k) .and. &
+          T <  thermo%temps(k+1)) then
+  
+        found = .true.
+        if (thermo%dtype == ShomatePolynomial) then
+          cp = heat_capacity_shomate(thermo%data(1:7,k), T)
+        elseif (thermo%dtype == Nasa9Polynomial) then
+          ! gibbs_energy = heat_capacity_nasa9(thermo%data(1:9,k), T)
+          found = .false.         
+        endif
+  
+        exit
+  
+      endif
+    enddo
+
+  end subroutine
+
   pure subroutine press_and_den(nz, T, grav, Psurf, dz, &
                            mubar, pressure, density)
     use photochem_const, only: k_boltz, N_avo
@@ -271,19 +314,7 @@ contains
     f1 = (log10(Pr) + C)/(N - 0.14e0_dp*(log10(Pr + C)))
     F = 10.0_dp**((log10Fcent)/(1.0_dp + f1**2.0_dp))
   end function
-  
-  pure function sat_pressure_H2O(T) result(p_H2O)
-    real(dp), intent(in) :: T ! temperature in K
-    real(dp) :: p_H2O
-    real(dp), parameter :: lc = 2.5e6_dp ! specific enthalpy of H2O vaporization
-    real(dp), parameter :: Rc = 461.0_dp ! gas constant for water
-    real(dp), parameter :: e0 = 611.0_dp ! Pascals
-    real(dp), parameter :: T0 = 273.15_dp ! K
-    ! Catling and Kasting (Equation 1.49)
-    p_H2O = 10.0_dp*e0*exp(lc/Rc*(1/T0 - 1/T))
-    ! output is in dynes/cm2
-  end function
-  
+
   pure function damp_condensation_rate(A, rhc, rh0, rh) result(k)
     use photochem_const, only: pi
     real(dp), intent(in) :: A
@@ -302,6 +333,21 @@ contains
     real(dp), intent(in) :: B
     real(dp) :: H ! mol/(kg * Pa)
     H = A*exp(B*(1.0_dp/298.15_dp - 1.0_dp/T))
+  end function
+
+  pure function zahnle_Hescape_coeff(S1) result(coeff)
+    real(dp), intent(in) :: S1 ! EUV radiation relative to Modern Earth
+    real(dp) :: coeff ! molecules/cm2/s
+
+    real(dp), parameter :: A = 2.0e12_dp ! molecules/cm2/s
+    real(dp), parameter :: B2 = 0.006_dp ! no units
+
+    ! Equation 47 in Zahnle et al. (2020), PSJ.
+    ! `coeff` is the hydrogen escape coefficient, such that
+    ! [Hydrogen Escape] = coeff*[H2 mixing ratio] 
+
+    coeff = (A*S1)/sqrt(1.0_dp + B2*S1**2.0_dp)
+
   end function
   
 end module

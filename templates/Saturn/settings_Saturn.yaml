@@ -12,15 +12,15 @@ photolysis-grid:
   photon-scale-factor: 0.01108
 
 planet:
-  use-background-gas: true
   background-gas: H2
   surface-pressure: 1.000 
   planet-mass: 5.683e29
   planet-radius: 58.232e8 
   surface-albedo: 0.342
   diurnal-averaging-factor: 0.5
-  solar-zenith-angle: 50.0
-  diff-lim-hydrogen-escape: false
+  solar-zenith-angle: 60.0
+  hydrogen-escape:
+    type: none
   default-gas-lower-boundary: Moses
   water:
     fix-water-in-troposphere: false

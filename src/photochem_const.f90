@@ -21,4 +21,6 @@ module photochem_const
   real(dp), parameter :: smaller_real = tiny(1.0_dp)**0.5_dp
   real(dp), parameter :: small_real = tiny(1.0_dp)**0.25_dp
   real(dp), parameter :: ln_small_real = log(small_real)
+
+  real(dp), parameter :: fast_arbitrary_rate = 1.0e-5_dp ! arbitrary rate that is fast (1/s)
 end module

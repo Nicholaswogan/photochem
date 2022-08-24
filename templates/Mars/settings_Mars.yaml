@@ -12,15 +12,15 @@ photolysis-grid:
   photon-scale-factor: 0.43
 
 planet:
-  use-background-gas: true
   background-gas: CO2
   surface-pressure: 0.0063
   planet-mass: 6.39e26
   planet-radius: 3.3766E8
   surface-albedo: 0.215
   diurnal-averaging-factor: 0.5
-  solar-zenith-angle: 50.0
-  diff-lim-hydrogen-escape: true
+  solar-zenith-angle: 60.0
+  hydrogen-escape:
+    type: diffusion limited
   water:
     fix-water-in-troposphere: false
     # relative-humidity: 0.05

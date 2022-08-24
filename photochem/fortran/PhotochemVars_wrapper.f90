@@ -36,6 +36,22 @@ contains
     nz = var%nz
   end subroutine
   
+  subroutine photochemvars_top_atmos_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%top_atmos
+  end subroutine
+
+  subroutine photochemvars_bottom_atmos_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%bottom_atmos
+  end subroutine
+  
   subroutine photochemvars_at_photo_equilibrium_get(ptr, at_photo_equilibrium) bind(c)
     type(c_ptr), intent(in) :: ptr
     logical(c_bool), intent(out) :: at_photo_equilibrium
@@ -161,6 +177,22 @@ contains
     type(PhotochemVars), pointer :: var
     call c_f_pointer(ptr, var)
     var%surface_pressure = val
+  end subroutine
+
+  subroutine photochemvars_max_error_reinit_attempts_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%max_error_reinit_attempts
+  end subroutine
+  
+  subroutine photochemvars_max_error_reinit_attempts_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%max_error_reinit_attempts = val
   end subroutine
   
   subroutine photochemvars_rtol_get(ptr, val) bind(c)

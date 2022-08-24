@@ -3,20 +3,20 @@ program memtest
   use photochem, only: Atmosphere, dp
   implicit none
   
-  type(Atmosphere) :: pc
+  type(Atmosphere) :: pcs
 
-  call test_badfile(pc)
-  call test_twoinitializations(pc)
-  call test_photochemical_equilibrium(pc)
-  call test_out2atmosphere(pc)
-  call test_gas_fluxes(pc)
-  call test_set_lower_bc(pc)
-  call test_set_upper_bc(pc)
-  call test_production_and_loss(pc)
-  call test_redox_conservation(pc)
-  call test_atom_conservation(pc)
-  call test_evolve(pc)
-  call test_set_temperature(pc)
+  call test_badfile(pcs)
+  call test_twoinitializations(pcs)
+  call test_photochemical_equilibrium(pcs)
+  call test_out2atmosphere(pcs)
+  call test_gas_fluxes(pcs)
+  call test_set_lower_bc(pcs)
+  call test_set_upper_bc(pcs)
+  call test_production_and_loss(pcs)
+  call test_redox_conservation(pcs)
+  call test_atom_conservation(pcs)
+  call test_evolve(pcs)
+  call test_set_temperature(pcs)
   
 contains
   

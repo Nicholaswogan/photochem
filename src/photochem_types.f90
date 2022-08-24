@@ -11,10 +11,11 @@ module photochem_types ! make a giant IO object
   private
   
   public :: PhotoSettings, SettingsBC
-  public :: PhotochemData, PhotochemVars, PhotochemWrk
+  public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
   public :: ProductionLoss, AtomConservation, ThermodynamicData
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
+  public :: SundialsDataFinalizer
   
   !!!!!!!!!!!!!!!!
   !!! Settings !!!
@@ -32,9 +33,11 @@ module photochem_types ! make a giant IO object
     real(dp) :: mix
     real(dp) :: flux
     real(dp) :: height
+    real(dp) :: den
   end type
   
   type :: PhotoSettings
+    character(:), allocatable :: filename
   
     ! atmosphere-grid
     real(dp) :: bottom
@@ -50,16 +53,18 @@ module photochem_types ! make a giant IO object
     real(dp) :: photon_scale_factor 
   
     ! planet
-    logical :: back_gas
     character(:), allocatable :: back_gas_name
-    real(dp) :: P_surf
+    real(dp), allocatable :: P_surf
     real(dp) :: planet_mass
     real(dp) :: planet_radius
     real(dp) :: surface_albedo
     real(dp) :: diurnal_fac
     real(dp) :: solar_zenith
-    logical :: diff_H_escape
+    integer :: H_escape_type
+    real(dp), allocatable :: H_escape_S1
     integer :: default_lowerboundcond
+    ! climate
+    logical :: evolve_climate
     ! water
     logical :: fix_water_in_trop
     logical :: water_cond
@@ -85,6 +90,17 @@ module photochem_types ! make a giant IO object
     character(s_str_len), allocatable :: SL_names(:)
     
   end type
+
+  interface
+    module function create_PhotoSettings(filename, err) result(s)
+      character(*), intent(in) :: filename
+      character(:), allocatable, intent(out) :: err
+      type(PhotoSettings) :: s
+    end function
+  end interface
+  interface PhotoSettings
+    module procedure :: create_PhotoSettings
+  end interface
   
   !!!!!!!!!!!!!!!!!
   !!! Utilities !!!
@@ -94,6 +110,7 @@ module photochem_types ! make a giant IO object
     real(dp) :: in_surf
     real(dp) :: in_top
     real(dp) :: in_dist
+    real(dp) :: in_other
     real(dp) :: out_surf
     real(dp) :: out_top
     real(dp) :: out_rain
@@ -285,25 +302,27 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: z_file(:) ! (nzf) cm
     real(dp), allocatable :: T_file(:) ! (nzf) K
     real(dp), allocatable :: edd_file(:) ! (nzf) cm2/s
-    real(dp), allocatable :: usol_file(:,:) ! (nq,nzf) mixing ratios
+    real(dp), allocatable :: den_file(:) ! (nzf) molecules/cm2
+    real(dp), allocatable :: mix_file(:,:) ! (nq,nzf) mixing ratios
     real(dp), allocatable :: particle_radius_file(:,:) ! (np,nzf) cm
     
     ! settings
     logical :: regular_grid ! True of wavelength grid is evenly spaced
     real(dp) :: lower_wavelength ! nm
     real(dp) :: upper_wavelength ! nm
-    character(len=str_len) :: grid_file ! filename of grid file. Only if regular_grid == False
+    character(:), allocatable :: grid_file ! filename of grid file. Only if regular_grid == False
     logical :: back_gas ! True if background gas is used
-    character(len=str_len) :: back_gas_name ! Normally N2, but can be most any gas.
-    real(dp) :: back_gas_mu ! g/mol
-    integer :: back_gas_ind
+    character(:), allocatable :: back_gas_name ! Normally N2, but can be most any gas.
+    real(dp), allocatable :: back_gas_mu ! g/mol
+    integer, allocatable :: back_gas_ind
     real(dp) :: planet_mass ! grams
     real(dp) :: planet_radius ! cm
     logical :: fix_water_in_trop ! True if fixing water in troposphere
     integer :: LH2O ! index of H2O
     logical :: water_cond ! True if water should condense out of the atmosphere
     logical :: gas_rainout ! True if gas rains out
-    logical :: diff_H_escape ! True of diffusion limited H escape
+    integer :: H_escape_type ! Diffusion-limited, Zahnle, or None
+    real(dp), allocatable :: H_escape_coeff ! Coefficient for zahnle hydrogen escape
     integer :: LH2 ! H2 index
     integer :: LH ! H index
     
@@ -328,6 +347,7 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: lower_flux(:)
     real(dp), allocatable :: lower_dist_height(:)
     real(dp), allocatable :: lower_fix_mr(:)
+    real(dp), allocatable :: lower_fix_den(:)
     integer, allocatable :: upperboundcond(:) ! 0 or 2
     real(dp), allocatable :: upper_veff(:)
     real(dp), allocatable :: upper_flux(:)
@@ -345,7 +365,7 @@ module photochem_types ! make a giant IO object
     real(dp) :: rainfall_rate ! relative to modern Earth's average rainfall rate of 1.1e17 molecules/cm2/s
     integer :: trop_ind ! index of troposphere (only for fix_water_in_trop == true or gas_rainout == true)
     logical :: use_manabe ! use manabe formula
-    real(dp) :: relative_humidity ! relative humidity if no manabe
+    real(dp), allocatable :: relative_humidity ! relative humidity if no manabe
     real(dp) :: H2O_condensation_rate(3) 
     
     ! Radiative tranfer
@@ -356,9 +376,6 @@ module photochem_types ! make a giant IO object
     ! particles
     ! condensation rate of particles
     real(dp), allocatable :: condensation_rate(:,:) ! (3,np)
-    
-    ! switch for dealing with H2O if not read in. in some cases
-    logical :: no_water_profile
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! set AFTER file read-in !!!
@@ -369,7 +386,7 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: dz(:) ! (nz) cm
     real(dp), allocatable :: edd(:) ! (nz) cm2/s
     real(dp), allocatable :: grav(:) ! (nz) cm/s2
-    real(dp), allocatable :: usol_init(:,:) ! (nq,nz) mixing ratio
+    real(dp), allocatable :: usol_init(:,:) ! (nq,nz) mixing ratio (EvoAtmosphere) or densities (EvoAtmosphere).
     real(dp), allocatable :: particle_radius(:,:) ! (np,nz) cm
     real(dp), allocatable :: xs_x_qy(:,:,:) ! (nz,kj,nw) cm2/molecule
     type(ParticleXsections), allocatable :: particle_xs(:) ! (np) cm2/molecule
@@ -380,6 +397,9 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: usol_out(:,:)
     
     ! other 
+    ! number of times we initialize CVODE when it returns
+    ! a potentially recoverable error. ONLY USED IN EVOATMOSPHERE (NOT ATMOSPHERE)
+    integer :: max_error_reinit_attempts = 2 
     real(c_double) :: rtol = 1.d-3 ! integration relative tolerance
     real(c_double) :: atol = 1.d-27 ! integration absolute tolerance
     integer :: mxsteps = 10000 ! max number of steps before integrator will give up.
@@ -391,6 +411,29 @@ module photochem_types ! make a giant IO object
     real(dp) :: epsj = 1.d-9 ! perturbation for jacobian calculation
     integer :: verbose = 1 ! 0 == no printing. 1 == some printing. 2 == bunch of printing.
   end type
+
+  type :: SundialsData
+    ! cvode memory
+    type(c_ptr) :: cvode_mem = c_null_ptr
+    ! solution vector
+    real(c_double), allocatable :: yvec(:)
+    type(N_Vector), pointer :: sunvec_y => NULL()
+    ! absolute tolerance
+    real(c_double), allocatable :: abstol(:)
+    type(N_Vector), pointer :: abstol_nvec => NULL()
+    ! matrix and linear solver
+    type(SUNMatrix), pointer :: sunmat => NULL()
+    type(SUNLinearSolver), pointer :: sunlin => NULL()
+  contains
+    procedure :: finalize => SundialsData_finalize
+    final :: SundialsData_final
+  end type
+
+  type :: SundialsDataFinalizer
+    type(SundialsData), pointer :: sun => NULL()
+  contains
+    final :: SundialsDataFinalizer_final
+  end type
   
   type :: PhotochemWrk
     ! PhotochemWrk are work variables that change
@@ -398,12 +441,7 @@ module photochem_types ! make a giant IO object
     
     ! used in cvode
     integer(c_long) :: nsteps_previous = -10
-    type(c_ptr) :: cvode_mem = c_null_ptr
-    real(c_double) :: tcur(1)
-    type(N_Vector), pointer :: sunvec_y ! sundials vector
-    type(SUNMatrix), pointer :: sunmat
-    type(SUNLinearSolver), pointer :: sunlin
-    real(c_double), allocatable :: yvec(:)
+    type(SundialsData) :: sun
     
     ! Used in prep_all_background_gas
     ! work arrays
@@ -413,7 +451,7 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: rx_rates(:,:) ! (nz,nrT)
     real(dp), allocatable :: mubar(:) ! (nz)
     real(dp), allocatable :: pressure(:) ! (nz)
-    real(dp), allocatable :: fH2O(:) ! (nz)
+    real(dp), allocatable :: H2O_rh(:) ! (nz)
     real(dp), allocatable :: H2O_sat_mix(:) ! (nz)
     real(dp), allocatable :: prates(:,:) ! (nz,kj)
     real(dp), allocatable :: surf_radiance(:) ! (nw)
@@ -445,19 +483,47 @@ module photochem_types ! make a giant IO object
   contains
     procedure :: init => init_PhotochemWrk
   end type
+
+  type, extends(PhotochemWrk) :: PhotochemWrkEvo
+    real(dp), allocatable :: mix(:,:) ! (nq,nz) mixing ratio.
+    real(dp), allocatable :: pressure_hydro(:) ! (nz)
+    real(dp), allocatable :: density_hydro(:) ! (nz)
+
+  contains
+    procedure :: init => init_PhotochemWrkEvo
+
+  end type
   
 contains
+
+  subroutine init_PhotochemWrkEvo(self, nsp, np, nq, nz, nrT, kj, nw)
+    class(PhotochemWrkEvo), intent(inout) :: self
+    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw
+
+    call init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw)
+
+    if (allocated(self%mix)) then
+      deallocate(self%mix)
+      deallocate(self%pressure_hydro)
+      deallocate(self%density_hydro)
+    endif
+
+    allocate(self%mix(nq,nz))
+    allocate(self%pressure_hydro(nz))
+    allocate(self%density_hydro(nz))
+
+  end subroutine
  
-  subroutine init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw, trop_ind)
+  subroutine init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw)
     class(PhotochemWrk), intent(inout) :: self
-    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw, trop_ind
+    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw
     
     if (allocated(self%usol)) then
       deallocate(self%usol)
       deallocate(self%mubar)
       deallocate(self%pressure)
       deallocate(self%density)
-      deallocate(self%fH2O)
+      deallocate(self%H2O_rh)
       deallocate(self%H2O_sat_mix)
       deallocate(self%densities)
       deallocate(self%rx_rates)
@@ -486,7 +552,7 @@ contains
     allocate(self%mubar(nz))
     allocate(self%pressure(nz))
     allocate(self%density(nz))
-    allocate(self%fH2O(trop_ind))
+    allocate(self%H2O_rh(nz))
     allocate(self%H2O_sat_mix(nz))
     allocate(self%densities(nsp+1,nz))
     allocate(self%rx_rates(nz,nrT))
@@ -508,7 +574,68 @@ contains
     allocate(self%wfall(np,nz))
     allocate(self%gas_sat_den(np,nz))
     allocate(self%molecules_per_particle(np,nz))
-    allocate(self%rainout_rates(nq,trop_ind))
+    allocate(self%rainout_rates(nq,nz))
+  end subroutine
+
+  subroutine SundialsData_finalize(self, err)
+    use iso_c_binding, only: c_associated, c_null_ptr, c_int
+    use fcvode_mod, only: FCVodeFree
+    use fsundials_nvector_mod, only: FN_VDestroy
+    use fsundials_matrix_mod, only: FSUNMatDestroy
+    use fsundials_linearsolver_mod, only: FSUNLinSolFree
+    class(SundialsData), intent(inout) :: self
+    character(:), allocatable, intent(out) :: err
+
+    integer(c_int) :: ierr
+
+    if (allocated(self%yvec)) then
+      deallocate(self%yvec)
+    endif
+    if (associated(self%sunvec_y)) then
+      call FN_VDestroy(self%sunvec_y)
+      nullify(self%sunvec_y)
+    endif
+
+    if (allocated(self%abstol)) then
+      deallocate(self%abstol)
+    endif
+    if (associated(self%abstol_nvec)) then
+      call FN_VDestroy(self%abstol_nvec)
+      nullify(self%abstol_nvec)
+    endif
+
+    if (c_associated(self%cvode_mem)) then
+      call FCVodeFree(self%cvode_mem)
+      self%cvode_mem = c_null_ptr
+    endif
+
+    if (associated(self%sunlin)) then
+      ierr = FSUNLinSolFree(self%sunlin)
+      if (ierr /= 0) then
+        err = "Sundials failed to deallocated linear solver"
+      end if
+      nullify(self%sunlin)
+    endif
+
+    if (associated(self%sunmat)) then
+      call FSUNMatDestroy(self%sunmat)
+      nullify(self%sunmat)
+    endif
+
+  end subroutine
+
+  subroutine SundialsData_final(self)
+    type(SundialsData), intent(inout) :: self
+    character(:), allocatable :: err
+    call SundialsData_finalize(self, err)
+  end subroutine
+
+  subroutine SundialsDataFinalizer_final(self)
+    type(SundialsDataFinalizer), intent(inout) :: self
+    character(:), allocatable :: err
+    if (associated(self%sun)) then
+      call self%sun%finalize(err)
+    endif
   end subroutine
   
 end module

@@ -40,10 +40,10 @@ contains
     
     ! fill RHS vector
     call self%right_hand_side(self%var%neqs, yvec, fvec, err)
-    loc_ierr = FCVodeGetNumSteps(self%wrk%cvode_mem, nsteps)
+    loc_ierr = FCVodeGetNumSteps(self%wrk%sun%cvode_mem, nsteps)
     
     if (nsteps(1) /= self%wrk%nsteps_previous .and. self%var%verbose > 0) then
-      loc_ierr = FCVodeGetCurrentStep(self%wrk%cvode_mem, hcur)
+      loc_ierr = FCVodeGetCurrentStep(self%wrk%sun%cvode_mem, hcur)
       
       if (self%var%verbose == 1) then
         print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,'max(dy/dt) = ',es11.5)", &
@@ -150,18 +150,18 @@ contains
     ! local variables
     real(c_double) :: tcur(1)    ! current time
     integer(c_int) :: ierr       ! error flag from C functions
-    type(N_Vector), pointer :: sunvec_y ! sundials vector
+    ! type(N_Vector), pointer :: sunvec_y ! sundials vector
     
     ! solution vector, neq is set in the ode_mod module
-    real(c_double) :: yvec(self%var%neqs)
+    ! real(c_double) :: yvec(self%var%neqs)
     integer(c_int64_t) :: neqs_long
     integer(c_int64_t) :: mu, ml
     integer(c_long) :: mxsteps_
-    type(SUNMatrix), pointer :: sunmat
-    type(SUNLinearSolver), pointer :: sunlin
+    ! type(SUNMatrix), pointer :: sunmat
+    ! type(SUNLinearSolver), pointer :: sunlin
     
-    ! real(dp) :: fH2O(self%var%trop_ind)
     integer :: i, j, k, ii, io
+    logical :: overwrite_
     
     type(c_ptr)    :: user_data
     type(PhotochemData), pointer :: dat
@@ -169,25 +169,27 @@ contains
     type(PhotochemWrk), pointer :: wrk
     type(Atmosphere), pointer :: self_ptr
   
-    
     dat => self%dat
     var => self%var
     wrk => self%wrk
-    
-    if (c_associated(self%wrk%cvode_mem)) then
-      err = "You have a time stepper initalize. To do other integrations"// &
-            " you need to delete it with 'destroy_stepper' subroutine."
-      return 
+
+    if (present(overwrite)) then
+      overwrite_ = overwrite
+    else 
+      overwrite_ = .false.
     endif
+    
+    call wrk%sun%finalize(err)
+    if (allocated(err)) return
     
     ! check dimensions
     if (size(usol_start,1) /= dat%nq .or. size(usol_start,2) /= var%nz) then
-      err = "Problem!"
+      err = "'usol_start' has the wrong dimensions."
       return
     endif
     
     ! file prep
-    if (overwrite) then
+    if (overwrite_) then
       open(1, file = filename, status='replace', form="unformatted")
     else
       open(1, file = filename, status='new', form="unformatted",iostat=io)
@@ -214,108 +216,93 @@ contains
     user_data = c_loc(self_ptr)
     
     ! initialize solution vector
+    allocate(wrk%sun%yvec(var%neqs))
     do j=1,var%nz
       do i=1,dat%nq
         k = i + (j-1)*dat%nq
-        yvec(k) = usol_start(i,j)
+        wrk%sun%yvec(k) = usol_start(i,j)
       enddo
     enddo
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == MixingRatioBC) then
-        yvec(i) = var%lower_fix_mr(i)
+        wrk%sun%yvec(i) = var%lower_fix_mr(i)
       endif
     enddo
-    if (dat%fix_water_in_trop) then
-      call self%prep_atmosphere(usol_start, err)
-      if (allocated(err)) return 
-      do j = 1,var%trop_ind
-        k = dat%LH2O + (j-1)*dat%nq
-        yvec(k) = self%wrk%fH2O(j)
-      enddo
-      ! if there is no water profile, then we should extrapolate H2O
-      ! above the tropopause
-      if (var%no_water_profile) then
-        do j = var%trop_ind+1,var%nz
-          k = dat%LH2O + (j-1)*dat%nq
-          yvec(k) = self%wrk%fH2O(var%trop_ind)
-        enddo
-      endif
-    endif
 
     ! create SUNDIALS N_Vector
-    sunvec_y => FN_VMake_Serial(neqs_long, yvec)
-    if (.not. associated(sunvec_y)) then
+    wrk%sun%sunvec_y => FN_VMake_Serial(neqs_long, wrk%sun%yvec)
+    if (.not. associated(wrk%sun%sunvec_y)) then
       err = "CVODE setup error."
       return
     end if
     
     ! create CVode memory
-    wrk%cvode_mem = FCVodeCreate(CV_BDF)
-    if (.not. c_associated(wrk%cvode_mem)) then
+    wrk%sun%cvode_mem = FCVodeCreate(CV_BDF)
+    if (.not. c_associated(wrk%sun%cvode_mem)) then
       err = "CVODE setup error."
       return
     end if
     
     ! set user data
-    ierr = FCVodeSetUserData(wrk%cvode_mem, user_data)
+    ierr = FCVodeSetUserData(wrk%sun%cvode_mem, user_data)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeInit(wrk%cvode_mem, c_funloc(RhsFn), tstart, sunvec_y)
+    ierr = FCVodeInit(wrk%sun%cvode_mem, c_funloc(RhsFn), tstart, wrk%sun%sunvec_y)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeSStolerances(wrk%cvode_mem, var%rtol, var%atol)
+    ierr = FCVodeSStolerances(wrk%sun%cvode_mem, var%rtol, var%atol)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    sunmat => FSUNBandMatrix(neqs_long, mu, ml)
-    sunlin => FSUNLinSol_Band(sunvec_y,sunmat)
+    wrk%sun%sunmat => FSUNBandMatrix(neqs_long, mu, ml)
+    wrk%sun%sunlin => FSUNLinSol_Band(wrk%sun%sunvec_y, wrk%sun%sunmat)
     
-    ierr = FCVodeSetLinearSolver(wrk%cvode_mem, sunlin, sunmat)
+    ierr = FCVodeSetLinearSolver(wrk%sun%cvode_mem, wrk%sun%sunlin, wrk%sun%sunmat)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeSetJacFn(wrk%cvode_mem, c_funloc(JacFn))
+    ierr = FCVodeSetJacFn(wrk%sun%cvode_mem, c_funloc(JacFn))
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeSetMaxNumSteps(wrk%cvode_mem, mxsteps_)
+    ierr = FCVodeSetMaxNumSteps(wrk%sun%cvode_mem, mxsteps_)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeSetInitStep(wrk%cvode_mem, var%initial_dt)
+    ierr = FCVodeSetInitStep(wrk%sun%cvode_mem, var%initial_dt)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeSetMaxErrTestFails(wrk%cvode_mem, var%max_err_test_failures)
+    ierr = FCVodeSetMaxErrTestFails(wrk%sun%cvode_mem, var%max_err_test_failures)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeSetMaxOrd(wrk%cvode_mem, var%max_order)
+    ierr = FCVodeSetMaxOrd(wrk%sun%cvode_mem, var%max_order)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
     do ii = 1, size(t_eval)
-      ierr = FCVode(wrk%cvode_mem, t_eval(ii), sunvec_y, tcur, CV_NORMAL)
+      ierr = FCVode(wrk%sun%cvode_mem, t_eval(ii), wrk%sun%sunvec_y, tcur, CV_NORMAL)
       if (ierr /= 0) then
         success = .false.
         exit
@@ -324,7 +311,7 @@ contains
         do j=1,var%nz
           do i=1,dat%nq  
             k = i + (j-1)*dat%nq
-            wrk%usol(i,j) = yvec(k)
+            wrk%usol(i,j) = wrk%sun%yvec(k)
           enddo
         enddo
         
@@ -340,14 +327,8 @@ contains
     enddo
     
     ! free memory
-    call FN_VDestroy(sunvec_y)
-    call FCVodeFree(wrk%cvode_mem)
-    ierr = FSUNLinSolFree(sunlin)
-    if (ierr /= 0) then
-      err = "CVODE deallocation error"
-      return
-    end if
-    call FSUNMatDestroy(sunmat)
+    call wrk%sun%finalize(err)
+    if (allocated(err)) return
 
   end function
   
@@ -362,7 +343,6 @@ contains
     
     real(dp) :: tn
     integer :: nsteps
-    
     
     dat => self%dat
     var => self%var
@@ -435,7 +415,6 @@ contains
     var => self%var
     wrk => self%wrk
     
-    
     if (size(usol_start,1) /= dat%nq .or. size(usol_start,2) /= var%nz) then
       err = "Input 'usol_start' to 'initialize_stepper' is the wrong dimension"
       return
@@ -444,7 +423,6 @@ contains
     mxsteps_ = var%mxsteps
     neqs_long = var%neqs
     tstart = 0
-    wrk%tcur = tstart
     mu = dat%nq
     ml = dat%nq
     self_ptr => self
@@ -454,100 +432,86 @@ contains
     if (allocated(err)) return
     
     ! initialize solution vector
-    allocate(wrk%yvec(var%neqs))
+    allocate(wrk%sun%yvec(var%neqs))
     do j=1,var%nz
       do i=1,dat%nq
         k = i + (j-1)*dat%nq
-        wrk%yvec(k) = usol_start(i,j)
+        wrk%sun%yvec(k) = usol_start(i,j)
       enddo
     enddo
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == MixingRatioBC) then
-        wrk%yvec(i) = var%lower_fix_mr(i)
+        wrk%sun%yvec(i) = var%lower_fix_mr(i)
       endif
     enddo
-    if (dat%fix_water_in_trop) then
-      call self%prep_atmosphere(usol_start, err)
-      if (allocated(err)) return 
-      do j = 1,var%trop_ind
-        k = dat%LH2O + (j-1)*dat%nq
-        wrk%yvec(k) = self%wrk%fH2O(j)
-      enddo
-      if (var%no_water_profile) then
-        do j = var%trop_ind+1,var%nz
-          k = dat%LH2O + (j-1)*dat%nq
-          wrk%yvec(k) = self%wrk%fH2O(var%trop_ind)
-        enddo
-      endif
-    endif
     
     ! create SUNDIALS N_Vector
-    wrk%sunvec_y => FN_VMake_Serial(neqs_long, wrk%yvec)
-    if (.not. associated(wrk%sunvec_y)) then
+    wrk%sun%sunvec_y => FN_VMake_Serial(neqs_long, wrk%sun%yvec)
+    if (.not. associated(wrk%sun%sunvec_y)) then
       err = "CVODE setup error."
       return
     end if
     
     ! create CVode memory
-    wrk%cvode_mem = FCVodeCreate(CV_BDF)
-    if (.not. c_associated(wrk%cvode_mem)) then
+    wrk%sun%cvode_mem = FCVodeCreate(CV_BDF)
+    if (.not. c_associated(wrk%sun%cvode_mem)) then
       err = "CVODE setup error."
       return
     end if
     
     ! set user data
-    ierr = FCVodeSetUserData(wrk%cvode_mem, user_data)
+    ierr = FCVodeSetUserData(wrk%sun%cvode_mem, user_data)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeInit(wrk%cvode_mem, c_funloc(RhsFn), tstart, wrk%sunvec_y)
+    ierr = FCVodeInit(wrk%sun%cvode_mem, c_funloc(RhsFn), tstart, wrk%sun%sunvec_y)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeSStolerances(wrk%cvode_mem, var%rtol, var%atol)
+    ierr = FCVodeSStolerances(wrk%sun%cvode_mem, var%rtol, var%atol)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    wrk%sunmat => FSUNBandMatrix(neqs_long, mu, ml)
-    wrk%sunlin => FSUNLinSol_Band(wrk%sunvec_y,wrk%sunmat)
+    wrk%sun%sunmat => FSUNBandMatrix(neqs_long, mu, ml)
+    wrk%sun%sunlin => FSUNLinSol_Band(wrk%sun%sunvec_y, wrk%sun%sunmat)
     
-    ierr = FCVodeSetLinearSolver(wrk%cvode_mem, wrk%sunlin, wrk%sunmat)
+    ierr = FCVodeSetLinearSolver(wrk%sun%cvode_mem, wrk%sun%sunlin, wrk%sun%sunmat)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeSetJacFn(wrk%cvode_mem, c_funloc(JacFn))
+    ierr = FCVodeSetJacFn(wrk%sun%cvode_mem, c_funloc(JacFn))
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeSetMaxNumSteps(wrk%cvode_mem, mxsteps_)
+    ierr = FCVodeSetMaxNumSteps(wrk%sun%cvode_mem, mxsteps_)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeSetInitStep(wrk%cvode_mem, var%initial_dt)
+    ierr = FCVodeSetInitStep(wrk%sun%cvode_mem, var%initial_dt)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeSetMaxErrTestFails(wrk%cvode_mem, var%max_err_test_failures)
+    ierr = FCVodeSetMaxErrTestFails(wrk%sun%cvode_mem, var%max_err_test_failures)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
     end if
     
-    ierr = FCVodeSetMaxOrd(wrk%cvode_mem, var%max_order)
+    ierr = FCVodeSetMaxOrd(wrk%sun%cvode_mem, var%max_order)
     if (ierr /= 0) then
       err = "CVODE setup error."
       return
@@ -564,18 +528,19 @@ contains
     
     integer(c_int) :: ierr
     real(c_double), parameter :: dum = 0.0_dp
+    real(c_double) :: tcur(1)
     
-    if (.not.c_associated(self%wrk%cvode_mem)) then
+    if (.not.c_associated(self%wrk%sun%cvode_mem)) then
       err = "You must first initialize the stepper with 'initialize_stepper'"
       return 
     endif
     
-    ierr = FCVode(self%wrk%cvode_mem, dum, self%wrk%sunvec_y, self%wrk%tcur, CV_ONE_STEP)
+    ierr = FCVode(self%wrk%sun%cvode_mem, dum, self%wrk%sun%sunvec_y, tcur, CV_ONE_STEP)
     if (ierr /= 0) then
       err = "CVODE step failed"
       return
     endif
-    tn = self%wrk%tcur(1)
+    tn = tcur(1)
   end function
   
   module subroutine destroy_stepper(self, err)
@@ -588,21 +553,8 @@ contains
     class(Atmosphere), target, intent(inout) :: self
     character(:), allocatable, intent(out) :: err
     
-    integer(c_int) :: ierr
-    
-    
-    if (c_associated(self%wrk%cvode_mem)) then
-      call FN_VDestroy(self%wrk%sunvec_y)
-      call FCVodeFree(self%wrk%cvode_mem)
-      self%wrk%cvode_mem = c_null_ptr
-      ierr = FSUNLinSolFree(self%wrk%sunlin)
-      if (ierr /= 0) then
-        err = "CVODE deallocation error"
-        return
-      end if
-      call FSUNMatDestroy(self%wrk%sunmat)
-      deallocate(self%wrk%yvec)
-    endif
+    call self%wrk%sun%finalize(err)
+    if (allocated(err)) return
     
   end subroutine
   

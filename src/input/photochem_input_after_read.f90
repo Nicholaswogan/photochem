@@ -22,6 +22,9 @@ contains
                  var%nz, var%z, var%grav)
     call interp2atmosfile(dat, var, err)
     if (allocated(err)) return
+
+    call interp2particlexsdata(dat, var, err)
+    if (allocated(err)) return
     
     ! all below depends on Temperature
     call interp2xsdata(dat, var, err)
@@ -34,42 +37,96 @@ contains
     
     if (dat%fix_water_in_trop .or. dat%gas_rainout) then
       ! we have a tropopause
-      var%trop_ind = minloc(var%z,1, &
-                          var%z .ge. var%trop_alt) - 1
+      var%trop_ind = max(minloc(abs(var%z - var%trop_alt), 1) - 1, 1)
+
+      if (var%trop_ind < 3) then
+        err = 'Tropopause is too low.'
+        return
+      elseif (var%trop_ind > var%nz-2) then
+        err = 'Tropopause is too high.'
+        return
+      endif
     else
-      var%trop_ind = 0
+      var%trop_ind = 1
     endif
     
   end subroutine
   
   subroutine interp2atmosfile(dat, var, err)
-    use futils, only: interp
+    use futils, only: interp, conserving_rebin
+    use photochem_const, only: small_real
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
-    integer :: i
+    integer :: i, ierr
     
+    call interp(var%nz, dat%nzf, var%z, dat%z_file, dat%T_file, var%Temperature, ierr)
+    if (ierr /= 0) then
+      err = 'Subroutine interp returned an error.'
+      return
+    endif
     
-    call interp(var%nz, dat%nzf, var%z, dat%z_file, dat%T_file, var%Temperature, err)
-    if (allocated(err)) return
-    
-    call interp(var%nz, dat%nzf, var%z, dat%z_file, dlog10(dabs(dat%edd_file)), var%edd, err)
-    if (allocated(err)) return
+    call interp(var%nz, dat%nzf, var%z, dat%z_file, log10(dabs(dat%edd_file)), var%edd, ierr)
+    if (ierr /= 0) then
+      err = 'Subroutine interp returned an error.'
+      return
+    endif
     var%edd = 10.0_dp**var%edd
-    
-    do i = 1,dat%nq
-      call interp(var%nz, dat%nzf, var%z, dat%z_file,&
-                  dlog10(dabs(dat%usol_file(i,:))), var%usol_init(i,:), err)
-      if (allocated(err)) return
-    enddo
-    var%usol_init = 10.0_dp**var%usol_init
+
+    if (dat%back_gas) then
+      do i = 1,dat%nq
+        call interp(var%nz, dat%nzf, var%z, dat%z_file,&
+                    log10(abs(dat%mix_file(i,:))), var%usol_init(i,:), ierr)
+        if (ierr /= 0) then
+          err = 'Subroutine interp returned an error.'
+          return
+        endif
+      enddo
+      var%usol_init = 10.0_dp**var%usol_init
+
+    else; block
+      real(dp) :: dz_file
+      real(dp), allocatable :: densities_file(:,:) ! molecules/cm3
+      real(dp), allocatable :: ze_file(:), ze(:)
+
+      dz_file = dat%z_file(2)-dat%z_file(1)
+
+      allocate(densities_file(dat%nq,dat%nzf))
+      allocate(ze_file(dat%nzf+1))
+      allocate(ze(var%nz+1))
+
+      do i = 1,dat%nq
+        densities_file(i,:) = dat%mix_file(i,:)*dat%den_file
+      enddo
+
+      ze_file(1) = dat%z_file(1) - 0.5_dp*dz_file
+      do i = 1,dat%nzf
+        ze_file(i+1) = dat%z_file(i) + 0.5_dp*dz_file
+      enddo
+      ze = var%z(1) - 0.5_dp*var%dz(1)
+      do i = 1,var%nz
+        ze(i+1) = var%z(i) + 0.5_dp*var%dz(i)
+      enddo
+
+      do i = 1,dat%nq
+        call conserving_rebin(ze_file, densities_file(i,:), ze, var%usol_init(i,:), ierr)
+        if (ierr /= 0) then
+          err = 'subroutine conserving_rebin returned an error'
+          return
+        endif
+      enddo
+
+    endblock; endif
     
     if (dat%there_are_particles) then
       do i = 1,dat%npq
         call interp(var%nz, dat%nzf, var%z, dat%z_file, &
-                    log10(abs(dat%particle_radius_file(i,:))), var%particle_radius(i,:), err)
-        if (allocated(err)) return
+                    log10(abs(dat%particle_radius_file(i,:))), var%particle_radius(i,:), ierr)
+        if (ierr /= 0) then
+          err = 'Subroutine interp returned an error.'
+          return
+        endif
       enddo
       var%particle_radius = 10.0_dp**var%particle_radius
     endif
@@ -83,7 +140,7 @@ contains
     endif
 
   end subroutine
-  
+
   module subroutine compute_gibbs_energy(dat, var, err)
     use photochem_eqns, only: gibbs_energy_eval
     
@@ -117,10 +174,8 @@ contains
 
     character(:), allocatable, intent(out) :: err
     
-    integer :: i, j, k, jj
+    integer :: i, j, k
     real(dp) :: val(1), T_temp(1)
-    real(dp) :: dr, slope, intercept
-    
 
     do k = 1, dat%nw
       do i = 1,dat%kj
@@ -129,17 +184,30 @@ contains
             T_temp(1) = var%temperature(j)
       
             call interp(1, dat%xs_data(i)%n_temps, T_temp, dat%xs_data(i)%xs_temps, &
-                        log10(abs(dat%xs_data(i)%xs(:,k))+smaller_real), val, err)
+                        log10(abs(dat%xs_data(i)%xs(:,k))+smaller_real), val)
                         
             var%xs_x_qy(j,i,k) = 10.0_dp**val(1)
           enddo
         else
           do j = 1,var%nz
-            var%xs_x_qy(j,i,k) = 10.0_dp**log10(abs(dat%xs_data(i)%xs(1,k))+smaller_real)   
+            var%xs_x_qy(j,i,k) = abs(dat%xs_data(i)%xs(1,k))+smaller_real
           enddo
         endif
       enddo
     enddo
+
+  end subroutine
+
+  module subroutine interp2particlexsdata(dat, var, err)
+    use futils, only: interp
+    use photochem_const, only: smaller_real
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+
+    character(:), allocatable, intent(out) :: err
+    
+    integer :: i, j, k, jj
+    real(dp) :: dr, slope, intercept
     
     ! particles
     if (dat%there_are_particles) then
@@ -199,8 +267,6 @@ contains
       enddo
     endif
     
-    
-
   end subroutine
   
   subroutine allocate_nz_vars(dat, vars)
@@ -239,5 +305,5 @@ contains
     endif
 
   end subroutine
-  
+
 end submodule

@@ -7,6 +7,7 @@ set(PHOTOCHEM_MODULES
   photochem_eqns.f90 
   photochem_enum.f90
   photochem_types.f90
+  photochem_types_create.f90
   photochem_common.f90)
 
 set(PHOTOCHEM_INPUT
@@ -21,19 +22,39 @@ set(PHOTOCHEM_ATMOSPHERE
     atmosphere/photochem_atmosphere_integrate.f90
     atmosphere/photochem_atmosphere_utils.f90)
 
+set(PHOTOCHEM_EVOATMOSPHERE
+    evoatmosphere/photochem_evoatmosphere.f90
+    evoatmosphere/photochem_evoatmosphere_init.f90
+    evoatmosphere/photochem_evoatmosphere_rhs.f90
+    evoatmosphere/photochem_evoatmosphere_rhs_climate.f90
+    evoatmosphere/photochem_evoatmosphere_integrate.f90
+    evoatmosphere/photochem_evoatmosphere_utils.f90)
+
 set(PHOTOCHEM_SOURCES 
   ${PHOTOCHEM_MODULES}
   ${PHOTOCHEM_INPUT}
   ${PHOTOCHEM_ATMOSPHERE}
+  ${PHOTOCHEM_EVOATMOSPHERE}
   photochem.f90)
 
 # libphotochem.a
 add_library(photochem 
             ${CMAKE_BINARY_DIR}/photochem_version.f90
             ${PHOTOCHEM_SOURCES})
-target_link_libraries(photochem fortran-yaml-c sundials_fcvode_mod sundials_cvode cminpack_wrapper futils finterp)
+target_link_libraries(photochem 
+  fortran-yaml-c 
+  sundials_fcvode_mod 
+  sundials_cvode 
+  futils
+  clima
+  finterp 
+  minpack
+)
 target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules")
+
+# This is important for making Python wrapper
+set_property(TARGET photochem PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Add special compiler flags
 if ("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")

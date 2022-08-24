@@ -13,15 +13,15 @@ photolysis-grid:
   # input-file: my/input/file.txt
 
 planet:
-  use-background-gas: true
   background-gas: N2
   surface-pressure: 1.013 # bar
   planet-mass: 5.972e27 # grams
   planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
   surface-albedo: 0.25 # cm
   diurnal-averaging-factor: 0.5
-  solar-zenith-angle: 50.0
-  diff-lim-hydrogen-escape: true
+  solar-zenith-angle: 60.0
+  hydrogen-escape:
+    type: diffusion limited
   water:
     fix-water-in-troposphere: false
     # relative-humidity: manabe

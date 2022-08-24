@@ -1,8 +1,16 @@
 cmake_minimum_required(VERSION "3.14")
-project(Photochem LANGUAGES Fortran C VERSION "0.2.10")
+project(Photochem LANGUAGES Fortran C VERSION "0.3.4")
 
 include(FortranCInterface)
 FortranCInterface_VERIFY()
+
+if ("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU" AND 
+    "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "arm64" AND
+    "${CMAKE_SYSTEM_NAME}" MATCHES "Darwin")
+  if (${CMAKE_Fortran_COMPILER_VERSION} LESS "11.3.0")
+    message (FATAL_ERROR "Photochem will only work with gfortran >= 11.3.0 for MacOS M1")
+  endif()
+endif()
 
 # includes
 include(cmake/CPM.cmake)
@@ -35,6 +43,10 @@ if (BUILD_EXECUTABLES)
   add_executable(testrun ${CMAKE_SOURCE_DIR}/tests/testrun.f90)
   target_link_libraries(testrun photochem)
   target_include_directories(testrun PRIVATE ${CMAKE_BINARY_DIR}/modules)
+
+  add_executable(testevo ${CMAKE_SOURCE_DIR}/tests/testevo.f90)
+  target_link_libraries(testevo photochem)
+  target_include_directories(testevo PRIVATE ${CMAKE_BINARY_DIR}/modules)
   
   add_executable(memtest ${CMAKE_SOURCE_DIR}/tests/memtest.f90)
   target_link_libraries(memtest photochem)
@@ -43,6 +55,8 @@ if (BUILD_EXECUTABLES)
 endif()
 
 if (BUILD_PYTHON_PHOTOCHEM)
+  # set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
   if (NOT SKBUILD)
     set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/")
   endif()

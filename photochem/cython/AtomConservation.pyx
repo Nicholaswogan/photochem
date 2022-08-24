@@ -28,6 +28,12 @@ cdef class AtomConservation:
       cdef double val
       atom_pxd.atomconservation_in_dist_get(&self._ptr, &val)
       return val
+
+  property in_other:
+    def __get__(self):
+      cdef double val
+      atom_pxd.atomconservation_in_other_get(&self._ptr, &val)
+      return val
       
   property out_surf:
     def __get__(self):

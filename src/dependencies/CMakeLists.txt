@@ -1,29 +1,21 @@
 
 CPMAddPackage(
   NAME futils
-  VERSION 0.1.0
+  VERSION 0.1.7
   GITHUB_REPOSITORY "Nicholaswogan/futils"
-  GIT_TAG "v0.1.0"
+  GIT_TAG "v0.1.7"
   EXCLUDE_FROM_ALL ON
 )
 
-CPMAddPackage(
-  NAME finterp
-  VERSION 1.3.0
-  GITHUB_REPOSITORY "jacobwilliams/finterp"
-  GIT_TAG "1.3.0"
-  DOWNLOAD_ONLY ON
-)
+# CPMAddPackage(
+#   NAME finterp
+#   VERSION 1.3.0
+#   GITHUB_REPOSITORY "jacobwilliams/finterp"
+#   GIT_TAG "1.3.0"
+#   DOWNLOAD_ONLY ON
+# )
 
-add_library(finterp ${finterp_SOURCE_DIR}/src/linear_interpolation_module.F90)
-
-CPMAddPackage(
-  NAME cminpack-f
-  VERSION 0.1.2
-  GITHUB_REPOSITORY "Nicholaswogan/cminpack-f"
-  GIT_TAG "v0.1.2"
-  EXCLUDE_FROM_ALL ON
-)
+# add_library(finterp ${finterp_SOURCE_DIR}/src/linear_interpolation_module.F90)
 
 CPMAddPackage(
   NAME fortran-yaml-c
@@ -40,5 +32,26 @@ CPMAddPackage(
     "BUILD_SHARED_LIBS OFF" 
     "BUILD_FORTRAN_MODULE_INTERFACE ON"
   URL "https://github.com/LLNL/sundials/releases/download/v5.7.0/cvode-5.7.0.tar.gz"
+  EXCLUDE_FROM_ALL ON
+)
+
+# CPMAddPackage(
+#   NAME minpack
+#   VERSION 2.0.0
+#   GITHUB_REPOSITORY "fortran-lang/minpack"
+#   GIT_TAG "v2.0.0-rc.1"
+#   DOWNLOAD_ONLY ON
+# )
+
+# add_library(minpack
+#   ${minpack_SOURCE_DIR}/src/minpack.f90
+# )
+
+CPMAddPackage(
+  NAME clima 
+  VERSION 0.2.0
+  OPTIONS 
+    "BUILD_WITH_OPENMP ${BUILD_WITH_OPENMP}"
+  URL "https://github.com/Nicholaswogan/clima/archive/c6f8998a23412ba6bec7fa1db133d9b9b72050db.zip"
   EXCLUDE_FROM_ALL ON
 )
