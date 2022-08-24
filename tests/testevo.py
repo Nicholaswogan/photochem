@@ -6,7 +6,7 @@ threadpool_limits(limits=4)
 
 pc = EvoAtmosphere(zahnle_earth,\
                     "testevo_settings.yaml",\
-                    "../templates/ModernEarth/Sun_Now.txt",\
+                    "../templates/ModernEarth/Sun_now.txt",\
                     "../templates/ModernEarth/atmosphere_ModernEarth.txt")
 
 t_eval = np.logspace(0,15,10)
