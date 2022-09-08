@@ -178,7 +178,10 @@ module photochem_types ! make a giant IO object
     real(dp) :: Ea
   end type
   
-  type, extends(ElementaryRate) :: ThreeBodyRate
+  type, extends(BaseRate) :: ThreeBodyRate
+    real(dp) :: A
+    real(dp) :: b
+    real(dp) :: Ea
     type(Efficiencies) :: eff
   end type
   
