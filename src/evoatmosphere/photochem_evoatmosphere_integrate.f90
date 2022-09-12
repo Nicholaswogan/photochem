@@ -79,7 +79,9 @@ contains
     endif
     
     if (allocated(err)) then
-      print*,trim(err)//". CVODE will attempt to correct the error."
+      if (self%var%verbose > 0) then
+        print*,trim(err)//". CVODE will attempt to correct the error."
+      endif
       ierr = 1
     endif
     return
@@ -118,7 +120,9 @@ contains
     Jmat(1:self%var%neqs*self%dat%lda) => FSUNBandMatrix_Data(sunmat_J)
     call self%jacobian(self%dat%lda*self%var%neqs, self%var%neqs, yvec, Jmat, err)
     if (allocated(err)) then
-      print*,trim(err)//". CVODE will attempt to correct the error."
+      if (self%var%verbose > 0) then
+        print*,trim(err)//". CVODE will attempt to correct the error."
+      endif
       ierr = 1
     endif
     return
@@ -172,6 +176,15 @@ contains
     gvec(4) = wrk%pressure_hydro(var%nz)/1.0e6_dp - self%P_top_max
 
   end function
+
+  subroutine ErrHandlerFn_evo(error_code, module_, func, msg, eh_data) bind(c, name='ErrHandlerFn_evo')
+    use iso_c_binding
+    integer(c_int), value :: error_code
+    character(kind=c_char) :: module_(*)
+    character(kind=c_char) :: func(*)
+    character(kind=c_char) :: msg(*)
+    type(c_ptr), value, intent(in) :: eh_data
+  end subroutine
   
   module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, restart_from_file, err) result(success)
                                    
@@ -180,7 +193,7 @@ contains
                           FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
                           FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
                           FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
-                          FCVodeSetUserData, FCVodeRootInit, FCVodeReInit, FCVodeGetRootInfo
+                          FCVodeSetUserData, FCVodeRootInit, FCVodeReInit, FCVodeGetRootInfo, FCVodeSetErrHandlerFn
     use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
     use fnvector_serial_mod, only: FN_VMake_Serial   
     use fsunmatrix_band_mod, only: FSUNBandMatrix
@@ -407,6 +420,14 @@ contains
       err = "CVODE setup error."
       return
     end if
+
+    if (var%verbose == 0) then
+      ierr = FCVodeSetErrHandlerFn(wrk%sun%cvode_mem, c_funloc(ErrHandlerFn_evo), c_null_ptr)
+      if (ierr /= 0) then
+        err = "CVODE setup error."
+        return
+      end if
+    endif
 
     ierr = FCVodeRootInit(wrk%sun%cvode_mem, nrtfn, c_funloc(RootFn))
     if (ierr /= 0) then

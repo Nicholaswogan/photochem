@@ -5,7 +5,7 @@ from ._convert_utils import compare2reactions, generate_photo_yaml_entries, sort
     
 root_dir = os.path.dirname(os.path.realpath(__file__))
 
-def atmos2yaml(rx_file, species_file, outfile, photo_database = "Photochem"):
+def atmos2yaml(rx_file, species_file, outfile, photo_database = "Photochem", with_citations = False):
     """Converts Atmos reactions to .yaml format compatable with Photochem
 
     Parameters
@@ -24,7 +24,7 @@ def atmos2yaml(rx_file, species_file, outfile, photo_database = "Photochem"):
         
 
     """
-    data = rx2dict(rx_file)
+    data = rx2dict(rx_file, with_citations = with_citations)
     species, particles = get_species(species_file)
     out = make_rx_yaml(species, particles, data, photo_database = photo_database)
     out = FormatReactions_main(out)

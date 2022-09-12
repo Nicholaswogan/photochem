@@ -96,7 +96,7 @@ def FormatReactions_main(data):
     # Reactions
     if 'reactions' in data:
         for i in range(len(data['reactions'])):
-            order = ['equation','type','rate-constant','low-P-rate-constant','high-P-rate-constant','duplicate','efficiencies','JPL']
+            order = ['equation','type','rate-constant','low-P-rate-constant','high-P-rate-constant','duplicate','efficiencies','JPL','citation']
             copy = data['reactions'][i].copy()
             data['reactions'][i].clear()
             for key in order:

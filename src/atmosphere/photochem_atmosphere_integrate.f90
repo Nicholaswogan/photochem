@@ -73,7 +73,9 @@ contains
     endif
     
     if (allocated(err)) then
-      print*,trim(err)//". CVODE will attempt to correct the error."
+      if (self%var%verbose > 0) then
+        print*,trim(err)//". CVODE will attempt to correct the error."
+      endif
       ierr = 1
     endif
     return
@@ -112,12 +114,23 @@ contains
     Jmat(1:self%var%neqs*self%dat%lda) => FSUNBandMatrix_Data(sunmat_J)
     call self%jacobian(self%dat%lda*self%var%neqs, self%var%neqs, yvec, Jmat, err)
     if (allocated(err)) then
-      print*,trim(err)//". CVODE will attempt to correct the error."
+      if (self%var%verbose > 0) then
+        print*,trim(err)//". CVODE will attempt to correct the error."
+      endif
       ierr = 1
     endif
     return
   
   end function
+
+  subroutine ErrHandlerFn(error_code, module_, func, msg, eh_data) bind(c, name='ErrHandlerFn')
+    use iso_c_binding
+    integer(c_int), value :: error_code
+    character(kind=c_char) :: module_(*)
+    character(kind=c_char) :: func(*)
+    character(kind=c_char) :: msg(*)
+    type(c_ptr), value, intent(in) :: eh_data
+  end subroutine
   
   module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, err) result(success)
                                    
@@ -126,7 +139,7 @@ contains
                           FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
                           FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
                           FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
-                          FCVodeSetUserData
+                          FCVodeSetUserData, FCVodeSetErrHandlerFn
     use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
     use fnvector_serial_mod, only: FN_VMake_Serial   
     use fsunmatrix_band_mod, only: FSUNBandMatrix
@@ -300,6 +313,14 @@ contains
       err = "CVODE setup error."
       return
     end if
+
+    if (var%verbose == 0) then
+      ierr = FCVodeSetErrHandlerFn(wrk%sun%cvode_mem, c_funloc(ErrHandlerFn), c_null_ptr)
+      if (ierr /= 0) then
+        err = "CVODE setup error."
+        return
+      end if
+    endif
     
     do ii = 1, size(t_eval)
       ierr = FCVode(wrk%sun%cvode_mem, t_eval(ii), wrk%sun%sunvec_y, tcur, CV_NORMAL)
@@ -383,7 +404,7 @@ contains
                           FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
                           FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
                           FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
-                          FCVodeSetUserData
+                          FCVodeSetUserData, FCVodeSetErrHandlerFn
     use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
     use fnvector_serial_mod, only: FN_VMake_Serial   
     use fsunmatrix_band_mod, only: FSUNBandMatrix
@@ -516,6 +537,14 @@ contains
       err = "CVODE setup error."
       return
     end if
+
+    if (var%verbose == 0) then
+      ierr = FCVodeSetErrHandlerFn(wrk%sun%cvode_mem, c_funloc(ErrHandlerFn), c_null_ptr)
+      if (ierr /= 0) then
+        err = "CVODE setup error."
+        return
+      end if
+    endif
     
   end subroutine
   
