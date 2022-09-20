@@ -261,7 +261,7 @@ contains
       enddo
     endif
 
-    if (dat%water_cond) then
+    if (dat%water_cond .or. dat%fix_water_in_trop) then
       do i = 1,var%nz
         wrk%H2O_sat_mix(i) = sat_pressure_H2O(var%temperature(i))/wrk%pressure(i)
       enddo
