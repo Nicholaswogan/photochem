@@ -31,9 +31,7 @@ contains
     type(c_ptr), intent(in) :: ptr
     type(Atmosphere), pointer :: pc
     character(:), allocatable :: err_f
-    
     call c_f_pointer(ptr, pc)
-    call pc%destroy_stepper(err_f)
     deallocate(pc)
   end subroutine
   
