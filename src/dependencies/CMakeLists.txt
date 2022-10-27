@@ -19,9 +19,9 @@ CPMAddPackage(
 
 CPMAddPackage(
   NAME fortran-yaml-c
-  VERSION 0.1.2
+  VERSION 0.2.1
   GITHUB_REPOSITORY "Nicholaswogan/fortran-yaml-c"
-  GIT_TAG "v0.1.2"
+  GIT_TAG "v0.2.1"
   EXCLUDE_FROM_ALL ON
 )
 
@@ -49,10 +49,10 @@ CPMAddPackage(
 
 CPMAddPackage(
   NAME clima 
-  VERSION 0.2.0
+  VERSION 0.2.3
   OPTIONS 
     "BUILD_WITH_OPENMP ${BUILD_WITH_OPENMP}"
   GITHUB_REPOSITORY "Nicholaswogan/clima"
-  GIT_TAG "v0.2.0"
+  GIT_TAG "v0.2.3"
   EXCLUDE_FROM_ALL ON
 )

@@ -1,35 +1,30 @@
 submodule (photochem_types) photochem_types_create
-  use yaml_types, only : type_node, type_dictionary, type_list, type_error, &
-                          type_list_item, type_scalar, type_key_value_pair
+  use fortran_yaml_c_types, only : type_node, type_dictionary, type_list, type_error, &
+                                   type_list_item, type_scalar, type_key_value_pair
   implicit none
 
 contains
 
   module function create_PhotoSettings(filename, err) result(s)
-    use fortran_yaml_c, only : parse, error_length
+    use fortran_yaml_c, only : YamlFile
     use photochem_types, only: PhotoSettings
     character(*), intent(in) :: filename
     character(:), allocatable, intent(out) :: err
     
     type(PhotoSettings) :: s
     
-    character(error_length) :: error
-    class (type_node), pointer :: root
+    type(YamlFile) :: file
     
     ! parse yaml file
-    root => parse(filename,error=error)
-    if (error /= '') then
-      err = trim(error)
-      return
-    end if
-    select type (root)
+    call file%parse(filename, err)
+    if (allocated(err)) return
+    select type (root => file%root)
       class is (type_dictionary)
         s = unpack_PhotoSettings(root, filename, err)
       class default
         err = "yaml file must have dictionaries at root level"
     end select
-    call root%finalize()
-    deallocate(root)  
+    call file%finalize()
     if (allocated(err)) return
       
   end function

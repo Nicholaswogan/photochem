@@ -54,29 +54,24 @@ contains
   end subroutine
   
   subroutine get_photomech(infile, dat, var, err) 
-    use fortran_yaml_c, only : parse, error_length
+    use fortran_yaml_c, only : YamlFile
     character(len=*), intent(in) :: infile
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
     
-    character(error_length) :: error
-    class (type_node), pointer :: root
-    
+    type(YamlFile) :: file
+
     ! parse yaml file
-    root => parse(infile,error=error)
-    if (error /= '') then
-      err = trim(error)
-      return
-    end if
-    select type (root)
+    call file%parse(infile, err)
+    if (allocated(err)) return
+    select type (root => file%root)
       class is (type_dictionary)
         call get_rxmechanism(root, infile, dat, var, err)
       class default
         err = "yaml file must have dictionaries at root level"
     end select
-    call root%finalize()
-    deallocate(root)  
+    call file%finalize()
     if (allocated(err)) return
      
   end subroutine
@@ -1000,33 +995,28 @@ contains
   
   subroutine get_henry(dat, var, s, err)
     use photochem_types, only: PhotoSettings
-    use fortran_yaml_c, only : parse, error_length
+    use fortran_yaml_c, only : YamlFile
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(in) :: var
     type(PhotoSettings), intent(in) :: s
     character(:), allocatable :: err
     
-    character(error_length) :: error
-    class (type_node), pointer :: root
+    type(YamlFile) :: file
     integer :: j, ind, ind1, i
     
     character(len=s_str_len), allocatable :: henry_names(:)
     real(dp), allocatable :: henry_data(:,:)
 
     ! parse yaml file
-    root => parse(trim(var%data_dir)//"/henry/henry.yaml",error=error)
-    if (error /= '') then
-      err = trim(error)
-      return
-    end if
-    select type (root)
+    call file%parse(trim(var%data_dir)//"/henry/henry.yaml", err)
+    if (allocated(err)) return
+    select type (root => file%root)
     class is (type_list)
       call get_henry_parse(root, dat, var, henry_names, henry_data, err)
     class default
       err = "yaml file must have dictionaries at root level"
     end select
-    call root%finalize()
-    deallocate(root)
+    call file%finalize()
     if (allocated(err)) return
 
     allocate(dat%henry_data(2,dat%nsp))
@@ -2365,7 +2355,7 @@ contains
   
   
   subroutine get_rayleigh(dat, var, err)
-    use fortran_yaml_c, only : parse, error_length
+    use fortran_yaml_c, only : YamlFile
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
@@ -2373,25 +2363,20 @@ contains
     real(dp), allocatable :: A(:), B(:), Delta(:)
     character(len=str_len) :: rayleigh_file
 
-    character(error_length) :: error
-    class (type_node), pointer :: root
+    type(YamlFile) :: file
     integer :: i, j
     
     rayleigh_file = trim(var%data_dir)//"/rayleigh/rayleigh.yaml"
     
     ! parse yaml file
-    root => parse(rayleigh_file,error=error)
-    if (error /= '') then
-      err = trim(error)
-      return
-    end if
-    select type (root)
+    call file%parse(rayleigh_file, err)
+    if (allocated(err)) return
+    select type (root => file%root)
       class is (type_dictionary)
         call rayleigh_params(root,dat,trim(rayleigh_file),err, &
                              dat%raynums, A, B, Delta)
     end select
-    call root%finalize()
-    deallocate(root)
+    call file%finalize()
     if (allocated(err)) return
     
     ! compute cross sections

@@ -1,6 +1,6 @@
 
 module photochem_input
-  use yaml_types, only : type_node, type_dictionary, type_list, type_error, &
+  use fortran_yaml_c_types, only : type_node, type_dictionary, type_list, type_error, &
                          type_list_item, type_scalar, type_key_value_pair
   use photochem_types, only : PhotochemData, PhotochemVars, PhotoSettings
   use photochem_const, only: dp, str_len, s_str_len
