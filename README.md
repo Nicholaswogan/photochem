@@ -55,11 +55,11 @@ If you have questions email me: wogan@uw.edu
 Funding for the development of Photochem comes from
 - [The Virtual Planetary Laboratory](https://depts.washington.edu/naivpl/content/welcome-virtual-planetary-laboratory)
 - [Simons Collaboration on the Origins of Life](https://www.simonsfoundation.org/life-sciences/origins-of-life/simons-collaboration-on-the-origins-of-life/)
+- [AEThER](https://planets.carnegiescience.edu/)
 
 This model was build in collaboration with
 - David Catling
 - Kevin Zahnle
 - Sandra Bastelberger
-- Giada Arney
 - Shawn Domagal-Goldman
 - Josh Krissansen-Totton
