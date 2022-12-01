@@ -49,10 +49,10 @@ CPMAddPackage(
 
 CPMAddPackage(
   NAME clima 
-  VERSION 0.2.3
+  VERSION 0.2.11
   OPTIONS 
     "BUILD_WITH_OPENMP ${BUILD_WITH_OPENMP}"
   GITHUB_REPOSITORY "Nicholaswogan/clima"
-  GIT_TAG "v0.2.3"
+  GIT_TAG "v0.2.11"
   EXCLUDE_FROM_ALL ON
 )

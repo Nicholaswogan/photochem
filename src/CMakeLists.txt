@@ -1,6 +1,9 @@
 
 add_subdirectory(dependencies)
 
+# version
+configure_file(photochem_version.f90.in ${CMAKE_CURRENT_BINARY_DIR}/photochem_version.f90)
+
 set(PHOTOCHEM_MODULES
   photochem_const.f90
   photochem_radtran.f90 
@@ -39,7 +42,7 @@ set(PHOTOCHEM_SOURCES
 
 # libphotochem.a
 add_library(photochem 
-            ${CMAKE_BINARY_DIR}/photochem_version.f90
+            ${CMAKE_CURRENT_BINARY_DIR}/photochem_version.f90
             ${PHOTOCHEM_SOURCES})
 target_link_libraries(photochem 
   fortran-yaml-c 

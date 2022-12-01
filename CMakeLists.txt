@@ -25,9 +25,6 @@ Fortran executables" ON)
 option(BUILD_PYTHON_PHOTOCHEM "if ON, then will build a python
 version via Cython" OFF)
 
-# version
-configure_file(src/photochem_version.f90.in photochem_version.f90)
-
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
 
