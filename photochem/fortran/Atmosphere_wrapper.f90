@@ -447,5 +447,20 @@ contains
     endif
     
   end subroutine
-  
+
+  subroutine atmosphere_set_photon_flux_fcn_wrapper(ptr, photon_flux_fcn_c) bind(c)
+    use photochem_types, only: time_dependent_flux_fcn
+    type(c_ptr), intent(in) :: ptr
+    type(c_funptr), intent(in) :: photon_flux_fcn_c
+
+    procedure(time_dependent_flux_fcn), pointer :: photon_flux_fcn_f
+
+    type(Atmosphere), pointer :: pc
+
+    call c_f_pointer(ptr, pc)
+    call c_f_procpointer(photon_flux_fcn_c, photon_flux_fcn_f)
+    call pc%set_photon_flux_fcn(photon_flux_fcn_f)
+
+  end subroutine
+
 end module

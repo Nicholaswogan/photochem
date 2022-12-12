@@ -5,6 +5,9 @@ cdef extern from "<stdbool.h>":
 cdef extern void allocate_photochemwrk(void *ptr)
 cdef extern void deallocate_photochemwrk(void *ptr)
 
+cdef extern void photochemwrk_tn_get(void *ptr, double *val)
+cdef extern void photochemwrk_tn_set(void *ptr, double *val)
+
 cdef extern void photochemwrk_usol_get_size(void *ptr, int *dim1, int *dim2)
 cdef extern void photochemwrk_usol_get(void *ptr, int *dim1, int *dim2, double *usol)
 cdef extern void photochemwrk_usol_set(void *ptr, int *dim1, int *dim2, double *usol)

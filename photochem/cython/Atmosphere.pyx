@@ -292,3 +292,8 @@ cdef class Atmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
+  def set_photon_flux_fcn(self, long photon_flux_fcn_c):
+
+    cdef void *photon_flux_fcn = <void*> photon_flux_fcn_c # we pretend a long is a void *
+    a_pxd.atmosphere_set_photon_flux_fcn_wrapper(&self._ptr, &photon_flux_fcn) # pass the void pointer to the C func
+

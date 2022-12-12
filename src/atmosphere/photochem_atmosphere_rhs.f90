@@ -311,6 +311,11 @@ contains
     !!! reaction rates
     call reaction_rates(self%dat, self%var, wrk%density, wrk%densities, wrk%rx_rates)
 
+    ! Update the photon_flux if the function is associated.
+    ! we use time wrk%tn, which MUST be updated.
+    if (associated(var%photon_flux_fcn)) then
+      call var%photon_flux_fcn(wrk%tn, dat%nw, var%photon_flux)
+    endif
     call photorates(dat, var, wrk%densities, &
                     wrk%prates, wrk%surf_radiance, wrk%amean_grd, wrk%optical_depth, err)
     if (allocated(err)) return
@@ -328,7 +333,7 @@ contains
   
   end subroutine
   
-  module subroutine rhs_background_gas(self, neqs, usol_flat, rhs, err)
+  module subroutine rhs_background_gas(self, neqs, tn, usol_flat, rhs, err)
     use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
     use photochem_enum, only: ZahnleHydrogenEscape
     use iso_c_binding, only: c_ptr, c_f_pointer
@@ -336,6 +341,7 @@ contains
     
     class(Atmosphere), target, intent(inout) :: self
     integer, intent(in) :: neqs
+    real(dp), intent(in) :: tn
     real(dp), target, intent(in) :: usol_flat(neqs)
     real(dp), intent(out) :: rhs(neqs)
     character(:), allocatable, intent(out) :: err
@@ -360,6 +366,9 @@ contains
             'related to some mixing ratios getting too negative.'
       return 
     endif
+
+    ! time
+    wrk%tn = tn
     
     ! fills self%wrk with data
     call prep_all_background_gas(self, usol_in, err)
@@ -445,7 +454,7 @@ contains
     
   end subroutine
   
-  module subroutine jac_background_gas(self, lda_neqs, neqs, usol_flat, jac, err)
+  module subroutine jac_background_gas(self, lda_neqs, neqs, tn, usol_flat, jac, err)
     use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC, VelocityDistributedFluxBC
     use photochem_enum, only: ZahnleHydrogenEscape
     use iso_c_binding, only: c_ptr, c_f_pointer
@@ -453,6 +462,7 @@ contains
     
     class(Atmosphere), target, intent(inout) :: self
     integer, intent(in) :: lda_neqs, neqs
+    real(dp), intent(in) :: tn
     real(dp), target, intent(in) :: usol_flat(neqs)
     real(dp), intent(out), target :: jac(lda_neqs)
     character(:), allocatable, intent(out) :: err
@@ -487,6 +497,9 @@ contains
             'related to some mixing ratios getting too negative.'
       return 
     endif
+
+    ! time
+    wrk%tn = tn
   
     call prep_all_background_gas(self, usol_in, err)
     if (allocated(err)) return

@@ -15,7 +15,15 @@ cdef class PhotochemWrk:
     if self._destroy:
       wrk_pxd.deallocate_photochemwrk(&self._ptr)
       self._ptr = NULL
-      
+
+  property tn:
+    def __get__(self):
+      cdef double val
+      wrk_pxd.photochemwrk_tn_get(&self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      wrk_pxd.photochemwrk_tn_set(&self._ptr, &val)
+
   property usol:
     def __get__(self):
       cdef int dim1, dim2

@@ -40,3 +40,5 @@ cdef extern void atmosphere_evolve_wrapper(void *ptr, char *filename,
 
 cdef extern void atmosphere_set_temperature_wrapper(void *ptr, int *nz, double *temperature, 
                                                     double *trop_alt, bool *trop_alt_present, char *err)
+
+cdef extern void atmosphere_set_photon_flux_fcn_wrapper(void *ptr, void *photon_flux_fcn_c)

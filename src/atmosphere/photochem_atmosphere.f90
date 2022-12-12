@@ -42,6 +42,7 @@ module photochem_atmosphere
     procedure :: set_lower_bc
     procedure :: set_upper_bc
     procedure :: set_temperature
+    procedure :: set_photon_flux_fcn
   end type
   
   
@@ -95,9 +96,10 @@ module photochem_atmosphere
       ! See ProductionLoss object in photochem_types.
     end subroutine
     
-    module subroutine rhs_background_gas(self, neqs, usol_flat, rhs, err)
+    module subroutine rhs_background_gas(self, neqs, tn, usol_flat, rhs, err)
       class(Atmosphere), target, intent(inout) :: self
       integer, intent(in) :: neqs
+      real(dp), intent(in) :: tn
       real(dp), target, intent(in) :: usol_flat(neqs)
       real(dp), intent(out) :: rhs(neqs)
       character(:), allocatable, intent(out) :: err
@@ -105,9 +107,10 @@ module photochem_atmosphere
       ! and transport.
     end subroutine
     
-    module subroutine jac_background_gas(self, lda_neqs, neqs, usol_flat, jac, err)
+    module subroutine jac_background_gas(self, lda_neqs, neqs, tn, usol_flat, jac, err)
       class(Atmosphere), target, intent(inout) :: self
       integer, intent(in) :: lda_neqs, neqs
+      real(dp), intent(in) :: tn
       real(dp), target, intent(in) :: usol_flat(neqs)
       real(dp), intent(out), target :: jac(lda_neqs)
       character(:), allocatable, intent(out) :: err
@@ -244,6 +247,12 @@ module photochem_atmosphere
       real(dp), intent(in) :: temperature(:)
       real(dp), optional, intent(in) :: trop_alt
       character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    module subroutine set_photon_flux_fcn(self, photon_flux_fcn)
+      use photochem_types, only: time_dependent_flux_fcn
+      class(Atmosphere), target, intent(inout) :: self
+      procedure(time_dependent_flux_fcn), pointer :: photon_flux_fcn
     end subroutine
     
   end interface

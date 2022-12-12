@@ -617,5 +617,12 @@ contains
     endif
     
   end subroutine
+
+  module subroutine set_photon_flux_fcn(self, photon_flux_fcn)
+    use photochem_types, only: time_dependent_flux_fcn
+    class(Atmosphere), target, intent(inout) :: self
+    procedure(time_dependent_flux_fcn), pointer :: photon_flux_fcn
+    self%var%photon_flux_fcn => photon_flux_fcn
+  end subroutine
   
 end submodule

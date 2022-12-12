@@ -39,7 +39,7 @@ contains
     fvec(1:self%var%neqs) => FN_VGetArrayPointer(sunvec_f)
     
     ! fill RHS vector
-    call self%right_hand_side(self%var%neqs, yvec, fvec, err)
+    call self%right_hand_side(self%var%neqs, tn, yvec, fvec, err)
     loc_ierr = FCVodeGetNumSteps(self%wrk%sun%cvode_mem, nsteps)
     
     if (nsteps(1) /= self%wrk%nsteps_previous .and. self%var%verbose > 0) then
@@ -112,7 +112,7 @@ contains
     call c_f_pointer(user_data, self)
     yvec(1:self%var%neqs) => FN_VGetArrayPointer(sunvec_y)
     Jmat(1:self%var%neqs*self%dat%lda) => FSUNBandMatrix_Data(sunmat_J)
-    call self%jacobian(self%dat%lda*self%var%neqs, self%var%neqs, yvec, Jmat, err)
+    call self%jacobian(self%dat%lda*self%var%neqs, self%var%neqs, tn, yvec, Jmat, err)
     if (allocated(err)) then
       if (self%var%verbose > 0) then
         print*,trim(err)//". CVODE will attempt to correct the error."

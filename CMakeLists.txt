@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION "3.14")
-project(Photochem LANGUAGES Fortran C VERSION "0.3.8")
+project(Photochem LANGUAGES Fortran C VERSION "0.3.9")
 
 include(FortranCInterface)
 FortranCInterface_VERIFY()

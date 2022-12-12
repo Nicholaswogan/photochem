@@ -16,6 +16,7 @@ module photochem_types ! make a giant IO object
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
   public :: SundialsDataFinalizer
+  public :: time_dependent_flux_fcn
   
   !!!!!!!!!!!!!!!!
   !!! Settings !!!
@@ -105,6 +106,16 @@ module photochem_types ! make a giant IO object
   !!!!!!!!!!!!!!!!!
   !!! Utilities !!!
   !!!!!!!!!!!!!!!!!
+
+  abstract interface
+    !> Sets the time-dependent photon flux
+    subroutine time_dependent_flux_fcn(tn,  nw, photon_flux)
+      use iso_c_binding, only: c_double, c_int
+      real(c_double), value, intent(in) :: tn
+      integer(c_int), value, intent(in) :: nw
+      real(c_double), intent(out) :: photon_flux(nw)
+    end subroutine
+  end interface
   
   type :: AtomConservation
     real(dp) :: in_surf
@@ -375,6 +386,8 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: photon_flux(:) ! (nw) photonz
     ! for scaling photon flux for different planets in a solar system
     real(dp) :: photon_scale_factor 
+    ! A function for altering the photon flux over time
+    procedure(time_dependent_flux_fcn), nopass, pointer :: photon_flux_fcn => null()
     
     ! particles
     ! condensation rate of particles
@@ -445,6 +458,11 @@ module photochem_types ! make a giant IO object
     ! used in cvode
     integer(c_long) :: nsteps_previous = -10
     type(SundialsData) :: sun
+
+    ! The current time (seconds). The is updated with each call to the
+    ! right hand side, and jacobian. It is only important if
+    ! var%photon_flux_fcn is set.
+    real(dp) :: tn = 0.0_dp
     
     ! Used in prep_all_background_gas
     ! work arrays

@@ -27,6 +27,22 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! getters and setters !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  subroutine photochemwrk_tn_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    val = wrk%tn
+  end subroutine
+  
+  subroutine photochemwrk_tn_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    wrk%tn = val
+  end subroutine
   
   subroutine photochemwrk_usol_get_size(ptr, dim1, dim2) bind(c)
     type(c_ptr), intent(in) :: ptr
