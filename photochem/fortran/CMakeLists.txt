@@ -1,10 +1,3 @@
 
-add_library(photochem_wrapper wrapper_utils.f90 
-                              Atmosphere_wrapper.f90 
-                              EvoAtmosphere_wrapper.f90 
-                              PhotochemData_wrapper.f90
-                              PhotochemVars_wrapper.f90
-                              PhotochemWrk_wrapper.f90
-                              ProductionLoss_wrapper.f90
-                              AtomConservation_wrapper.f90)
+add_library(photochem_wrapper photochem_c_api.f90)
 target_link_libraries(photochem_wrapper photochem)

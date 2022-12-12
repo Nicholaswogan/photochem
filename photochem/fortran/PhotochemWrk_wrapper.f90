@@ -1,10 +1,3 @@
-module PhotochemWrk_wrapper
-  use photochem_const, only: s_str_len
-  use photochem_types, only: PhotochemWrk
-  use iso_c_binding
-  implicit none
-  
-contains
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! allocator and destroyer !!!
@@ -210,5 +203,3 @@ contains
     call c_f_pointer(ptr, wrk)
     arr = wrk%surf_radiance
   end subroutine
-  
-end module

@@ -1,9 +1,27 @@
-module wrapper_utils
+module photochem_c_api
   use iso_c_binding
+  use photochem, only: Atmosphere
+  use photochem, only: EvoAtmosphere
+  use photochem_types, only: PhotochemData
+  use photochem_types, only: PhotochemVars
+  use photochem_types, only: PhotochemWrk
+  use photochem_types, only: AtomConservation, ProductionLoss
+  use photochem, only: err_len
+  use photochem_const, only: s_str_len, m_str_len
   implicit none
-  
+
 contains
-  
+
+  include "Atmosphere_wrapper.f90"
+  include "EvoAtmosphere_wrapper.f90"
+
+  include "PhotochemData_wrapper.f90"
+  include "PhotochemVars_wrapper.f90"
+  include "PhotochemWrk_wrapper.f90"
+
+  include "AtomConservation_wrapper.f90"
+  include "ProductionLoss_wrapper.f90"
+
   !!!!!!!!!!!!!!!!!!
   !!! Utilities  !!!
   !!!!!!!!!!!!!!!!!!
@@ -53,5 +71,5 @@ contains
     end do
     stringc(n+1) = c_null_char
   end subroutine copy_string_ftoc
-  
+
 end module

@@ -1,10 +1,3 @@
-module evoatmosphere_wrapper
-  use photochem, only: EvoAtmosphere, err_len, str_len
-  use wrapper_utils, only: copy_string_ftoc, copy_string_ctof, len_cstring
-  use iso_c_binding
-  implicit none
-  
-contains
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! allocator and destroyer !!!
@@ -251,5 +244,3 @@ contains
     call c_f_pointer(ptr, pc)
     pc%top_atmos_adjust_frac = val
   end subroutine
-
-end module

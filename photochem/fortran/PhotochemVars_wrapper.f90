@@ -1,10 +1,3 @@
-module PhotochemVars_wrapper
-  use photochem_const, only: s_str_len
-  use photochem_types, only: PhotochemVars
-  use iso_c_binding
-  implicit none
-  
-contains
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! allocator and destroyer !!!
@@ -275,4 +268,3 @@ contains
     var%verbose = val
   end subroutine
   
-end module

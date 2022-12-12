@@ -1,11 +1,4 @@
-module PhotochemData_wrapper
-  use photochem_const, only: s_str_len, m_str_len
-  use photochem_types, only: PhotochemData
-  use iso_c_binding
-  implicit none
-  
-contains
-  
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! allocator and destroyer !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -235,4 +228,3 @@ contains
     arr = dat%species_redox
   end subroutine
   
-end module

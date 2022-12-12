@@ -1,9 +1,3 @@
-module AtomConservation_wrapper
-  use photochem_types, only: AtomConservation
-  use iso_c_binding
-  implicit none
-  
-contains
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! allocator and destroyer !!!
@@ -106,5 +100,3 @@ contains
     call c_f_pointer(ptr, con)
     val = con%factor
   end subroutine
-  
-end module

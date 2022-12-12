@@ -1,11 +1,4 @@
-module atmosphere_wrapper
-  use photochem, only: Atmosphere, err_len, str_len
-  use wrapper_utils, only: copy_string_ftoc, copy_string_ctof, len_cstring
-  use iso_c_binding
-  implicit none
-  
-contains
-  
+
   !!!!!!!!!!!!!!!
   !!! version !!!
   !!!!!!!!!!!!!!!
@@ -462,5 +455,3 @@ contains
     call pc%set_photon_flux_fcn(photon_flux_fcn_f)
 
   end subroutine
-
-end module

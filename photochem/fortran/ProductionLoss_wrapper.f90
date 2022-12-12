@@ -1,11 +1,4 @@
-module ProductionLoss_wrapper
-  use photochem_const, only: m_str_len
-  use photochem_types, only: ProductionLoss
-  use iso_c_binding
-  implicit none
-  
-contains
-  
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! allocator and destroyer !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -142,4 +135,3 @@ contains
     names(dim1*m_str_len+1) = c_null_char
   end subroutine
   
-end module
