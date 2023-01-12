@@ -271,7 +271,24 @@ contains
         endif
       enddo
     endif
-    
+
+    ! custom rate functions
+    ! NOTE, This might be wrong. The model does not seem to conserve well
+    ! for these custom functions.
+    do i = 1,dat%nq
+      if (associated(var%rate_fcns(i)%fcn)) then; block
+        real(dp) :: tmp_rate
+        ! note that we use the time set in wrk%tn
+        call var%rate_fcns(i)%fcn(wrk%tn, var%nz, wrk%xp) ! using wrk%xp space.
+        tmp_rate = sum(wrk%xp*var%dz)*dat%species_composition(kk,i) ! atoms/cm^2/s
+        if (tmp_rate > 0.0_dp) then
+          con%in_other = con%in_other + tmp_rate
+        else
+          con%out_other = con%out_other + (-1.0_dp)*tmp_rate
+        endif
+      endblock; endif
+    enddo
+
     con%net = con%in_surf + con%in_top + con%in_dist + con%in_other &
             - con%out_surf - con%out_top - con%out_rain - con%out_other
     
@@ -298,6 +315,8 @@ contains
     real(dp) :: red_in_dist
     real(dp) :: oxi_out_rain
     real(dp) :: red_out_rain
+    real(dp) :: oxi_in_other, oxi_out_other
+    real(dp) :: red_in_other, red_out_other
     
     real(dp) :: oxi_in, oxi_out, red_in, red_out
     real(dp) :: net_redox
@@ -328,6 +347,10 @@ contains
     red_in_dist = 0.0_dp
     oxi_out_rain = 0.0_dp
     red_out_rain = 0.0_dp
+    oxi_in_other = 0.0_dp
+    oxi_out_other = 0.0_dp
+    red_in_other = 0.0_dp
+    red_out_other = 0.0_dp
     
     ! All numbers will be treated as positive.
     ! Later on, we implement signs
@@ -396,12 +419,38 @@ contains
         endif
       enddo
     endif
+
+    ! custom rate functions
+    ! NOTE, This might be wrong. The model does not seem to conserve well
+    ! for these custom functions.
+    do i = 1,dat%nq
+      if (associated(var%rate_fcns(i)%fcn)) then; block
+        real(dp) :: tmp_rate
+        ! note that we use the time set in wrk%tn
+        call var%rate_fcns(i)%fcn(wrk%tn, var%nz, wrk%xp) ! using wrk%xp space.
+        tmp_rate = sum(wrk%xp*var%dz)
+
+        if (dat%species_redox(i) > 0) then
+          if (tmp_rate > 0) then
+            oxi_in_other = oxi_in_other + tmp_rate*dat%species_redox(i)
+          else
+            oxi_out_other = oxi_out_other + (-1.0_dp)*tmp_rate*dat%species_redox(i)
+          endif
+        elseif (dat%species_redox(i) < 0) then
+          if (tmp_rate > 0) then
+            red_in_other = red_in_other + tmp_rate*dat%species_redox(i)*(-1.0_dp)
+          else
+            red_out_other = red_out_other + (-1.0_dp)*tmp_rate*dat%species_redox(i)*(-1.0_dp)
+          endif
+        endif
+      endblock; endif
+    enddo
     
     ! total fluxes going in and out
-    oxi_in = oxi_in_surf + oxi_in_top + oxi_in_dist
-    red_in = red_in_surf + red_in_top + red_in_dist
-    oxi_out = oxi_out_surf + oxi_out_top + oxi_out_rain
-    red_out = red_out_surf + red_out_top + red_out_rain
+    oxi_in = oxi_in_surf + oxi_in_top + oxi_in_dist + oxi_in_other
+    red_in = red_in_surf + red_in_top + red_in_dist + red_in_other
+    oxi_out = oxi_out_surf + oxi_out_top + oxi_out_rain + oxi_out_other
+    red_out = red_out_surf + red_out_top + red_out_rain + red_out_other
     ! Net redox. Should be close to zero
     net_redox = oxi_in - red_in - oxi_out + red_out
     ! compute how close net_redox is to zero, relative to redox fluxes going in and out
@@ -623,6 +672,26 @@ contains
     class(Atmosphere), target, intent(inout) :: self
     procedure(time_dependent_flux_fcn), pointer :: photon_flux_fcn
     self%var%photon_flux_fcn => photon_flux_fcn
+  end subroutine
+
+  module subroutine set_rate_fcn(self, species, fcn, err)
+    use photochem_types, only: time_dependent_rate_fcn
+    class(Atmosphere), target, intent(inout) :: self
+    character(*), intent(in) :: species
+    procedure(time_dependent_rate_fcn), pointer :: fcn
+    character(:), allocatable, intent(inout) :: err
+    
+    integer :: ind
+
+    ind = findloc(self%dat%species_names(1:self%dat%nq), species, 1)
+    if (ind == 0) then
+      err = 'Species "'//species//'" is not in the list of species, '// &
+            'or is a background or short-lived species.'
+      return
+    endif
+
+    self%var%rate_fcns(ind)%fcn => fcn
+
   end subroutine
   
 end submodule

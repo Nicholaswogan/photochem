@@ -16,7 +16,7 @@ module photochem_types ! make a giant IO object
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
   public :: SundialsDataFinalizer
-  public :: time_dependent_flux_fcn
+  public :: time_dependent_flux_fcn, time_dependent_rate_fcn
   
   !!!!!!!!!!!!!!!!
   !!! Settings !!!
@@ -115,7 +115,20 @@ module photochem_types ! make a giant IO object
       integer(c_int), value, intent(in) :: nw
       real(c_double), intent(out) :: photon_flux(nw)
     end subroutine
+
+    !> Sets a production or destruction rate for a molecule
+    subroutine time_dependent_rate_fcn(tn, nz, rate)
+      use iso_c_binding, only: c_double, c_int
+      real(c_double), value, intent(in) :: tn !! time (s)
+      integer(c_int), value, intent(in) :: nz !! number of atmospheric layers
+      real(c_double), intent(out) :: rate(nz) !! molecules/cm^3/s (can be positive or negative)
+    end subroutine
   end interface
+
+  !> Container to make an array of functions for time-dependent production rates.
+  type :: time_dependent_rate_fcns
+    procedure(time_dependent_rate_fcn), nopass, pointer :: fcn => null()
+  end type
   
   type :: AtomConservation
     real(dp) :: in_surf
@@ -366,6 +379,8 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: upper_veff(:)
     real(dp), allocatable :: upper_flux(:)
     logical, allocatable :: only_eddy(:) ! True if only use eddy
+    ! Functions for settings time-dependent production rates
+    type(time_dependent_rate_fcns), allocatable :: rate_fcns(:)
     
     ! Atmospheres structure
     real(dp) :: bottom_atmos ! cm

@@ -455,3 +455,35 @@
     call pc%set_photon_flux_fcn(photon_flux_fcn_f)
 
   end subroutine
+
+  subroutine atmosphere_set_rate_fcn_wrapper(ptr, species_c, fcn_c, err) bind(c)
+    use photochem_types, only: time_dependent_rate_fcn
+    type(c_ptr), intent(in) :: ptr
+    character(kind=c_char), intent(in) :: species_c(*)
+    type(c_funptr), intent(in) :: fcn_c
+    character(kind=c_char), intent(out) :: err(err_len+1)
+
+    type(Atmosphere), pointer :: pc
+    procedure(time_dependent_rate_fcn), pointer :: fcn_f
+    character(:), allocatable :: species_f
+    character(:), allocatable :: err_f
+
+    ! Cast the void pointer to wrapped object.
+    call c_f_pointer(ptr, pc)
+
+    ! Copy c string to f string.
+    allocate(character(len=len_cstring(species_c))::species_f)
+    call copy_string_ctof(species_c, species_f)
+
+    ! Convert c function pointer to a fortran function pointer (unsafe).
+    call c_f_procpointer(fcn_c, fcn_f)
+
+    ! Call the function.
+    call pc%set_rate_fcn(species_f, fcn_f, err_f)
+
+    ! Set error, if there is one.
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif 
+  end subroutine

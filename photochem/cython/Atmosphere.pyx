@@ -297,3 +297,12 @@ cdef class Atmosphere:
     cdef void *photon_flux_fcn = <void*> photon_flux_fcn_c # we pretend a long is a void *
     a_pxd.atmosphere_set_photon_flux_fcn_wrapper(&self._ptr, &photon_flux_fcn) # pass the void pointer to the C func
 
+  def set_rate_fcn(self, str species, long fcn_c):
+    cdef bytes species_b = pystring2cstring(species)
+    cdef char *species_c = species_b
+    cdef char err[ERR_LEN+1]
+    cdef void *fcn_c_v = <void*> fcn_c
+
+    a_pxd.atmosphere_set_rate_fcn_wrapper(&self._ptr, species_c, &fcn_c_v, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())

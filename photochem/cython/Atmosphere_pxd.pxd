@@ -42,3 +42,5 @@ cdef extern void atmosphere_set_temperature_wrapper(void *ptr, int *nz, double *
                                                     double *trop_alt, bool *trop_alt_present, char *err)
 
 cdef extern void atmosphere_set_photon_flux_fcn_wrapper(void *ptr, void *photon_flux_fcn_c)
+
+cdef extern void atmosphere_set_rate_fcn_wrapper(void *ptr, char *species_c, void *fcn_c, char *err)

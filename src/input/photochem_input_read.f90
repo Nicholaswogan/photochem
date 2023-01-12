@@ -851,6 +851,7 @@ contains
     allocate(var%upper_flux(dat%nq))
 
     allocate(var%only_eddy(dat%nq))
+    allocate(var%rate_fcns(dat%nq))
     ! default boundary conditions
     var%lowerboundcond(:dat%np) = VelocityBC ! default particle BC is alway velocity
     var%lowerboundcond(dat%ng_1:) = s%default_lowerboundcond ! can be -1 (Moses) or 0 (velocity)

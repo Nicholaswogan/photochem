@@ -379,7 +379,19 @@ contains
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
                 wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
                 wrk%densities, wrk%xp, wrk%xl, rhs) 
-    
+
+    ! Extra functions specifying production or destruction
+    do i = 1,dat%nq
+      if (associated(var%rate_fcns(i)%fcn)) then
+        call var%rate_fcns(i)%fcn(tn, var%nz, wrk%xp) ! using wrk%xp space.
+        do j = 1,var%nz
+          k = i + (j-1)*dat%nq
+          ! (moelcules/cm^3/s) (cm^3/molecules) = (1/s)
+          rhs(k) = rhs(k) + wrk%xp(j)/wrk%density(j)
+        enddo
+      endif
+    enddo
+
     ! diffusion (interior grid points)
     do j = 2,var%nz-1
       do i = 1,dat%nq
