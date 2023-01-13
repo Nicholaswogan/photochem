@@ -19,7 +19,7 @@ setup(
     python_requires='>=3.6',
     version=version,
     license="GNU General Public License v3.0",
-    install_requires=['numpy','scipy','pyyaml'], 
+    install_requires=['numpy','scipy','pyyaml', 'numba'], 
     author='Nicholas Wogan',
     author_email = 'nicholaswogan@gmail.com',
     description = "Photochemical model of planet's atmospheres.",

@@ -292,17 +292,33 @@ cdef class Atmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
-  def set_photon_flux_fcn(self, long photon_flux_fcn_c):
+  def set_photon_flux_fcn(self, object fcn):
 
-    cdef void *photon_flux_fcn = <void*> photon_flux_fcn_c # we pretend a long is a void *
-    a_pxd.atmosphere_set_photon_flux_fcn_wrapper(&self._ptr, &photon_flux_fcn) # pass the void pointer to the C func
+    argtypes = (ct.c_double, ct.c_int32, ct.POINTER(ct.c_double))
+    restype = None
+    if not fcn.ctypes.argtypes == argtypes:
+      raise PhotoException("The callback function has the wrong argument types.")
+    if not fcn.ctypes.restype == restype:
+      raise PhotoException("The callback function has the wrong return type.")
 
-  def set_rate_fcn(self, str species, long fcn_c):
+    cdef unsigned long long int fcn_l = <unsigned long long int> fcn.address
+    cdef a_pxd.time_dependent_flux_fcn fcn_c = <a_pxd.time_dependent_flux_fcn> fcn_l
+    a_pxd.atmosphere_set_photon_flux_fcn_wrapper(&self._ptr, fcn_c)
+
+  def set_rate_fcn(self, str species, object fcn):
     cdef bytes species_b = pystring2cstring(species)
     cdef char *species_c = species_b
     cdef char err[ERR_LEN+1]
-    cdef void *fcn_c_v = <void*> fcn_c
 
-    a_pxd.atmosphere_set_rate_fcn_wrapper(&self._ptr, species_c, &fcn_c_v, err)
+    argtypes = (ct.c_double, ct.c_int32, ct.POINTER(ct.c_double))
+    restype = None
+    if not fcn.ctypes.argtypes == argtypes:
+      raise PhotoException("The callback function has the wrong argument types.")
+    if not fcn.ctypes.restype == restype:
+      raise PhotoException("The callback function has the wrong return type.")
+
+    cdef unsigned long long int fcn_l = <unsigned long long int> fcn.address
+    cdef a_pxd.time_dependent_rate_fcn fcn_c = <a_pxd.time_dependent_rate_fcn> fcn_l
+    a_pxd.atmosphere_set_rate_fcn_wrapper(&self._ptr, species_c, fcn_c, err)
     if len(err.strip()) > 0:
-      raise PhotoException(err.decode("utf-8").strip())
+       raise PhotoException(err.decode("utf-8").strip())

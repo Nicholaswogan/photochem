@@ -444,7 +444,7 @@
   subroutine atmosphere_set_photon_flux_fcn_wrapper(ptr, photon_flux_fcn_c) bind(c)
     use photochem_types, only: time_dependent_flux_fcn
     type(c_ptr), intent(in) :: ptr
-    type(c_funptr), intent(in) :: photon_flux_fcn_c
+    type(c_funptr), value, intent(in) :: photon_flux_fcn_c
 
     procedure(time_dependent_flux_fcn), pointer :: photon_flux_fcn_f
 
@@ -460,7 +460,7 @@
     use photochem_types, only: time_dependent_rate_fcn
     type(c_ptr), intent(in) :: ptr
     character(kind=c_char), intent(in) :: species_c(*)
-    type(c_funptr), intent(in) :: fcn_c
+    type(c_funptr), value, intent(in) :: fcn_c
     character(kind=c_char), intent(out) :: err(err_len+1)
 
     type(Atmosphere), pointer :: pc

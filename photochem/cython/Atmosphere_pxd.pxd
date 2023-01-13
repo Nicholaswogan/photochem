@@ -2,6 +2,10 @@ from libcpp cimport bool
 cdef extern from "<stdbool.h>":
   pass
 
+# callback signatures
+ctypedef void (*time_dependent_flux_fcn)(double tn, int nw, double *photon_flux)
+ctypedef void (*time_dependent_rate_fcn)(double tn, int nz, double *rate)
+
 # allocate and destroy
 cdef extern void allocate_atmosphere(void *ptr);
 cdef extern void deallocate_atmosphere(void *ptr);
@@ -41,6 +45,6 @@ cdef extern void atmosphere_evolve_wrapper(void *ptr, char *filename,
 cdef extern void atmosphere_set_temperature_wrapper(void *ptr, int *nz, double *temperature, 
                                                     double *trop_alt, bool *trop_alt_present, char *err)
 
-cdef extern void atmosphere_set_photon_flux_fcn_wrapper(void *ptr, void *photon_flux_fcn_c)
+cdef extern void atmosphere_set_photon_flux_fcn_wrapper(void *ptr, time_dependent_flux_fcn fcn)
 
-cdef extern void atmosphere_set_rate_fcn_wrapper(void *ptr, char *species_c, void *fcn_c, char *err)
+cdef extern void atmosphere_set_rate_fcn_wrapper(void *ptr, char *species_c, time_dependent_rate_fcn fcn, char *err)

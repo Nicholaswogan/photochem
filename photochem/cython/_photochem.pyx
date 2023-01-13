@@ -1,6 +1,7 @@
 from numpy cimport ndarray
 from libcpp cimport bool
 import numpy as np
+import ctypes as ct
 import os
 
 DEF S_STR_LEN = 20;
