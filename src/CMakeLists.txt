@@ -61,7 +61,7 @@ set_property(TARGET photochem PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Add special compiler flags
 if ("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
-  target_compile_options(photochem PRIVATE -Wunused -fimplicit-none)
+  target_compile_options(photochem PRIVATE -Wunused -Wimplicit-interface -fimplicit-none)
 endif()
 
 option(BUILD_WITH_OPENMP "Compile with muli-threading" OFF)
