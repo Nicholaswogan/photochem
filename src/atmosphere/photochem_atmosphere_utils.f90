@@ -605,8 +605,6 @@ contains
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemVars) :: var_save
-    type(PhotochemWrk) :: wrk_save
-    
     
     dat => self%dat
     var => self%var
@@ -618,7 +616,6 @@ contains
     
     ! save in case there is an issue
     var_save = var
-    wrk_save = self%wrk
     
     var%temperature = temperature
     
