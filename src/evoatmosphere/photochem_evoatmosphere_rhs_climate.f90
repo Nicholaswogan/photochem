@@ -335,11 +335,12 @@ contains
     character(:), allocatable, intent(out) :: err
     real(dp) :: cp_dry
 
-    real(dp) :: cp
+    real(dp) :: cp, mubar_dry
     logical :: found
     integer :: i
 
     cp_dry = 0.0_dp
+    mubar_dry = 0.0_dp
     do i = dat%ng_1,dat%nq
       if (i /= dat%LH2O) then
 
@@ -350,11 +351,13 @@ contains
           return
         endif
 
-        ! J/(kg*K)
-        cp_dry = cp_dry + (usol_den_layer(i)/n_dry)*cp*(1.0_dp/(dat%species_mass(i)*1.0e-3_dp))
+        cp_dry = cp_dry + (usol_den_layer(i)/n_dry)*cp ! J/(mol*K)
+        mubar_dry = mubar_dry + (usol_den_layer(i)/n_dry)*dat%species_mass(i) ! g/mol
       endif
     enddo
-    ! convert to erg/(g*K)
+    ! J/(mol*K) * (kg/mol) = J/(kg*K)
+    cp_dry = cp_dry*(1.0_dp/(mubar_dry*1.0e-3_dp)) ! J/(kg*K)
+    ! convert J/(kg*K) to erg/(g*K)
     cp_dry = cp_dry*1.0e4_dp
 
   end function
