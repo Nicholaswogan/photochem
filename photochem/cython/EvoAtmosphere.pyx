@@ -103,6 +103,19 @@ cdef class EvoAtmosphere:
     pl._ptr = pl_ptr
     return pl
 
+  def set_albedo_fcn(self, object fcn):
+
+    argtypes = (ct.c_double,)
+    restype = ct.c_double
+    if not fcn.ctypes.argtypes == argtypes:
+      raise PhotoException("The callback function has the wrong argument types.")
+    if not fcn.ctypes.restype == restype:
+      raise PhotoException("The callback function has the wrong return type.")
+
+    cdef unsigned long long int fcn_l = <unsigned long long int> fcn.address
+    cdef ea_pxd.temp_dependent_albedo_fcn fcn_c = <ea_pxd.temp_dependent_albedo_fcn> fcn_l
+    ea_pxd.evoatmosphere_set_albedo_fcn_wrapper(&self._ptr, fcn_c)
+
   property T_surf:
     def __get__(self):
       cdef double val

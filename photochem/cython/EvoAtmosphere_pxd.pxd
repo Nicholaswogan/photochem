@@ -2,6 +2,9 @@ from libcpp cimport bool
 cdef extern from "<stdbool.h>":
   pass
 
+# callback signatures
+ctypedef double (*temp_dependent_albedo_fcn)(double T_surf)
+
 # allocate and destroy
 cdef extern void allocate_evoatmosphere(void *ptr);
 cdef extern void deallocate_evoatmosphere(void *ptr);
@@ -20,6 +23,8 @@ cdef extern void evoatmosphere_evolve_wrapper(void *ptr, char *filename,
 
 cdef extern void evoatmosphere_production_and_loss_wrapper(void *ptr, char *species, int *nq, 
                                                         int *nz, double *usol, double *top_atmos, void *pl_ptr, char *err)
+
+cdef extern void evoatmosphere_set_albedo_fcn_wrapper(void *ptr, temp_dependent_albedo_fcn fcn)
 
 # getters and setters
 cdef extern void evoatmosphere_t_surf_get(void *ptr, double *val)

@@ -6,6 +6,16 @@ module photochem_evoatmosphere
 
   private
   public :: EvoAtmosphere
+  public :: temp_dependent_albedo_fcn
+
+  abstract interface
+    !> A temperature dependent surface albedo
+    function temp_dependent_albedo_fcn(T_surf) result(albedo)
+      use iso_c_binding, only: c_double
+      real(c_double), value, intent(in) :: T_surf !! K
+      real(c_double) :: albedo
+    end function
+  end interface
 
   type :: EvoAtmosphere
     type(PhotochemData), allocatable :: dat
@@ -15,6 +25,8 @@ module photochem_evoatmosphere
     logical :: evolve_climate
     real(dp) :: T_surf
     real(dp) :: T_trop = 200.0_dp
+    !> Callback function to set a temperature dependent albedo (e.g. ice-albedo feedback).
+    procedure(temp_dependent_albedo_fcn), nopass, pointer :: albedo_fcn => null()
     type(Radtran), allocatable :: rad
 
     ! Modern Earth has a pressure of 4e-7 at 100 km
@@ -41,6 +53,7 @@ module photochem_evoatmosphere
     !!! photochem_evoatmosphere_utils.f90 !!!
     procedure :: rebin_update_vertical_grid
     procedure :: regrid_prep_atmosphere
+    procedure :: set_albedo_fcn
 
   end type
 
@@ -178,6 +191,11 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: usol_new(:,:)
       real(dp), intent(in) :: top_atmos
       character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    module subroutine set_albedo_fcn(self, albedo_fcn)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      procedure(temp_dependent_albedo_fcn), pointer :: albedo_fcn
     end subroutine
 
   end interface

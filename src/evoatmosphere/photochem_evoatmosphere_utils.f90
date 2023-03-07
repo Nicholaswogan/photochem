@@ -155,4 +155,10 @@ contains
 
   end subroutine
 
+  module subroutine set_albedo_fcn(self, albedo_fcn)
+    class(EvoAtmosphere), target, intent(inout) :: self
+    procedure(temp_dependent_albedo_fcn), pointer :: albedo_fcn
+    self%albedo_fcn => albedo_fcn
+  end subroutine
+
 end submodule

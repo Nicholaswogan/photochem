@@ -33,6 +33,7 @@ contains
   module subroutine equilibrium_climate(self, usol_den, molecules_per_particle, T_trop, T_surf_guess, &
                                         T_surf, T, z_trop, err)
     use minpack_module, only: hybrd1
+    use clima_useful, only: MinpackHybrd1Vars
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), target, intent(in) :: usol_den(:,:)
     real(dp), intent(in) :: molecules_per_particle(:,:)
@@ -41,16 +42,8 @@ contains
     real(dp), target, intent(out) :: z_trop
     character(:), allocatable, intent(out) :: err
 
-    ! minpack variables
-    integer, parameter :: n = 1
-    real(dp) :: x(1)
-    real(dp) :: fvec(1)
-    real(dp), parameter :: tol = 1.0e-8_dp
-    integer :: info
-    integer, parameter :: lwa = (n*(3*n+13))/2 + 1
-    real(dp) :: wa(lwa)
-
     integer :: i
+    type(MinpackHybrd1Vars) :: mv
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -78,9 +71,10 @@ contains
     d%T => T
     d%z_trop => z_trop
 
-    x(1) = log10(T_surf_guess)
-    call hybrd1(fcn, n, x, fvec, tol, info, wa, lwa)
-    if (info /= 1) then; block
+    mv = MinpackHybrd1Vars(1, tol=1.0e-8_dp)
+    mv%x(1) = log10(T_surf_guess)
+    call hybrd1(fcn, mv%n, mv%x, mv%fvec, mv%tol, mv%info, mv%wa, mv%lwa)
+    if (mv%info /= 1) then; block
       type(brent_custom) :: brent
       real(dp) :: T_surf_small, T_surf_big
       ! hybrd1 failed to find the root.
@@ -91,8 +85,8 @@ contains
       
       T_surf_small = T_surf_guess*0.99_dp
       T_surf_big = T_surf_guess*1.01_dp
-      call brent%find_zero(log10(T_surf_small), log10(T_surf_big), tol, x(1), fvec(1), info)
-      if (info /= 0) then
+      call brent%find_zero(log10(T_surf_small), log10(T_surf_big), mv%tol, mv%x(1), mv%fvec(1), mv%info)
+      if (mv%info /= 0) then
         err = 'Non-linear solve for temperature structure failed.'
         return
       endif
@@ -100,7 +94,7 @@ contains
     endblock; endif
 
     ! output T_surf
-    T_surf = 10.0_dp**x(1)
+    T_surf = 10.0_dp**mv%x(1)
     ! output T(:) and z_trop from calling make_profile one more time
     ! with the solution T_surf.
     call make_profile_discrete(self, usol_den, T_surf, T_trop, &
@@ -119,6 +113,9 @@ contains
 
       ! self and d are passed in by scope
       d%T_surf = 10.0_dp**x_(1)
+      if (associated(self%albedo_fcn)) then
+        self%rad%surface_albedo = self%albedo_fcn(d%T_surf)
+      endif
       fvec_(1) = equilibrium_climate_equation(self, d, err_)
       if (allocated(err_)) then
         iflag_ = -1
