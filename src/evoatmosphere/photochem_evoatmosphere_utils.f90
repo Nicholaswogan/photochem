@@ -4,6 +4,33 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_utils
 
 contains
 
+module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
+    use photochem_common, only: out2atmosphere_txt_base
+    class(EvoAtmosphere), target, intent(inout) :: self
+    character(len=*), intent(in) :: filename
+    logical, intent(in) :: overwrite, clip
+    character(:), allocatable, intent(out) :: err
+    
+    real(dp) :: rhs(self%var%neqs)  
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+    
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+    
+    ! update wrk variables
+    call self%right_hand_side_chem(wrk%usol, rhs, err)
+    if (allocated(err)) return
+
+    call out2atmosphere_txt_base(dat, var, &
+                                 wrk%pressure, wrk%density, wrk%densities, wrk%molecules_per_particle, &
+                                 filename, overwrite, clip, err)
+    if (allocated(err)) return
+
+  end subroutine
+
   module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_old(:,:)

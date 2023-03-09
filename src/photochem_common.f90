@@ -550,5 +550,91 @@ contains
     enddo
 
   end subroutine
+
+  subroutine out2atmosphere_txt_base(dat, var, &
+                                     pressure, density, densities, molecules_per_particle, &
+                                     filename, overwrite, clip, err)
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    real(dp), intent(in) :: pressure(:), density(:), densities(:,:), molecules_per_particle(:,:)
+    character(len=*), intent(in) :: filename
+    logical, intent(in) :: overwrite, clip
+    character(:), allocatable, intent(out) :: err
+    
+    character(len=100) :: tmp
+    integer :: io, i, j
+    real(dp) :: val, clip_value
+
+    if (clip) then
+      clip_value = 1.0e-40_dp
+    else
+      clip_value = - huge(1.0_dp)
+    endif
+    
+    if (overwrite) then
+      open(1, file=filename, form='formatted', status='replace', iostat=io)
+      if (io /= 0) then
+        err = "Unable to overwrite file "//trim(filename)
+        return
+      endif
+    else
+      open(1, file=filename, form='formatted', status='new', iostat=io)
+      if (io /= 0) then
+        err = "Unable to create file "//trim(filename)//" because it already exists"
+        return
+      endif
+    endif
+    
+    tmp = 'alt'
+    write(unit=1,fmt="(3x,a27)",advance='no') tmp
+    tmp = 'press'
+    write(unit=1,fmt="(a27)",advance='no') tmp
+    tmp = 'den'
+    write(unit=1,fmt="(a27)",advance='no') tmp
+    tmp = 'temp'
+    write(unit=1,fmt="(a27)",advance='no') tmp
+    tmp = 'eddy'
+    write(unit=1,fmt="(a27)",advance='no') tmp
+    do j = 1,dat%nsp
+      tmp = dat%species_names(j)
+      write(unit=1,fmt="(a27)",advance='no') tmp
+    enddo
+    if (dat%there_are_particles) then
+      do j = 1,dat%npq
+        tmp = trim(dat%species_names(j))//"_r"
+        write(unit=1,fmt="(a27)",advance='no') tmp
+      enddo
+    endif
+    
+    do i = 1,var%nz
+      write(1,*)
+      write(unit=1,fmt="(es27.17e3)",advance='no') var%z(i)/1.e5_dp
+      write(unit=1,fmt="(es27.17e3)",advance='no') pressure(i)/1.e6_dp
+      write(unit=1,fmt="(es27.17e3)",advance='no') density(i)
+      write(unit=1,fmt="(es27.17e3)",advance='no') var%temperature(i)
+      write(unit=1,fmt="(es27.17e3)",advance='no') var%edd(i)
+      ! particles
+      if (dat%there_are_particles) then
+        do j = 1,dat%npq
+          val = densities(j,i)*(molecules_per_particle(j,i)/density(i)) ! mixing ratio of particle
+          write(unit=1,fmt="(es27.17e3)",advance='no') max(val, clip_value)
+        enddo
+      endif
+      ! gases
+      do j = dat%ng_1,dat%nsp
+        val = densities(j,i)/density(i)
+        write(unit=1,fmt="(es27.17e3)",advance='no') max(val, clip_value)
+      enddo
+      ! particle radii
+      if (dat%there_are_particles) then
+        do j = 1,dat%npq
+          write(unit=1,fmt="(es27.17e3)",advance='no') var%particle_radius(j,i)
+        enddo
+      endif
+    enddo
+    
+    close(1)
+
+  end subroutine
   
 end module

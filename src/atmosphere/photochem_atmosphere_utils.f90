@@ -7,88 +7,30 @@ submodule(photochem_atmosphere) photochem_atmosphere_utils
 contains
   
   module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
+    use photochem_common, only: out2atmosphere_txt_base
     class(Atmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: filename
     logical, intent(in) :: overwrite, clip
     character(:), allocatable, intent(out) :: err
     
-    character(len=100) :: tmp
-    integer :: io, i, j
+    real(dp) :: rhs(self%var%neqs)  
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
-    
     
     dat => self%dat
     var => self%var
     wrk => self%wrk
     
     ! update wrk variables
-    call self%prep_atmosphere(wrk%usol, err)
+    call self%right_hand_side_chem(wrk%usol, rhs, err)
     if (allocated(err)) return
-    
-    if (overwrite) then
-      open(1, file=filename, form='formatted', status='replace', iostat=io)
-      if (io /= 0) then
-        err = "Unable to overwrite file "//trim(filename)
-        return
-      endif
-    else
-      open(1, file=filename, form='formatted', status='new', iostat=io)
-      if (io /= 0) then
-        err = "Unable to create file "//trim(filename)//" because it already exists"
-        return
-      endif
-    endif
-    
-    tmp = 'alt'
-    write(unit=1,fmt="(3x,a27)",advance='no') tmp
-    tmp = 'press'
-    write(unit=1,fmt="(a27)",advance='no') tmp
-    tmp = 'den'
-    write(unit=1,fmt="(a27)",advance='no') tmp
-    tmp = 'temp'
-    write(unit=1,fmt="(a27)",advance='no') tmp
-    tmp = 'eddy'
-    write(unit=1,fmt="(a27)",advance='no') tmp
-    do j = 1,dat%nq
-      tmp = dat%species_names(j)
-      write(unit=1,fmt="(a27)",advance='no') tmp
-    enddo
-    tmp = dat%back_gas_name
-    write(unit=1,fmt="(a27)",advance='no') tmp
-    if (dat%there_are_particles) then
-      do j = 1,dat%npq
-        tmp = trim(dat%species_names(j))//"_r"
-        write(unit=1,fmt="(a27)",advance='no') tmp
-      enddo
-    endif
-    
-    do i = 1,var%nz
-      write(1,*)
-      write(unit=1,fmt="(es27.17e3)",advance='no') var%z(i)/1.e5_dp
-      write(unit=1,fmt="(es27.17e3)",advance='no') wrk%pressure(i)/1.e6_dp
-      write(unit=1,fmt="(es27.17e3)",advance='no') wrk%density(i)
-      write(unit=1,fmt="(es27.17e3)",advance='no') var%temperature(i)
-      write(unit=1,fmt="(es27.17e3)",advance='no') var%edd(i)
-      do j = 1,dat%nq
-        if (clip) then
-          write(unit=1,fmt="(es27.17e3)",advance='no') max(wrk%usol(j,i),1.d-40)
-        else
-          write(unit=1,fmt="(es27.17e3)",advance='no') wrk%usol(j,i)
-        endif
-      enddo
-      ! write the background gas
-      write(unit=1,fmt="(es27.17e3)",advance='no') 1.0_dp - sum(wrk%usol(dat%ng_1:,i))
-      if (dat%there_are_particles) then
-        do j = 1,dat%npq
-          write(unit=1,fmt="(es27.17e3)",advance='no') var%particle_radius(j,i)
-        enddo
-      endif
-    enddo
-    
-    close(1)
-    
+
+    call out2atmosphere_txt_base(dat, var, &
+                                 wrk%pressure, wrk%density, wrk%densities, wrk%molecules_per_particle, &
+                                 filename, overwrite, clip, err)
+    if (allocated(err)) return
+
   end subroutine
   
   module subroutine out2in(self, err)

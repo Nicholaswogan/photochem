@@ -43,6 +43,7 @@ module photochem_evoatmosphere
     procedure :: set_trop_ind
     procedure :: prep_atm_evo_gas
     procedure :: prep_atmosphere => prep_all_evo_gas
+    procedure :: right_hand_side_chem
     procedure :: right_hand_side => rhs_evo_gas
     procedure :: jacobian => jac_evo_gas
     procedure :: production_and_loss
@@ -51,6 +52,7 @@ module photochem_evoatmosphere
     procedure :: evolve
 
     !!! photochem_evoatmosphere_utils.f90 !!!
+    procedure :: out2atmosphere_txt
     procedure :: rebin_update_vertical_grid
     procedure :: regrid_prep_atmosphere
     procedure :: set_albedo_fcn
@@ -96,6 +98,13 @@ module photochem_evoatmosphere
     module subroutine prep_all_evo_gas(self, usol_in, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:)
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    module subroutine right_hand_side_chem(self, usol, rhs, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: usol(:,:)
+      real(dp), intent(out) :: rhs(:)
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -178,6 +187,14 @@ module photochem_evoatmosphere
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_evoatmosphere_utils.f90 !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
+      use photochem_common, only: out2atmosphere_txt_base
+      class(EvoAtmosphere), target, intent(inout) :: self
+      character(len=*), intent(in) :: filename
+      logical, intent(in) :: overwrite, clip
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
     module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_old(:,:)

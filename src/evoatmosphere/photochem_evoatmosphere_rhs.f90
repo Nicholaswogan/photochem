@@ -866,6 +866,35 @@ contains
   
   end subroutine
 
+  module subroutine right_hand_side_chem(self, usol, rhs, err)
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol(:,:)
+    real(dp), intent(out) :: rhs(:)
+    character(:), allocatable, intent(out) :: err
+    
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+    
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+    
+    if (size(usol,1) /= dat%nq .or. size(usol,2) /= var%nz .or. size(rhs) /= var%neqs) then
+      err = "Input usol or rhs has the wrong dimensions"
+      return
+    endif
+
+    call self%prep_atmosphere(usol, err)
+    if (allocated(err)) return
+    
+    call dochem(self, wrk%usol, wrk%rx_rates, &
+                wrk%gas_sat_den, wrk%molecules_per_particle, &
+                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
+                wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs) 
+                              
+  end subroutine
+
   module subroutine production_and_loss(self, species, usol, top_atmos, pl, err)     
     use futils, only: argsort            
     use photochem_common, only: chempl_sl, chempl_t
