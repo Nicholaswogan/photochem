@@ -74,6 +74,32 @@
     wrk_ptr = c_loc(pc%wrk) 
   end subroutine
 
+  subroutine evoatmosphere_out2atmosphere_txt_wrapper(ptr, filename, overwrite, clip, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    character(kind=c_char), intent(in) :: filename(*)
+    logical(c_bool), intent(in) :: overwrite, clip
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(len=:), allocatable :: filename_f
+    logical :: overwrite_f, clip_f
+    character(:), allocatable :: err_f
+    type(EvoAtmosphere), pointer :: pc
+    
+    call c_f_pointer(ptr, pc)
+    
+    allocate(character(len=len_cstring(filename))::filename_f)
+    call copy_string_ctof(filename, filename_f)
+    overwrite_f = overwrite
+    clip_f = clip
+    
+    call pc%out2atmosphere_txt(filename_f, overwrite_f, clip_f, err_f)
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif
+    
+  end subroutine
+
   subroutine evoatmosphere_regrid_prep_atmosphere_wrapper(ptr, nq, nz, usol, top_atmos, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     integer(c_int), intent(in) :: nq, nz

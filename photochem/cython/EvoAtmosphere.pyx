@@ -54,6 +54,14 @@ cdef class EvoAtmosphere:
       wrk = PhotochemWrk(alloc = False)
       wrk._ptr = self._wrk_ptr
       return wrk
+
+  def out2atmosphere_txt(self,filename = None, bool overwrite = False, bool clip = True):
+    cdef bytes filename_b = pystring2cstring(filename)
+    cdef char *filename_c = filename_b
+    cdef char err[ERR_LEN+1]
+    ea_pxd.evoatmosphere_out2atmosphere_txt_wrapper(&self._ptr, filename_c, &overwrite, &clip, err)  
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
     
   def regrid_prep_atmosphere(self, ndarray[double, ndim=2] usol_, double top_atmos):
     cdef char err[ERR_LEN+1]
