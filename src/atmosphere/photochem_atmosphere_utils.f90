@@ -100,7 +100,6 @@ contains
     use photochem_enum, only: VelocityDistributedFluxBC
     use photochem_eqns, only: damp_condensation_rate
     use photochem_types, only: AtomConservation
-    use photochem_const, only: fast_arbitrary_rate
     class(Atmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: atom
     character(:), allocatable, intent(out) :: err
@@ -184,7 +183,7 @@ contains
 
     if (dat%fix_water_in_trop) then
       do j = 1,var%trop_ind
-        con_evap_rate = fast_arbitrary_rate*(wrk%H2O_sat_mix(j)*wrk%H2O_rh(j) - wrk%usol(dat%LH2O,j)) &
+        con_evap_rate = var%fast_arbitrary_rate*(wrk%H2O_sat_mix(j)*wrk%H2O_rh(j) - wrk%usol(dat%LH2O,j)) &
                         *wrk%density(j)*var%dz(j)*dat%species_composition(kk,dat%LH2O)
         if (con_evap_rate > 0.0_dp) then
           con%in_other = con%in_other + con_evap_rate

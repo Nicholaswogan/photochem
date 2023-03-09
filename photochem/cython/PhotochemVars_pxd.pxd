@@ -51,3 +51,6 @@ cdef extern void photochemvars_equilibrium_time_set(void *ptr, double *val)
 
 cdef extern void photochemvars_verbose_get(void *ptr, int *val)
 cdef extern void photochemvars_verbose_set(void *ptr, int *val)
+
+cdef extern void photochemvars_fast_arbitrary_rate_get(void *ptr, double *val)
+cdef extern void photochemvars_fast_arbitrary_rate_set(void *ptr, double *val)

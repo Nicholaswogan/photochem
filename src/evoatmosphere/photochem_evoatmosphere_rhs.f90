@@ -23,7 +23,7 @@ contains
     use photochem_enum, only: CondensingParticle
     use photochem_common, only: chempl, chempl_sl
     use photochem_eqns, only: damp_condensation_rate
-    use photochem_const, only: N_avo, pi, small_real, T_crit_H2O, fast_arbitrary_rate
+    use photochem_const, only: N_avo, pi, small_real, T_crit_H2O
 
     class(EvoAtmosphere), target, intent(in) :: self
     real(dp), intent(in) :: usol(:,:)
@@ -89,7 +89,7 @@ contains
     if (dat%fix_water_in_trop) then
       do j = 1,var%trop_ind
         k = dat%LH2O + (j - 1) * dat%nq
-        rhs(k) = rhs(k) + fast_arbitrary_rate*(density(j)*H2O_sat_mix(j)*H2O_rh(j) - usol(dat%LH2O,j))
+        rhs(k) = rhs(k) + var%fast_arbitrary_rate*(density(j)*H2O_sat_mix(j)*H2O_rh(j) - usol(dat%LH2O,j))
       enddo
     endif
     if (dat%water_cond) then

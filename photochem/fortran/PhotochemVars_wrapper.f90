@@ -267,4 +267,20 @@
     call c_f_pointer(ptr, var)
     var%verbose = val
   end subroutine
+
+  subroutine photochemvars_fast_arbitrary_rate_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%fast_arbitrary_rate
+  end subroutine
+  
+  subroutine photochemvars_fast_arbitrary_rate_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%fast_arbitrary_rate = val
+  end subroutine
   

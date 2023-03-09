@@ -441,6 +441,8 @@ module photochem_types ! make a giant IO object
     integer(c_int) :: max_order = 5
     real(dp) :: epsj = 1.d-9 ! perturbation for jacobian calculation
     integer :: verbose = 1 ! 0 == no printing. 1 == some printing. 2 == bunch of printing.
+    !> arbitrary rate that is fast (1/s). Used for keeping H2O at saturation in troposphere
+    real(dp) :: fast_arbitrary_rate = 1.0e-2_dp 
   end type
 
   type :: SundialsData
