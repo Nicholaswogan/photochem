@@ -22,3 +22,4 @@ python_extension_module(_photochem)
 
 target_link_libraries(_photochem photochem_wrapper)
 target_include_directories(_photochem PUBLIC ${NumPy_INCLUDE_DIRS})
+set_property(TARGET _photochem PROPERTY LINKER_LANGUAGE Fortran)
