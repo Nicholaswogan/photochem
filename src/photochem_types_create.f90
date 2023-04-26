@@ -100,9 +100,14 @@ contains
       s%grid_file = dict%get_string('input-file',error = io_err)
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     endif
-    ! scale factor for photon flux. Its optional
-    s%photon_scale_factor = dict%get_real('photon-scale-factor', 1.0_dp,error = io_err)
+    ! make sure photon-scale-factor is not in the photolysis-grid dictionary
+    scalar => dict%get_scalar('photon-scale-factor',required=.false.,error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    if (associated(scalar)) then
+      err = '"photon-scale-factor" is no longer specified in the "photolysis-grid" dictionary. '// &
+            'Instead, specify "photon-scale-factor" in the "planet" dictionary.'
+      return
+    endif
     
     !!!!!!!!!!!!!!
     !!! planet !!!
@@ -116,6 +121,7 @@ contains
     endif
 
     scalar => dict%get_scalar('surface-pressure',required=.false.,error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     if (associated(scalar)) then
       s%P_surf = scalar%to_real(-1.0_dp, success=success)
       if (.not. success) then
@@ -146,6 +152,10 @@ contains
       err = 'IOError: Surface albedo must be greater than zero.'
       return
     endif
+    ! scale factor for photon flux. Its optional
+    s%photon_scale_factor = dict%get_real('photon-scale-factor', 1.0_dp, error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+
     s%diurnal_fac = dict%get_real('diurnal-averaging-factor',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     if (s%diurnal_fac < 0.0_dp .or. s%diurnal_fac > 1.0_dp) then

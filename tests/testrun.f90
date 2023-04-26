@@ -11,9 +11,9 @@ program main
 
   call pc%init("../photochem/data", &
                "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-               "../templates/ModernEarth/settings_ModernEarth.yaml", &
+               "../templates/Saturn/settings_Saturn.yaml", &
                "../templates/ModernEarth/Sun_now.txt", &
-               "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
+               "../templates/Saturn/atmosphere_Saturn.txt", &
                err)
   if (allocated(err)) then
     print*,trim(err)

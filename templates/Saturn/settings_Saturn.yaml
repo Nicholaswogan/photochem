@@ -9,7 +9,6 @@ photolysis-grid:
   lower-wavelength: 92.5 # nm
   upper-wavelength: 855.0 # nm
   number-of-bins: 200
-  photon-scale-factor: 0.01108
 
 planet:
   background-gas: H2
@@ -17,6 +16,7 @@ planet:
   planet-mass: 5.683e29
   planet-radius: 58.232e8 
   surface-albedo: 0.342
+  photon-scale-factor: 0.01108
   diurnal-averaging-factor: 0.5
   solar-zenith-angle: 60.0
   hydrogen-escape:

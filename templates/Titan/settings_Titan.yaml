@@ -9,7 +9,6 @@ photolysis-grid:
   lower-wavelength: 92.5 # nm
   upper-wavelength: 855.0 # nm
   number-of-bins: 200
-  photon-scale-factor: 0.01089
 
 planet:
   background-gas: N2
@@ -17,6 +16,7 @@ planet:
   planet-mass: 1.345e26 # grams
   planet-radius: 2.575e8 # cm. Radius to bottom of atmosphere-grid
   surface-albedo: 0.1 # cm
+  photon-scale-factor: 0.01089
   diurnal-averaging-factor: 0.5
   solar-zenith-angle: 60.0
   hydrogen-escape:
