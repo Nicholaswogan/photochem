@@ -1,23 +1,21 @@
-description: Settings for the photochemical model.
 
 atmosphere-grid:
-  bottom: 0.0 # cm
-  top: 1.0e7 # cm
+  bottom: 0.0
+  top: 1.0e7
   number-of-layers: 200
 
 photolysis-grid:
   regular-grid: true
-  lower-wavelength: 92.5 # nm
-  upper-wavelength: 855.0 # nm
+  lower-wavelength: 92.5
+  upper-wavelength: 855.0
   number-of-bins: 200
-  # input-file: my/input/file.txt
 
 planet:
   background-gas: N2
-  surface-pressure: 1.013 # bar
-  planet-mass: 5.972e27 # grams
-  planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
-  surface-albedo: 0.25 # cm
+  surface-pressure: 1.013
+  planet-mass: 5.972e27
+  planet-radius: 6.371e8
+  surface-albedo: 0.25
   solar-zenith-angle: 60.0
   hydrogen-escape:
     type: diffusion limited
@@ -26,7 +24,7 @@ planet:
     # relative-humidity: manabe
     gas-rainout: true
     rainfall-rate: 1
-    tropopause-altitude: 1.1e6 # cm
+    tropopause-altitude: 1.1e6
     water-condensation: true
     condensation-rate: {A: 1.0e-5, rhc: 0.01, rh0: 0.015}
 

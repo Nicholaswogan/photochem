@@ -6,8 +6,8 @@ atmosphere-grid:
 
 photolysis-grid:
   regular-grid: true
-  lower-wavelength: 92.5 # nm
-  upper-wavelength: 855.0 # nm
+  lower-wavelength: 92.5
+  upper-wavelength: 855.0
   number-of-bins: 200
 
 planet:

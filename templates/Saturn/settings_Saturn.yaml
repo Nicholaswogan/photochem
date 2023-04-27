@@ -1,13 +1,13 @@
 
 atmosphere-grid:
-  bottom: 0.0 # cm
-  top: 1600.0e5 # cm
+  bottom: 0.0
+  top: 1600.0e5
   number-of-layers: 200
 
 photolysis-grid:
   regular-grid: true
-  lower-wavelength: 92.5 # nm
-  upper-wavelength: 855.0 # nm
+  lower-wavelength: 92.5
+  upper-wavelength: 855.0
   number-of-bins: 200
 
 planet:
@@ -49,8 +49,6 @@ particles:
 - name: NH3aer
   condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}  
     
-# Assumes veff = vdep = 0 boundary condition for species not specified.
-# Assumes species is long-lived unless specified
 boundary-conditions:
 - name: O1D
   type: short lived

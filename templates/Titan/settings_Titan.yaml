@@ -1,21 +1,21 @@
 
 atmosphere-grid:
-  bottom: 0.0 # cm
-  top: 1400.0e5 # cm
+  bottom: 0.0
+  top: 1400.0e5
   number-of-layers: 200
 
 photolysis-grid:
   regular-grid: true
-  lower-wavelength: 92.5 # nm
-  upper-wavelength: 855.0 # nm
+  lower-wavelength: 92.5
+  upper-wavelength: 855.0
   number-of-bins: 200
 
 planet:
   background-gas: N2
-  surface-pressure: 1.500 # bar
-  planet-mass: 1.345e26 # grams
-  planet-radius: 2.575e8 # cm. Radius to bottom of atmosphere-grid
-  surface-albedo: 0.1 # cm
+  surface-pressure: 1.500
+  planet-mass: 1.345e26
+  planet-radius: 2.575e8
+  surface-albedo: 0.1
   photon-scale-factor: 0.01089
   solar-zenith-angle: 60.0
   hydrogen-escape:
@@ -48,8 +48,6 @@ particles:
 - name: NH3aer
   condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}  
 
-# Assumes veff = vdep = 0 boundary condition for species not specified.
-# Assumes species is long-lived unless specified
 boundary-conditions:
 - name: CH4
   lower-boundary: {type: mix, mix: 1.5e-2}

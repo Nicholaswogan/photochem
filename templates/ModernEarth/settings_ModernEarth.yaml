@@ -16,20 +16,34 @@ planet:
   planet-mass: 5.972e27 # grams
   planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
   surface-albedo: 0.25 # cm
-  solar-zenith-angle: 60.0
+  # photon-scale-factor: 1.0 # Optional. Scales the stellar flux for diff planets in the same system
+  solar-zenith-angle: 60.0 # degrees
   hydrogen-escape:
     type: diffusion limited # options are "diffusion limited", "zahnle" and "none"
     # S1: 20 # required for type zahnle
   water:
-    fix-water-in-troposphere: true
+    # will fix water in the troposphere to a relative humidity between the surface
+    # and `tropopause-altitude`.
+    fix-water-in-troposphere: true 
+    # Options are a number like 1.0, or "manabe", which is the Mamabe-Wetherald 
+    # parameterization for Earth's troposphere relative humidity
     relative-humidity: manabe
+    # If "true", then gases will dissolve in rainwater and fall to the surface
     gas-rainout: true
     rainfall-rate: 1 # relative to modern earth's rainfall rate
-    # rainout-species: [H2SO4aer] # specify rainout species. If omitted, then model will use all species with data.
+    # You can specify rainout species. If omitted, then model will use all species with data.
+    # rainout-species: [H2SO4aer] 
     tropopause-altitude: 1.1e6 # cm. required if gas-rainout or fix-water-in-troposphere
+    # If true, then water will condense.
     water-condensation: true
+    # This is the rate of H2O condensation, and the conditions
+    # where condensation occurs. relative humidity >`rhc`, then condensation will begin to 
+    # occur. `rh0` is a value bigger than `rhc` which helps to smooth out the condensation rate,
+    # preventing discontinuities
     condensation-rate: {A: 1.0e-5, rhc: 0.01, rh0: 0.015}
     
+# Specifies the condensation rates and RH thresholds for all particles 
+# which form from condensation.
 particles:
 - name: H2SO4aer
   condensation-rate: {A: 1.0e-5, rhc: 1.0, rh0: 1.05}
@@ -52,8 +66,9 @@ particles:
 - name: NH3aer
   condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 
-# Assumes veff = vdep = 0 boundary condition for species not specified.
-# Assumes species is long-lived unless specified
+# Specifies boundary conditions. If a species is not specified, then
+# the model assumes zero-flux boundary conditions at the top and
+# bottom of the atmosphere
 boundary-conditions:
 - name: O2
   lower-boundary: {type: mix, mix: 0.21}
