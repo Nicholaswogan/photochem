@@ -51,7 +51,6 @@ module photochem_types ! make a giant IO object
     real(dp) :: upper_wv
     integer :: nw
     character(:), allocatable :: grid_file
-    real(dp) :: photon_scale_factor 
   
     ! planet
     character(:), allocatable :: back_gas_name
@@ -59,7 +58,7 @@ module photochem_types ! make a giant IO object
     real(dp) :: planet_mass
     real(dp) :: planet_radius
     real(dp) :: surface_albedo
-    real(dp) :: diurnal_fac
+    real(dp) :: photon_scale_factor 
     real(dp) :: solar_zenith
     integer :: H_escape_type
     real(dp), allocatable :: H_escape_S1
@@ -388,7 +387,7 @@ module photochem_types ! make a giant IO object
     integer :: nz ! number of vertical layers
     real(dp) :: surface_pressure ! bars
     real(dp) :: surface_albedo
-    real(dp) :: diurnal_fac ! normally 0.5 cuz planets spin around.
+    real(dp) :: diurnal_fac = 0.5_dp !! Default is 0.5, to account for half planet facing the sun.
     real(dp) :: solar_zenith 
     real(dp) :: trop_alt ! cm (only for fix_water_in_trop == true or gas_rainout == true)
     real(dp) :: rainfall_rate ! relative to modern Earth's average rainfall rate of 1.1e17 molecules/cm2/s

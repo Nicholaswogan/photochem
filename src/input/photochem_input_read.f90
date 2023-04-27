@@ -654,7 +654,6 @@ contains
     else
       dat%grid_file = s%grid_file
     endif
-    var%photon_scale_factor = s%photon_scale_factor
     
     !!!!!!!!!!!!!!
     !!! planet !!!
@@ -672,7 +671,7 @@ contains
     dat%planet_mass = s%planet_mass
     dat%planet_radius = s%planet_radius
     var%surface_albedo = s%surface_albedo
-    var%diurnal_fac = s%diurnal_fac
+    var%photon_scale_factor = s%photon_scale_factor
     var%solar_zenith = s%solar_zenith
     dat%H_escape_type = s%H_escape_type
     if (dat%H_escape_type /= NoHydrogenEscape) then

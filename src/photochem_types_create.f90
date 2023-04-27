@@ -155,14 +155,6 @@ contains
     ! scale factor for photon flux. Its optional
     s%photon_scale_factor = dict%get_real('photon-scale-factor', 1.0_dp, error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-
-    s%diurnal_fac = dict%get_real('diurnal-averaging-factor',error = io_err)
-    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    if (s%diurnal_fac < 0.0_dp .or. s%diurnal_fac > 1.0_dp) then
-      err = 'IOError: diurnal-averaging-factor must be between 0 and 1.'
-      return
-    endif
-    
     s%solar_zenith = dict%get_real('solar-zenith-angle',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     if (s%solar_zenith < 0.0_dp .or. s%solar_zenith > 90.0_dp) then

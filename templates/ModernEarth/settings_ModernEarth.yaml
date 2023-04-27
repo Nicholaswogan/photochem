@@ -16,7 +16,6 @@ planet:
   planet-mass: 5.972e27 # grams
   planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
   surface-albedo: 0.25 # cm
-  diurnal-averaging-factor: 0.5
   solar-zenith-angle: 60.0
   hydrogen-escape:
     type: diffusion limited # options are "diffusion limited", "zahnle" and "none"
