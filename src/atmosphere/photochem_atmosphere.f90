@@ -16,24 +16,24 @@ module photochem_atmosphere
     type(PhotochemVars), allocatable :: var
     type(PhotochemWrk), allocatable :: wrk
   contains
-    !!! photochem_atmosphere_init.f90 !!!
+    ! photochem_atmosphere_init.f90
     procedure :: init => Atmosphere_init
     
-    !!! photochem_atmosphere_rhs.f90 !!!
+    ! photochem_atmosphere_rhs.f90
     procedure :: prep_atmosphere => prep_all_background_gas
     procedure :: right_hand_side_chem
     procedure :: production_and_loss
     procedure :: right_hand_side => rhs_background_gas
     procedure :: jacobian => jac_background_gas
     
-    !!! photochem_atmosphere_integrate.f90 !!!
+    ! photochem_atmosphere_integrate.f90
     procedure :: evolve
     procedure :: photochemical_equilibrium
     procedure :: initialize_stepper
     procedure :: step
     procedure :: destroy_stepper
     
-    !!! photochem_atmosphere_utils.f90 !!!
+    ! photochem_atmosphere_utils.f90
     procedure :: out2atmosphere_txt
     procedure :: out2in
     procedure :: gas_fluxes
@@ -48,111 +48,118 @@ module photochem_atmosphere
   
   
   interface
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!! photochem_atmosphere_init.f90 !!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    !~~ photochem_atmosphere_init.f90 ~~!
+
+    !> Initializes the Atmosphere object by reading input files.
     module subroutine Atmosphere_init(self, data_dir, mechanism_file, &
                                      settings_file, flux_file, atmosphere_txt, err)
       class(Atmosphere), intent(inout) :: self
-      character(len=*), intent(in) :: data_dir
-      character(len=*), intent(in) :: mechanism_file
-      character(len=*), intent(in) :: settings_file
-      character(len=*), intent(in) :: flux_file
-      character(len=*), intent(in) :: atmosphere_txt
+      character(len=*), intent(in) :: data_dir !! Directory data is contained in.
+      character(len=*), intent(in) :: mechanism_file !! Path to reaction mechanism file.
+      character(len=*), intent(in) :: settings_file !! Path to setting file
+      character(len=*), intent(in) :: flux_file !! Path to file that specifies stellar flux
+      !> Path to file that specifies temperature profile and initial conditions
+      character(len=*), intent(in) :: atmosphere_txt 
       character(:), allocatable, intent(out) :: err
-      ! initializes the Atmosphere object. Reads all files, 
-      ! allocates memry, and prepares for photochemical calculations.
     end subroutine
-    
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!! photochem_atmosphere_rhs.f90 !!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    !~~ photochem_atmosphere_rhs.f90 ~~!
+
+    !> Given usol_in, the mixing ratios of each species in the atmosphere,
+    !> this subroutine calculates reaction rates, photolysis rates, etc.
+    !> and puts this information into self%wrk. self%wrk contains all the
+    !> information needed for `dochem` to compute chemistry.
     module subroutine prep_all_background_gas(self, usol_in, err)
       class(Atmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_in(:,:)
+      real(dp), intent(in) :: usol_in(:,:) !! Input mixing ratios (nq,nz)
       character(:), allocatable, intent(out) :: err
-      ! Given usol_in, the mixing ratios of each species in the atmosphere,
-      ! this subroutine calculates reaction rates, photolysis rates, etc.
-      ! and puts this information into self%wrk. self%wrk contains all the
-      ! information needed for `dochem` to compute chemistry
     end subroutine
     
+    !> The right-hand-side of the ODEs describing atmospheric chemistry
+    !> but does not include vertical transport terms.
     module subroutine right_hand_side_chem(self, usol, rhs, err)
       class(Atmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol(:,:)
-      real(dp), intent(out) :: rhs(:)
+      real(dp), intent(in) :: usol(:,:) !! Input mixing ratios (nq,nz)
+      real(dp), intent(out) :: rhs(:) !! rate of change of each species in 
+                                      !! mixing ratio per second (neqs)
       character(:), allocatable, intent(out) :: err
-      ! The right-hand-side of the ODEs describing atmospheric chemistry
-      ! but does not include transport
     end subroutine
     
+    !> Computes the production and loss of input `species`.
+    !> See ProductionLoss object in photochem_types.f90.
     module subroutine production_and_loss(self, species, usol, pl, err)     
       use photochem_types, only: ProductionLoss
       class(Atmosphere), target, intent(inout) :: self
-      character(len=*), intent(in) :: species
-      real(dp), intent(in) :: usol(:,:)
-      type(ProductionLoss), intent(out) :: pl
+      character(len=*), intent(in) :: species !! name of species
+      real(dp), intent(in) :: usol(:,:) !! Mixing ratios (nq,nz)
+      type(ProductionLoss), intent(out) :: pl !! Type describing production and loss of species
       character(:), allocatable, intent(out) :: err
-      ! Computes the production and loss of input `species`.
-      ! See ProductionLoss object in photochem_types.
     end subroutine
     
+    !> Computes the right-hand-side of the ODEs describing atmospheric chemistry
+    !> and transport.
     module subroutine rhs_background_gas(self, neqs, tn, usol_flat, rhs, err)
       class(Atmosphere), target, intent(inout) :: self
-      integer, intent(in) :: neqs
-      real(dp), intent(in) :: tn
-      real(dp), target, intent(in) :: usol_flat(neqs)
-      real(dp), intent(out) :: rhs(neqs)
+      integer, intent(in) :: neqs !! number of equations
+      real(dp), intent(in) :: tn !! time in seconds
+      real(dp), target, intent(in) :: usol_flat(neqs) !! mixing ratios, flattened to 1D array.
+      real(dp), intent(out) :: rhs(neqs) !! rate of change of each species in 
+                                         !! mixing ratio per second (neqs)
       character(:), allocatable, intent(out) :: err
-      ! Computes the right-hand-side of the ODEs describing atmospheric chemistry
-      ! and transport.
     end subroutine
     
+    !> Computes the banded jacobian approximation of the system of ODEs.
     module subroutine jac_background_gas(self, lda_neqs, neqs, tn, usol_flat, jac, err)
       class(Atmosphere), target, intent(inout) :: self
-      integer, intent(in) :: lda_neqs, neqs
-      real(dp), intent(in) :: tn
-      real(dp), target, intent(in) :: usol_flat(neqs)
+      integer, intent(in) :: lda_neqs !! total length of jacobian
+      integer, intent(in) :: neqs !! number of equations
+      real(dp), intent(in) :: tn !! time in seconds
+      real(dp), target, intent(in) :: usol_flat(neqs) !! mixing ratios, flattened to 1D array.
+      !> Jacobian of ODEs, with length lda*neqs. We assume the Jacobian is banded, with bandwith
+      !> 3*nq + 1 = lda.
       real(dp), intent(out), target :: jac(lda_neqs)
       character(:), allocatable, intent(out) :: err
-      ! The jacobian of the rhs_background_gas.
     end subroutine
     
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!! photochem_atmosphere_integrate.f90 !!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !~~ photochem_atmosphere_integrate.f90 ~~!
+
+    !> Evolve atmosphere through time, and saves output in a binary Fortran file.
     module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, err) result(success)
       use, intrinsic :: iso_c_binding
       class(Atmosphere), target, intent(inout) :: self
-      character(len=*), intent(in) :: filename
-      real(c_double), intent(in) :: tstart
-      real(dp), intent(in) :: usol_start(:,:)
-      real(c_double), intent(in) :: t_eval(:)
-      logical, optional, intent(in) :: overwrite
-      logical :: success
+      character(len=*), intent(in) :: filename !! Filename to save results.
+      real(c_double), intent(in) :: tstart !! start time in seconds
+      real(dp), intent(in) :: usol_start(:,:) !! Initial mixing ratios
+      real(c_double), intent(in) :: t_eval(:) !! times to evaluate the solution
+      logical, optional, intent(in) :: overwrite !! If true, then overwrites pre-existing files with `filename`
+      logical :: success !! If True, then integration was successful.
       character(:), allocatable, intent(out) :: err
-      ! Evolve atmosphere through time, and saves output in a binary Fortran file.
     end function
     
+    !> Integrates to photochemical equilibrium starting from self%var%usol_init
     module subroutine photochemical_equilibrium(self, success, err)
       class(Atmosphere), target, intent(inout) :: self
       logical, intent(out) :: success
       character(:), allocatable, intent(out) :: err 
-      ! Integrates to photochemical equilibrium starting from self%var%usol_init
     end subroutine
     
+    !> Initializes an integration starting at `usol_start` mixing ratios
     module subroutine initialize_stepper(self, usol_start, err)      
       class(Atmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_start(:,:)
+      real(dp), intent(in) :: usol_start(:,:) !! Initial mixing ratios
       character(:), allocatable, intent(out) :: err
     end subroutine
     
+    !> Takes one internal integration step. Function `initialize_stepper`
+    !> must have been called befe this
     module function step(self, err) result(tn)
       class(Atmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
       real(dp) :: tn
     end function
     
+    !> Deallocates memory created during `initialize_stepper`
     module subroutine destroy_stepper(self, err)
       class(Atmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
@@ -187,79 +194,98 @@ module photochem_atmosphere
       integer(c_int)        :: ierr
     end function
     
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!! photochem_atmosphere_utils.f90 !!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !~~ photochem_atmosphere_utils.f90 ~~!
+
+    !> Saves state of the atmosphere, using the mixing ratios in self%wrk%usol.
     module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
       class(Atmosphere), target, intent(inout) :: self
-      character(len=*), intent(in) :: filename
-      logical, intent(in) :: overwrite, clip
+      character(len=*), intent(in) :: filename !! Output filename
+      logical, intent(in) :: overwrite !! If true, then output file can be overwritten
+      logical, intent(in) :: clip !! If true, then mixing ratios are 
+                                  !! clipped at a very small positive number
       character(:), allocatable, intent(out) :: err
     end subroutine
     
+    !> Copies self%var%usol_out to self%var%usol_init
     module subroutine out2in(self, err)
       class(Atmosphere), intent(inout) :: self
       character(:), allocatable, intent(out) :: err
     end subroutine
     
+    !> Computes gas fluxes at model boundaries in order to maintain
+    !> current atmospheric concentrations. Uses the mixing ratios stored in
+    !> self%wrk%usol.
     module subroutine gas_fluxes(self, surf_fluxes, top_fluxes, err)
       class(Atmosphere), target, intent(inout) :: self
-      real(dp), intent(out) :: surf_fluxes(:)
-      real(dp), intent(out) :: top_fluxes(:)
+      real(dp), intent(out) :: surf_fluxes(:) !! surface fluxes (molecules/cm^2/s)
+      real(dp), intent(out) :: top_fluxes(:) !! top-of-atmosphere fluxes (molecules/cm^2/s)
       character(:), allocatable, intent(out) :: err
     end subroutine
     
+    !> Computes atom conservation. This is useful for determining if a model
+    !> Is in steady-state or not.
     module function atom_conservation(self, atom, err) result(con)
       use photochem_types, only: AtomConservation
       class(Atmosphere), target, intent(inout) :: self
-      character(len=*), intent(in) :: atom
+      character(len=*), intent(in) :: atom !! Name of atom
       character(:), allocatable, intent(out) :: err
-      type(AtomConservation) :: con
+      type(AtomConservation) :: con !! Type containing conservation
     end function
     
+    !> Computes redox conservation. This is useful for determining if a model
+    !> Is in steady-state or not.
     module function redox_conservation(self, err) result(redox_factor)
       class(Atmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
-      real(dp) :: redox_factor
+      real(dp) :: redox_factor !! should be small (< 1e-5) at equilibrium.
     end function
     
+    !> Sets a lower boundary condition.
     module subroutine set_lower_bc(self, species, bc_type, vdep, mix, flux, height, err)
       class(Atmosphere), intent(inout) :: self
-      character(len=*), intent(in) :: species
-      character(len=*), intent(in) :: bc_type
-      real(dp), optional, intent(in) :: vdep
-      real(dp), optional, intent(in) :: mix
-      real(dp), optional, intent(in) :: flux
-      real(dp), optional, intent(in) :: height
+      character(len=*), intent(in) :: species !! Species to set boundary condition
+      character(len=*), intent(in) :: bc_type !! Boundary condition type
+      real(dp), optional, intent(in) :: vdep !! Deposition velocity (cm/s)
+      real(dp), optional, intent(in) :: mix !! Mixing ratio
+      real(dp), optional, intent(in) :: flux !! Flux (molecules/cm^2/s)
+      real(dp), optional, intent(in) :: height !! Height in atomsphere (cm)
       character(:), allocatable, intent(out) :: err
     end subroutine
     
+    !> Sets upper boundary condition
     module subroutine set_upper_bc(self, species, bc_type, veff, flux, err)
       class(Atmosphere), intent(inout) :: self
-      character(len=*), intent(in) :: species
-      character(len=*), intent(in) :: bc_type
-      real(dp), optional, intent(in) :: veff
-      real(dp), optional, intent(in) :: flux
+      character(len=*), intent(in) :: species !! Species to set boundary condition
+      character(len=*), intent(in) :: bc_type !! Boundary condition type
+      real(dp), optional, intent(in) :: veff !! effusion velocity (cm/s)
+      real(dp), optional, intent(in) :: flux !! Flux (molecules/cm^2/s)
       character(:), allocatable, intent(out) :: err
     end subroutine
     
+    !> Changes the temperature profile.
     module subroutine set_temperature(self, temperature, trop_alt, err)
       class(Atmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: temperature(:)
-      real(dp), optional, intent(in) :: trop_alt
+      real(dp), intent(in) :: temperature(:) !! new temperature at each atomspheric layer
+      real(dp), optional, intent(in) :: trop_alt !! Tropopause altitude (cm). Only necessary if
+                                                 !! rainout == True, or fix_water_in_trop == True.
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    !> Sets a function describing a time-dependent photon flux. 
+    !> This is useful for modeling flares.
     module subroutine set_photon_flux_fcn(self, photon_flux_fcn)
       use photochem_types, only: time_dependent_flux_fcn
       class(Atmosphere), target, intent(inout) :: self
       procedure(time_dependent_flux_fcn), pointer :: photon_flux_fcn
     end subroutine
 
+    !> Sets a function describing a custom rate for a species.
+    !> This could be useful for modeling external processes not in the
+    !> model.
     module subroutine set_rate_fcn(self, species, fcn, err)
       use photochem_types, only: time_dependent_rate_fcn
       class(Atmosphere), target, intent(inout) :: self
-      character(*), intent(in) :: species
+      character(*), intent(in) :: species !! Species name
       procedure(time_dependent_rate_fcn), pointer :: fcn
       character(:), allocatable, intent(inout) :: err
     end subroutine
