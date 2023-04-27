@@ -37,7 +37,5 @@ def main():
     print('Cl conservation = '+'%.2e'%con)
     assert con < 1e-6
 
-    pc.out2atmosphere_txt('../atmosphere_ModernEarth.txt')
-
 if __name__ == "__main__":
     main()
