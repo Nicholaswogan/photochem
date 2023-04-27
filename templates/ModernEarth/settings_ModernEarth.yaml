@@ -21,8 +21,8 @@ planet:
     type: diffusion limited # options are "diffusion limited", "zahnle" and "none"
     # S1: 20 # required for type zahnle
   water:
-    fix-water-in-troposphere: false
-    # relative-humidity: manabe
+    fix-water-in-troposphere: true
+    relative-humidity: manabe
     gas-rainout: true
     rainfall-rate: 1 # relative to modern earth's rainfall rate
     # rainout-species: [H2SO4aer] # specify rainout species. If omitted, then model will use all species with data.
@@ -55,9 +55,6 @@ particles:
 # Assumes veff = vdep = 0 boundary condition for species not specified.
 # Assumes species is long-lived unless specified
 boundary-conditions:
-- name: H2O
-  lower-boundary: {type: mix, mix: 0.0175}
-  upper-boundary: {type: veff, veff: 0.0}
 - name: O2
   lower-boundary: {type: mix, mix: 0.21}
   upper-boundary: {type: veff, veff: 0.0}
