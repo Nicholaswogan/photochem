@@ -1,1 +1,3 @@
-recursive-include photochem/data *
+recursive-include photochem/data/ *
+exclude photochem/data/.git
+exclude photochem/data/.gitignore
