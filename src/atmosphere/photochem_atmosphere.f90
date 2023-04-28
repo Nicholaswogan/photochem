@@ -223,17 +223,17 @@ module photochem_atmosphere
     end subroutine
     
     !> Computes atom conservation. This is useful for determining if a model
-    !> Is in steady-state or not.
+    !> is in steady-state or not. Uses the mixing ratios in self%wrk%usol.
     module function atom_conservation(self, atom, err) result(con)
       use photochem_types, only: AtomConservation
       class(Atmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: atom !! Name of atom
       character(:), allocatable, intent(out) :: err
-      type(AtomConservation) :: con !! Type containing conservation
+      type(AtomConservation) :: con !! Type containing conservation information
     end function
     
     !> Computes redox conservation. This is useful for determining if a model
-    !> Is in steady-state or not.
+    !> is in steady-state or not. Uses the mixing ratios in self%wrk%usol.
     module function redox_conservation(self, err) result(redox_factor)
       class(Atmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
@@ -248,7 +248,7 @@ module photochem_atmosphere
       real(dp), optional, intent(in) :: vdep !! Deposition velocity (cm/s)
       real(dp), optional, intent(in) :: mix !! Mixing ratio
       real(dp), optional, intent(in) :: flux !! Flux (molecules/cm^2/s)
-      real(dp), optional, intent(in) :: height !! Height in atomsphere (cm)
+      real(dp), optional, intent(in) :: height !! Height in atmosphere (km)
       character(:), allocatable, intent(out) :: err
     end subroutine
     
