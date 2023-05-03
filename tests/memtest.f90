@@ -24,12 +24,12 @@ contains
     type(Atmosphere), intent(inout) :: pc
     character(:), allocatable :: err
 
-    call pc%init("../photochem/data", &
-                 "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-                 "../templates/ModernEarth/settings_ModernEarth.yaml", &
-                 "../templates/ModernEarth/Sun_now.txt", &
-                 "../bad/path.txt", &
-                 err)
+    pc = Atmosphere("../photochem/data", &
+                    "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
+                    "../templates/ModernEarth/settings_ModernEarth.yaml", &
+                    "../templates/ModernEarth/Sun_now.txt", &
+                    "../bad/path.txt", &
+                    err)
     if (.not. allocated(err)) then
       stop 1
     endif
@@ -43,12 +43,12 @@ contains
     character(:), allocatable :: err
     real(dp) :: tn
     
-    call pc%init("../photochem/data", &
-                 "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-                 "../templates/Titan/settings_Titan.yaml", &
-                 "../templates/ModernEarth/Sun_now.txt", &
-                 "../templates/Titan/atmosphere_Titan.txt", &
-                 err)
+    pc = Atmosphere("../photochem/data", &
+                    "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
+                    "../templates/Titan/settings_Titan.yaml", &
+                    "../templates/ModernEarth/Sun_now.txt", &
+                    "../templates/Titan/atmosphere_Titan.txt", &
+                    err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
@@ -66,12 +66,12 @@ contains
       stop 1
     endif
     
-    call pc%init("../photochem/data", &
-                 "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-                 "../templates/ModernEarth/settings_ModernEarth.yaml", &
-                 "../templates/ModernEarth/Sun_now.txt", &
-                 "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
-                 err)
+    pc = Atmosphere("../photochem/data", &
+                    "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
+                    "../templates/ModernEarth/settings_ModernEarth.yaml", &
+                    "../templates/ModernEarth/Sun_now.txt", &
+                    "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
+                    err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1

@@ -5,19 +5,19 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_init
   
 contains
   
-  module subroutine EvoAtmosphere_init(self, data_dir, mechanism_file, settings_file, flux_file, atmosphere_txt, err)
+  module function create_EvoAtmosphere(data_dir, mechanism_file, settings_file, flux_file, atmosphere_txt, err) result(self)
     use iso_c_binding, only : c_associated
     use photochem_input, only: setup
     use photochem_types, only: PhotoSettings
     use clima_types, only: ClimaSettings
     
-    class(EvoAtmosphere), intent(inout) :: self
     character(len=*), intent(in) :: data_dir
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
     character(len=*), intent(in) :: flux_file
     character(len=*), intent(in) :: atmosphere_txt
     character(:), allocatable, intent(out) :: err
+    type(EvoAtmosphere) :: self
 
     type(PhotoSettings) :: s
     type(ClimaSettings) :: cs
@@ -74,6 +74,6 @@ contains
     call self%prep_atmosphere(self%var%usol_init, err)
     if (allocated(err)) return   
 
-  end subroutine
+  end function
   
 end submodule

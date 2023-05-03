@@ -36,7 +36,7 @@ cdef class Atmosphere:
     cdef char err[ERR_LEN+1]
     
     # Initialize
-    a_pxd.atmosphere_init_wrapper(&self._ptr, data_dir_c, mechanism_file_c,
+    a_pxd.atmosphere_create_wrapper(&self._ptr, data_dir_c, mechanism_file_c,
                                   settings_file_c, flux_file_c,
                                   atmosphere_txt_c, 
                                   &self._dat_ptr, &self._var_ptr, &self._wrk_ptr,

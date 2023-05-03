@@ -32,7 +32,7 @@
   !!! subroutine wrappers  !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-  subroutine atmosphere_init_wrapper(ptr, data_dir, mechanism_file, &
+  subroutine atmosphere_create_wrapper(ptr, data_dir, mechanism_file, &
                                      settings_file, flux_file, &
                                      atmosphere_txt, dat_ptr, &
                                      var_ptr, wrk_ptr , err) bind(c)
@@ -67,13 +67,13 @@
     call copy_string_ctof(flux_file, flux_file_f)
     call copy_string_ctof(atmosphere_txt, atmosphere_txt_f)
     
-    call pc%init(data_dir_f, &
-                 mechanism_file_f, &
-                 settings_file_f, &
-                 flux_file_f, &
-                 atmosphere_txt_f, &
-                 err_f)
-    
+    pc = Atmosphere(data_dir_f, &
+                    mechanism_file_f, &
+                    settings_file_f, &
+                    flux_file_f, &
+                    atmosphere_txt_f, &
+                    err_f)
+        
     err(1) = c_null_char
     if (allocated(err_f)) then
       call copy_string_ftoc(err_f, err)

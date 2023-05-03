@@ -16,8 +16,6 @@ module photochem_atmosphere
     type(PhotochemVars), allocatable :: var
     type(PhotochemWrk), allocatable :: wrk
   contains
-    ! photochem_atmosphere_init.f90
-    procedure :: init => Atmosphere_init
     
     ! photochem_atmosphere_rhs.f90
     procedure :: prep_atmosphere => prep_all_background_gas
@@ -45,6 +43,9 @@ module photochem_atmosphere
     procedure :: set_photon_flux_fcn
     procedure :: set_rate_fcn
   end type
+  interface Atmosphere
+    module procedure :: create_Atmosphere
+  end interface
   
   
   interface
@@ -52,17 +53,16 @@ module photochem_atmosphere
     !~~ photochem_atmosphere_init.f90 ~~!
 
     !> Initializes the Atmosphere object by reading input files.
-    module subroutine Atmosphere_init(self, data_dir, mechanism_file, &
-                                     settings_file, flux_file, atmosphere_txt, err)
-      class(Atmosphere), intent(inout) :: self
+    module function create_Atmosphere(data_dir, mechanism_file, settings_file, flux_file, atmosphere_txt, err) result(self)
       character(len=*), intent(in) :: data_dir !! Directory data is contained in.
       character(len=*), intent(in) :: mechanism_file !! Path to reaction mechanism file.
       character(len=*), intent(in) :: settings_file !! Path to setting file
       character(len=*), intent(in) :: flux_file !! Path to file that specifies stellar flux
       !> Path to file that specifies temperature profile and initial conditions
-      character(len=*), intent(in) :: atmosphere_txt 
+      character(len=*), intent(in) :: atmosphere_txt
       character(:), allocatable, intent(out) :: err
-    end subroutine
+      type(Atmosphere) :: self
+    end function
 
     !~~ photochem_atmosphere_rhs.f90 ~~!
 

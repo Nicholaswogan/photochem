@@ -58,12 +58,12 @@
     call copy_string_ctof(flux_file, flux_file_f)
     call copy_string_ctof(atmosphere_txt, atmosphere_txt_f)
     
-    call pc%init(data_dir_f, &
-                 mechanism_file_f, &
-                 settings_file_f, &
-                 flux_file_f, &
-                 atmosphere_txt_f, &
-                 err_f)
+    pc = EvoAtmosphere(data_dir_f, &
+                       mechanism_file_f, &
+                       settings_file_f, &
+                       flux_file_f, &
+                       atmosphere_txt_f, &
+                       err_f)
     
     err(1) = c_null_char
     if (allocated(err_f)) then

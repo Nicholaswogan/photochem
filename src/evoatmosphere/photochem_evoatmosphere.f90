@@ -36,8 +36,6 @@ module photochem_evoatmosphere
     real(dp) :: top_atmos_adjust_frac = 0.02 ! fraction
 
   contains
-  !!! photochem_evoatmosphere_init.f90 !!!
-    procedure :: init => EvoAtmosphere_init
 
     !!! photochem_evoatmosphere_rhs.f90 !!!
     procedure :: set_trop_ind
@@ -58,21 +56,24 @@ module photochem_evoatmosphere
     procedure :: set_albedo_fcn
 
   end type
+  interface EvoAtmosphere
+    module procedure :: create_EvoAtmosphere
+  end interface
 
   interface
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_evoatmosphere_init.f90 !!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    module subroutine EvoAtmosphere_init(self, data_dir, mechanism_file, &
-                                         settings_file, flux_file, atmosphere_txt, err)
-      class(EvoAtmosphere), intent(inout) :: self
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    module function create_EvoAtmosphere(data_dir, mechanism_file, &
+                                         settings_file, flux_file, atmosphere_txt, err) result(self)
       character(len=*), intent(in) :: data_dir
       character(len=*), intent(in) :: mechanism_file
       character(len=*), intent(in) :: settings_file
       character(len=*), intent(in) :: flux_file
       character(len=*), intent(in) :: atmosphere_txt
       character(:), allocatable, intent(out) :: err
-    end subroutine
+      type(EvoAtmosphere) :: self
+    end function
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_atmosphere_rhs.f90 !!!

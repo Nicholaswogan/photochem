@@ -32,7 +32,7 @@ cdef class EvoAtmosphere:
     cdef char err[ERR_LEN+1]
     
     # Initialize
-    ea_pxd.evoatmosphere_init_wrapper(&self._ptr, data_dir_c, mechanism_file_c,
+    ea_pxd.evoatmosphere_create_wrapper(&self._ptr, data_dir_c, mechanism_file_c,
                                        settings_file_c, flux_file_c,
                                        atmosphere_txt_c, 
                                        &self._dat_ptr, &self._var_ptr, &self._wrk_ptr,

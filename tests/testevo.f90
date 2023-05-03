@@ -12,12 +12,12 @@ program testevo
   
   print*,'photochem version == ',trim(version)
 
-  call pc%init("../photochem/data", &
-               "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-               "../tests/testevo_settings.yaml", &
-               "../templates/ModernEarth/Sun_now.txt", &
-               "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
-               err)
+  pc = EvoAtmosphere("../photochem/data", &
+                     "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
+                     "../tests/testevo_settings.yaml", &
+                     "../templates/ModernEarth/Sun_now.txt", &
+                     "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
+                     err)
   if (allocated(err)) then
     print*,trim(err)
     stop 1
