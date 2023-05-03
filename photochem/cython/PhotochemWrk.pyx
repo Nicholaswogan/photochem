@@ -1,6 +1,10 @@
 cimport PhotochemWrk_pxd as wrk_pxd
 
 cdef class PhotochemWrk:
+  """This class contains data that changes during each step 
+  when integrating the photochemical model
+  """
+
   cdef void *_ptr
   cdef bint _destroy
 
@@ -17,6 +21,7 @@ cdef class PhotochemWrk:
       self._ptr = NULL
 
   property tn:
+    "double. The current time of integration."
     def __get__(self):
       cdef double val
       wrk_pxd.photochemwrk_tn_get(&self._ptr, &val)
@@ -25,6 +30,9 @@ cdef class PhotochemWrk:
       wrk_pxd.photochemwrk_tn_set(&self._ptr, &val)
 
   property usol:
+    """ndarray[double,dim=2], shape (nq,nz). Current gas concentrations in the atmosphere.
+    Units are mixing ratios for `Atmosphere` and molecules/cm^3 for `EvoAtmosphere`.
+    """
     def __get__(self):
       cdef int dim1, dim2
       wrk_pxd.photochemwrk_usol_get_size(&self._ptr, &dim1, &dim2)
@@ -40,6 +48,9 @@ cdef class PhotochemWrk:
       wrk_pxd.photochemwrk_usol_set(&self._ptr, &dim1, &dim2, <double *>usol_new.data)  
   
   property pressure:
+    """ndarray[double,dim=1], shape (nz). The pressure at the center of each 
+    atmospheric layer (dynes/cm^2).
+    """
     def __get__(self):
       cdef int dim1
       wrk_pxd.photochemwrk_pressure_get_size(&self._ptr, &dim1)
@@ -48,6 +59,9 @@ cdef class PhotochemWrk:
       return arr
       
   property density:
+    """ndarray[double,dim=1], shape (nz). The total number density at the 
+    center of each atmospheric layer (molecules/cm^3).
+    """
     def __get__(self):
       cdef int dim1
       wrk_pxd.photochemwrk_density_get_size(&self._ptr, &dim1)
@@ -56,6 +70,10 @@ cdef class PhotochemWrk:
       return arr
       
   property densities:
+    """ndarray[double,dim=2], shape (nsp+1,nz). The number density (molecules/cm^3)
+    or particle density (particles/cm^3) of each molecules or particle at each atmospheric
+    layer.
+    """
     def __get__(self):
       cdef int dim1, dim2
       wrk_pxd.photochemwrk_densities_get_size(&self._ptr, &dim1, &dim2)
@@ -64,6 +82,9 @@ cdef class PhotochemWrk:
       return arr
       
   property mubar:
+    """ndarray[double,dim=1], shape (nz). The mean molar mass of each atmospheric layer
+    (g/mol)
+    """
     def __get__(self):
       cdef int dim1
       wrk_pxd.photochemwrk_mubar_get_size(&self._ptr, &dim1)
@@ -72,6 +93,7 @@ cdef class PhotochemWrk:
       return arr
       
   property prates:
+    "ndarray[double,dim=2], shape (nz,kj). The rates of each photolysis reaction (1/s)"
     def __get__(self):
       cdef int dim1, dim2
       wrk_pxd.photochemwrk_prates_get_size(&self._ptr, &dim1, &dim2)
@@ -80,6 +102,10 @@ cdef class PhotochemWrk:
       return arr
   
   property amean_grd:
+    """ndarray[double,dim=2], shape (nz,nw). The mean irradiance at each 
+    atmospheric layer in each wavelength bin. Assumes the total flux is 1.
+    So, `amean_grd*photon_flux` is [photons/cm^2/s]
+    """
     def __get__(self):
       cdef int dim1, dim2
       wrk_pxd.photochemwrk_amean_grd_get_size(&self._ptr, &dim1, &dim2)
@@ -88,6 +114,9 @@ cdef class PhotochemWrk:
       return arr
       
   property optical_depth:
+    """ndarray[double,dim=2], shape (nz,nw). The optical depth at each atmospheric
+    layer in each wavelength bin.
+    """
     def __get__(self):
       cdef int dim1, dim2
       wrk_pxd.photochemwrk_optical_depth_get_size(&self._ptr, &dim1, &dim2)
@@ -96,6 +125,9 @@ cdef class PhotochemWrk:
       return arr
       
   property surf_radiance:
+    """ndarray[double,dim=1], shape (nw). The light hitting the ground.
+    Assumes the total flux is 1. So, `surf_radiance*photon_flux` is [photons/cm^2/s]
+    """
     def __get__(self):
       cdef int dim1
       wrk_pxd.photochemwrk_surf_radiance_get_size(&self._ptr, &dim1)

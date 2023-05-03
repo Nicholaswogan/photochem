@@ -2,6 +2,12 @@
 cimport AtomConservation_pxd as atom_pxd
 
 cdef class AtomConservation:
+  """A class holding data describing the conservation of an atom
+  in an atmosphere. This information is useful for determining if the model
+  is at a steady-state. This class is produced from the `atom_conservation`
+  routine.
+  """
+
   cdef void *_ptr
 
   def __cinit__(self, bint alloc = False):

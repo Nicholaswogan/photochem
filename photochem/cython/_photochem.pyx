@@ -17,7 +17,6 @@ include "PhotochemWrk.pyx"
 include "ProductionLoss.pyx"
 include "AtomConservation.pyx"
 
-
 # version
 cdef extern void photochem_version_get(char *version_c)
   
@@ -27,3 +26,16 @@ def _photochem_version():
   return version_c.decode("utf-8").strip()
   
 __version__ = _photochem_version()
+
+# utils
+cdef pystring2cstring(str pystring):
+  # add a null c char, and convert to byes
+  cdef bytes cstring = (pystring+'\0').encode('utf-8')
+  return cstring
+
+cdef c2stringarr(ndarray c_str_arr, int str_len, int arr_len):  
+  bs = c_str_arr[:-1].tobytes()
+  return [bs[i:i+str_len].decode().strip() for i in range(0, str_len*arr_len, str_len)]
+
+class PhotoException(Exception):
+    pass

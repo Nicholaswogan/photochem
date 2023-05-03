@@ -1,27 +1,29 @@
 
 cimport Atmosphere_pxd as a_pxd
-
-cdef pystring2cstring(str pystring):
-  # add a null c char, and convert to byes
-  cdef bytes cstring = (pystring+'\0').encode('utf-8')
-  return cstring
-
-class PhotoException(Exception):
-    pass
   
 cdef class Atmosphere:
+  """A photochemical model which assumes a background gas (e.g. N2). Once initialized,
+  this class can integrate an atmosphere forward in time, and can investigate
+  the reactions producing and destroying each molecule.
+  """
+
   cdef void *_ptr
   cdef void *_dat_ptr
   cdef void *_var_ptr
   cdef void *_wrk_ptr
   
   def __init__(self, mechanism_file = None, settings_file = None, 
-                     flux_file = None, atmosphere_txt = None):           
+                     flux_file = None, atmosphere_txt = None, data_dir = None):           
     # Allocate memory
     a_pxd.allocate_atmosphere(&self._ptr)
+
+    if data_dir == None:
+      data_dir_ = os.path.dirname(os.path.realpath(__file__))+'/data'
+    else:
+      data_dir_ = data_dir
     
     # convert strings to char
-    cdef bytes data_dir_b = pystring2cstring(os.path.dirname(os.path.realpath(__file__))+'/data')
+    cdef bytes data_dir_b = pystring2cstring(data_dir_)
     cdef char *data_dir_c = data_dir_b
     cdef bytes mechanism_file_b = pystring2cstring(mechanism_file)
     cdef char *mechanism_file_c = mechanism_file_b
@@ -35,10 +37,10 @@ cdef class Atmosphere:
     
     # Initialize
     a_pxd.atmosphere_init_wrapper(&self._ptr, data_dir_c, mechanism_file_c,
-                                       settings_file_c, flux_file_c,
-                                       atmosphere_txt_c, 
-                                       &self._dat_ptr, &self._var_ptr, &self._wrk_ptr,
-                                       err)
+                                  settings_file_c, flux_file_c,
+                                  atmosphere_txt_c, 
+                                  &self._dat_ptr, &self._var_ptr, &self._wrk_ptr,
+                                  err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
@@ -46,18 +48,27 @@ cdef class Atmosphere:
     a_pxd.deallocate_atmosphere(&self._ptr);
     
   property dat:
+    """The PhotochemData class. Data in this class almost never changes after the
+    `Atmosphere` class is initialized.
+    """
     def __get__(self):
       dat = PhotochemData(alloc = False)
       dat._ptr = self._dat_ptr
       return dat
       
   property var:
+    """The PhotochemVars class. Data in this class can change between photochemical 
+    integrations.
+    """
     def __get__(self):
       var = PhotochemVars(alloc = False)
       var._ptr = self._var_ptr
       return var
       
   property wrk:
+    """The PhotochemWrk class. Data in this class changes during each step of 
+    integration.
+    """
     def __get__(self):
       wrk = PhotochemWrk(alloc = False)
       wrk._ptr = self._wrk_ptr
@@ -92,7 +103,7 @@ cdef class Atmosphere:
     
   def step(self):
     """Takes one internal integration step. Function `initialize_stepper`.
-    must have been called befe this
+    must have been called before this
 
     Returns
     -------
@@ -327,7 +338,7 @@ cdef class Atmosphere:
     Parameters
     ----------
     usol : ndarray[double,ndim=2]
-        Boundary condition type
+        Mixing ratios
     """
     cdef char err[ERR_LEN+1]
     cdef int nq = self.dat.nq
