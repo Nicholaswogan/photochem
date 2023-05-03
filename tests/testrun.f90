@@ -9,22 +9,11 @@ program main
   
   print*,'photochem version == ',trim(version)
 
-  pc = Atmosphere("../photochem/data", &
-                  "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
+  pc = Atmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
                   "../templates/ModernEarth/settings_ModernEarth.yaml", &
                   "../templates/ModernEarth/Sun_now.txt", &
                   "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
-                  err)
-  if (allocated(err)) then
-    print*,trim(err)
-    stop 1
-  endif
-
-  pc = Atmosphere("../photochem/data", &
-                  "../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-                  "../templates/ModernEarth/settings_ModernEarth.yaml", &
-                  "../templates/ModernEarth/Sun_now.txt", &
-                  "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
+                  "../photochem/data", &
                   err)
   if (allocated(err)) then
     print*,trim(err)

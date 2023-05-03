@@ -7,16 +7,16 @@ submodule(photochem_atmosphere) photochem_atmosphere_init
   
 contains
   
-  module function create_Atmosphere(data_dir, mechanism_file, settings_file, flux_file, atmosphere_txt, err) result(self)
+  module function create_Atmosphere(mechanism_file, settings_file, flux_file, atmosphere_txt, data_dir, err) result(self)
     use iso_c_binding, only : c_associated
     use photochem_input, only: setup
     use photochem_types, only: PhotoSettings
     
-    character(len=*), intent(in) :: data_dir
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
     character(len=*), intent(in) :: flux_file
     character(len=*), intent(in) :: atmosphere_txt
+    character(len=*), intent(in) :: data_dir
     character(:), allocatable, intent(out) :: err
     type(Atmosphere) :: self
 

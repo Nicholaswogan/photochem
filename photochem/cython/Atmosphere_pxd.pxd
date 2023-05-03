@@ -11,9 +11,9 @@ cdef extern void allocate_atmosphere(void *ptr);
 cdef extern void deallocate_atmosphere(void *ptr);
 
 # subroutines
-cdef extern void atmosphere_create_wrapper(void *ptr, char *data_dir, char *mechanism_file,
+cdef extern void atmosphere_create_wrapper(void *ptr, char *mechanism_file,
                                         char *settings_file, char *flux_file,
-                                        char *atmosphere_txt, void *dat_ptr, void *var_ptr,
+                                        char *atmosphere_txt, char *data_dir, void *dat_ptr, void *var_ptr,
                                         void *wrk_ptr, char *err);
 
 cdef extern void atmosphere_photochemical_equilibrium_wrapper(void *ptr, bool *success, char* err)

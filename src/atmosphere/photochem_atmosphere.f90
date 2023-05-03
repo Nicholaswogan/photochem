@@ -53,13 +53,13 @@ module photochem_atmosphere
     !~~ photochem_atmosphere_init.f90 ~~!
 
     !> Initializes the Atmosphere object by reading input files.
-    module function create_Atmosphere(data_dir, mechanism_file, settings_file, flux_file, atmosphere_txt, err) result(self)
-      character(len=*), intent(in) :: data_dir !! Directory data is contained in.
+    module function create_Atmosphere(mechanism_file, settings_file, flux_file, atmosphere_txt, data_dir, err) result(self)
       character(len=*), intent(in) :: mechanism_file !! Path to reaction mechanism file.
       character(len=*), intent(in) :: settings_file !! Path to setting file
       character(len=*), intent(in) :: flux_file !! Path to file that specifies stellar flux
       !> Path to file that specifies temperature profile and initial conditions
       character(len=*), intent(in) :: atmosphere_txt
+      character(len=*), intent(in) :: data_dir !! Directory data is contained in.
       character(:), allocatable, intent(out) :: err
       type(Atmosphere) :: self
     end function

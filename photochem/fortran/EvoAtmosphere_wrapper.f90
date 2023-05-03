@@ -23,46 +23,46 @@
   !!! subroutine wrappers  !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-  subroutine evoatmosphere_create_wrapper(ptr, data_dir, mechanism_file, &
+  subroutine evoatmosphere_create_wrapper(ptr, mechanism_file, &
                                         settings_file, flux_file, &
-                                        atmosphere_txt, dat_ptr, &
+                                        atmosphere_txt, data_dir, dat_ptr, &
                                         var_ptr, wrk_ptr , err) bind(c)
     type(c_ptr), intent(in) :: ptr
-    character(kind=c_char), intent(in) :: data_dir(*)
     character(kind=c_char), intent(in) :: mechanism_file(*)
     character(kind=c_char), intent(in) :: settings_file(*)
     character(kind=c_char), intent(in) :: flux_file(*)
     character(kind=c_char), intent(in) :: atmosphere_txt(*)
+    character(kind=c_char), intent(in) :: data_dir(*)
     type(c_ptr), intent(out) :: dat_ptr, var_ptr, wrk_ptr
     character(kind=c_char), intent(out) :: err(err_len+1)
     
-    character(len=:), allocatable :: data_dir_f
     character(len=:), allocatable :: mechanism_file_f
     character(len=:), allocatable :: settings_file_f
     character(len=:), allocatable :: flux_file_f
     character(len=:), allocatable :: atmosphere_txt_f
+    character(len=:), allocatable :: data_dir_f
     character(:), allocatable :: err_f
     type(EvoAtmosphere), pointer :: pc
     
     call c_f_pointer(ptr, pc)
     
-    allocate(character(len=len_cstring(data_dir))::data_dir_f)
     allocate(character(len=len_cstring(mechanism_file))::mechanism_file_f)
     allocate(character(len=len_cstring(settings_file))::settings_file_f)
     allocate(character(len=len_cstring(flux_file))::flux_file_f)
     allocate(character(len=len_cstring(atmosphere_txt))::atmosphere_txt_f)
+    allocate(character(len=len_cstring(data_dir))::data_dir_f)
     
-    call copy_string_ctof(data_dir, data_dir_f)
     call copy_string_ctof(mechanism_file, mechanism_file_f)
     call copy_string_ctof(settings_file, settings_file_f)
     call copy_string_ctof(flux_file, flux_file_f)
     call copy_string_ctof(atmosphere_txt, atmosphere_txt_f)
+    call copy_string_ctof(data_dir, data_dir_f)
     
-    pc = EvoAtmosphere(data_dir_f, &
-                       mechanism_file_f, &
+    pc = EvoAtmosphere(mechanism_file_f, &
                        settings_file_f, &
                        flux_file_f, &
                        atmosphere_txt_f, &
+                       data_dir_f, &
                        err_f)
     
     err(1) = c_null_char

@@ -14,13 +14,16 @@ cdef class EvoAtmosphere:
   cdef void *_wrk_ptr
 
   def __init__(self, mechanism_file = None, settings_file = None, 
-                     flux_file = None, atmosphere_txt = None):           
+                     flux_file = None, atmosphere_txt = None, data_dir = None):           
     # Allocate memory
     ea_pxd.allocate_evoatmosphere(&self._ptr)
+
+    if data_dir == None:
+      data_dir_ = os.path.dirname(os.path.realpath(__file__))+'/data'
+    else:
+      data_dir_ = data_dir
     
     # convert strings to char
-    cdef bytes data_dir_b = pystring2cstring(os.path.dirname(os.path.realpath(__file__))+'/data')
-    cdef char *data_dir_c = data_dir_b
     cdef bytes mechanism_file_b = pystring2cstring(mechanism_file)
     cdef char *mechanism_file_c = mechanism_file_b
     cdef bytes settings_file_b = pystring2cstring(settings_file)
@@ -29,12 +32,14 @@ cdef class EvoAtmosphere:
     cdef char *flux_file_c = flux_file_b
     cdef bytes atmosphere_txt_b = pystring2cstring(atmosphere_txt)
     cdef char *atmosphere_txt_c = atmosphere_txt_b
+    cdef bytes data_dir_b = pystring2cstring(data_dir_)
+    cdef char *data_dir_c = data_dir_b
     cdef char err[ERR_LEN+1]
     
     # Initialize
-    ea_pxd.evoatmosphere_create_wrapper(&self._ptr, data_dir_c, mechanism_file_c,
+    ea_pxd.evoatmosphere_create_wrapper(&self._ptr, mechanism_file_c,
                                        settings_file_c, flux_file_c,
-                                       atmosphere_txt_c, 
+                                       atmosphere_txt_c, data_dir_c, 
                                        &self._dat_ptr, &self._var_ptr, &self._wrk_ptr,
                                        err)
     if len(err.strip()) > 0:

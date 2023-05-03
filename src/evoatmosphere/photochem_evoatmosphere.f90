@@ -64,13 +64,13 @@ module photochem_evoatmosphere
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_evoatmosphere_init.f90 !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    module function create_EvoAtmosphere(data_dir, mechanism_file, &
-                                         settings_file, flux_file, atmosphere_txt, err) result(self)
-      character(len=*), intent(in) :: data_dir
+    module function create_EvoAtmosphere(mechanism_file, &
+                                         settings_file, flux_file, atmosphere_txt, data_dir, err) result(self)
       character(len=*), intent(in) :: mechanism_file
       character(len=*), intent(in) :: settings_file
       character(len=*), intent(in) :: flux_file
       character(len=*), intent(in) :: atmosphere_txt
+      character(len=*), intent(in) :: data_dir
       character(:), allocatable, intent(out) :: err
       type(EvoAtmosphere) :: self
     end function
