@@ -155,7 +155,7 @@ cdef class Atmosphere:
     using the mixing ratios in `self.wrk.usol`
 
     Returns
-    ----------
+    -------
     dict
         Atmospheric composition and structure.
     """   

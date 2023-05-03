@@ -58,10 +58,10 @@ contains
       block
       integer :: num_zenith_angles
       num_zenith_angles = 1
-      self%rad = Radtran(data_dir, self%dat%species_names(self%dat%ng_1:self%dat%nq), &
+      self%rad = Radtran(self%dat%species_names(self%dat%ng_1:self%dat%nq), &
                          self%dat%species_names(1:self%dat%np), &
                          cs, flux_file, &
-                         num_zenith_angles, s%surface_albedo, self%var%nz, err)
+                         num_zenith_angles, s%surface_albedo, self%var%nz, data_dir, err)
       if (allocated(err)) return
       end block
 
