@@ -23,7 +23,7 @@
   !!! subroutine wrappers  !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-  subroutine evoatmosphere_init_wrapper(ptr, data_dir, mechanism_file, &
+  subroutine evoatmosphere_create_wrapper(ptr, data_dir, mechanism_file, &
                                         settings_file, flux_file, &
                                         atmosphere_txt, dat_ptr, &
                                         var_ptr, wrk_ptr , err) bind(c)
