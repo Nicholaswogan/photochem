@@ -459,16 +459,23 @@ cdef class Atmosphere:
     fcn : function
         A Numba cfunc that describes the time-dependent photon flux
     """
+    cdef uintptr_t fcn_l
+    cdef a_pxd.time_dependent_flux_fcn fcn_c
 
-    argtypes = (ct.c_double, ct.c_int32, ct.POINTER(ct.c_double))
-    restype = None
-    if not fcn.ctypes.argtypes == argtypes:
-      raise PhotoException("The callback function has the wrong argument types.")
-    if not fcn.ctypes.restype == restype:
-      raise PhotoException("The callback function has the wrong return type.")
+    if fcn is None:
+      fcn_l = 0
+      fcn_c = NULL
+    else:
+      argtypes = (ct.c_double, ct.c_int32, ct.POINTER(ct.c_double))
+      restype = None
+      if not fcn.ctypes.argtypes == argtypes:
+        raise PhotoException("The callback function has the wrong argument types.")
+      if not fcn.ctypes.restype == restype:
+        raise PhotoException("The callback function has the wrong return type.")
 
-    cdef unsigned long long int fcn_l = <unsigned long long int> fcn.address
-    cdef a_pxd.time_dependent_flux_fcn fcn_c = <a_pxd.time_dependent_flux_fcn> fcn_l
+      fcn_l = fcn.address
+      fcn_c = <a_pxd.time_dependent_flux_fcn> fcn_l
+
     a_pxd.atmosphere_set_photon_flux_fcn_wrapper(&self._ptr, fcn_c)
 
   def set_rate_fcn(self, str species, object fcn):
@@ -486,16 +493,23 @@ cdef class Atmosphere:
     cdef bytes species_b = pystring2cstring(species)
     cdef char *species_c = species_b
     cdef char err[ERR_LEN+1]
+    cdef uintptr_t fcn_l
+    cdef a_pxd.time_dependent_rate_fcn fcn_c
 
-    argtypes = (ct.c_double, ct.c_int32, ct.POINTER(ct.c_double))
-    restype = None
-    if not fcn.ctypes.argtypes == argtypes:
-      raise PhotoException("The callback function has the wrong argument types.")
-    if not fcn.ctypes.restype == restype:
-      raise PhotoException("The callback function has the wrong return type.")
+    if fcn is None:
+      fcn_l = 0
+      fcn_c = NULL
+    else:
+      argtypes = (ct.c_double, ct.c_int32, ct.POINTER(ct.c_double))
+      restype = None
+      if not fcn.ctypes.argtypes == argtypes:
+        raise PhotoException("The callback function has the wrong argument types.")
+      if not fcn.ctypes.restype == restype:
+        raise PhotoException("The callback function has the wrong return type.")
 
-    cdef unsigned long long int fcn_l = <unsigned long long int> fcn.address
-    cdef a_pxd.time_dependent_rate_fcn fcn_c = <a_pxd.time_dependent_rate_fcn> fcn_l
+      fcn_l = fcn.address
+      fcn_c = <a_pxd.time_dependent_rate_fcn> fcn_l
+      
     a_pxd.atmosphere_set_rate_fcn_wrapper(&self._ptr, species_c, fcn_c, err)
     if len(err.strip()) > 0:
        raise PhotoException(err.decode("utf-8").strip())

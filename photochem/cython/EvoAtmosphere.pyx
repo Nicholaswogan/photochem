@@ -200,15 +200,23 @@ cdef class EvoAtmosphere:
     fcn : function
         A Numba cfunc that describes the temperature dependent surface albedo
     """
-    argtypes = (ct.c_double,)
-    restype = ct.c_double
-    if not fcn.ctypes.argtypes == argtypes:
-      raise PhotoException("The callback function has the wrong argument types.")
-    if not fcn.ctypes.restype == restype:
-      raise PhotoException("The callback function has the wrong return type.")
+    cdef uintptr_t fcn_l
+    cdef ea_pxd.temp_dependent_albedo_fcn fcn_c
 
-    cdef unsigned long long int fcn_l = <unsigned long long int> fcn.address
-    cdef ea_pxd.temp_dependent_albedo_fcn fcn_c = <ea_pxd.temp_dependent_albedo_fcn> fcn_l
+    if fcn is None:
+      fcn_l = 0
+      fcn_c = NULL
+    else:
+      argtypes = (ct.c_double,)
+      restype = ct.c_double
+      if not fcn.ctypes.argtypes == argtypes:
+        raise PhotoException("The callback function has the wrong argument types.")
+      if not fcn.ctypes.restype == restype:
+        raise PhotoException("The callback function has the wrong return type.")
+
+      fcn_l = fcn.address
+      fcn_c = <ea_pxd.temp_dependent_albedo_fcn> fcn_l
+    
     ea_pxd.evoatmosphere_set_albedo_fcn_wrapper(&self._ptr, fcn_c)
 
   property T_surf:
