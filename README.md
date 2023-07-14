@@ -60,6 +60,7 @@ Funding for the development of Photochem comes from
 This model was build in collaboration with
 - David Catling
 - Kevin Zahnle
+- Mark Claire
 - Sandra Bastelberger
 - Shawn Domagal-Goldman
 - Josh Krissansen-Totton
