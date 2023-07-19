@@ -1,4 +1,4 @@
-# Photochem [![codecov](https://codecov.io/gh/Nicholaswogan/Photochem/branch/main/graph/badge.svg?token=ZTCXVTG371)](https://codecov.io/gh/Nicholaswogan/Photochem) [![Build Status](https://app.travis-ci.com/Nicholaswogan/Photochem.svg?branch=main)](https://app.travis-ci.com/Nicholaswogan/Photochem)
+# Photochem
 
 `Photochem` is a photochemical and climate model of planet's atmospheres. Given inputs, like the stellar UV flux, the atmospheric temperature structure, etc., this code will find the steady-state chemical composition of an atmosphere, or evolve atmospheres through time. The code also contains 1-D climate models.
 
