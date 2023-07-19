@@ -1,17 +1,21 @@
 # Photochem [![codecov](https://codecov.io/gh/Nicholaswogan/Photochem/branch/main/graph/badge.svg?token=ZTCXVTG371)](https://codecov.io/gh/Nicholaswogan/Photochem) [![Build Status](https://app.travis-ci.com/Nicholaswogan/Photochem.svg?branch=main)](https://app.travis-ci.com/Nicholaswogan/Photochem)
 
-**NOTE: Photochem has not been published in a peer-reviewed journal yet. Please do not use this model in a paper that will be published. Wait for me to publish the model first, so you are able to cite it. Email me if you have questions (wogan@uw.edu)**
-
-`Photochem` is a photochemical model of planet's atmospheres. Given inputs, like the stellar UV flux, the atmospheric temperature structure, etc., this code will find the steady-state chemical composition of an atmosphere, or evolve atmospheres through time.
+`Photochem` is a photochemical and climate model of planet's atmospheres. Given inputs, like the stellar UV flux, the atmospheric temperature structure, etc., this code will find the steady-state chemical composition of an atmosphere, or evolve atmospheres through time. The code also contains 1-D climate models.
 
 ## Installation
+
+### Conda
+
+`conda install -c conda-forge photochem`
+
+### From source
 
 You need a Fortran compiler (`gfortran>=9.30`, [install instructions here](https://fortran-lang.org/learn/os_setup/install_gfortran)) and C compiler (e.g. install with `conda install -c conda-forge clang`)
 
 Create a `conda` environment with all dependencies
 
 ```sh
-conda create -n photochem -c conda-forge python numpy scipy pyyaml numba scikit-build cython cmake ninja
+conda create -n photochem -c conda-forge python numpy scipy pyyaml numba scikit-build cython cmake ninja pip hdf5
 ```
 
 Clone this Gitub repository: 
@@ -25,17 +29,6 @@ Navigate to the root directory with a terminal, activate your new `conda` enviro
 ```sh
 conda activate photochem
 python -m pip install --no-deps --no-build-isolation .
-```
-
-**Fortran library only:** 
-
-You can build `libphotochem` with CMake (install CMake with `conda install -c anaconda cmake`). Download or clone this repository, then from the root directory of the repository run
-
-```sh
-mkdir build
-cd build
-cmake ..
-cmake --build . -j
 ```
 
 ## Examples/Tutorial
