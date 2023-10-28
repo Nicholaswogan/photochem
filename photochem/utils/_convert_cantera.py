@@ -55,7 +55,13 @@ def photochem2cantera_main(data):
     if "reverse-reactions" in data:
         if data['reverse-reactions'] == False:
             raise Exception("Can only convert to Cantera if reactions are reversable")
-        del data['reverse-reactions']        
+        del data['reverse-reactions']  
+
+    # Cantera can't handle > 2 temperature ranges for thermodynamic data
+    for i in range(len(data['species'])):
+        if len(data['species'][i]['thermo']['temperature-ranges']) > 3:
+            data['species'][i]['thermo']['temperature-ranges'] = data['species'][i]['thermo']['temperature-ranges'][:3]
+            data['species'][i]['thermo']['data'] = data['species'][i]['thermo']['data'][:2] 
 
     units = flowmap({"length": "cm", "quantity": "molec", "activation-energy": "K"})
     phases = [{}]
