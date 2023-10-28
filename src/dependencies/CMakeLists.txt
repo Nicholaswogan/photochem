@@ -19,9 +19,9 @@ CPMAddPackage(
 
 CPMAddPackage(
   NAME fortran-yaml-c
-  VERSION 0.2.1
+  VERSION 0.2.4
   GITHUB_REPOSITORY "Nicholaswogan/fortran-yaml-c"
-  GIT_TAG "v0.2.1"
+  GIT_TAG "v0.2.4"
   EXCLUDE_FROM_ALL ON
 )
 
@@ -49,7 +49,7 @@ CPMAddPackage(
 
 CPMAddPackage(
   NAME clima 
-  VERSION 0.3.8
+  VERSION 0.4.0
   OPTIONS 
     "BUILD_EXECUTABLE OFF"
     "BUILD_WITH_OPENMP ${BUILD_WITH_OPENMP}"
@@ -57,6 +57,6 @@ CPMAddPackage(
     "BUILD_PYTHON_CLIMA ${BUILD_PYTHON_PHOTOCHEM}"
     "PYTHON_CLIMA_DESTINATION photochem"
   GITHUB_REPOSITORY "Nicholaswogan/clima"
-  GIT_TAG "v0.3.8"
+  GIT_TAG "v0.4.0"
   EXCLUDE_FROM_ALL OFF
 )
