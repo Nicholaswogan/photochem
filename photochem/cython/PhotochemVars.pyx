@@ -99,6 +99,26 @@ cdef class PhotochemVars:
       cdef ndarray arr = np.empty(dim1, np.double)
       var_pxd.photochemvars_edd_get(&self._ptr, &dim1, <double *>arr.data)
       return arr
+
+  property custom_binary_diffusion_fcn:
+    "A function for specifying a custom binary diffusion parameter (b_ij)"
+    def __set__(self, object fcn):
+      cdef uintptr_t fcn_l
+      cdef var_pxd.binary_diffusion_fcn fcn_c
+      if fcn is None:
+        fcn_l = 0
+        fcn_c = NULL
+      else:
+        argtypes = (ct.c_double, ct.c_double, ct.c_double)
+        restype = ct.c_double
+        if not fcn.ctypes.argtypes == argtypes:
+          raise PhotoException("The callback function has the wrong argument types.")
+        if not fcn.ctypes.restype == restype:
+          raise PhotoException("The callback function has the wrong return type.")
+        fcn_l = fcn.address
+        fcn_c = <var_pxd.binary_diffusion_fcn> fcn_l
+
+      var_pxd.photochemvars_custom_binary_diffusion_fcn_set(&self._ptr, fcn_c)
       
   property photon_flux:
     "ndarray[double,dim=1], shape (nw). photon/cm^2/s in each wavelength bin hitting planet."

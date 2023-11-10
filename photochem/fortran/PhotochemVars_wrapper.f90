@@ -118,6 +118,20 @@
     call c_f_pointer(ptr, var)
     arr = var%edd
   end subroutine
+
+  subroutine photochemvars_custom_binary_diffusion_fcn_set(ptr, fcn_c) bind(c)
+    use photochem_types, only: binary_diffusion_fcn
+    type(c_ptr), intent(in) :: ptr
+    type(c_funptr), value, intent(in) :: fcn_c
+  
+    procedure(binary_diffusion_fcn), pointer :: fcn_f
+    type(PhotochemVars), pointer :: var
+  
+    call c_f_pointer(ptr, var)
+    call c_f_procpointer(fcn_c, fcn_f)
+    var%custom_binary_diffusion_fcn => fcn_f
+  
+  end subroutine
   
   subroutine photochemvars_photon_flux_get_size(ptr, dim1) bind(c)
     type(c_ptr), intent(in) :: ptr

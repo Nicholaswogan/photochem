@@ -4,6 +4,7 @@ cdef extern from "<stdbool.h>":
 
 # callback signatures
 ctypedef void (*time_dependent_flux_fcn)(double tn, int nw, double *photon_flux)
+ctypedef double (*binary_diffusion_fcn)(double mu_i, double mubar, double T)
 
 cdef extern void allocate_photochemvars(void *ptr)
 cdef extern void deallocate_photochemvars(void *ptr)
@@ -26,6 +27,8 @@ cdef extern void photochemvars_temperature_get(void *ptr, int *dim1, double *tem
 
 cdef extern void photochemvars_edd_get_size(void *ptr, int *dim1)
 cdef extern void photochemvars_edd_get(void *ptr, int *dim1, double *arr)
+
+cdef extern void photochemvars_custom_binary_diffusion_fcn_set(void *ptr, binary_diffusion_fcn fcn)
 
 cdef extern void photochemvars_photon_flux_get_size(void *ptr, int *dim1)
 cdef extern void photochemvars_photon_flux_get(void *ptr, int *dim1, double *arr)
