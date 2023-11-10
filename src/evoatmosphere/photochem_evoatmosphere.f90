@@ -53,7 +53,6 @@ module photochem_evoatmosphere
     procedure :: out2atmosphere_txt
     procedure :: rebin_update_vertical_grid
     procedure :: regrid_prep_atmosphere
-    procedure :: set_albedo_fcn
 
   end type
   interface EvoAtmosphere
@@ -209,11 +208,6 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: usol_new(:,:)
       real(dp), intent(in) :: top_atmos
       character(:), allocatable, intent(out) :: err
-    end subroutine
-
-    module subroutine set_albedo_fcn(self, albedo_fcn)
-      class(EvoAtmosphere), target, intent(inout) :: self
-      procedure(temp_dependent_albedo_fcn), pointer :: albedo_fcn
     end subroutine
 
   end interface

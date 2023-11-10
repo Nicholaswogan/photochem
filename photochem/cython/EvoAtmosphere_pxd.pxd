@@ -26,14 +26,14 @@ cdef extern void evoatmosphere_evolve_wrapper(void *ptr, char *filename,
 cdef extern void evoatmosphere_production_and_loss_wrapper(void *ptr, char *species, int *nq, 
                                                         int *nz, double *usol, double *top_atmos, void *pl_ptr, char *err)
 
-cdef extern void evoatmosphere_set_albedo_fcn_wrapper(void *ptr, temp_dependent_albedo_fcn fcn)
-
 # getters and setters
 cdef extern void evoatmosphere_t_surf_get(void *ptr, double *val)
 cdef extern void evoatmosphere_t_surf_set(void *ptr, double *val)
 
 cdef extern void evoatmosphere_t_trop_get(void *ptr, double *val)
 cdef extern void evoatmosphere_t_trop_set(void *ptr, double *val)
+
+cdef extern void evoatmosphere_albedo_fcn_set(void *ptr, temp_dependent_albedo_fcn fcn)
 
 cdef extern void evoatmosphere_p_top_min_get(void *ptr, double *val)
 cdef extern void evoatmosphere_p_top_min_set(void *ptr, double *val)

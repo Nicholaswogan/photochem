@@ -191,34 +191,6 @@ cdef class EvoAtmosphere:
     pl._ptr = pl_ptr
     return pl
 
-  def set_albedo_fcn(self, object fcn):
-    """Sets a function describing a temperature dependent surface albedo.
-    This is useful for modeling the ice-albedo feedback.
-
-    Parameters
-    ----------
-    fcn : function
-        A Numba cfunc that describes the temperature dependent surface albedo
-    """
-    cdef uintptr_t fcn_l
-    cdef ea_pxd.temp_dependent_albedo_fcn fcn_c
-
-    if fcn is None:
-      fcn_l = 0
-      fcn_c = NULL
-    else:
-      argtypes = (ct.c_double,)
-      restype = ct.c_double
-      if not fcn.ctypes.argtypes == argtypes:
-        raise PhotoException("The callback function has the wrong argument types.")
-      if not fcn.ctypes.restype == restype:
-        raise PhotoException("The callback function has the wrong return type.")
-
-      fcn_l = fcn.address
-      fcn_c = <ea_pxd.temp_dependent_albedo_fcn> fcn_l
-    
-    ea_pxd.evoatmosphere_set_albedo_fcn_wrapper(&self._ptr, fcn_c)
-
   property T_surf:
     "double. The surface temperature (K)"
     def __get__(self):
@@ -236,6 +208,30 @@ cdef class EvoAtmosphere:
       return val
     def __set__(self, double val):
       ea_pxd.evoatmosphere_t_trop_set(&self._ptr, &val)
+
+  property albedo_fcn:
+    """A function describing a temperature dependent surface albedo.
+    This is useful for modeling the ice-albedo feedback.
+    """
+    def __set__(self, object fcn):
+      cdef uintptr_t fcn_l
+      cdef ea_pxd.temp_dependent_albedo_fcn fcn_c
+
+      if fcn is None:
+        fcn_l = 0
+        fcn_c = NULL
+      else:
+        argtypes = (ct.c_double,)
+        restype = ct.c_double
+        if not fcn.ctypes.argtypes == argtypes:
+          raise PhotoException("The callback function has the wrong argument types.")
+        if not fcn.ctypes.restype == restype:
+          raise PhotoException("The callback function has the wrong return type.")
+
+        fcn_l = fcn.address
+        fcn_c = <ea_pxd.temp_dependent_albedo_fcn> fcn_l
+      
+      ea_pxd.evoatmosphere_albedo_fcn_set(&self._ptr, fcn_c)
 
   property P_top_min:
     """double. When running the `evolve` routine, this determines

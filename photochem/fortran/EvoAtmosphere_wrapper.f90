@@ -187,20 +187,6 @@
     endif
   end subroutine
 
-  subroutine evoatmosphere_set_albedo_fcn_wrapper(ptr, albedo_fcn_c) bind(c)
-    use photochem_evoatmosphere, only: temp_dependent_albedo_fcn
-    type(c_ptr), intent(in) :: ptr
-    type(c_funptr), value, intent(in) :: albedo_fcn_c
-
-    procedure(temp_dependent_albedo_fcn), pointer :: albedo_fcn_f
-    type(EvoAtmosphere), pointer :: pc
-
-    call c_f_pointer(ptr, pc)
-    call c_f_procpointer(albedo_fcn_c, albedo_fcn_f)
-    call pc%set_albedo_fcn(albedo_fcn_f)
-
-  end subroutine
-
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! getters and setters !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -235,6 +221,20 @@
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
     pc%T_trop = val
+  end subroutine
+
+  subroutine evoatmosphere_albedo_fcn_set(ptr, albedo_fcn_c) bind(c)
+    use photochem_evoatmosphere, only: temp_dependent_albedo_fcn
+    type(c_ptr), intent(in) :: ptr
+    type(c_funptr), value, intent(in) :: albedo_fcn_c
+
+    procedure(temp_dependent_albedo_fcn), pointer :: albedo_fcn_f
+    type(EvoAtmosphere), pointer :: pc
+
+    call c_f_pointer(ptr, pc)
+    call c_f_procpointer(albedo_fcn_c, albedo_fcn_f)
+    pc%albedo_fcn => albedo_fcn_f
+
   end subroutine
   
   subroutine evoatmosphere_p_top_min_get(ptr, val) bind(c)
