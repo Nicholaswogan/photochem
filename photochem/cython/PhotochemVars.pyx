@@ -52,6 +52,15 @@ cdef class PhotochemVars:
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
       var_pxd.photochemvars_usol_init_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
+
+  property relative_humidity:
+    "double. Relative humidity of H2O in the troposphere."
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_relative_humidity_get(&self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.photochemvars_relative_humidity_set(&self._ptr, &val)
   
   property z:
     "ndarray[double,dim=1], shape (nz). The altitude of the center of each atmopsheric layer (cm)"
@@ -99,6 +108,13 @@ cdef class PhotochemVars:
       cdef ndarray arr = np.empty(dim1, np.double)
       var_pxd.photochemvars_edd_get(&self._ptr, &dim1, <double *>arr.data)
       return arr
+    def __set__(self, ndarray[double, ndim=1] edd_new_):
+      cdef int dim1
+      var_pxd.photochemvars_edd_get_size(&self._ptr, &dim1)
+      cdef ndarray edd_new = np.asfortranarray(edd_new_)
+      if edd_new.shape[0] != dim1:
+        raise PhotoException("Input edd is the wrong size.")
+      var_pxd.photochemvars_edd_set(&self._ptr, &dim1, <double *>edd_new.data)
 
   property custom_binary_diffusion_fcn:
     "A function for specifying a custom binary diffusion parameter (b_ij)"

@@ -404,7 +404,7 @@ module photochem_types ! make a giant IO object
     real(dp) :: rainfall_rate !! relative to modern Earth's average rainfall rate of 1.1e17 molecules/cm2/s
     integer :: trop_ind !! index of troposphere (only for fix_water_in_trop == true or gas_rainout == true)
     logical :: use_manabe !! use manabe formula
-    real(dp), allocatable :: relative_humidity !! relative humidity if no manabe
+    real(dp) :: relative_humidity !! relative humidity if no manabe
     real(dp) :: H2O_condensation_rate(3) !! H2O condesation rate parameters
     
     ! radiative transfer

@@ -20,6 +20,9 @@ cdef extern void photochemvars_at_photo_equilibrium_get(void *ptr, bool *at_phot
 cdef extern void photochemvars_usol_init_get_size(void *ptr, int *dim1, int *dim2)
 cdef extern void photochemvars_usol_init_get(void *ptr, int *dim1, int *dim2, double *usol_init)
 
+cdef extern void photochemvars_relative_humidity_get(void *ptr, double *val)
+cdef extern void photochemvars_relative_humidity_set(void *ptr, double *val)
+
 cdef extern void photochemvars_photon_flux_fcn_set(void *ptr, time_dependent_flux_fcn fcn)
 
 cdef extern void photochemvars_temperature_get_size(void *ptr, int *dim1)
@@ -27,6 +30,7 @@ cdef extern void photochemvars_temperature_get(void *ptr, int *dim1, double *tem
 
 cdef extern void photochemvars_edd_get_size(void *ptr, int *dim1)
 cdef extern void photochemvars_edd_get(void *ptr, int *dim1, double *arr)
+cdef extern void photochemvars_edd_set(void *ptr, int *dim1, double *arr)
 
 cdef extern void photochemvars_custom_binary_diffusion_fcn_set(void *ptr, binary_diffusion_fcn fcn)
 

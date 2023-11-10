@@ -745,14 +745,13 @@ contains
     
     if (dat%fix_water_in_trop) then  
       
-      allocate(var%relative_humidity)
       read(s%relative_humidity,*,iostat = io) var%relative_humidity
       
       if (io /= 0) then
         ! it isn't a float
         if (trim(s%relative_humidity) == "manabe") then
           var%use_manabe = .true.
-          deallocate(var%relative_humidity)
+          var%relative_humidity = -1.0
         else
           err = '"relative-humidity" can only be a number between 0 and 1, or "manabe". See '//trim(infile)
           return 

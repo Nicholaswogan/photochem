@@ -71,6 +71,22 @@
     usol_init = var%usol_init
   end subroutine
 
+  subroutine photochemvars_relative_humidity_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%relative_humidity
+  end subroutine
+  
+  subroutine photochemvars_relative_humidity_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%relative_humidity = val
+  end subroutine
+
   subroutine photochemvars_photon_flux_fcn_set(ptr, photon_flux_fcn_c) bind(c)
     use photochem_types, only: time_dependent_flux_fcn
     type(c_ptr), intent(in) :: ptr
@@ -117,6 +133,15 @@
     type(PhotochemVars), pointer :: var
     call c_f_pointer(ptr, var)
     arr = var%edd
+  end subroutine
+
+  subroutine photochemvars_edd_set(ptr, dim1, arr) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(in) :: arr(dim1)
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%edd = arr
   end subroutine
 
   subroutine photochemvars_custom_binary_diffusion_fcn_set(ptr, fcn_c) bind(c)
