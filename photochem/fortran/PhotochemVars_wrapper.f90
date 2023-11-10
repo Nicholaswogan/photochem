@@ -70,6 +70,20 @@
     call c_f_pointer(ptr, var)
     usol_init = var%usol_init
   end subroutine
+
+  subroutine photochemvars_photon_flux_fcn_set(ptr, photon_flux_fcn_c) bind(c)
+    use photochem_types, only: time_dependent_flux_fcn
+    type(c_ptr), intent(in) :: ptr
+    type(c_funptr), value, intent(in) :: photon_flux_fcn_c
+  
+    procedure(time_dependent_flux_fcn), pointer :: photon_flux_fcn_f
+    type(PhotochemVars), pointer :: var
+  
+    call c_f_pointer(ptr, var)
+    call c_f_procpointer(photon_flux_fcn_c, photon_flux_fcn_f)
+    var%photon_flux_fcn => photon_flux_fcn_f
+  
+  end subroutine
   
   subroutine photochemvars_temperature_get_size(ptr, dim1) bind(c)
     type(c_ptr), intent(in) :: ptr

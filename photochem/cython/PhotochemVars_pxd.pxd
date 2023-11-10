@@ -2,6 +2,9 @@ from libcpp cimport bool
 cdef extern from "<stdbool.h>":
   pass
 
+# callback signatures
+ctypedef void (*time_dependent_flux_fcn)(double tn, int nw, double *photon_flux)
+
 cdef extern void allocate_photochemvars(void *ptr)
 cdef extern void deallocate_photochemvars(void *ptr)
 
@@ -15,6 +18,8 @@ cdef extern void photochemvars_at_photo_equilibrium_get(void *ptr, bool *at_phot
 
 cdef extern void photochemvars_usol_init_get_size(void *ptr, int *dim1, int *dim2)
 cdef extern void photochemvars_usol_init_get(void *ptr, int *dim1, int *dim2, double *usol_init)
+
+cdef extern void photochemvars_photon_flux_fcn_set(void *ptr, time_dependent_flux_fcn fcn)
 
 cdef extern void photochemvars_temperature_get_size(void *ptr, int *dim1)
 cdef extern void photochemvars_temperature_get(void *ptr, int *dim1, double *temperature)

@@ -40,7 +40,6 @@ module photochem_atmosphere
     procedure :: set_lower_bc
     procedure :: set_upper_bc
     procedure :: set_temperature
-    procedure :: set_photon_flux_fcn
     procedure :: set_rate_fcn
   end type
   interface Atmosphere
@@ -269,14 +268,6 @@ module photochem_atmosphere
       real(dp), optional, intent(in) :: trop_alt !! Tropopause altitude (cm). Only necessary if
                                                  !! rainout == True, or fix_water_in_trop == True.
       character(:), allocatable, intent(out) :: err
-    end subroutine
-
-    !> Sets a function describing a time-dependent photon flux. 
-    !> This is useful for modeling flares.
-    module subroutine set_photon_flux_fcn(self, photon_flux_fcn)
-      use photochem_types, only: time_dependent_flux_fcn
-      class(Atmosphere), target, intent(inout) :: self
-      procedure(time_dependent_flux_fcn), pointer :: photon_flux_fcn
     end subroutine
 
     !> Sets a function describing a custom rate for a species.

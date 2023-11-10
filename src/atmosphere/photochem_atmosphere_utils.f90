@@ -605,13 +605,6 @@ contains
     
   end subroutine
 
-  module subroutine set_photon_flux_fcn(self, photon_flux_fcn)
-    use photochem_types, only: time_dependent_flux_fcn
-    class(Atmosphere), target, intent(inout) :: self
-    procedure(time_dependent_flux_fcn), pointer :: photon_flux_fcn
-    self%var%photon_flux_fcn => photon_flux_fcn
-  end subroutine
-
   module subroutine set_rate_fcn(self, species, fcn, err)
     use photochem_types, only: time_dependent_rate_fcn
     class(Atmosphere), target, intent(inout) :: self

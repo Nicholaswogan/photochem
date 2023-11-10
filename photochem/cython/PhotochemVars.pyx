@@ -61,7 +61,27 @@ cdef class PhotochemVars:
       cdef ndarray arr = np.empty(dim1, np.double)
       var_pxd.photochemvars_z_get(&self._ptr, &dim1, <double *>arr.data)
       return arr
-  
+
+  property photon_flux_fcn:
+    "A function for altering the photon flux over time"
+    def __set__(self, object fcn):
+      cdef uintptr_t fcn_l
+      cdef var_pxd.time_dependent_flux_fcn fcn_c
+      if fcn is None:
+        fcn_l = 0
+        fcn_c = NULL
+      else:
+        argtypes = (ct.c_double, ct.c_int32, ct.POINTER(ct.c_double))
+        restype = None
+        if not fcn.ctypes.argtypes == argtypes:
+          raise PhotoException("The callback function has the wrong argument types.")
+        if not fcn.ctypes.restype == restype:
+          raise PhotoException("The callback function has the wrong return type.")
+        fcn_l = fcn.address
+        fcn_c = <var_pxd.time_dependent_flux_fcn> fcn_l
+
+      var_pxd.photochemvars_photon_flux_fcn_set(&self._ptr, fcn_c)
+
   property temperature:
     "ndarray[double,dim=1], shape (nz). The temperature of each atmospheric layer (K)"
     def __get__(self):

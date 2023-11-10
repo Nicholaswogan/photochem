@@ -450,34 +450,6 @@ cdef class Atmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
-  def set_photon_flux_fcn(self, object fcn):
-    """Sets a function describing a time-dependent photon flux. 
-    This is useful for modeling flares.
-
-    Parameters
-    ----------
-    fcn : function
-        A Numba cfunc that describes the time-dependent photon flux
-    """
-    cdef uintptr_t fcn_l
-    cdef a_pxd.time_dependent_flux_fcn fcn_c
-
-    if fcn is None:
-      fcn_l = 0
-      fcn_c = NULL
-    else:
-      argtypes = (ct.c_double, ct.c_int32, ct.POINTER(ct.c_double))
-      restype = None
-      if not fcn.ctypes.argtypes == argtypes:
-        raise PhotoException("The callback function has the wrong argument types.")
-      if not fcn.ctypes.restype == restype:
-        raise PhotoException("The callback function has the wrong return type.")
-
-      fcn_l = fcn.address
-      fcn_c = <a_pxd.time_dependent_flux_fcn> fcn_l
-
-    a_pxd.atmosphere_set_photon_flux_fcn_wrapper(&self._ptr, fcn_c)
-
   def set_rate_fcn(self, str species, object fcn):
     """Sets a function describing a custom rate for a species.
     This could be useful for modeling external processes not in the
