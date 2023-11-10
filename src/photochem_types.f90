@@ -16,7 +16,7 @@ module photochem_types ! make a giant IO object
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
   public :: SundialsDataFinalizer
-  public :: time_dependent_flux_fcn, time_dependent_rate_fcn
+  public :: time_dependent_flux_fcn, time_dependent_rate_fcn, binary_diffusion_fcn
   
   !!!!!!!!!!!!!!!!
   !!! Settings !!!
@@ -107,6 +107,16 @@ module photochem_types ! make a giant IO object
   !!!!!!!!!!!!!!!!!
 
   abstract interface
+    !> Custom binary diffusion function
+    function binary_diffusion_fcn(mu_i, mubar, T) result(b)
+      use iso_c_binding, only: c_double
+      real(c_double), value, intent(in) :: mu_i !! molar weight of species i (g/mol)
+      real(c_double), value, intent(in) :: mubar !! molar weight of background gas (g/mol)
+      real(c_double), value, intent(in) :: T !! Temperature (K)
+      real(c_double) :: b !! binary diffusion parameter of species i
+                          !! with respect to the background gas (molecules cm^-1 s^1)
+    end function
+      
     !> Sets the time-dependent photon flux
     subroutine time_dependent_flux_fcn(tn,  nw, photon_flux)
       use iso_c_binding, only: c_double, c_int
@@ -416,6 +426,8 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: z(:) !! (nz) cm
     real(dp), allocatable :: dz(:) !! (nz) cm
     real(dp), allocatable :: edd(:) !! (nz) cm2/s
+    !> A function for specifying a custom binary diffusion parameter (b_ij)
+    procedure(binary_diffusion_fcn), nopass, pointer :: custom_binary_diffusion_fcn => null()
     real(dp), allocatable :: grav(:) !! (nz) cm/s2
     real(dp), allocatable :: usol_init(:,:) !! (nq,nz) mixing ratio (Atmosphere) or densities (EvoAtmosphere).
     real(dp), allocatable :: particle_radius(:,:) !! (np,nz) cm

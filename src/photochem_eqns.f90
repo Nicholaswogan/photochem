@@ -267,9 +267,10 @@ contains
                           (1.257e0_dp + 0.4e0_dp*exp((-1.1e0_dp*partical_radius)/(lambda)))
   end function
   
-  pure function binary_diffusion_param(mu_i, mubar, T) result(b)
-    real(dp), intent(in) :: mu_i, mubar, T
-    real(dp) :: b
+  function default_binary_diffusion_param(mu_i, mubar, T) result(b)
+    use iso_c_binding, only: c_double
+    real(c_double), value, intent(in) :: mu_i, mubar, T
+    real(c_double) :: b
     ! Banks and Kockarts 1973, Eq 15.29
     ! also Catling and Kasting 2017, Eq B.4 (although Catling has a typo,
     ! and is missing a power of 0.5)

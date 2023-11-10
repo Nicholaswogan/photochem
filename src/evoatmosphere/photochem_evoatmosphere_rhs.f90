@@ -171,9 +171,10 @@ contains
   subroutine diffusion_coefficients_evo(dat, var, den, mubar, &
                                     DU, DD, DL, ADU, ADL, ADD, wfall, VH2_esc, VH_esc)
     use photochem_eqns, only: dynamic_viscosity_air, fall_velocity, slip_correction_factor, &
-    binary_diffusion_param
+                              default_binary_diffusion_param
     use photochem_const, only: k_boltz, N_avo
     use photochem_enum, only: DiffusionLimHydrogenEscape
+    use photochem_types, only: binary_diffusion_fcn
 
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
@@ -199,8 +200,16 @@ contains
     real(dp) :: viscosity_pp, viscosity
     real(dp) :: FF2, FF1
 
+    ! molecular diffusion function
+    procedure(binary_diffusion_fcn), pointer :: binary_diffusion_param
     
     integer :: j, i, k
+
+    if (associated(var%custom_binary_diffusion_fcn)) then
+      binary_diffusion_param => var%custom_binary_diffusion_fcn
+    else
+      binary_diffusion_param => default_binary_diffusion_param
+    endif
 
     ! compute relevant parameters at the edges of the grid cells
     do j = 1,var%nz-1

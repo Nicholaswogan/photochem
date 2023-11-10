@@ -17,6 +17,7 @@ program memtest
   call test_atom_conservation(pcs)
   call test_evolve(pcs)
   call test_set_temperature(pcs)
+  call test_custom_binary_diffusion(pcs)
   
 contains
   
@@ -245,5 +246,41 @@ contains
     endif
   
   end subroutine
+
+  subroutine test_custom_binary_diffusion(pc)
+    type(Atmosphere), intent(inout) :: pc
+    character(:), allocatable :: err
+    real(dp) :: tn
+
+    pc%var%custom_binary_diffusion_fcn => custom_binary_diffusion_param
+
+    call pc%initialize_stepper(pc%var%usol_init, err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    
+    tn = pc%step(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    pc%var%custom_binary_diffusion_fcn => null()
+
+  end subroutine
+
+  function custom_binary_diffusion_param(mu_i, mubar, T) result(b)
+    use iso_c_binding, only: c_double
+    real(c_double), value, intent(in) :: mu_i, mubar, T
+    real(c_double) :: b
+    b = 1.52e18_dp*((1.0_dp/mu_i+1.0_dp/mubar)**0.5e0_dp)*(T**0.5e0_dp)
+  end function
   
 end program
