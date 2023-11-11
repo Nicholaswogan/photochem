@@ -40,6 +40,7 @@ module photochem_atmosphere
     procedure :: set_lower_bc
     procedure :: set_upper_bc
     procedure :: set_temperature
+    procedure :: set_press_temp_edd
     procedure :: set_rate_fcn
     procedure :: update_vertical_grid
   end type
@@ -271,6 +272,17 @@ module photochem_atmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    !> Given an input P, T, and edd, the code will find the temperature and eddy diffusion profile
+    !> on the current altitude-grid that matches the inputs.
+    module subroutine set_press_temp_edd(self, P, T, edd, trop_p, err)
+      class(Atmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: P(:) !! Pressure (dynes/cm^2)
+      real(dp), intent(in) :: T(:) !! Temperature (K)
+      real(dp), intent(in) :: edd(:) !! Eddy diffusion (cm^2/s)
+      real(dp), optional, intent(in) :: trop_p !! Tropopause pressure (dynes/cm^2)
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
     !> Sets a function describing a custom rate for a species.
     !> This could be useful for modeling external processes not in the
     !> model.
@@ -282,9 +294,13 @@ module photochem_atmosphere
       character(:), allocatable, intent(inout) :: err
     end subroutine
 
+    !> Re-does the vertical grid so that the pressure at the top of the
+    !> atmosphere is at `TOA_pressure`. If the TOA needs to be raised above the current
+    !> TOA, then the function constantly extrapolates mixing ratios, temperature,
+    !> eddy diffusion, and particle radii.
     module subroutine update_vertical_grid(self, TOA_pressure, err)
       class(Atmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: TOA_pressure !! dynes/cm^2
+      real(dp), intent(in) :: TOA_pressure !! New top of atmosphere pressure (dynes/cm^2)
       character(:), allocatable, intent(out) :: err
     end subroutine
     

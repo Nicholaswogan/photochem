@@ -450,6 +450,38 @@ cdef class Atmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
+  def set_press_temp_edd(self, ndarray[double, ndim=1] P, ndarray[double, ndim=1] T, ndarray[double, ndim=1] edd, trop_p = None):
+    """Given an input P, T, and edd, the code will find the temperature and eddy diffusion profile
+    on the current altitude-grid that matches the inputs.
+    
+    Parameters
+    ----------
+    P : ndarray[double,ndim=1]
+        Pressure (dynes/cm^2)
+    T : ndarray[double,ndim=1]
+        Temperature (K)
+    edd : ndarray[double,ndim=1]
+        Eddy diffusion (cm^2/s)
+    trop_p : float, optional
+        Tropopause pressure (dynes/cm^2). Only necessary if rainout == True, 
+        or fix_water_in_trop == True.
+    """
+    cdef char err[ERR_LEN+1]
+    cdef int P_dim1 = P.size
+    cdef int T_dim1 = T.size
+    cdef int edd_dim1 = edd.size
+    
+    cdef double trop_p_ = 0.0
+    cdef bool trop_p_present = False
+    if trop_p != None:
+      trop_p_present = True
+      trop_p_ = trop_p
+      
+    a_pxd.atmosphere_set_press_temp_edd_wrapper(&self._ptr, &P_dim1, <double *>P.data, &T_dim1, <double *>T.data, &edd_dim1, <double *>edd.data,
+                                               &trop_p_, &trop_p_present, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+
   def set_rate_fcn(self, str species, object fcn):
     """Sets a function describing a custom rate for a species.
     This could be useful for modeling external processes not in the
@@ -487,7 +519,15 @@ cdef class Atmosphere:
        raise PhotoException(err.decode("utf-8").strip())
 
   def update_vertical_grid(self, double TOA_pressure):
-    """docstring
+    """Re-does the vertical grid so that the pressure at the top of the
+    atmosphere is at `TOA_pressure`. If the TOA needs to be raised above the current
+    TOA, then the function constantly extrapolates mixing ratios, temperature,
+    eddy diffusion, and particle radii.
+
+    Parameters
+    ----------
+    TOA_pressure : float
+        New top of the atmosphere pressure in dynes/cm^2
     """
     cdef char err[ERR_LEN+1]
 

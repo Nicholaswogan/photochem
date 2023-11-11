@@ -441,6 +441,36 @@
     
   end subroutine
 
+  subroutine atmosphere_set_press_temp_edd_wrapper(ptr, P_dim1, P, T_dim1, T, edd_dim1, edd, &
+                                                  trop_p, trop_p_present, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: P_dim1
+    real(c_double), intent(in) :: P(P_dim1)
+    integer(c_int), intent(in) :: T_dim1
+    real(c_double), intent(in) :: T(T_dim1)
+    integer(c_int), intent(in) :: edd_dim1
+    real(c_double), intent(in) :: edd(edd_dim1)
+    real(c_double), intent(in) :: trop_p
+    logical(c_bool), intent(in) :: trop_p_present
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(:), allocatable :: err_f
+    type(Atmosphere), pointer :: pc
+    
+    call c_f_pointer(ptr, pc)
+    
+    if (trop_p_present) then
+      call pc%set_press_temp_edd(P, T, edd, trop_p, err_f)
+    else
+      call pc%set_press_temp_edd(P, T, edd, err=err_f)
+    endif
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif
+    
+  end subroutine
+
   subroutine atmosphere_set_rate_fcn_wrapper(ptr, species_c, fcn_c, err) bind(c)
     use photochem_types, only: time_dependent_rate_fcn
     type(c_ptr), intent(in) :: ptr

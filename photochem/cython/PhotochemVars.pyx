@@ -53,6 +53,20 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_usol_init_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
 
+  property trop_alt:
+    "double. Tropopause altitude."
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_trop_alt_get(&self._ptr, &val)
+      return val
+
+  property trop_ind:
+    "int. Tropopause index."
+    def __get__(self):
+      cdef int val
+      var_pxd.photochemvars_trop_ind_get(&self._ptr, &val)
+      return val
+
   property relative_humidity:
     "double. Relative humidity of H2O in the troposphere."
     def __get__(self):

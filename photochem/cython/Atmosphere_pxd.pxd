@@ -41,6 +41,9 @@ cdef extern void atmosphere_evolve_wrapper(void *ptr, char *filename,
                 double *tstart, int *nq, int *nz, double *usol, 
                 int *nt, double *t_eval, bool *overwrite, bool *success, char *err)
 
+cdef extern void atmosphere_set_press_temp_edd_wrapper(void *ptr, int *P_dim1, double *P, int *T_dim1, double *T, int *edd_dim1, double *edd,
+                                                      double *trop_p, bool *trop_p_present, char *err)
+
 cdef extern void atmosphere_set_temperature_wrapper(void *ptr, int *nz, double *temperature, 
                                                     double *trop_alt, bool *trop_alt_present, char *err)
 

@@ -71,6 +71,22 @@
     usol_init = var%usol_init
   end subroutine
 
+  subroutine photochemvars_trop_alt_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%trop_alt
+  end subroutine
+
+  subroutine photochemvars_trop_ind_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%trop_ind
+  end subroutine
+
   subroutine photochemvars_relative_humidity_get(ptr, val) bind(c)
     type(c_ptr), intent(in) :: ptr
     real(c_double), intent(out) :: val

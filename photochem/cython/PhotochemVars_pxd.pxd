@@ -20,6 +20,10 @@ cdef extern void photochemvars_at_photo_equilibrium_get(void *ptr, bool *at_phot
 cdef extern void photochemvars_usol_init_get_size(void *ptr, int *dim1, int *dim2)
 cdef extern void photochemvars_usol_init_get(void *ptr, int *dim1, int *dim2, double *usol_init)
 
+cdef extern void photochemvars_trop_alt_get(void *ptr, double *val)
+
+cdef extern void photochemvars_trop_ind_get(void *ptr, int *val)
+
 cdef extern void photochemvars_relative_humidity_get(void *ptr, double *val)
 cdef extern void photochemvars_relative_humidity_set(void *ptr, double *val)
 

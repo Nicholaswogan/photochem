@@ -596,13 +596,250 @@ contains
         err = 'Tropopause is too high.'
         return
       endif
-                      
-      call self%wrk%init(self%dat%nsp, self%dat%np, self%dat%nq, &
-                         self%var%nz, self%dat%nrT, self%dat%kj, &
-                         self%dat%nw)
 
     endif
+
+    ! Fill wrk with new values
+    call self%prep_atmosphere(self%wrk%usol, err)
+    if (allocated(err)) return
     
+  end subroutine
+
+  module subroutine set_press_temp_edd(self, P, T, edd, trop_p, err)
+    use futils, only: interp
+    use minpack_module, only: hybrd1
+    use clima_useful, only: MinpackHybrd1Vars
+
+    use photochem_const, only: small_real
+    class(Atmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: P(:) !! dynes/cm^2
+    real(dp), intent(in) :: T(:) !! K
+    real(dp), intent(in) :: edd(:) !! cm^2/s
+    real(dp), optional, intent(in) :: trop_p !! dynes/cm^2
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: log10P_in(:), T_in(:), log10edd_in(:)
+    real(dp), allocatable :: P_wrk(:), log10P_wrk(:), T_in_interp(:), log10edd_new(:)
+
+    integer :: ierr
+
+    type(MinpackHybrd1Vars) :: mv
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    
+    dat => self%dat
+    var => self%var
+    
+    if (size(P) /= size(T)) then
+      err = '"P" and "T" not the same size'
+      return
+    endif
+
+    if (size(P) /= size(edd)) then
+      err = '"P" and "edd" not the same size'
+      return
+    endif
+
+    if (size(P) <= 2) then
+      err = 'size(P) must be >= 2'
+      return
+    endif
+
+    if (any(P < 0.0_dp) .or. any(T < 0.0_dp) .or. any(edd < 0.0_dp)) then
+      err = 'All elements of "P", "T" and "edd" must be positive'
+      return
+    endif
+
+    if ((dat%fix_water_in_trop .or. dat%gas_rainout) .and. .not.present(trop_p)) then
+      err = '"trop_p" is a required input.'
+      return
+    endif
+
+    ! Work
+    allocate(P_wrk(var%nz),log10P_wrk(var%nz))
+    allocate(T_in_interp(var%nz))
+    allocate(log10edd_new(var%nz))
+
+    ! copy over inputs, and covert to log10 space
+    allocate(log10P_in(size(P)),T_in(size(P)),log10edd_in(size(P)))
+    log10P_in = log10(P)
+    T_in = T
+    log10edd_in = log10(edd)
+
+    ! if the P-T-edd profile does not extend to the surface,
+    ! then we log-linearly extrapolate to surface
+    if (self%var%surface_pressure*1.0e6_dp > P(1)) then; block
+      real(dp) :: slope, intercept, P_surf, T_surf, edd_surf
+
+      ! log10 surface pressure in dynes/cm^2
+      P_surf = log10(self%var%surface_pressure*1.0e6_dp)
+
+      slope = (T_in(2) - T_in(1))/(log10P_in(2) - log10P_in(1))
+      intercept = T_in(1) - slope*log10P_in(1)
+      T_surf = slope*P_surf + intercept
+      T_surf = max(T_surf, small_real)
+
+      slope = (log10edd_in(2) - log10edd_in(1))/(log10P_in(2) - log10P_in(1))
+      intercept = log10edd_in(1) - slope*log10P_in(1)
+      edd_surf = slope*P_surf + intercept
+
+      log10P_in = [P_surf, log10P_in]
+      T_in = [T_surf, T_in]
+      log10edd_in = [edd_surf, log10edd_in]
+      
+    endblock; endif
+
+    ! Flip order for interpolation purposes
+    log10P_in = log10P_in(size(log10P_in):1:-1)
+    T_in = T_in(size(log10P_in):1:-1)
+    log10edd_in = log10edd_in(size(log10P_in):1:-1)
+
+    ! Do non-linear solve for the T profile that matches
+    ! input P-T profile
+    mv = MinpackHybrd1Vars(var%nz,tol=1.0e-5_dp)
+    mv%x = var%temperature
+    call hybrd1(fcn, mv%n, mv%x, mv%fvec, mv%tol, mv%info, mv%wa, mv%lwa)
+    if (mv%info == 0 .or. mv%info > 1) then
+      err = 'hybrd1 root solve failed in set_press_temp_edd.'
+      return
+    elseif (mv%info < 0) then
+      err = 'hybrd1 root solve failed in set_press_temp_edd: '//err
+      return
+    endif
+
+    ! set the temperature
+    if (present(trop_p)) then; block
+      real(dp) :: trop_alt(1)
+      real(dp), allocatable :: z_(:)
+
+      allocate(z_(var%nz))
+      z_ = var%z
+      z_ = z_(var%nz:1:-1)
+      
+      call interp(1, var%nz, [log10(trop_p)], log10P_wrk, z_, trop_alt(1), ierr)
+      if (ierr /= 0) then
+        err = 'Subroutine interp returned an error.'
+        return
+      endif
+
+      call self%set_temperature(mv%x, trop_alt(1), err)
+      if (allocated(err)) return
+    endblock; else
+      call self%set_temperature(mv%x, err=err)
+      if (allocated(err)) return
+    endif
+
+    ! finally, interpolate input eddy to new grid
+    call interp(var%nz, size(log10P_in), log10P_wrk, log10P_in, log10edd_in, log10edd_new, ierr)
+    if (ierr /= 0) then
+      err = 'Subroutine interp returned an error.'
+      return
+    endif
+    log10edd_new = log10edd_new(var%nz:1:-1)
+    var%edd = 10.0_dp**log10edd_new
+
+  contains
+    subroutine fcn(n_, x_, fvec_, iflag_)
+      integer, intent(in) :: n_
+      real(dp), intent(in) :: x_(n_)
+      real(dp), intent(out) :: fvec_(n_)
+      integer, intent(inout) :: iflag_
+
+      ! x_ is temperature
+      call pressure_for_T(self, self%wrk%usol, x_, P_wrk, err)
+      if (allocated(err)) then
+        iflag_ = -1
+        return
+      endif
+      log10P_wrk = log10(P_wrk) ! log10
+      log10P_wrk = log10P_wrk(size(log10P_wrk):1:-1) ! flip order
+
+      ! Then we have P-T relation. Interpolate input T to this P grid.
+      ! Assume constant extrapolation of input T above top of atmosphere.
+      ! Code log-linearly extrapolates to surface_pressure
+      call interp(var%nz, size(log10P_in), log10P_wrk, log10P_in, T_in, T_in_interp, ierr)
+      if (ierr /= 0) then
+        err = 'Subroutine interp returned an error.'
+        iflag_ = -1
+        return
+      endif
+
+      ! Flip
+      T_in_interp = T_in_interp(size(T_in_interp):1:-1)
+
+      fvec_ = T_in_interp - x_
+
+    end subroutine
+  end subroutine
+
+  ! Give a T profile on the grid and a usol, calculate pressure
+  subroutine pressure_for_T(self, usol, temperature, pressure, err)
+    use photochem_enum, only: MixingRatioBC
+    use photochem_eqns, only: molar_weight, press_and_den
+    class(Atmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol(:,:)
+    real(dp), intent(in) :: temperature(:)
+    real(dp), intent(out) :: pressure(:)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: usol_new(:,:)
+    real(dp), allocatable :: sum_usol_new(:), mubar_new(:)
+    real(dp), allocatable :: density_new(:)
+
+    integer :: i
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+
+    dat => self%dat
+    var => self%var
+
+    if (size(usol,1) /= dat%nq .or. size(usol,2) /= var%nz) then
+      err = '"usol" is the wrong shape'
+      return
+    endif
+
+    if (size(temperature) /= var%nz) then
+      err = '"temperature" is the wrong shape'
+      return
+    endif
+
+    if (size(pressure) /= var%nz) then
+      err = '"pressure" is the wrong shape'
+      return
+    endif
+
+    allocate(usol_new(dat%nq,var%nz))
+    allocate(sum_usol_new(var%nz),mubar_new(var%nz))
+    allocate(density_new(var%nz))
+
+    ! make copy of mixing ratio
+    usol_new = usol
+
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == MixingRatioBC) then
+        usol_new(i,1) = var%lower_fix_mr(i)
+      endif
+    enddo
+
+    !!! pressure, density and mean molcular weight
+    do i = 1,var%nz
+      sum_usol_new(i) = sum(usol_new(dat%ng_1:,i))
+      if (sum_usol_new(i) > 1.0e0_dp) then
+        err = 'Mixing ratios sum to >1.0 at some altitude (should be <=1).' // &
+              ' The atmosphere is probably in a run-away state'
+        return
+      endif
+    enddo
+
+    do i = 1,var%nz
+      call molar_weight(dat%nll, usol_new(dat%ng_1:,i), sum_usol_new(i), dat%species_mass(dat%ng_1:), dat%back_gas_mu, mubar_new(i))
+    enddo
+    
+    call press_and_den(var%nz, temperature, var%grav, var%surface_pressure*1.0e6_dp, var%dz, &
+                       mubar_new, pressure, density_new)
+
   end subroutine
 
   module subroutine set_rate_fcn(self, species, fcn, err)
@@ -768,6 +1005,11 @@ contains
     var => self%var
     wrk => self%wrk
 
+    if (TOA_pressure < 0.0_dp) then
+      err = '"TOA_pressure" must be positive.'
+      return
+    endif
+
     ! Save old values
     allocate(usol_old(dat%nq,var%nz))
     allocate(z_old(var%nz),temperature_old(var%nz),edd_old(var%nz))
@@ -855,7 +1097,7 @@ contains
       var%trop_ind = 1
     endif
 
-    ! prep atmosphere
+    ! Fill wrk with new values
     call self%prep_atmosphere(wrk%usol, err)
     if (allocated(err)) return
 

@@ -19,6 +19,7 @@ program memtest
   call test_set_temperature(pcs)
   call test_custom_binary_diffusion(pcs)
   call test_update_vertical_grid(pcs)
+  call test_press_temp_edd(pcs)
   
 contains
   
@@ -289,6 +290,18 @@ contains
     character(:), allocatable :: err
 
     call pc%update_vertical_grid(0.01_dp, err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+  end subroutine
+
+  subroutine test_press_temp_edd(pc)
+    type(Atmosphere), intent(inout) :: pc
+    character(:), allocatable :: err
+
+    call pc%set_press_temp_edd(pc%wrk%pressure, pc%var%temperature, pc%var%edd, 0.22_dp*1e6_dp, err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
