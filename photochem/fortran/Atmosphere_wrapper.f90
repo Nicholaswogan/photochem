@@ -472,3 +472,21 @@
       call copy_string_ftoc(err_f, err)
     endif 
   end subroutine
+
+  subroutine atmosphere_update_vertical_grid_wrapper(ptr, TOA_pressure, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: TOA_pressure
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(:), allocatable :: err_f
+    type(Atmosphere), pointer :: pc
+    
+    call c_f_pointer(ptr, pc)
+    
+    call pc%update_vertical_grid(TOA_pressure, err_f)
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif
+    
+  end subroutine

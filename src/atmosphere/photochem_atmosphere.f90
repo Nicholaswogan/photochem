@@ -41,6 +41,7 @@ module photochem_atmosphere
     procedure :: set_upper_bc
     procedure :: set_temperature
     procedure :: set_rate_fcn
+    procedure :: update_vertical_grid
   end type
   interface Atmosphere
     module procedure :: create_Atmosphere
@@ -279,6 +280,12 @@ module photochem_atmosphere
       character(*), intent(in) :: species !! Species name
       procedure(time_dependent_rate_fcn), pointer :: fcn
       character(:), allocatable, intent(inout) :: err
+    end subroutine
+
+    module subroutine update_vertical_grid(self, TOA_pressure, err)
+      class(Atmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: TOA_pressure !! dynes/cm^2
+      character(:), allocatable, intent(out) :: err
     end subroutine
     
   end interface

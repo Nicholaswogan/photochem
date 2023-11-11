@@ -485,3 +485,12 @@ cdef class Atmosphere:
     a_pxd.atmosphere_set_rate_fcn_wrapper(&self._ptr, species_c, fcn_c, err)
     if len(err.strip()) > 0:
        raise PhotoException(err.decode("utf-8").strip())
+
+  def update_vertical_grid(self, double TOA_pressure):
+    """docstring
+    """
+    cdef char err[ERR_LEN+1]
+
+    a_pxd.atmosphere_update_vertical_grid_wrapper(&self._ptr, &TOA_pressure, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())

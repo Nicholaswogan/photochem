@@ -624,5 +624,241 @@ contains
     self%var%rate_fcns(ind)%fcn => fcn
 
   end subroutine
+
+  function TOA_at_pressure(self, usol, TOA_pressure, err) result(top_atmos)
+    use minpack_module, only: hybrd1
+    use clima_useful, only: MinpackHybrd1Vars
+    class(Atmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol(:,:)
+    real(dp), intent(in) :: TOA_pressure !! dynes/cm^2
+    character(:), allocatable, intent(out) :: err
+    real(dp) :: top_atmos !! cm
+
+    type(MinpackHybrd1Vars) :: mv
+
+    mv = MinpackHybrd1Vars(1,tol=1.0e-5_dp)
+    mv%x(1) = self%var%z(self%var%nz)
+    call hybrd1(fcn, mv%n, mv%x, mv%fvec, mv%tol, mv%info, mv%wa, mv%lwa)
+    if (mv%info == 0 .or. mv%info > 1) then
+      err = 'hybrd1 root solve failed in TOA_at_pressure.'
+      return
+    elseif (mv%info < 0) then
+      err = 'hybrd1 root solve failed in TOA_at_pressure: '//err
+      return
+    endif
+
+    top_atmos = mv%x(1)
+
+  contains
+    subroutine fcn(n_, x_, fvec_, iflag_)
+      integer, intent(in) :: n_
+      real(dp), intent(in) :: x_(n_)
+      real(dp), intent(out) :: fvec_(n_)
+      integer, intent(inout) :: iflag_
+      real(dp) :: TOA_pressure_
+      TOA_pressure_ = pressure_at_TOA(self, usol, x_(1), err)
+      if (allocated(err)) then
+        iflag_ = -1
+        return
+      endif
+      fvec_(1) = log10(TOA_pressure_) - log10(TOA_pressure)
+    end subroutine
+  end function
+
+  function pressure_at_TOA(self, usol, new_top_atmos, err) result(TOA_pressure)
+    use photochem_enum, only: MixingRatioBC
+    use futils, only: interp
+    use photochem_eqns, only: vertical_grid, molar_weight, press_and_den, gravity
+    use photochem_const, only: small_real
+    class(Atmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol(:,:)
+    real(dp), intent(in) :: new_top_atmos !! cm
+    character(:), allocatable, intent(out) :: err
+    real(dp) :: TOA_pressure !! dynes/cm^2
+
+    real(dp), allocatable :: usol_new(:,:)
+    real(dp), allocatable :: z_new(:), dz_new(:), grav_new(:)
+    real(dp), allocatable :: temperature_new(:)
+    real(dp), allocatable :: sum_usol_new(:), mubar_new(:)
+    real(dp), allocatable :: pressure_new(:), density_new(:)
+    integer :: i, ierr
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+
+    dat => self%dat
+    var => self%var
+
+    ! allocate
+    allocate(usol_new(dat%nq,var%nz))
+    allocate(z_new(var%nz),dz_new(var%nz),grav_new(var%nz),temperature_new(var%nz))
+    allocate(sum_usol_new(var%nz),mubar_new(var%nz))
+    allocate(pressure_new(var%nz),density_new(var%nz))
+
+    ! Remake the vertical grid and gravity
+    call vertical_grid(var%bottom_atmos, new_top_atmos, &
+                      var%nz, z_new, dz_new)
+    call gravity(dat%planet_radius, dat%planet_mass, &
+                var%nz, z_new, grav_new)
+
+    ! Temperature
+    call interp(var%nz, var%nz, z_new, var%z, var%temperature, temperature_new, ierr)
+    if (ierr /= 0) then
+      err = 'Subroutine interp returned an error.'
+      return
+    endif
+
+    ! Mixing ratios
+    do i = 1,dat%nq
+      call interp(var%nz, var%nz, z_new, var%z, &
+                  log10(max(usol(i,:),small_real)), usol_new(i,:), ierr)
+      if (ierr /= 0) then
+        err = 'Subroutine interp returned an error.'
+        return
+      endif
+    enddo
+    usol_new = 10.0_dp**usol_new
+
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == MixingRatioBC) then
+        usol_new(i,1) = var%lower_fix_mr(i)
+      endif
+    enddo
+
+    !!! pressure, density and mean molcular weight
+    do i = 1,var%nz
+      sum_usol_new(i) = sum(usol_new(dat%ng_1:,i))
+      if (sum_usol_new(i) > 1.0e0_dp) then
+        err = 'Mixing ratios sum to >1.0 at some altitude (should be <=1).' // &
+              ' The atmosphere is probably in a run-away state'
+        return
+      endif
+    enddo
+
+    do i = 1,var%nz
+      call molar_weight(dat%nll, usol_new(dat%ng_1:,i), sum_usol_new(i), dat%species_mass(dat%ng_1:), dat%back_gas_mu, mubar_new(i))
+    enddo
+    
+    call press_and_den(var%nz, temperature_new, grav_new, var%surface_pressure*1.e6_dp, dz_new, &
+                       mubar_new, pressure_new, density_new)
+
+    TOA_pressure = pressure_new(var%nz)
+
+  end function
+
+  module subroutine update_vertical_grid(self, TOA_pressure, err)
+    use photochem_const, only: small_real
+    use futils, only: interp
+    use photochem_eqns, only: vertical_grid, gravity
+    use photochem_input, only: interp2particlexsdata, interp2xsdata, compute_gibbs_energy
+    class(Atmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: TOA_pressure !! dynes/cm^2
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: usol_old(:,:)
+    real(dp), allocatable :: z_old(:), temperature_old(:), edd_old(:)
+    real(dp), allocatable :: particle_radius_old(:,:)
+    integer :: i, ierr
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrk), pointer :: wrk
+
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+
+    ! Save old values
+    allocate(usol_old(dat%nq,var%nz))
+    allocate(z_old(var%nz),temperature_old(var%nz),edd_old(var%nz))
+    allocate(particle_radius_old(dat%np,var%nz))
+    usol_old = wrk%usol
+    z_old = var%z
+    temperature_old = var%temperature
+    edd_old = var%edd
+    particle_radius_old = var%particle_radius
+
+    ! Compute new TOA. We use wrk%usol
+    var%top_atmos = TOA_at_pressure(self, wrk%usol, TOA_pressure, err)
+    if (allocated(err)) return
+
+    ! Remake the vertical grid and gravity
+    call vertical_grid(var%bottom_atmos, var%top_atmos, &
+                      var%nz, var%z, var%dz)
+    call gravity(dat%planet_radius, dat%planet_mass, &
+                var%nz, var%z, var%grav)
+
+    ! Temperature
+    call interp(var%nz, var%nz, var%z, z_old, temperature_old, var%temperature, ierr)
+    if (ierr /= 0) then
+      err = 'Subroutine interp returned an error.'
+      return
+    endif
+
+    ! Eddy diffusion
+    call interp(var%nz, var%nz, var%z, z_old, log10(max(edd_old,1.0e-40_dp)), var%edd, ierr)
+    if (ierr /= 0) then
+      err = 'Subroutine interp returned an error.'
+      return
+    endif
+    var%edd = 10.0_dp**var%edd
+
+    ! Mixing ratios
+    do i = 1,dat%nq
+      call interp(var%nz, var%nz, var%z, z_old, &
+                  log10(max(usol_old(i,:),small_real)), wrk%usol(i,:), ierr)
+      if (ierr /= 0) then
+        err = 'Subroutine interp returned an error.'
+        return
+      endif
+    enddo
+    wrk%usol = 10.0_dp**wrk%usol
+    var%usol_init = var%usol_init
+
+    ! Particle radii
+    if (dat%there_are_particles) then
+      do i = 1,dat%npq
+        call interp(var%nz, var%nz, var%z, z_old, &
+                    log10(abs(particle_radius_old(i,:))), var%particle_radius(i,:), ierr)
+        if (ierr /= 0) then
+          err = 'Subroutine interp returned an error.'
+          return
+        endif
+      enddo
+      var%particle_radius = 10.0_dp**var%particle_radius
+    endif
+
+    call interp2particlexsdata(dat, var, err)
+    if (allocated(err)) return
+
+    ! all below depends on Temperature
+    call interp2xsdata(dat, var, err)
+    if (allocated(err)) return
+    
+    if (dat%reverse) then
+      call compute_gibbs_energy(dat, var, err)
+      if (allocated(err)) return
+    endif
+
+    if (dat%fix_water_in_trop .or. dat%gas_rainout) then
+      ! we have a tropopause
+      var%trop_ind = max(minloc(abs(var%z - var%trop_alt), 1) - 1, 1)
+
+      if (var%trop_ind < 3) then
+        err = 'Tropopause is too low.'
+        return
+      elseif (var%trop_ind > var%nz-2) then
+        err = 'Tropopause is too high.'
+        return
+      endif
+    else
+      var%trop_ind = 1
+    endif
+
+    ! prep atmosphere
+    call self%prep_atmosphere(wrk%usol, err)
+    if (allocated(err)) return
+
+  end subroutine
   
 end submodule

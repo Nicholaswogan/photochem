@@ -18,6 +18,7 @@ program memtest
   call test_evolve(pcs)
   call test_set_temperature(pcs)
   call test_custom_binary_diffusion(pcs)
+  call test_update_vertical_grid(pcs)
   
 contains
   
@@ -282,5 +283,17 @@ contains
     real(c_double) :: b
     b = 1.52e18_dp*((1.0_dp/mu_i+1.0_dp/mubar)**0.5e0_dp)*(T**0.5e0_dp)
   end function
+
+  subroutine test_update_vertical_grid(pc)
+    type(Atmosphere), intent(inout) :: pc
+    character(:), allocatable :: err
+
+    call pc%update_vertical_grid(0.01_dp, err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+  end subroutine
   
 end program
