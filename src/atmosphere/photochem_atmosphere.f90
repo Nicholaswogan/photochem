@@ -295,12 +295,13 @@ module photochem_atmosphere
     end subroutine
 
     !> Re-does the vertical grid so that the pressure at the top of the
-    !> atmosphere is at `TOA_pressure`. If the TOA needs to be raised above the current
+    !> atmosphere is a `TOA_alt` or `TOA_pressure`. If the TOA needs to be raised above the current
     !> TOA, then the function constantly extrapolates mixing ratios, temperature,
     !> eddy diffusion, and particle radii.
-    module subroutine update_vertical_grid(self, TOA_pressure, err)
+    module subroutine update_vertical_grid(self, TOA_alt, TOA_pressure, err)
       class(Atmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: TOA_pressure !! New top of atmosphere pressure (dynes/cm^2)
+      real(dp), optional, intent(in) :: TOA_alt !! New top of atmosphere altitude (cm)
+      real(dp), optional, intent(in) :: TOA_pressure !! New top of atmosphere pressure (dynes/cm^2)
       character(:), allocatable, intent(out) :: err
     end subroutine
     

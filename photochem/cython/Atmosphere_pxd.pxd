@@ -49,4 +49,5 @@ cdef extern void atmosphere_set_temperature_wrapper(void *ptr, int *nz, double *
 
 cdef extern void atmosphere_set_rate_fcn_wrapper(void *ptr, char *species_c, time_dependent_rate_fcn fcn, char *err)
 
-cdef extern void atmosphere_update_vertical_grid_wrapper(void *ptr, double *toa_pressure, char *err)
+cdef extern void atmosphere_update_vertical_grid_wrapper(void *ptr, double *toa_alt, bool *toa_alt_present,
+                                                         double *toa_pressure, bool *toa_pressure_present, char *err)

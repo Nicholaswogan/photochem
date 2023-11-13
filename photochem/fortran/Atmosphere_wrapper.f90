@@ -503,9 +503,13 @@
     endif 
   end subroutine
 
-  subroutine atmosphere_update_vertical_grid_wrapper(ptr, TOA_pressure, err) bind(c)
+  subroutine atmosphere_update_vertical_grid_wrapper(ptr, TOA_alt, TOA_alt_present, &
+                                                     TOA_pressure, TOA_pressure_present, err) bind(c)
     type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: TOA_alt
+    logical(c_bool), intent(in) :: TOA_alt_present
     real(c_double), intent(in) :: TOA_pressure
+    logical(c_bool), intent(in) :: TOA_pressure_present
     character(kind=c_char), intent(out) :: err(err_len+1)
     
     character(:), allocatable :: err_f
@@ -513,7 +517,16 @@
     
     call c_f_pointer(ptr, pc)
     
-    call pc%update_vertical_grid(TOA_pressure, err_f)
+    if (TOA_alt_present .and. .not.TOA_pressure_present) then
+      call pc%update_vertical_grid(TOA_alt=TOA_alt, err=err_f)
+    elseif (.not.TOA_alt_present .and. TOA_pressure_present) then
+      call pc%update_vertical_grid(TOA_pressure=TOA_pressure, err=err_f)
+    elseif (TOA_alt_present .and. TOA_pressure_present) then
+      call pc%update_vertical_grid(TOA_alt=TOA_alt, TOA_pressure=TOA_pressure, err=err_f)
+    elseif (.not.TOA_alt_present .and. .not.TOA_pressure_present) then
+      call pc%update_vertical_grid(err=err_f)
+    endif
+
     err(1) = c_null_char
     if (allocated(err_f)) then
       call copy_string_ftoc(err_f, err)

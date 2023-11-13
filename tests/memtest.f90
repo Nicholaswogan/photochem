@@ -289,7 +289,7 @@ contains
     type(Atmosphere), intent(inout) :: pc
     character(:), allocatable :: err
 
-    call pc%update_vertical_grid(0.01_dp, err)
+    call pc%update_vertical_grid(TOA_pressure=0.01_dp, err=err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1

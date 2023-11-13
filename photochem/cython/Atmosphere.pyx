@@ -518,9 +518,9 @@ cdef class Atmosphere:
     if len(err.strip()) > 0:
        raise PhotoException(err.decode("utf-8").strip())
 
-  def update_vertical_grid(self, double TOA_pressure):
+  def update_vertical_grid(self, TOA_alt = None, TOA_pressure = None):
     """Re-does the vertical grid so that the pressure at the top of the
-    atmosphere is at `TOA_pressure`. If the TOA needs to be raised above the current
+    atmosphere is at `TOA_alt` or `TOA_pressure`. If the TOA needs to be raised above the current
     TOA, then the function constantly extrapolates mixing ratios, temperature,
     eddy diffusion, and particle radii.
 
@@ -531,6 +531,19 @@ cdef class Atmosphere:
     """
     cdef char err[ERR_LEN+1]
 
-    a_pxd.atmosphere_update_vertical_grid_wrapper(&self._ptr, &TOA_pressure, err)
+    cdef double TOA_alt_ = 0.0
+    cdef bool TOA_alt_present = False
+    if TOA_alt != None:
+      TOA_alt_present = True
+      TOA_alt_ = TOA_alt
+
+    cdef double TOA_pressure_ = 0.0
+    cdef bool TOA_pressure_present = False
+    if TOA_pressure != None:
+      TOA_pressure_present = True
+      TOA_pressure_ = TOA_pressure
+
+    a_pxd.atmosphere_update_vertical_grid_wrapper(&self._ptr, &TOA_alt_, &TOA_alt_present, 
+                                                  &TOA_pressure_, &TOA_pressure_present, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
