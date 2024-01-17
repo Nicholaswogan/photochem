@@ -30,6 +30,10 @@ planet:
 particles:
 - name: H2SO4aer
   condensation-rate: {A: 1.0e-5, rhc: 1.0, rh0: 1.05}
+- name: S2aer
+  condensation-rate: {A: 1.0e-5, rhc: 1.0, rh0: 1.05}
+- name: S8aer
+  condensation-rate: {A: 1.0e-5, rhc: 1.0, rh0: 1.05}
 - name: HCNaer
   condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 - name: HCCCNaer
