@@ -48,6 +48,9 @@ module photochem_evoatmosphere
 
     !!! photochem_evoatmosphere_integrate.f90 !!!
     procedure :: evolve
+    procedure :: initialize_stepper
+    procedure :: step
+    procedure :: destroy_stepper
 
     !!! photochem_evoatmosphere_utils.f90 !!!
     procedure :: out2atmosphere_txt
@@ -153,6 +156,27 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
       ! Evolve atmosphere through time, and saves output in a binary Fortran file.
     end function
+
+    !> Initializes an integration starting at `usol_start`
+    module subroutine initialize_stepper(self, usol_start, err)      
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: usol_start(:,:) !! Initial mixing ratios
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+    
+    !> Takes one internal integration step. Function `initialize_stepper`
+    !> must have been called befe this
+    module function step(self, err) result(tn)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      character(:), allocatable, intent(out) :: err
+      real(dp) :: tn
+    end function
+    
+    !> Deallocates memory created during `initialize_stepper`
+    module subroutine destroy_stepper(self, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      character(:), allocatable, intent(out) :: err
+    end subroutine
     
     module function RhsFn_evo(tn, sunvec_y, sunvec_f, user_data) &
                           result(ierr) bind(c, name='RhsFn_evo')

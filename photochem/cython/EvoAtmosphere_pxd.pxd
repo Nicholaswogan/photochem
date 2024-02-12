@@ -23,6 +23,12 @@ cdef extern void evoatmosphere_evolve_wrapper(void *ptr, char *filename,
                 double *tstart, int *nq, int *nz, double *usol, 
                 int *nt, double *t_eval, bool *overwrite, bool *restart_from_file, bool *success, char *err)
 
+cdef extern void evoatmosphere_initialize_stepper_wrapper(void *ptr, int *nq, int *nz, double *usol_start, char *err)
+
+cdef extern double evoatmosphere_step_wrapper(void *ptr, char *err)
+
+cdef extern void evoatmosphere_destroy_stepper_wrapper(void *ptr, char *err)
+
 cdef extern void evoatmosphere_production_and_loss_wrapper(void *ptr, char *species, int *nq, 
                                                         int *nz, double *usol, double *top_atmos, void *pl_ptr, char *err)
 

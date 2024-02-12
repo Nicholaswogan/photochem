@@ -682,5 +682,219 @@ contains
     endif
     
   end subroutine
+
+  module subroutine initialize_stepper(self, usol_start, err)
+    use, intrinsic :: iso_c_binding
+    use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSVtolerances, &
+                          FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
+                          FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
+                          FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
+                          FCVodeSetUserData, FCVodeSetErrHandlerFn
+    use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
+    use fnvector_serial_mod, only: FN_VMake_Serial   
+    use fsunmatrix_band_mod, only: FSUNBandMatrix
+    use fsundials_matrix_mod, only: SUNMatrix, FSUNMatDestroy
+    use fsundials_linearsolver_mod, only: SUNLinearSolver, FSUNLinSolFree
+    use fsunlinsol_band_mod, only: FSUNLinSol_Band
+    
+    use photochem_enum, only: DensityBC
+    
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol_start(:,:)
+    character(:), allocatable, intent(out) :: err
+    
+    real(c_double), pointer :: yvec_usol(:,:)
+    real(c_double) :: tstart
+    integer(c_int) :: ierr       ! error flag from C functions
+    integer(c_int64_t) :: neqs_long
+    integer(c_int64_t) :: mu, ml
+    integer(c_long) :: mxsteps_
+    type(c_ptr)    :: user_data
+    
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+    type(EvoAtmosphere), pointer :: self_ptr
+    
+    integer :: i, j, k
+
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+
+    if (size(usol_start,1) /= dat%nq .or. size(usol_start,2) /= var%nz) then
+      err = "Input 'usol_start' to 'initialize_stepper' is the wrong dimension"
+      return
+    endif
+
+    if (self%evolve_climate) then
+      err = 'You can not integrate with this stepper when climate evolution is turned on. '// &
+            'Use the `evolve` routine instead for integrations with changing climate.'
+      return
+    endif
+
+    ! settings
+    mxsteps_ = var%mxsteps
+    neqs_long = var%neqs
+    tstart = 0
+    mu = dat%nq
+    ml = dat%nq
+    self_ptr => self
+    user_data = c_loc(self_ptr)
+
+    call self%destroy_stepper(err)
+    if (allocated(err)) return
+
+    ! initialize solution vector
+    allocate(wrk%sun%yvec(var%neqs))
+    yvec_usol(1:dat%nq,1:var%nz) => wrk%sun%yvec
+    do j=1,var%nz
+      do i=1,dat%nq
+        k = i + (j-1)*dat%nq
+        wrk%sun%yvec(k) = usol_start(i,j)
+      enddo
+    enddo
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == DensityBC) then
+        wrk%sun%yvec(i) = var%lower_fix_den(i)
+      endif
+    enddo
+    ! set abstol
+    allocate(wrk%sun%abstol(var%neqs))
+    call self%set_trop_ind(yvec_usol, err)
+    if (allocated(err)) return
+    do j=1,var%nz
+      do i=1,dat%nq
+        k = i + (j-1)*dat%nq
+        wrk%sun%abstol(k) = self%wrk%density_hydro(j)*var%atol
+      enddo
+    enddo
+
+    wrk%sun%abstol_nvec => FN_VMake_Serial(neqs_long, wrk%sun%abstol)
+    if (.not. associated(wrk%sun%abstol_nvec)) then
+      err = "CVODE setup error."
+      return
+    end if
+
+    ! create SUNDIALS N_Vector
+    wrk%sun%sunvec_y => FN_VMake_Serial(neqs_long, wrk%sun%yvec)
+    if (.not. associated(wrk%sun%sunvec_y)) then
+      err = "CVODE setup error."
+      return
+    end if
+
+    ! create CVode memory
+    wrk%sun%cvode_mem = FCVodeCreate(CV_BDF)
+    if (.not. c_associated(wrk%sun%cvode_mem)) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ! set user data
+    ierr = FCVodeSetUserData(wrk%sun%cvode_mem, user_data)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeInit(wrk%sun%cvode_mem, c_funloc(RhsFn_evo), tstart, wrk%sun%sunvec_y)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSVtolerances(wrk%sun%cvode_mem, var%rtol, wrk%sun%abstol_nvec)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    wrk%sun%sunmat => FSUNBandMatrix(neqs_long, mu, ml)
+    wrk%sun%sunlin => FSUNLinSol_Band(wrk%sun%sunvec_y, wrk%sun%sunmat)
+    
+    ierr = FCVodeSetLinearSolver(wrk%sun%cvode_mem, wrk%sun%sunlin, wrk%sun%sunmat)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSetJacFn(wrk%sun%cvode_mem, c_funloc(JacFn_evo))
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSetMaxNumSteps(wrk%sun%cvode_mem, mxsteps_)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSetInitStep(wrk%sun%cvode_mem, var%initial_dt)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSetMaxErrTestFails(wrk%sun%cvode_mem, var%max_err_test_failures)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+    
+    ierr = FCVodeSetMaxOrd(wrk%sun%cvode_mem, var%max_order)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+
+    if (var%verbose == 0) then
+      ierr = FCVodeSetErrHandlerFn(wrk%sun%cvode_mem, c_funloc(ErrHandlerFn_evo), c_null_ptr)
+      if (ierr /= 0) then
+        err = "CVODE setup error."
+        return
+      end if
+    endif
+
+  end subroutine
+
+  module function step(self, err) result(tn)
+    use iso_c_binding, only: c_null_ptr, c_int, c_double, c_associated
+    use fcvode_mod, only: CV_ONE_STEP, FCVode
+    class(EvoAtmosphere), target, intent(inout) :: self
+    character(:), allocatable, intent(out) :: err
+    real(dp) :: tn
+    
+    integer(c_int) :: ierr
+    real(c_double), parameter :: dum = 0.0_dp
+    real(c_double) :: tcur(1)
+    
+    if (.not.c_associated(self%wrk%sun%cvode_mem)) then
+      err = "You must first initialize the stepper with 'initialize_stepper'"
+      return 
+    endif
+    
+    ierr = FCVode(self%wrk%sun%cvode_mem, dum, self%wrk%sun%sunvec_y, tcur, CV_ONE_STEP)
+    if (ierr /= 0) then
+      err = "CVODE step failed"
+      return
+    endif
+    tn = tcur(1)
+  end function
+
+  module subroutine destroy_stepper(self, err)
+    use iso_c_binding, only: c_int, c_associated, c_null_ptr
+    use fcvode_mod, only: FCVodeFree
+    use fsundials_nvector_mod, only: FN_VDestroy
+    use fsundials_matrix_mod, only: FSUNMatDestroy
+    use fsundials_linearsolver_mod, only: FSUNLinSolFree
+    
+    class(EvoAtmosphere), target, intent(inout) :: self
+    character(:), allocatable, intent(out) :: err
+    
+    call self%wrk%sun%finalize(err)
+    if (allocated(err)) return
+    
+  end subroutine
   
 end submodule

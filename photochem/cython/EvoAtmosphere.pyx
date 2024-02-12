@@ -157,6 +157,46 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
     return success
 
+  def initialize_stepper(self, ndarray[double, ndim=2] usol_start):
+    """Initializes an integration starting at `usol_start`.
+
+    Parameters
+    ----------
+    usol_start : ndarray[double,ndim=2]
+        Initial mixing ratios
+    """   
+    cdef char err[ERR_LEN+1]
+    cdef int nq = self.dat.nq
+    cdef int nz = self.var.nz
+    cdef ndarray usol_start_ = np.asfortranarray(usol_start)
+    if usol_start_.shape[0] != nq or usol_start_.shape[1] != nz:
+      raise PhotoException("Input usol_start is the wrong size.")
+    ea_pxd.evoatmosphere_initialize_stepper_wrapper(&self._ptr, &nq, &nz,  <double *>usol_start_.data, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    
+  def step(self):
+    """Takes one internal integration step. Function `initialize_stepper`.
+    must have been called before this
+
+    Returns
+    -------
+    float
+        Current time in the integration.
+    """
+    cdef char err[ERR_LEN+1]
+    cdef double tn = ea_pxd.evoatmosphere_step_wrapper(&self._ptr, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    return tn
+    
+  def destroy_stepper(self):
+    "Deallocates memory created during `initialize_stepper`"
+    cdef char err[ERR_LEN+1]
+    ea_pxd.evoatmosphere_destroy_stepper_wrapper(&self._ptr, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+
   def production_and_loss(self, str species, ndarray[double, ndim=2] usol, double top_atmos):
     """Computes the production and loss of input `species`.
     See ProductionLoss object in photochem_types.f90.
