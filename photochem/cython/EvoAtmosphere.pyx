@@ -122,6 +122,111 @@ cdef class EvoAtmosphere:
     for i in range(self.dat.nq):
       top[names[i]] = top_fluxes[i]
     return surface, top
+
+  def set_lower_bc(self, species = None, bc_type = None, vdep = None, den = None, press = None,
+                            flux = None, height = None):
+    """Sets a lower boundary condition.
+
+    Parameters
+    ----------
+    species : str
+        Species to set boundary condition
+    bc_type : str
+        Boundary condition type
+    vdep : float, optional
+        Deposition velocity (cm/s)
+    den : float, optional
+        Density (molecules/cm^3)
+    press : float, optional
+        Pressure (dynes/cm^2)
+    flux : float, optional
+        Flux (molecules/cm^2/s)
+    height : float, optional
+        Height in atmosphere (km)
+    """
+    cdef bytes species_b = pystring2cstring(species)
+    cdef char *species_c = species_b
+    cdef bytes bc_type_b = pystring2cstring(bc_type)
+    cdef char *bc_type_c = bc_type_b
+    cdef double vdep_c = 0
+    cdef double den_c = 0
+    cdef double press_c = 0
+    cdef double flux_c = 0
+    cdef double height_c = 0
+    cdef bool missing = False
+    if bc_type == 'vdep':
+      if vdep == None:
+        missing = True
+      else:
+        vdep_c = vdep
+    elif bc_type == 'den':
+      if den == None:
+        missing = True
+      else:
+        den_c = den
+    elif bc_type == 'press':
+      if press == None:
+        missing = True
+      else:
+        press_c = press
+    elif bc_type == 'flux':
+      if flux == None:
+        missing = True
+      else:
+        flux_c = flux
+    elif bc_type == 'vdep + dist flux':
+      if vdep == None or flux == None or height == None:
+        missing = True
+      else:
+        vdep_c = vdep
+        flux_c = flux
+        height_c = height
+    elif bc_type == 'Moses':
+      pass
+      
+    cdef char err[ERR_LEN+1]
+    ea_pxd.evoatmosphere_set_lower_bc_wrapper(&self._ptr, species_c, bc_type_c, 
+                                      &vdep_c, &den_c, &press_c, &flux_c, &height_c, &missing, err);
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+  
+  def set_upper_bc(self, species = None, bc_type = None, veff = None,flux = None):
+    """Sets upper boundary condition.
+
+    Parameters
+    ----------
+    species : str
+        Species to set boundary condition
+    bc_type : str
+        Boundary condition type
+    veff : float, optional
+        effusion velocity (cm/s)
+    flux : float, optional
+        Flux (molecules/cm^2/s)
+    """
+    cdef bytes species_b = pystring2cstring(species)
+    cdef char *species_c = species_b
+    cdef bytes bc_type_b = pystring2cstring(bc_type)
+    cdef char *bc_type_c = bc_type_b
+    cdef double veff_c = 0
+    cdef double flux_c = 0
+    cdef bool missing = False
+    if bc_type == 'veff':
+      if veff == None:
+        missing = True
+      else:
+        veff_c = veff
+    elif bc_type == 'flux':
+      if flux == None:
+        missing = True
+      else:
+        flux_c = flux
+      
+    cdef char err[ERR_LEN+1]
+    ea_pxd.evoatmosphere_set_upper_bc_wrapper(&self._ptr, species_c, bc_type_c, 
+                                      &veff_c, &flux_c, &missing, err);
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
     
   def regrid_prep_atmosphere(self, ndarray[double, ndim=2] usol, double top_atmos):
     """This subroutine calculates re-grids the model so that the top of the model domain 

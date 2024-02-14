@@ -17,6 +17,10 @@ cdef extern void evoatmosphere_create_wrapper(void *ptr, char *mechanism_file,
 
 cdef extern void evoatmosphere_out2atmosphere_txt_wrapper(void *ptr, char *filename, bool *overwrite, bool *clip, char *err)   
 cdef extern void evoatmosphere_gas_fluxes_wrapper(void *ptr, int *nq, double *surf_fluxes, double *top_fluxes, char *err)
+cdef extern void evoatmosphere_set_lower_bc_wrapper(void *ptr, char *species, char *bc_type, 
+                                                    double *vdep, double *den, double *press, double *flux, double *height, bool *missing, char *err)
+cdef extern void evoatmosphere_set_upper_bc_wrapper(void *ptr, char *species, 
+                                                    char *bc_type, double *veff, double *flux, bool *missing, char *err)
 cdef extern void evoatmosphere_regrid_prep_atmosphere_wrapper(void *ptr, int *nq, int *nz, double *usol, double *top_atmos, char *err)
 
 cdef extern void evoatmosphere_evolve_wrapper(void *ptr, char *filename, 

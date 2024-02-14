@@ -118,6 +118,75 @@
     endif
   end subroutine
 
+  subroutine evoatmosphere_set_lower_bc_wrapper(ptr, species, bc_type, vdep, den, press, flux, height, missing, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    character(kind=c_char), intent(in) :: species(*)
+    character(kind=c_char), intent(in) :: bc_type(*)
+    real(c_double), intent(in) :: vdep
+    real(c_double), intent(in) :: den
+    real(c_double), intent(in) :: press
+    real(c_double), intent(in) :: flux
+    real(c_double), intent(in) :: height
+    logical(c_bool), intent(in) :: missing
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(len=:), allocatable :: species_f
+    character(len=:), allocatable :: bc_type_f
+    
+    character(:), allocatable :: err_f
+    type(EvoAtmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+    
+    allocate(character(len=len_cstring(species))::species_f)
+    allocate(character(len=len_cstring(bc_type))::bc_type_f)
+    
+    call copy_string_ctof(species, species_f)
+    call copy_string_ctof(bc_type, bc_type_f)
+
+    if (missing) then
+      call pc%set_lower_bc(species_f, bc_type_f, err=err_f)
+    else
+      call pc%set_lower_bc(species_f, bc_type_f, vdep=vdep, den=den, press=press, flux=flux, height=height, err=err_f)
+    endif
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif
+  end subroutine
+  
+  subroutine evoatmosphere_set_upper_bc_wrapper(ptr, species, bc_type, veff, flux, missing, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    character(kind=c_char), intent(in) :: species(*)
+    character(kind=c_char), intent(in) :: bc_type(*)
+    real(c_double), intent(in) :: veff
+    real(c_double), intent(in) :: flux
+    logical(c_bool), intent(in) :: missing
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(len=:), allocatable :: species_f
+    character(len=:), allocatable :: bc_type_f
+    
+    character(:), allocatable :: err_f
+    type(EvoAtmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+    
+    allocate(character(len=len_cstring(species))::species_f)
+    allocate(character(len=len_cstring(bc_type))::bc_type_f)
+    
+    call copy_string_ctof(species, species_f)
+    call copy_string_ctof(bc_type, bc_type_f)
+
+    if (missing) then
+      call pc%set_upper_bc(species_f, bc_type_f, err=err_f)
+    else
+      call pc%set_upper_bc(species_f, bc_type_f, veff=veff, flux=flux, err=err_f)
+    endif
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif
+  end subroutine
+
   subroutine evoatmosphere_regrid_prep_atmosphere_wrapper(ptr, nq, nz, usol, top_atmos, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     integer(c_int), intent(in) :: nq, nz

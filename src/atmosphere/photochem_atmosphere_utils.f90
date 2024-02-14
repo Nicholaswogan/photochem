@@ -419,6 +419,12 @@ contains
             "' because it is not in the list of species"
       return
     endif
+    if (self%dat%there_are_particles) then
+      if (ind(1) <= self%dat%np .and. bc_type /= 'vdep') then
+        err = 'Particles must have a deposition velocity lower boundary condition.'
+        return
+      endif
+    endif
     
     if (self%dat%fix_water_in_trop) then
       if (species == "H2O") then

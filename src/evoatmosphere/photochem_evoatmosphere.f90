@@ -57,6 +57,8 @@ module photochem_evoatmosphere
     !!! photochem_evoatmosphere_utils.f90 !!!
     procedure :: out2atmosphere_txt
     procedure :: gas_fluxes
+    procedure :: set_lower_bc
+    procedure :: set_upper_bc
     procedure :: rebin_update_vertical_grid
     procedure :: regrid_prep_atmosphere
 
@@ -229,6 +231,29 @@ module photochem_evoatmosphere
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(out) :: surf_fluxes(:) !! surface fluxes (molecules/cm^2/s)
       real(dp), intent(out) :: top_fluxes(:) !! top-of-atmosphere fluxes (molecules/cm^2/s)
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Sets a lower boundary condition.
+    module subroutine set_lower_bc(self, species, bc_type, vdep, den, press, flux, height, err)
+      class(EvoAtmosphere), intent(inout) :: self
+      character(len=*), intent(in) :: species !! Species to set boundary condition
+      character(len=*), intent(in) :: bc_type !! Boundary condition type
+      real(dp), optional, intent(in) :: vdep !! Deposition velocity (cm/s)
+      real(dp), optional, intent(in) :: den !! density (molecules/cm^3)
+      real(dp), optional, intent(in) :: press !! pressure (dynes/cm^2)
+      real(dp), optional, intent(in) :: flux !! Flux (molecules/cm^2/s)
+      real(dp), optional, intent(in) :: height !! Height in atmosphere (km)
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+    
+    !> Sets upper boundary condition
+    module subroutine set_upper_bc(self, species, bc_type, veff, flux, err)
+      class(EvoAtmosphere), intent(inout) :: self
+      character(len=*), intent(in) :: species !! Species to set boundary condition
+      character(len=*), intent(in) :: bc_type !! Boundary condition type
+      real(dp), optional, intent(in) :: veff !! effusion velocity (cm/s)
+      real(dp), optional, intent(in) :: flux !! Flux (molecules/cm^2/s)
       character(:), allocatable, intent(out) :: err
     end subroutine
 
