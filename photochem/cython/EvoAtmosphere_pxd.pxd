@@ -23,6 +23,8 @@ cdef extern void evoatmosphere_set_lower_bc_wrapper(void *ptr, char *species, ch
 cdef extern void evoatmosphere_set_upper_bc_wrapper(void *ptr, char *species, 
                                                     char *bc_type, double *veff, double *flux, bool *missing, char *err)
 cdef extern void evoatmosphere_set_rate_fcn_wrapper(void *ptr, char *species_c, time_dependent_rate_fcn fcn, char *err)
+cdef extern void evoatmosphere_set_temperature_wrapper(void *ptr, int *nz, double *temperature, 
+                                                    double *trop_alt, bool *trop_alt_present, char *err)
 cdef extern void evoatmosphere_regrid_prep_atmosphere_wrapper(void *ptr, int *nq, int *nz, double *usol, double *top_atmos, char *err)
 
 cdef extern void evoatmosphere_evolve_wrapper(void *ptr, char *filename, 

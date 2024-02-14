@@ -263,6 +263,31 @@ cdef class EvoAtmosphere:
     ea_pxd.evoatmosphere_set_rate_fcn_wrapper(&self._ptr, species_c, fcn_c, err)
     if len(err.strip()) > 0:
        raise PhotoException(err.decode("utf-8").strip())
+
+  def set_temperature(self, ndarray[double, ndim=1] temperature, trop_alt = None):
+    """Changes the temperature profile.
+
+    Parameters
+    ----------
+    temperature : ndarray[double,ndim=1]
+        new temperature at each atomspheric layer
+    trop_alt : float, optional
+        Tropopause altitude (cm). Only necessary if rainout == True, 
+        or fix_water_in_trop == True.
+    """
+    cdef char err[ERR_LEN+1]
+    cdef int nz = temperature.size
+    
+    cdef double trop_alt_ = 0.0
+    cdef bool trop_alt_present = False
+    if trop_alt != None:
+      trop_alt_present = True
+      trop_alt_ = trop_alt
+      
+    ea_pxd.evoatmosphere_set_temperature_wrapper(&self._ptr, &nz, <double *>temperature.data, 
+                                       &trop_alt_, &trop_alt_present, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
     
   def regrid_prep_atmosphere(self, ndarray[double, ndim=2] usol, double top_atmos):
     """This subroutine calculates re-grids the model so that the top of the model domain 

@@ -219,6 +219,32 @@
     endif 
   end subroutine
 
+  subroutine evoatmosphere_set_temperature_wrapper(ptr, nz, temperature, &
+                                                trop_alt, trop_alt_present, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: nz
+    real(c_double), intent(in) :: temperature(nz)
+    real(c_double), intent(in) :: trop_alt
+    logical(c_bool), intent(in) :: trop_alt_present
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(:), allocatable :: err_f
+    type(EvoAtmosphere), pointer :: pc
+    
+    call c_f_pointer(ptr, pc)
+    
+    if (trop_alt_present) then
+      call pc%set_temperature(temperature, trop_alt, err_f)
+    else
+      call pc%set_temperature(temperature, err=err_f)
+    endif
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif
+    
+  end subroutine
+
   subroutine evoatmosphere_regrid_prep_atmosphere_wrapper(ptr, nq, nz, usol, top_atmos, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     integer(c_int), intent(in) :: nq, nz

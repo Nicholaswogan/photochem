@@ -256,6 +256,80 @@ module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
 
   end subroutine
 
+  module subroutine set_temperature(self, temperature, trop_alt, err)
+    use photochem_input, only: interp2xsdata, compute_gibbs_energy
+    
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: temperature(:)
+    real(dp), optional, intent(in) :: trop_alt
+    character(:), allocatable, intent(out) :: err
+    
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemVars) :: var_save
+    
+    dat => self%dat
+    var => self%var
+    
+    if (size(temperature) /= var%nz) then
+      err = "temperature has the wrong input dimension"
+      return
+    endif
+    if (self%evolve_climate) then
+      err = "You can not set the temperature when evolving climate"
+      return
+    endif
+    
+    ! save in case there is an issue
+    var_save = var
+    
+    var%temperature = temperature
+    
+    ! xsections and gibbs energy needs updating
+    call interp2xsdata(dat, var, err)
+    if (allocated(err)) then
+      var = var_save
+      return
+    endif
+    if (dat%reverse) then
+      call compute_gibbs_energy(dat, var, err)
+      if (allocated(err)) then
+        var = var_save
+        return
+      endif
+    endif
+    
+    ! if water is fixed in troposhere or gas rainout, and trop_alt present
+    ! then we need to change trop_ind, reallocate some stuff
+    ! in wrk, then we will re-prep the atmosphere
+    if ((dat%fix_water_in_trop .or. dat%gas_rainout) .and. present(trop_alt)) then
+      if (trop_alt < var%bottom_atmos .or. trop_alt > var%top_atmos) then
+        var = var_save
+        err = "trop_alt is above or bellow the atmosphere!"
+        return
+      endif
+      
+      var%trop_alt = trop_alt
+      var%trop_ind = max(minloc(abs(var%z - var%trop_alt), 1) - 1, 1)
+
+      if (var%trop_ind < 3) then
+        var = var_save
+        err = 'Tropopause is too low.'
+        return
+      elseif (var%trop_ind > var%nz-2) then
+        var = var_save
+        err = 'Tropopause is too high.'
+        return
+      endif
+
+    endif
+
+    ! Fill wrk with new values
+    call self%prep_atmosphere(self%wrk%usol, err)
+    if (allocated(err)) return
+    
+  end subroutine
+
   module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_old(:,:)

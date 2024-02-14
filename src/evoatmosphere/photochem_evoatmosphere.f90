@@ -60,6 +60,7 @@ module photochem_evoatmosphere
     procedure :: set_lower_bc
     procedure :: set_upper_bc
     procedure :: set_rate_fcn
+    procedure :: set_temperature
     procedure :: rebin_update_vertical_grid
     procedure :: regrid_prep_atmosphere
 
@@ -259,12 +260,24 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    !> Sets a function describing a custom rate for a species.
+    !> This could be useful for modeling external processes not in the
+    !> model.
     module subroutine set_rate_fcn(self, species, fcn, err)
       use photochem_types, only: time_dependent_rate_fcn
       class(EvoAtmosphere), target, intent(inout) :: self
-      character(*), intent(in) :: species
+      character(*), intent(in) :: species !! Species name
       procedure(time_dependent_rate_fcn), pointer :: fcn
       character(:), allocatable, intent(inout) :: err
+    end subroutine
+
+    !> Changes the temperature profile.
+    module subroutine set_temperature(self, temperature, trop_alt, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: temperature(:) !! new temperature at each atomspheric layer
+      real(dp), optional, intent(in) :: trop_alt !! Tropopause altitude (cm). Only necessary if
+                                                 !! rainout == True, or fix_water_in_trop == True.
+      character(:), allocatable, intent(out) :: err
     end subroutine
 
     module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
