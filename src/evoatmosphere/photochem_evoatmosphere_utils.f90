@@ -31,6 +31,56 @@ module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
 
   end subroutine
 
+  module subroutine gas_fluxes(self, surf_fluxes, top_fluxes, err)
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(out) :: surf_fluxes(:)
+    real(dp), intent(out) :: top_fluxes(:)
+    character(:), allocatable, intent(out) :: err
+  
+    real(dp) :: rhs(self%var%neqs)  
+    real(dp) :: diffusive_production
+    real(dp) :: chemical_production
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+  
+    integer :: i
+    
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+    
+    if (size(surf_fluxes) /= dat%nq .or. size(top_fluxes) /= dat%nq) then
+      err = "Input fluxes to gas_fluxes has the wrong dimensions"
+      return
+    endif
+  
+    call self%right_hand_side_chem(wrk%usol, rhs, err)
+    if (allocated(err)) return
+    
+    ! surface flux is molecules required to sustain the lower boundary
+    ! chemical production + diffusion production = total change in lower cell    
+    do i = 1,dat%nq
+      diffusive_production = (wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
+                            + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1)) &
+                              *var%dz(1)
+      chemical_production = rhs(i)*var%dz(1)
+      surf_fluxes(i) = -(diffusive_production + chemical_production)
+    enddo
+    
+    ! fluxes going into or out of the top of the atmosphere.
+    do i = 1,dat%nq
+      diffusive_production = &
+         (wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
+        + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1)) &
+          *var%dz(var%nz)
+    
+      chemical_production = rhs(i + (var%nz-1)*dat%nq)*var%dz(var%nz)
+      top_fluxes(i) = diffusive_production + chemical_production
+    enddo
+    
+  end subroutine
+
   module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_old(:,:)

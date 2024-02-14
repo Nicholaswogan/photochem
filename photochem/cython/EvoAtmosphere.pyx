@@ -94,6 +94,34 @@ cdef class EvoAtmosphere:
     ea_pxd.evoatmosphere_out2atmosphere_txt_wrapper(&self._ptr, filename_c, &overwrite, &clip, err)  
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
+
+  def gas_fluxes(self):
+    """Computes gas fluxes at model boundaries in order to maintain
+    current atmospheric concentrations. Uses the densities stored in
+    self.wrk.usol.
+
+    Returns
+    -------
+    tuple
+        First element are the surface fluxes, and the second are top-of-atmosphere
+        fluxes.
+    """
+    cdef ndarray surf_fluxes = np.empty(self.dat.nq, np.double)
+    cdef ndarray top_fluxes = np.empty(self.dat.nq, np.double)
+    cdef int nq = self.dat.nq
+    cdef char err[ERR_LEN+1]
+    ea_pxd.evoatmosphere_gas_fluxes_wrapper(&self._ptr, &nq, <double *>surf_fluxes.data, <double *>top_fluxes.data, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    surface = {}
+    names = self.dat.species_names
+    for i in range(self.dat.nq):
+      surface[names[i]] = surf_fluxes[i]
+    top = {}
+    names = self.dat.species_names
+    for i in range(self.dat.nq):
+      top[names[i]] = top_fluxes[i]
+    return surface, top
     
   def regrid_prep_atmosphere(self, ndarray[double, ndim=2] usol, double top_atmos):
     """This subroutine calculates re-grids the model so that the top of the model domain 

@@ -184,8 +184,9 @@ cdef class Atmosphere:
     """
     cdef ndarray surf_fluxes = np.empty(self.dat.nq, np.double)
     cdef ndarray top_fluxes = np.empty(self.dat.nq, np.double)
+    cdef int nq = self.dat.nq
     cdef char err[ERR_LEN+1]
-    a_pxd.atmosphere_gas_fluxes_wrapper(&self._ptr, <double *>surf_fluxes.data, <double *>top_fluxes.data, err)
+    a_pxd.atmosphere_gas_fluxes_wrapper(&self._ptr, &nq, <double *>surf_fluxes.data, <double *>top_fluxes.data, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     surface = {}

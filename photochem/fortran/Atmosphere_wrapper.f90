@@ -146,17 +146,18 @@
     
   end subroutine
   
-  subroutine atmosphere_gas_fluxes_wrapper(ptr, surf_fluxes, top_fluxes, err) bind(c)
+  subroutine atmosphere_gas_fluxes_wrapper(ptr, nq, surf_fluxes, top_fluxes, err) bind(c)
     type(c_ptr), intent(in) :: ptr
-    real(c_double), intent(out) :: surf_fluxes(*)
-    real(c_double), intent(out) :: top_fluxes(*)
+    integer(c_int), intent(in) :: nq
+    real(c_double), intent(out) :: surf_fluxes(nq)
+    real(c_double), intent(out) :: top_fluxes(nq)
     character(kind=c_char), intent(out) :: err(err_len+1)
     
     character(:), allocatable :: err_f
     type(Atmosphere), pointer :: pc
     
     call c_f_pointer(ptr, pc)
-    call pc%gas_fluxes(surf_fluxes(1:pc%dat%nq),top_fluxes(1:pc%dat%nq),err_f)
+    call pc%gas_fluxes(surf_fluxes,top_fluxes,err_f)
     err(1) = c_null_char
     if (allocated(err_f)) then
       call copy_string_ftoc(err_f, err)

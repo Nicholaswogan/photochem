@@ -56,6 +56,7 @@ module photochem_evoatmosphere
 
     !!! photochem_evoatmosphere_utils.f90 !!!
     procedure :: out2atmosphere_txt
+    procedure :: gas_fluxes
     procedure :: rebin_update_vertical_grid
     procedure :: regrid_prep_atmosphere
 
@@ -218,6 +219,16 @@ module photochem_evoatmosphere
       class(EvoAtmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: filename
       logical, intent(in) :: overwrite, clip
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Computes gas fluxes at model boundaries in order to maintain
+    !> current atmospheric concentrations. Uses the densities stored in
+    !> self%wrk%usol.
+    module subroutine gas_fluxes(self, surf_fluxes, top_fluxes, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(out) :: surf_fluxes(:) !! surface fluxes (molecules/cm^2/s)
+      real(dp), intent(out) :: top_fluxes(:) !! top-of-atmosphere fluxes (molecules/cm^2/s)
       character(:), allocatable, intent(out) :: err
     end subroutine
 
