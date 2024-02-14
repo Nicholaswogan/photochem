@@ -9,6 +9,7 @@ contains
     use iso_c_binding, only : c_associated
     use photochem_input, only: setup
     use photochem_types, only: PhotoSettings
+    use photochem_enum, only: PressureBC
     use clima_types, only: ClimaSettings
     
     character(len=*), intent(in) :: mechanism_file
@@ -45,8 +46,16 @@ contains
                        self%dat%nw)
     
     if (s%evolve_climate) then
-      ! allocate
       self%evolve_climate = .true.
+
+      ! Make sure there are no pressure boundary conditions.
+      if (any(self%var%lowerboundcond == PressureBC)) then
+        err = 'Fixed pressure boundary conditions are not allowed for class "EvoAtmosphere" '// &
+              'when evolve_climate is true.'
+        return
+      endif
+
+      ! allocate
       if (allocated(self%rad)) deallocate(self%rad)
       allocate(self%rad)
 

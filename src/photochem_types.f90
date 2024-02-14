@@ -35,6 +35,7 @@ module photochem_types ! make a giant IO object
     real(dp) :: flux
     real(dp) :: height
     real(dp) :: den
+    real(dp) :: press
   end type
   
   type :: PhotoSettings
@@ -384,6 +385,7 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: lower_dist_height(:)
     real(dp), allocatable :: lower_fix_mr(:)
     real(dp), allocatable :: lower_fix_den(:)
+    real(dp), allocatable :: lower_fix_press(:)
     integer, allocatable :: upperboundcond(:) ! 0 or 2
     real(dp), allocatable :: upper_veff(:)
     real(dp), allocatable :: upper_flux(:)

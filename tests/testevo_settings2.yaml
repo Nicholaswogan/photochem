@@ -15,6 +15,7 @@ planet:
   planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
   surface-albedo: 0.2 # cm
   solar-zenith-angle: 60.0
+  # evolve-climate: true
   hydrogen-escape:
     type: diffusion limited
   water:
@@ -55,10 +56,10 @@ particles:
 
 boundary-conditions:
 - name: N2
-  lower-boundary: {type: den, den: 1.9091467479365386e+19}
+  lower-boundary: {type: press, press: 0.78e6}
   upper-boundary: {type: veff, veff: 1.0e-8}
 - name: O2
-  lower-boundary: {type: flux, flux: 529988353109.4235}
+  lower-boundary: {type: press, press: 0.21e6}
   upper-boundary: {type: veff, veff: 0.0}
 - name: H2
   lower-boundary: {type: vdep, vdep: 0.002101353876412517}

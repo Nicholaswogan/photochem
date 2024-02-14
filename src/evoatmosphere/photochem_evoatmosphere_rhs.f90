@@ -395,7 +395,7 @@ contains
     use photochem_eqns, only: press_and_den
     use photochem_common, only: molec_per_particle
     use photochem_const, only: small_real, N_avo, k_boltz
-    use photochem_enum, only: DensityBC
+    use photochem_enum, only: DensityBC, PressureBC
     use photochem_input, only: compute_gibbs_energy, interp2xsdata
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
@@ -427,6 +427,8 @@ contains
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == DensityBC) then
         usol(i,1) = var%lower_fix_den(i)
+      elseif (var%lowerboundcond(i) == PressureBC) then
+        usol(i,1) = var%lower_fix_press(i)/(k_boltz*var%temperature(1))
       endif
     enddo
 
@@ -611,7 +613,7 @@ contains
   end subroutine
 
   module subroutine rhs_evo_gas(self, neqs, usol_flat, rhs, err)
-    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
     use photochem_enum, only: ZahnleHydrogenEscape
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
@@ -668,7 +670,8 @@ contains
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
                         + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
                         - wrk%lower_vdep_copy(i)*wrk%usol(i,1)/var%dz(1)
-      elseif (var%lowerboundcond(i) == DensityBC) then
+      elseif (var%lowerboundcond(i) == DensityBC .or. &
+              var%lowerboundcond(i) == PressureBC) then
         rhs(i) = 0.0_dp
       elseif (var%lowerboundcond(i) == FluxBC) then
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
@@ -727,7 +730,7 @@ contains
   end subroutine
 
   module subroutine jac_evo_gas(self, lda_neqs, neqs, usol_flat, jac, err)
-    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
     use photochem_enum, only: ZahnleHydrogenEscape
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
@@ -821,7 +824,8 @@ contains
 
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
         djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) - wrk%lower_vdep_copy(i)/var%dz(1)
-      elseif (var%lowerboundcond(i) == DensityBC) then
+      elseif (var%lowerboundcond(i) == DensityBC .or. &
+              var%lowerboundcond(i) == PressureBC) then
 
         do m=1,dat%nq
           mm = dat%kd + i - m

@@ -2,7 +2,7 @@
 atmosphere-grid:
   bottom: 0.0 # cm
   top: 1.0e7 # cm
-  number-of-layers: 100
+  number-of-layers: 80
 
 photolysis-grid:
   regular-grid: true
@@ -13,7 +13,7 @@ photolysis-grid:
 planet:
   planet-mass: 5.972e27 # grams
   planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
-  surface-albedo: 0.2 # cm
+  surface-albedo: 0.3 # cm
   solar-zenith-angle: 60.0
   hydrogen-escape:
     type: diffusion limited
@@ -56,8 +56,7 @@ particles:
 
 optical-properties:
   ir:
-    k-method: RandomOverlapResortRebin
-    number-of-bins: 8
+    k-method: AdaptiveEquivalentExtinction
     opacities:
       k-distributions: [H2O, CO2, CH4, O3]
       CIA: [N2-N2, O2-O2, N2-O2, CH4-CH4, CO2-CO2, H2-CH4, H2-H2]
@@ -65,8 +64,7 @@ optical-properties:
       photolysis-xs: true
       water-continuum: MT_CKD
   solar:
-    k-method: RandomOverlapResortRebin
-    number-of-bins: 8
+    k-method: AdaptiveEquivalentExtinction
     opacities:
       k-distributions: [H2O, CO2, CH4, O3]
       CIA: [N2-N2, O2-O2, N2-O2, CH4-CH4, CO2-CO2, H2-CH4, H2-H2]

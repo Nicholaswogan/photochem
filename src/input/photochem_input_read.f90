@@ -623,7 +623,7 @@ contains
   subroutine unpack_settings(infile, s, dat, var, err)
     use photochem_enum, only: H2SO4Saturation
     use photochem_enum, only: CondensingParticle
-    use photochem_enum, only: VelocityBC, DensityBC, MixingRatioBC
+    use photochem_enum, only: VelocityBC, DensityBC, MixingRatioBC, PressureBC
     use photochem_enum, only: DiffusionLimHydrogenEscape, ZahnleHydrogenEscape, NoHydrogenEscape
     use photochem_types, only: PhotoSettings
     character(len=*), intent(in) :: infile
@@ -843,6 +843,7 @@ contains
       allocate(var%lower_fix_mr(dat%nq))
     else
       allocate(var%lower_fix_den(dat%nq))
+      allocate(var%lower_fix_press(dat%nq))
     endif
     allocate(var%upperboundcond(dat%nq))
     allocate(var%upper_veff(dat%nq))
@@ -890,6 +891,7 @@ contains
           var%lower_fix_mr(ind(1)) = s%lbcs(j)%mix
         else
           var%lower_fix_den(ind(1)) = s%lbcs(j)%den
+          var%lower_fix_press(ind(1)) = s%lbcs(j)%press
         endif
         
         var%upperboundcond(ind(1)) = s%ubcs(j)%bc_type
@@ -942,12 +944,16 @@ contains
     ! make sure bc work for the model
     if (dat%back_gas) then
       if (any(var%lowerboundcond == DensityBC)) then
-        err = 'Fixing density boundary conditions are not allowed for class "Atmosphere".'
+        err = 'Fixed density boundary conditions are not allowed for class "Atmosphere".'
+        return
+      endif
+      if (any(var%lowerboundcond == PressureBC)) then
+        err = 'Fixed pressure boundary conditions are not allowed for class "Atmosphere".'
         return
       endif
     else
       if (any(var%lowerboundcond == MixingRatioBC)) then
-        err = 'Fixing mixing ratio boundary conditions are not allowed for class "EvoAtmosphere".'
+        err = 'Fixed mixing ratio boundary conditions are not allowed for class "EvoAtmosphere".'
         return
       endif
     endif

@@ -201,7 +201,8 @@ contains
     use fsundials_linearsolver_mod, only: SUNLinearSolver, FSUNLinSolFree
     use fsunlinsol_band_mod, only: FSUNLinSol_Band
     
-    use photochem_enum, only: DensityBC
+    use photochem_enum, only: DensityBC, PressureBC
+    use photochem_const, only: k_boltz
     use photochem_types, only: SundialsDataFinalizer
     
     ! in/out
@@ -330,6 +331,8 @@ contains
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == DensityBC) then
         wrk%sun%yvec(i) = var%lower_fix_den(i)
+      elseif (var%lowerboundcond(i) == PressureBC) then
+        wrk%sun%yvec(i) = var%lower_fix_press(i)/(k_boltz*var%temperature(1))
       endif
     enddo
     ! set abstol
@@ -697,7 +700,8 @@ contains
     use fsundials_linearsolver_mod, only: SUNLinearSolver, FSUNLinSolFree
     use fsunlinsol_band_mod, only: FSUNLinSol_Band
     
-    use photochem_enum, only: DensityBC
+    use photochem_enum, only: DensityBC, PressureBC
+    use photochem_const, only: k_boltz
     
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
@@ -757,6 +761,8 @@ contains
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == DensityBC) then
         wrk%sun%yvec(i) = var%lower_fix_den(i)
+      elseif (var%lowerboundcond(i) == PressureBC) then
+        wrk%sun%yvec(i) = var%lower_fix_press(i)/(k_boltz*var%temperature(1))
       endif
     enddo
     ! set abstol

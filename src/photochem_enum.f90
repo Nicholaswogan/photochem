@@ -39,7 +39,8 @@ module photochem_enum
     MixingRatioBC = 1, &
     FluxBC = 2, &
     VelocityDistributedFluxBC = 3, &
-    DensityBC = 4
+    DensityBC = 4, &
+    PressureBC = 5
 
   enumerator :: &
     DiffusionLimHydrogenEscape, &

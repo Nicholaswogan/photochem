@@ -23,11 +23,13 @@ module photochem_evoatmosphere
     type(PhotochemWrkEvo), allocatable :: wrk
 
     logical :: evolve_climate
+    ! Below are only relevant for evolve_climate = .true.
     real(dp) :: T_surf
     real(dp) :: T_trop = 200.0_dp
     !> Callback function to set a temperature dependent albedo (e.g. ice-albedo feedback).
     procedure(temp_dependent_albedo_fcn), nopass, pointer :: albedo_fcn => null()
     type(Radtran), allocatable :: rad
+    ! Above are only relevant for evolve_climate = .true.
 
     ! Modern Earth has a pressure of 4e-7 at 100 km
     ! so it makes sense to try to keep pressure between these values
@@ -42,9 +44,9 @@ module photochem_evoatmosphere
     procedure :: prep_atm_evo_gas
     procedure :: prep_atmosphere => prep_all_evo_gas
     procedure :: right_hand_side_chem
+    procedure :: production_and_loss
     procedure :: right_hand_side => rhs_evo_gas
     procedure :: jacobian => jac_evo_gas
-    procedure :: production_and_loss
 
     !!! photochem_evoatmosphere_integrate.f90 !!!
     procedure :: evolve
