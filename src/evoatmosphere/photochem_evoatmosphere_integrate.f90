@@ -39,7 +39,7 @@ contains
     fvec(1:self%var%neqs) => FN_VGetArrayPointer(sunvec_f)
     
     ! fill RHS vector
-    call self%right_hand_side(self%var%neqs, yvec, fvec, err)
+    call self%right_hand_side(self%var%neqs, tn, yvec, fvec, err)
     loc_ierr = FCVodeGetNumSteps(self%wrk%sun%cvode_mem, nsteps)
     
     if (nsteps(1) /= self%wrk%nsteps_previous .and. self%var%verbose > 0) then

@@ -59,6 +59,7 @@ module photochem_evoatmosphere
     procedure :: gas_fluxes
     procedure :: set_lower_bc
     procedure :: set_upper_bc
+    procedure :: set_rate_fcn
     procedure :: rebin_update_vertical_grid
     procedure :: regrid_prep_atmosphere
 
@@ -116,9 +117,10 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    module subroutine rhs_evo_gas(self, neqs, usol_flat, rhs, err)
+    module subroutine rhs_evo_gas(self, neqs, tn, usol_flat, rhs, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       integer, intent(in) :: neqs
+      real(dp), intent(in) :: tn
       real(dp), target, intent(in) :: usol_flat(neqs)
       real(dp), intent(out) :: rhs(neqs)
       character(:), allocatable, intent(out) :: err
@@ -255,6 +257,14 @@ module photochem_evoatmosphere
       real(dp), optional, intent(in) :: veff !! effusion velocity (cm/s)
       real(dp), optional, intent(in) :: flux !! Flux (molecules/cm^2/s)
       character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    module subroutine set_rate_fcn(self, species, fcn, err)
+      use photochem_types, only: time_dependent_rate_fcn
+      class(EvoAtmosphere), target, intent(inout) :: self
+      character(*), intent(in) :: species
+      procedure(time_dependent_rate_fcn), pointer :: fcn
+      character(:), allocatable, intent(inout) :: err
     end subroutine
 
     module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)

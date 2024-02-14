@@ -595,6 +595,11 @@ contains
     !!! reaction rates
     call reaction_rates(self%dat, self%var, wrk%density, wrk%densities, wrk%rx_rates)
     
+    ! Update the photon_flux if the function is associated.
+    ! we use time wrk%tn, which MUST be updated.
+    if (associated(var%photon_flux_fcn)) then
+      call var%photon_flux_fcn(wrk%tn, dat%nw, var%photon_flux)
+    endif
     call photorates(dat, var, wrk%densities, &
                     wrk%prates, wrk%surf_radiance, wrk%amean_grd, wrk%optical_depth, err)
     if (allocated(err)) return
@@ -612,7 +617,7 @@ contains
 
   end subroutine
 
-  module subroutine rhs_evo_gas(self, neqs, usol_flat, rhs, err)
+  module subroutine rhs_evo_gas(self, neqs, tn, usol_flat, rhs, err)
     use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
     use photochem_enum, only: ZahnleHydrogenEscape
     use iso_c_binding, only: c_ptr, c_f_pointer
@@ -620,6 +625,7 @@ contains
     
     class(EvoAtmosphere), target, intent(inout) :: self
     integer, intent(in) :: neqs
+    real(dp), intent(in) :: tn
     real(dp), target, intent(in) :: usol_flat(neqs)
     real(dp), intent(out) :: rhs(neqs)
     character(:), allocatable, intent(out) :: err
@@ -643,6 +649,9 @@ contains
             'related to some mixing ratios getting too negative.'
       return 
     endif
+
+    ! time
+    wrk%tn = tn
     
     ! fills self%wrk with data
     call prep_all_evo_gas(self, usol_in, err)
@@ -652,6 +661,17 @@ contains
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
                 wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
                 wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs)  
+
+    ! Extra functions specifying production or destruction
+    do i = 1,dat%nq
+      if (associated(var%rate_fcns(i)%fcn)) then
+        call var%rate_fcns(i)%fcn(tn, var%nz, wrk%xp) ! using wrk%xp space.
+        do j = 1,var%nz
+          k = i + (j-1)*dat%nq
+          rhs(k) = rhs(k) + wrk%xp(j) ! (molecules/cm^3/s)
+        enddo
+      endif
+    enddo
 
     ! diffusion (interior grid points)
     do j = 2,var%nz-1

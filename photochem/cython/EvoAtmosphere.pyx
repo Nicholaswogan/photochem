@@ -227,6 +227,42 @@ cdef class EvoAtmosphere:
                                       &veff_c, &flux_c, &missing, err);
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
+
+  def set_rate_fcn(self, str species, object fcn):
+    """Sets a function describing a custom rate for a species.
+    This could be useful for modeling external processes not in the
+    model.
+
+    Parameters
+    ----------
+    species : str
+        Species name
+    fcn : function
+        A Numba cfunc that describes the time-dependent rate
+    """
+    cdef bytes species_b = pystring2cstring(species)
+    cdef char *species_c = species_b
+    cdef char err[ERR_LEN+1]
+    cdef uintptr_t fcn_l
+    cdef ea_pxd.time_dependent_rate_fcn fcn_c
+
+    if fcn is None:
+      fcn_l = 0
+      fcn_c = NULL
+    else:
+      argtypes = (ct.c_double, ct.c_int32, ct.POINTER(ct.c_double))
+      restype = None
+      if not fcn.ctypes.argtypes == argtypes:
+        raise PhotoException("The callback function has the wrong argument types.")
+      if not fcn.ctypes.restype == restype:
+        raise PhotoException("The callback function has the wrong return type.")
+
+      fcn_l = fcn.address
+      fcn_c = <ea_pxd.time_dependent_rate_fcn> fcn_l
+      
+    ea_pxd.evoatmosphere_set_rate_fcn_wrapper(&self._ptr, species_c, fcn_c, err)
+    if len(err.strip()) > 0:
+       raise PhotoException(err.decode("utf-8").strip())
     
   def regrid_prep_atmosphere(self, ndarray[double, ndim=2] usol, double top_atmos):
     """This subroutine calculates re-grids the model so that the top of the model domain 

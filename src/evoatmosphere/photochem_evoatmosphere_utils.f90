@@ -236,6 +236,26 @@ module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
   
   end subroutine
 
+  module subroutine set_rate_fcn(self, species, fcn, err)
+    use photochem_types, only: time_dependent_rate_fcn
+    class(EvoAtmosphere), target, intent(inout) :: self
+    character(*), intent(in) :: species
+    procedure(time_dependent_rate_fcn), pointer :: fcn
+    character(:), allocatable, intent(inout) :: err
+    
+    integer :: ind
+
+    ind = findloc(self%dat%species_names(1:self%dat%nq), species, 1)
+    if (ind == 0) then
+      err = 'Species "'//species//'" is not in the list of species, '// &
+            'or is a background or short-lived species.'
+      return
+    endif
+
+    self%var%rate_fcns(ind)%fcn => fcn
+
+  end subroutine
+
   module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_old(:,:)
