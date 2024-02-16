@@ -25,6 +25,9 @@ cdef extern void evoatmosphere_set_upper_bc_wrapper(void *ptr, char *species,
 cdef extern void evoatmosphere_set_rate_fcn_wrapper(void *ptr, char *species_c, time_dependent_rate_fcn fcn, char *err)
 cdef extern void evoatmosphere_set_temperature_wrapper(void *ptr, int *nz, double *temperature, 
                                                     double *trop_alt, bool *trop_alt_present, char *err)
+cdef extern void evoatmosphere_set_press_temp_edd_wrapper(void *ptr, int *P_dim1, double *P, int *T_dim1, double *T, int *edd_dim1, double *edd,
+                                                      double *trop_p, bool *trop_p_present, 
+                                                      bool *hydro_pressure, bool *hydro_pressure_present, char *err)
 cdef extern void evoatmosphere_regrid_prep_atmosphere_wrapper(void *ptr, int *nq, int *nz, double *usol, double *top_atmos, char *err)
 
 cdef extern void evoatmosphere_evolve_wrapper(void *ptr, char *filename, 

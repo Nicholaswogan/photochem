@@ -1,5 +1,18 @@
 cimport PhotochemWrk_pxd as wrk_pxd
 
+cdef class PhotochemWrkEvo(PhotochemWrk):
+
+  property pressure_hydro:
+    """ndarray[double,dim=1], shape (nz). The hydrostatic pressure at the center of each 
+    atmospheric layer (dynes/cm^2).
+    """
+    def __get__(self):
+      cdef int dim1
+      wrk_pxd.photochemwrkevo_pressure_hydro_get_size(&self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      wrk_pxd.photochemwrkevo_pressure_hydro_get(&self._ptr, &dim1, <double *>arr.data)
+      return arr
+
 cdef class PhotochemWrk:
   """This class contains data that changes during each step 
   when integrating the photochemical model

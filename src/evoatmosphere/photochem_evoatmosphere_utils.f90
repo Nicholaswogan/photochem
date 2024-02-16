@@ -330,6 +330,203 @@ module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
     
   end subroutine
 
+  module subroutine set_press_temp_edd(self, P, T, edd, trop_p, hydro_pressure, err)
+    use futils, only: interp
+    use minpack_module, only: hybrd1
+    use clima_useful, only: MinpackHybrd1Vars
+
+    use photochem_const, only: small_real
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: P(:) !! dynes/cm^2
+    real(dp), intent(in) :: T(:) !! K
+    real(dp), intent(in) :: edd(:) !! cm^2/s
+    real(dp), optional, intent(in) :: trop_p !! dynes/cm^2
+    logical, optional, intent(in) :: hydro_pressure
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: log10P_in(:), T_in(:), log10edd_in(:)
+    real(dp), allocatable :: P_wrk(:), log10P_wrk(:), T_in_interp(:), T_save(:), log10edd_new(:)
+    logical :: hydro_pressure_
+    integer :: ierr
+
+    type(MinpackHybrd1Vars) :: mv
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    
+    dat => self%dat
+    var => self%var
+    
+    if (self%evolve_climate) then
+      err = "You can not set the temperature when evolving climate"
+      return
+    endif
+
+    if (size(P) /= size(T)) then
+      err = '"P" and "T" not the same size'
+      return
+    endif
+
+    if (size(P) /= size(edd)) then
+      err = '"P" and "edd" not the same size'
+      return
+    endif
+
+    if (size(P) <= 2) then
+      err = 'size(P) must be >= 2'
+      return
+    endif
+
+    if (any(P < 0.0_dp) .or. any(T < 0.0_dp) .or. any(edd < 0.0_dp)) then
+      err = 'All elements of "P", "T" and "edd" must be positive'
+      return
+    endif
+
+    if ((dat%fix_water_in_trop .or. dat%gas_rainout) .and. .not.present(trop_p)) then
+      err = '"trop_p" is a required input.'
+      return
+    endif
+
+    ! optional arguments
+    if (present(hydro_pressure)) then
+      hydro_pressure_ = hydro_pressure
+    else
+      hydro_pressure_ = .true. ! default is True
+    endif
+
+    ! Work
+    allocate(P_wrk(var%nz),log10P_wrk(var%nz))
+    allocate(T_in_interp(var%nz), T_save(var%nz))
+    allocate(log10edd_new(var%nz))
+
+    ! copy over inputs, and covert to log10 space
+    allocate(log10P_in(size(P)),T_in(size(P)),log10edd_in(size(P)))
+    log10P_in = log10(P)
+    T_in = T
+    log10edd_in = log10(edd)
+
+    ! if the P-T-edd profile does not extend to the surface,
+    ! then we log-linearly extrapolate to surface
+    if (self%var%surface_pressure*1.0e6_dp > P(1)) then; block
+      real(dp) :: slope, intercept, P_surf, T_surf, edd_surf
+
+      ! log10 surface pressure in dynes/cm^2
+      P_surf = log10(self%var%surface_pressure*1.0e6_dp)
+
+      slope = (T_in(2) - T_in(1))/(log10P_in(2) - log10P_in(1))
+      intercept = T_in(1) - slope*log10P_in(1)
+      T_surf = slope*P_surf + intercept
+      T_surf = max(T_surf, small_real)
+
+      slope = (log10edd_in(2) - log10edd_in(1))/(log10P_in(2) - log10P_in(1))
+      intercept = log10edd_in(1) - slope*log10P_in(1)
+      edd_surf = slope*P_surf + intercept
+
+      log10P_in = [P_surf, log10P_in]
+      T_in = [T_surf, T_in]
+      log10edd_in = [edd_surf, log10edd_in]
+      
+    endblock; endif
+
+    ! Flip order for interpolation purposes
+    log10P_in = log10P_in(size(log10P_in):1:-1)
+    T_in = T_in(size(log10P_in):1:-1)
+    log10edd_in = log10edd_in(size(log10P_in):1:-1)
+
+    ! Do non-linear solve for the T profile that matches
+    ! input P-T profile
+    mv = MinpackHybrd1Vars(var%nz,tol=1.0e-5_dp)
+    mv%x = var%temperature
+    call hybrd1(fcn, mv%n, mv%x, mv%fvec, mv%tol, mv%info, mv%wa, mv%lwa)
+    if (mv%info == 0 .or. mv%info > 1) then
+      err = 'hybrd1 root solve failed in set_press_temp_edd.'
+      return
+    elseif (mv%info < 0) then
+      err = 'hybrd1 root solve failed in set_press_temp_edd: '//err
+      return
+    endif
+
+    ! set the temperature
+    if (present(trop_p)) then; block
+      real(dp) :: trop_alt(1)
+      real(dp), allocatable :: z_(:)
+
+      allocate(z_(var%nz))
+      z_ = var%z
+      z_ = z_(var%nz:1:-1)
+      
+      call interp(1, var%nz, [log10(trop_p)], log10P_wrk, z_, trop_alt(1), ierr)
+      if (ierr /= 0) then
+        err = 'Subroutine interp returned an error.'
+        return
+      endif
+
+      call self%set_temperature(mv%x, trop_alt(1), err)
+      if (allocated(err)) return
+    endblock; else
+      call self%set_temperature(mv%x, err=err)
+      if (allocated(err)) return
+    endif
+
+    ! finally, interpolate input eddy to new grid
+    call interp(var%nz, size(log10P_in), log10P_wrk, log10P_in, log10edd_in, log10edd_new, ierr)
+    if (ierr /= 0) then
+      err = 'Subroutine interp returned an error.'
+      return
+    endif
+    log10edd_new = log10edd_new(var%nz:1:-1)
+    var%edd = 10.0_dp**log10edd_new
+
+  contains
+    subroutine fcn(n_, x_, fvec_, iflag_)
+      integer, intent(in) :: n_
+      real(dp), intent(in) :: x_(n_)
+      real(dp), intent(out) :: fvec_(n_)
+      integer, intent(inout) :: iflag_
+
+      ! x_ is temperature. 
+      ! First save the temperature in var.
+      T_save = var%temperature
+      ! Next, set var%temperature to the x_ temperature, to pass the temperature into `prep_atm_evo_gas`
+      var%temperature = x_
+      call self%prep_atm_evo_gas(self%wrk%usol, self%wrk%usol, &
+                          self%wrk%molecules_per_particle, self%wrk%pressure, &
+                          self%wrk%density, self%wrk%mix, self%wrk%mubar, &
+                          self%wrk%pressure_hydro, self%wrk%density_hydro, err)
+      ! Return var%temperature to its original value, before error checking.
+      var%temperature = T_save
+      if (allocated(err)) then
+        iflag_ = -1
+        return
+      endif
+      ! There are two pressures we could use. The hydrostatic pressure
+      ! and the true pressure
+      if (hydro_pressure_) then
+        P_wrk = self%wrk%pressure_hydro
+      else
+        P_wrk = self%wrk%pressure
+      endif
+      log10P_wrk = log10(P_wrk) ! log10
+      log10P_wrk = log10P_wrk(size(log10P_wrk):1:-1) ! flip order
+
+      ! Then we have P-T relation. Interpolate input T to this P grid.
+      ! Assume constant extrapolation of input T above top of atmosphere.
+      ! Code log-linearly extrapolates to surface_pressure
+      call interp(var%nz, size(log10P_in), log10P_wrk, log10P_in, T_in, T_in_interp, ierr)
+      if (ierr /= 0) then
+        err = 'Subroutine interp returned an error.'
+        iflag_ = -1
+        return
+      endif
+
+      ! Flip
+      T_in_interp = T_in_interp(size(T_in_interp):1:-1)
+
+      fvec_ = T_in_interp - x_
+
+    end subroutine
+  end subroutine
+
   module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_old(:,:)

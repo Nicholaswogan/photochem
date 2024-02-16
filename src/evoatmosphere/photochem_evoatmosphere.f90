@@ -61,6 +61,7 @@ module photochem_evoatmosphere
     procedure :: set_upper_bc
     procedure :: set_rate_fcn
     procedure :: set_temperature
+    procedure :: set_press_temp_edd
     procedure :: rebin_update_vertical_grid
     procedure :: regrid_prep_atmosphere
 
@@ -277,6 +278,20 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: temperature(:) !! new temperature at each atomspheric layer
       real(dp), optional, intent(in) :: trop_alt !! Tropopause altitude (cm). Only necessary if
                                                  !! rainout == True, or fix_water_in_trop == True.
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Given an input P, T, and edd, the code will find the temperature and eddy diffusion profile
+    !> on the current altitude-grid that matches the inputs.
+    module subroutine set_press_temp_edd(self, P, T, edd, trop_p, hydro_pressure, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: P(:) !! Pressure (dynes/cm^2)
+      real(dp), intent(in) :: T(:) !! Temperature (K)
+      real(dp), intent(in) :: edd(:) !! Eddy diffusion (cm^2/s)
+      real(dp), optional, intent(in) :: trop_p !! Tropopause pressure (dynes/cm^2)
+      !> If .true., then use hydrostatic pressure. If .false. then use the
+      !> actual pressure in the atmosphere. Default is .true..
+      logical, optional, intent(in) :: hydro_pressure
       character(:), allocatable, intent(out) :: err
     end subroutine
 

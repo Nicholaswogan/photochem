@@ -4,7 +4,7 @@ module photochem_c_api
   use photochem, only: EvoAtmosphere
   use photochem_types, only: PhotochemData
   use photochem_types, only: PhotochemVars
-  use photochem_types, only: PhotochemWrk
+  use photochem_types, only: PhotochemWrk, PhotochemWrkEvo
   use photochem_types, only: AtomConservation, ProductionLoss
   use photochem, only: err_len
   use photochem_const, only: s_str_len, m_str_len

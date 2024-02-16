@@ -203,3 +203,22 @@
     call c_f_pointer(ptr, wrk)
     arr = wrk%surf_radiance
   end subroutine
+
+! PhotochemWrkEvo
+
+  subroutine photochemwrkevo_pressure_hydro_get_size(ptr, dim1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemWrkEvo), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    dim1 = size(wrk%pressure_hydro,1)
+  end subroutine
+  
+  subroutine photochemwrkevo_pressure_hydro_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(PhotochemWrkEvo), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    arr = wrk%pressure_hydro
+  end subroutine

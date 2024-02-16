@@ -71,7 +71,7 @@ cdef class EvoAtmosphere:
     integration.
     """
     def __get__(self):
-      wrk = PhotochemWrk(alloc = False)
+      wrk = PhotochemWrkEvo(alloc = False)
       wrk._ptr = self._wrk_ptr
       return wrk
 
@@ -286,6 +286,48 @@ cdef class EvoAtmosphere:
       
     ea_pxd.evoatmosphere_set_temperature_wrapper(&self._ptr, &nz, <double *>temperature.data, 
                                        &trop_alt_, &trop_alt_present, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+  
+  def set_press_temp_edd(self, ndarray[double, ndim=1] P, ndarray[double, ndim=1] T, ndarray[double, ndim=1] edd, trop_p = None, hydro_pressure = None):
+    """Given an input P, T, and edd, the code will find the temperature and eddy diffusion profile
+    on the current altitude-grid that matches the inputs.
+    
+    Parameters
+    ----------
+    P : ndarray[double,ndim=1]
+        Pressure (dynes/cm^2)
+    T : ndarray[double,ndim=1]
+        Temperature (K)
+    edd : ndarray[double,ndim=1]
+        Eddy diffusion (cm^2/s)
+    trop_p : float, optional
+        Tropopause pressure (dynes/cm^2). Only necessary if rainout == True, 
+        or fix_water_in_trop == True.
+    hydro_pressure : bool, optional
+        If True, then use hydrostatic pressure. If False then use the
+        actual pressure in the atmosphere. Default is True.
+    """
+    cdef char err[ERR_LEN+1]
+    cdef int P_dim1 = P.size
+    cdef int T_dim1 = T.size
+    cdef int edd_dim1 = edd.size
+    
+    cdef double trop_p_ = 0.0
+    cdef bool trop_p_present = False
+    if trop_p != None:
+      trop_p_present = True
+      trop_p_ = trop_p
+
+    cdef bool hydro_pressure_ = True
+    cdef bool hydro_pressure_present = False
+    if hydro_pressure != None:
+      hydro_pressure_present = True
+      hydro_pressure_ = hydro_pressure
+      
+    ea_pxd.evoatmosphere_set_press_temp_edd_wrapper(&self._ptr, &P_dim1, <double *>P.data, &T_dim1, <double *>T.data, &edd_dim1, <double *>edd.data,
+                                               &trop_p_, &trop_p_present, 
+                                               &hydro_pressure_, &hydro_pressure_present, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     

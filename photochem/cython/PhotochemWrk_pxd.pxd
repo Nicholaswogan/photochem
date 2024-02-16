@@ -35,3 +35,7 @@ cdef extern void photochemwrk_optical_depth_get(void *ptr, int *dim1, int *dim2,
 
 cdef extern void photochemwrk_surf_radiance_get_size(void *ptr, int *dim1)
 cdef extern void photochemwrk_surf_radiance_get(void *ptr, int *dim1, double *arr)
+
+# PhotochemWrkEvo
+cdef extern void photochemwrkevo_pressure_hydro_get_size(void *ptr, int *dim1)
+cdef extern void photochemwrkevo_pressure_hydro_get(void *ptr, int *dim1, double *arr)
