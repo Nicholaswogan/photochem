@@ -73,7 +73,16 @@ cdef class Atmosphere:
       wrk = PhotochemWrk(alloc = False)
       wrk._ptr = self._wrk_ptr
       return wrk
-      
+
+  def check_for_convergence(self):
+    "Determines if integration has converged to photochemical steady-state."
+    cdef bool converged
+    cdef char err[ERR_LEN+1]
+    a_pxd.atmosphere_check_for_convergence_wrapper(&self._ptr, &converged, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    return converged
+
   def photochemical_equilibrium(self):
     "Integrates to photochemical equilibrium starting from `self.var.usol_init`"  
     cdef bool success

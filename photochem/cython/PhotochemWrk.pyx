@@ -33,6 +33,51 @@ cdef class PhotochemWrk:
       wrk_pxd.deallocate_photochemwrk(&self._ptr)
       self._ptr = NULL
 
+  property nsteps:
+    "int. Number of integration steps excuted. Updated after every successful step."
+    def __get__(self):
+      cdef int val
+      wrk_pxd.photochemwrk_nsteps_get(&self._ptr, &val)
+      return val
+
+  property t_history:
+    """ndarray[double,dim=1], shape (500). History of times at previous integration steps. 
+    Index 1 is current, while index 2, 3, 4 are previous steps. Updated after every successful step.
+    """
+    def __get__(self):
+      cdef int dim1
+      wrk_pxd.photochemwrk_t_history_get_size(&self._ptr, &dim1)
+      cdef ndarray arr = np.empty((dim1), np.double, order="F")
+      wrk_pxd.photochemwrk_t_history_get(&self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property mix_history:
+    """ndarray[double,dim=3], shape (nq,nz,500). History of mixing ratios at previous integration steps. 
+    Index 1 is current, while index 2, 3, 4 are previous steps. Updated after every successful step.
+    """
+    def __get__(self):
+      cdef int dim1,dim2,dim3
+      wrk_pxd.photochemwrk_mix_history_get_size(&self._ptr, &dim1, &dim2, &dim3)
+      cdef ndarray arr = np.empty((dim1,dim2,dim3), np.double, order="F")
+      wrk_pxd.photochemwrk_mix_history_get(&self._ptr, &dim1, &dim2, &dim3, <double *>arr.data)
+      return arr
+
+  property longdy:
+    "double. Normalized change in mixing ratios over some number of integrations steps."
+    def __get__(self):
+      cdef double val
+      wrk_pxd.photochemwrk_longdy_get(&self._ptr, &val)
+      return val
+
+  property longdydt:
+    """double. Normalized change in mixing ratios divided by change in time over some 
+    number of integrations steps.
+    """
+    def __get__(self):
+      cdef double val
+      wrk_pxd.photochemwrk_longdydt_get(&self._ptr, &val)
+      return val
+
   property tn:
     "double. The current time of integration."
     def __get__(self):

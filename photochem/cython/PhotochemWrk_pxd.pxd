@@ -5,6 +5,18 @@ cdef extern from "<stdbool.h>":
 cdef extern void allocate_photochemwrk(void *ptr)
 cdef extern void deallocate_photochemwrk(void *ptr)
 
+cdef extern void photochemwrk_nsteps_get(void *ptr, int *val)
+
+cdef extern void photochemwrk_t_history_get_size(void *ptr, int *dim1)
+cdef extern void photochemwrk_t_history_get(void *ptr, int *dim1, double *arr)
+
+cdef extern void photochemwrk_mix_history_get_size(void *ptr, int *dim1, int *dim2, int *dim3)
+cdef extern void photochemwrk_mix_history_get(void *ptr, int *dim1, int *dim2, int *dim3, double *arr)
+
+cdef extern void photochemwrk_longdy_get(void *ptr, double *val)
+
+cdef extern void photochemwrk_longdydt_get(void *ptr, double *val)
+
 cdef extern void photochemwrk_tn_get(void *ptr, double *val)
 cdef extern void photochemwrk_tn_set(void *ptr, double *val)
 

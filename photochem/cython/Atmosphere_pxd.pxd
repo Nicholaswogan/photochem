@@ -15,6 +15,7 @@ cdef extern void atmosphere_create_wrapper(void *ptr, char *mechanism_file,
                                         char *atmosphere_txt, char *data_dir, void *dat_ptr, void *var_ptr,
                                         void *wrk_ptr, char *err);
 
+cdef extern void atmosphere_check_for_convergence_wrapper(void *ptr, bool *converged, char* err)
 cdef extern void atmosphere_photochemical_equilibrium_wrapper(void *ptr, bool *success, char* err)
   
 cdef extern void atmosphere_out2atmosphere_txt_wrapper(void *ptr, char *filename, bool *overwrite, bool *clip, char *err)                         

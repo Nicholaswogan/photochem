@@ -445,8 +445,8 @@ module photochem_types ! make a giant IO object
     !> number of times we initialize CVODE when it returns
     !> a potentially recoverable error. ONLY USED IN EVOATMOSPHERE (NOT ATMOSPHERE)
     integer :: max_error_reinit_attempts = 2 
-    real(c_double) :: rtol = 1.d-3 !! integration relative tolerance
-    real(c_double) :: atol = 1.d-27 !! integration absolute tolerance
+    real(c_double) :: rtol = 1.0e-3_dp !! integration relative tolerance
+    real(c_double) :: atol = 1.0e-27_dp !! integration absolute tolerance
     integer :: mxsteps = 10000 !! max number of steps before integrator will give up.
     !> seconds. atomsphere considered in equilibrium if integrations reaches this time.
     real(dp) :: equilibrium_time = 1.0e17_dp
@@ -454,12 +454,12 @@ module photochem_types ! make a giant IO object
     !> t = t_now*conv_hist_factor to see if atmosphere is changing.
     real(dp) :: conv_hist_factor = 0.5_dp
     !> Minimum mixing ratio considered in convergence checking.
-    real(dp) :: conv_min_mix = 1.0e-20
+    real(dp) :: conv_min_mix = 1.0e-20_dp
     !> Threshold normalized change in mixing ratios for converchecking check.
     real(dp) :: conv_longdy = 0.01_dp
     !> Threshold normalized change in mixing ratios per time change for
     !> convergence checking.
-    real(dp) :: conv_longdydt = 1.0e-4
+    real(dp) :: conv_longdydt = 1.0e-4_dp
     real(c_double) :: initial_dt = 1.0e-6_dp !! intial timestep size (seconds)
     integer(c_int) :: max_err_test_failures = 15 !! CVODE max error test failures
     integer(c_int) :: max_order = 5 !! CVODE max order for BDF method.
@@ -506,7 +506,7 @@ module photochem_types ! make a giant IO object
     !> while index 2, 3, 4 are previous steps. Updated after every successful step.
     real(dp), allocatable :: t_history(:)
     !> History of mixing ratios at previous integration steps. Index 1 is 
-    !> current, while index 2, 3, 4 are previous steps. . Updated after 
+    !> current, while index 2, 3, 4 are previous steps. Updated after 
     !> every successful step.
     real(dp), allocatable :: mix_history(:,:,:)
     !> Change in mixing ratio over some number of integrations steps. Updated

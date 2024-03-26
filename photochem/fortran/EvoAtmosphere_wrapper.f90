@@ -340,6 +340,26 @@
     endif
   end subroutine
 
+  subroutine evoatmosphere_check_for_convergence_wrapper(ptr, converged, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    logical(c_bool), intent(out) :: converged
+    character(len=c_char), intent(out) :: err(err_len+1)
+    
+    character(:), allocatable :: err_f
+    logical :: converged_f
+  
+    type(EvoAtmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+  
+    converged_f = pc%check_for_convergence(err_f)
+    converged = converged_f
+
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif
+  end subroutine
+
   subroutine evoatmosphere_initialize_stepper_wrapper(ptr, nq, nz, usol_start, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     integer(c_int), intent(in) :: nq, nz

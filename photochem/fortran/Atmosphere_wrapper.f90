@@ -102,6 +102,26 @@
       call copy_string_ftoc(err_f, err)
     endif
   end subroutine
+
+  subroutine atmosphere_check_for_convergence_wrapper(ptr, converged, err) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    logical(c_bool), intent(out) :: converged
+    character(len=c_char), intent(out) :: err(err_len+1)
+    
+    character(:), allocatable :: err_f
+    logical :: converged_f
+  
+    type(Atmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+  
+    converged_f = pc%check_for_convergence(err_f)
+    converged = converged_f
+
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif
+  end subroutine
   
   subroutine atmosphere_out2atmosphere_txt_wrapper(ptr, filename, overwrite, clip, err) bind(c)
     type(c_ptr), intent(in) :: ptr

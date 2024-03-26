@@ -65,6 +65,18 @@ cdef extern void photochemvars_mxsteps_set(void *ptr, int *val)
 cdef extern void photochemvars_equilibrium_time_get(void *ptr, double *val)
 cdef extern void photochemvars_equilibrium_time_set(void *ptr, double *val)
 
+cdef extern void photochemvars_conv_hist_factor_get(void *ptr, double *val)
+cdef extern void photochemvars_conv_hist_factor_set(void *ptr, double *val)
+
+cdef extern void photochemvars_conv_min_mix_get(void *ptr, double *val)
+cdef extern void photochemvars_conv_min_mix_set(void *ptr, double *val)
+
+cdef extern void photochemvars_conv_longdy_get(void *ptr, double *val)
+cdef extern void photochemvars_conv_longdy_set(void *ptr, double *val)
+
+cdef extern void photochemvars_conv_longdydt_get(void *ptr, double *val)
+cdef extern void photochemvars_conv_longdydt_set(void *ptr, double *val)
+
 cdef extern void photochemvars_verbose_get(void *ptr, int *val)
 cdef extern void photochemvars_verbose_set(void *ptr, int *val)
 

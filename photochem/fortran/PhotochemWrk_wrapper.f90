@@ -21,6 +21,66 @@
   !!! getters and setters !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+  subroutine photochemwrk_nsteps_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemWrk), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%nsteps
+  end subroutine
+
+  subroutine photochemwrk_t_history_get_size(ptr, dim1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    dim1 = size(wrk%t_history,1)
+  end subroutine
+  
+  subroutine photochemwrk_t_history_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    arr = wrk%t_history
+  end subroutine
+
+  subroutine photochemwrk_mix_history_get_size(ptr, dim1, dim2, dim3) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1, dim2, dim3
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    dim1 = size(wrk%mix_history,1)
+    dim2 = size(wrk%mix_history,2)
+    dim3 = size(wrk%mix_history,3)
+  end subroutine
+  
+  subroutine photochemwrk_mix_history_get(ptr, dim1, dim2, dim3, arr) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2, dim3
+    real(c_double), intent(out) :: arr(dim1, dim2, dim3)
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    arr = wrk%mix_history
+  end subroutine
+
+  subroutine photochemwrk_longdy_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    val = wrk%longdy
+  end subroutine
+
+  subroutine photochemwrk_longdydt_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    val = wrk%longdydt
+  end subroutine
+
   subroutine photochemwrk_tn_get(ptr, val) bind(c)
     type(c_ptr), intent(in) :: ptr
     real(c_double), intent(out) :: val

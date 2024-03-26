@@ -230,6 +230,46 @@ cdef class PhotochemVars:
       return val
     def __set__(self, double val):
       var_pxd.photochemvars_equilibrium_time_set(&self._ptr, &val)
+
+  property conv_hist_factor:
+    """double. For convergence checking. Considers mixing ratio change between t_now and time 
+    t = t_now*conv_hist_factor to see if atmosphere is changing.
+    """
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_conv_hist_factor_get(&self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.photochemvars_conv_hist_factor_set(&self._ptr, &val)
+
+  property conv_min_mix:
+    "double. Minimum mixing ratio considered in convergence checking."
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_conv_min_mix_get(&self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.photochemvars_conv_min_mix_set(&self._ptr, &val)
+
+  property conv_longdy:
+    "double. Threshold normalized change in mixing ratios for converchecking check."
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_conv_longdy_get(&self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.photochemvars_conv_longdy_set(&self._ptr, &val)
+
+  property conv_longdydt:
+    """double. Threshold normalized change in mixing ratios per time change for 
+    convergence checking.
+    """
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_conv_longdydt_get(&self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.photochemvars_conv_longdydt_set(&self._ptr, &val)
   
   property verbose:
     "int. 0 == no printing. 1 == some printing. 2 == bunch of printing."

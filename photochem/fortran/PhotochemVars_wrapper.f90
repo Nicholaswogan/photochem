@@ -321,6 +321,70 @@
     var%equilibrium_time = val
   end subroutine
   
+  subroutine photochemvars_conv_hist_factor_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%conv_hist_factor
+  end subroutine
+  
+  subroutine photochemvars_conv_hist_factor_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%conv_hist_factor = val
+  end subroutine
+
+  subroutine photochemvars_conv_min_mix_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%conv_min_mix
+  end subroutine
+  
+  subroutine photochemvars_conv_min_mix_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%conv_min_mix = val
+  end subroutine
+
+  subroutine photochemvars_conv_longdy_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%conv_longdy
+  end subroutine
+  
+  subroutine photochemvars_conv_longdy_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%conv_longdy = val
+  end subroutine
+
+  subroutine photochemvars_conv_longdydt_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%conv_longdydt
+  end subroutine
+  
+  subroutine photochemvars_conv_longdydt_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%conv_longdydt = val
+  end subroutine
+
   subroutine photochemvars_verbose_get(ptr, val) bind(c)
     type(c_ptr), intent(in) :: ptr
     integer(c_int), intent(out) :: val

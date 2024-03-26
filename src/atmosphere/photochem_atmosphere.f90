@@ -147,7 +147,7 @@ module photochem_atmosphere
       character(:), allocatable, intent(out) :: err
     end function
 
-    !> Determines if integration has converged to photochemical equilibrium or not.
+    !> Determines if integration has converged to photochemical steady-state.
     module function check_for_convergence(self, err) result(converged)
       class(Atmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err

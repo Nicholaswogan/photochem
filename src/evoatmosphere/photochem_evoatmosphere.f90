@@ -167,6 +167,7 @@ module photochem_evoatmosphere
       ! Evolve atmosphere through time, and saves output in a binary Fortran file.
     end function
 
+    !> Determines if integration has converged to photochemical steady-state.
     module function check_for_convergence(self, err) result(converged)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err

@@ -393,6 +393,15 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
     return success
 
+  def check_for_convergence(self):
+    "Determines if integration has converged to photochemical steady-state."  
+    cdef bool converged
+    cdef char err[ERR_LEN+1]
+    ea_pxd.evoatmosphere_check_for_convergence_wrapper(&self._ptr, &converged, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    return converged
+
   def initialize_stepper(self, ndarray[double, ndim=2] usol_start):
     """Initializes an integration starting at `usol_start`.
 
