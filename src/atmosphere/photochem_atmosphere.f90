@@ -18,6 +18,7 @@ module photochem_atmosphere
   contains
     
     ! photochem_atmosphere_rhs.f90
+    procedure, private :: prep_atm_background_gas
     procedure :: prep_atmosphere => prep_all_background_gas
     procedure :: right_hand_side_chem
     procedure :: production_and_loss
@@ -26,6 +27,7 @@ module photochem_atmosphere
     
     ! photochem_atmosphere_integrate.f90
     procedure :: evolve
+    procedure :: check_for_convergence
     procedure :: photochemical_equilibrium
     procedure :: initialize_stepper
     procedure :: step
@@ -66,6 +68,13 @@ module photochem_atmosphere
     end function
 
     !~~ photochem_atmosphere_rhs.f90 ~~!
+
+    module subroutine prep_atm_background_gas(self, usol_in, usol, molecules_per_particle)
+      class(Atmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: usol_in(:,:)
+      real(dp), intent(out) :: usol(:,:)
+      real(dp), intent(out) :: molecules_per_particle(:,:)
+    end subroutine
 
     !> Given usol_in, the mixing ratios of each species in the atmosphere,
     !> this subroutine calculates reaction rates, photolysis rates, etc.
@@ -136,6 +145,13 @@ module photochem_atmosphere
       logical, optional, intent(in) :: overwrite !! If true, then overwrites pre-existing files with `filename`
       logical :: success !! If True, then integration was successful.
       character(:), allocatable, intent(out) :: err
+    end function
+
+    !> Determines if integration has converged to photochemical equilibrium or not.
+    module function check_for_convergence(self, err) result(converged)
+      class(Atmosphere), target, intent(inout) :: self
+      character(:), allocatable, intent(out) :: err
+      logical :: converged
     end function
     
     !> Integrates to photochemical equilibrium starting from self%var%usol_init

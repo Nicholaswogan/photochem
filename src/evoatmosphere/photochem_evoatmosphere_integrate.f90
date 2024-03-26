@@ -686,6 +686,71 @@ contains
     
   end subroutine
 
+  module function check_for_convergence(self, err) result(converged)
+    use, intrinsic :: iso_c_binding
+    class(EvoAtmosphere), target, intent(inout) :: self
+    character(:), allocatable, intent(out) :: err
+    logical :: converged
+
+    integer :: i,j,ind
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+
+    converged = .false.
+    if (.not.c_associated(wrk%sun%cvode_mem)) then
+      err = "You must first initialize the stepper with 'initialize_stepper'"
+      return
+    endif
+
+    ! If we reach equilibrium time, then converged
+    if (wrk%tn > var%equilibrium_time) then
+      converged = .true.
+      return
+    endif
+
+    ! Now consider step history.
+
+    ! Can't do analysis on step 0
+    if (wrk%nsteps == 0) return 
+
+    ! Find index in history closest to time of interest. Note that this will only
+    ! consider a limited step history. We can not save all history.
+    ind = minloc(abs(wrk%t_history - var%conv_hist_factor*wrk%t_history(1)),1)
+
+    ! Can't be current time, so we will check the previous step if needed.
+    if (ind == 1) ind = 2 
+
+    ! Compute difference between current mixing ratios, and mixing ratios
+    ! at our index of interest.
+    do j = 1,var%nz
+      do i = 1,dat%nq
+        if (wrk%mix_history(i,j,1) > var%conv_min_mix) then
+          wrk%dmix(i,j) = abs(wrk%mix_history(i,j,1) - wrk%mix_history(i,j,ind))
+        else 
+          ! Ignore small mixing ratios
+          wrk%dmix(i,j) = 0.0_dp
+        endif
+      enddo
+    enddo
+
+    ! Maximum normalized change
+    wrk%longdy = maxval(abs(wrk%dmix/wrk%mix_history(:,:,1)))
+    ! Also consider that change over time
+    wrk%longdydt = wrk%longdy/(wrk%t_history(1) - wrk%t_history(ind))
+
+    ! Check for convergence
+    if (wrk%longdy < var%conv_longdy .and. wrk%longdydt < var%conv_longdydt) then
+      converged = .true.
+      return
+    endif
+
+  end function
+
   module subroutine initialize_stepper(self, usol_start, err)
     use, intrinsic :: iso_c_binding
     use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSVtolerances, &
@@ -776,6 +841,13 @@ contains
       enddo
     enddo
 
+    ! Load initial conditions into history vector
+    wrk%nsteps = 0
+    wrk%t_history = -1.0_dp
+    wrk%t_history(1) = 0.0_dp
+    wrk%mix_history = -1.0_dp
+    wrk%mix_history(:,:,1) = wrk%mix ! set by self%set_trop_ind
+
     wrk%sun%abstol_nvec => FN_VMake_Serial(neqs_long, wrk%sun%abstol)
     if (.not. associated(wrk%sun%abstol_nvec)) then
       err = "CVODE setup error."
@@ -865,15 +937,24 @@ contains
   end subroutine
 
   module function step(self, err) result(tn)
-    use iso_c_binding, only: c_null_ptr, c_int, c_double, c_associated
-    use fcvode_mod, only: CV_ONE_STEP, FCVode
+    use iso_c_binding, only: c_null_ptr, c_int, c_double, c_associated, c_long
+    use fcvode_mod, only: CV_ONE_STEP, FCVode, FCVodeGetNumSteps
     class(EvoAtmosphere), target, intent(inout) :: self
     character(:), allocatable, intent(out) :: err
     real(dp) :: tn
     
     integer(c_int) :: ierr
+    integer(c_long) :: nsteps_(1)
+    integer :: i, k
     real(c_double), parameter :: dum = 0.0_dp
     real(c_double) :: tcur(1)
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+    
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
     
     if (.not.c_associated(self%wrk%sun%cvode_mem)) then
       err = "You must first initialize the stepper with 'initialize_stepper'"
@@ -886,6 +967,30 @@ contains
       return
     endif
     tn = tcur(1)
+
+    ! Update nsteps
+    ierr = FCVodeGetNumSteps(wrk%sun%cvode_mem, nsteps_)
+    wrk%nsteps = nsteps_(1)
+
+    ! Move over t and mix history
+    k = min(wrk%nsteps+1,size(wrk%t_history))
+    do i = k,2,-1
+      wrk%t_history(i) = wrk%t_history(i-1)
+      wrk%mix_history(:,:,i) =  wrk%mix_history(:,:,i-1)
+    enddo
+
+    ! Save current t and mix
+    wrk%t_history(1) = tn
+    block
+      real(c_double), pointer :: usol_tmp(:,:)
+      usol_tmp(1:dat%nq,1:var%nz) => wrk%sun%yvec
+      call self%prep_atm_evo_gas(usol_tmp, wrk%usol, &
+           wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
+           wrk%pressure_hydro, wrk%density_hydro, err)
+      if (allocated(err)) return
+      wrk%mix_history(:,:,1) = wrk%mix
+    endblock
+
   end function
 
   module subroutine destroy_stepper(self, err)

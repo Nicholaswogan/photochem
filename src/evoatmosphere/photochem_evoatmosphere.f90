@@ -50,6 +50,7 @@ module photochem_evoatmosphere
 
     !!! photochem_evoatmosphere_integrate.f90 !!!
     procedure :: evolve
+    procedure :: check_for_convergence
     procedure :: initialize_stepper
     procedure :: step
     procedure :: destroy_stepper
@@ -164,6 +165,12 @@ module photochem_evoatmosphere
       logical :: success
       character(:), allocatable, intent(out) :: err
       ! Evolve atmosphere through time, and saves output in a binary Fortran file.
+    end function
+
+    module function check_for_convergence(self, err) result(converged)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      character(:), allocatable, intent(out) :: err
+      logical :: converged
     end function
 
     !> Initializes an integration starting at `usol_start`

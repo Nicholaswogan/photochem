@@ -449,7 +449,17 @@ module photochem_types ! make a giant IO object
     real(c_double) :: atol = 1.d-27 !! integration absolute tolerance
     integer :: mxsteps = 10000 !! max number of steps before integrator will give up.
     !> seconds. atomsphere considered in equilibrium if integrations reaches this time.
-    real(dp) :: equilibrium_time = 1.e17_dp 
+    real(dp) :: equilibrium_time = 1.0e17_dp
+    !> For convergence checking. Considers mixing ratio change between t_now and time 
+    !> t = t_now*conv_hist_factor to see if atmosphere is changing.
+    real(dp) :: conv_hist_factor = 0.5_dp
+    !> Minimum mixing ratio considered in convergence checking.
+    real(dp) :: conv_min_mix = 1.0e-20
+    !> Threshold normalized change in mixing ratios for converchecking check.
+    real(dp) :: conv_longdy = 0.01_dp
+    !> Threshold normalized change in mixing ratios per time change for
+    !> convergence checking.
+    real(dp) :: conv_longdydt = 1.0e-4
     real(c_double) :: initial_dt = 1.0e-6_dp !! intial timestep size (seconds)
     integer(c_int) :: max_err_test_failures = 15 !! CVODE max error test failures
     integer(c_int) :: max_order = 5 !! CVODE max order for BDF method.
@@ -487,8 +497,26 @@ module photochem_types ! make a giant IO object
     ! through the course of an integration
     
     ! used in cvode
-    integer(c_long) :: nsteps_previous = -10
+    integer(c_long) :: nsteps_previous = -10 !! For printing
     type(SundialsData) :: sun !! CVODE data
+    ! All for determining convergence
+    integer :: nsteps = 0 !! Number of integration steps excuted. Updated
+                          !! after every successful step.
+    !> History of times at previous integration steps. Index 1 is current, 
+    !> while index 2, 3, 4 are previous steps. Updated after every successful step.
+    real(dp), allocatable :: t_history(:)
+    !> History of mixing ratios at previous integration steps. Index 1 is 
+    !> current, while index 2, 3, 4 are previous steps. . Updated after 
+    !> every successful step.
+    real(dp), allocatable :: mix_history(:,:,:)
+    !> Change in mixing ratio over some number of integrations steps. Updated
+    !> during convergence checking.
+    real(dp), allocatable :: dmix(:,:)
+    !> Normalized change in mixing ratios over some number of integrations steps
+    real(dp) :: longdy = 0.0_dp
+    !> Normalized change in mixing ratios divided by change in time
+    !> over some number of integrations steps.
+    real(dp) :: longdydt = 0.0_dp
 
     !> The current time (seconds). The is updated with each call to the
     !> right hand side, and jacobian. It is only important if
@@ -566,10 +594,14 @@ contains
   end subroutine
  
   subroutine init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw)
+    use photochem_const, only: nsteps_save
     class(PhotochemWrk), intent(inout) :: self
     integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw
     
     if (allocated(self%usol)) then
+      deallocate(self%t_history)
+      deallocate(self%mix_history)
+      deallocate(self%dmix)
       deallocate(self%usol)
       deallocate(self%mubar)
       deallocate(self%pressure)
@@ -599,6 +631,9 @@ contains
       deallocate(self%rainout_rates)
     endif
     
+    allocate(self%t_history(nsteps_save))
+    allocate(self%mix_history(nq,nz,nsteps_save))
+    allocate(self%dmix(nq,nz))
     allocate(self%usol(nq,nz))
     allocate(self%mubar(nz))
     allocate(self%pressure(nz))

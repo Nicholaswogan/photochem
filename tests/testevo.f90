@@ -60,6 +60,7 @@ contains
     type(EvoAtmosphere) :: pc
     integer :: i
     real(dp) :: tn
+    logical :: converged
 
     pc = EvoAtmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
                       "../tests/testevo_settings2.yaml", &
@@ -84,6 +85,12 @@ contains
         print*,trim(err)
         stop 1
       endif
+      converged = pc%check_for_convergence(err)
+      if (allocated(err)) then
+        print*,trim(err)
+        stop 1
+      endif
+      if (converged) exit
     enddo
 
     call pc%destroy_stepper(err)

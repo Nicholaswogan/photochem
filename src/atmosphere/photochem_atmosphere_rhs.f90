@@ -385,7 +385,7 @@ contains
     
   end subroutine
 
-  subroutine prep_atm_background_gas(self, usol_in, usol, molecules_per_particle)
+  module subroutine prep_atm_background_gas(self, usol_in, usol, molecules_per_particle)
     use photochem_common, only: molec_per_particle
     use photochem_const, only: small_real
     use photochem_enum, only: MixingRatioBC

@@ -22,4 +22,7 @@ module photochem_const
   real(dp), parameter :: small_real = tiny(1.0_dp)**0.25_dp
   real(dp), parameter :: ln_small_real = log(small_real)
 
+  !> number of steps to save during integration, for steady-state checking
+  integer, parameter :: nsteps_save = 500
+
 end module
