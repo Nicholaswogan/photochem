@@ -77,6 +77,9 @@ cdef extern void photochemvars_conv_longdy_set(void *ptr, double *val)
 cdef extern void photochemvars_conv_longdydt_get(void *ptr, double *val)
 cdef extern void photochemvars_conv_longdydt_set(void *ptr, double *val)
 
+cdef extern void photochemvars_epsj_get(void *ptr, double *val)
+cdef extern void photochemvars_epsj_set(void *ptr, double *val)
+
 cdef extern void photochemvars_verbose_get(void *ptr, int *val)
 cdef extern void photochemvars_verbose_set(void *ptr, int *val)
 

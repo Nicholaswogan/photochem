@@ -385,6 +385,22 @@
     var%conv_longdydt = val
   end subroutine
 
+  subroutine photochemvars_epsj_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%epsj
+  end subroutine
+  
+  subroutine photochemvars_epsj_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%epsj = val
+  end subroutine
+
   subroutine photochemvars_verbose_get(ptr, val) bind(c)
     type(c_ptr), intent(in) :: ptr
     integer(c_int), intent(out) :: val

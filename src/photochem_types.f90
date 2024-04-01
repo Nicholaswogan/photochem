@@ -456,14 +456,14 @@ module photochem_types ! make a giant IO object
     !> Minimum mixing ratio considered in convergence checking.
     real(dp) :: conv_min_mix = 1.0e-20_dp
     !> Threshold normalized change in mixing ratios for converchecking check.
-    real(dp) :: conv_longdy = 0.01_dp
+    real(dp) :: conv_longdy = 1.0e-4_dp
     !> Threshold normalized change in mixing ratios per time change for
     !> convergence checking.
-    real(dp) :: conv_longdydt = 1.0e-4_dp
+    real(dp) :: conv_longdydt = 1.0e-6_dp
     real(c_double) :: initial_dt = 1.0e-6_dp !! intial timestep size (seconds)
     integer(c_int) :: max_err_test_failures = 15 !! CVODE max error test failures
     integer(c_int) :: max_order = 5 !! CVODE max order for BDF method.
-    real(dp) :: epsj = 1.0e-9_dp ! perturbation for jacobian calculation
+    real(dp) :: epsj = 1.0e-4_dp ! perturbation for jacobian calculation
     integer :: verbose = 1 !! 0 == no printing. 1 == some printing. 2 == bunch of printing.
     !> arbitrary rate that is fast (1/s). Used for keeping H2O at saturation in troposphere
     real(dp) :: fast_arbitrary_rate = 1.0e-2_dp 

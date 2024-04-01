@@ -270,6 +270,14 @@ cdef class PhotochemVars:
       return val
     def __set__(self, double val):
       var_pxd.photochemvars_conv_longdydt_set(&self._ptr, &val)
+
+  property epsj:
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_epsj_get(&self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.photochemvars_epsj_set(&self._ptr, &val)
   
   property verbose:
     "int. 0 == no printing. 1 == some printing. 2 == bunch of printing."
