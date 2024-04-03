@@ -385,6 +385,22 @@
     var%conv_longdydt = val
   end subroutine
 
+  subroutine photochemvars_autodiff_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    logical(c_bool), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%autodiff
+  end subroutine
+
+  subroutine photochemvars_autodiff_set(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    logical(c_bool), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%autodiff = val
+  end subroutine
+
   subroutine photochemvars_epsj_get(ptr, val) bind(c)
     type(c_ptr), intent(in) :: ptr
     real(c_double), intent(out) :: val
