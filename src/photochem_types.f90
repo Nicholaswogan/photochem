@@ -446,7 +446,9 @@ module photochem_types ! make a giant IO object
     !> a potentially recoverable error. ONLY USED IN EVOATMOSPHERE (NOT ATMOSPHERE)
     integer :: max_error_reinit_attempts = 2 
     real(c_double) :: rtol = 1.0e-3_dp !! integration relative tolerance
-    real(c_double) :: atol = 1.0e-27_dp !! integration absolute tolerance
+    !> Integration absolute tolerance. If autodiff == .true., then the model
+    !> works better when atol is smaller (e.g., atol = ~1.0e-18).
+    real(c_double) :: atol = 1.0e-27_dp 
     integer :: mxsteps = 10000 !! max number of steps before integrator will give up.
     !> seconds. atomsphere considered in equilibrium if integrations reaches this time.
     real(dp) :: equilibrium_time = 1.0e17_dp
@@ -456,16 +458,21 @@ module photochem_types ! make a giant IO object
     !> Minimum mixing ratio considered in convergence checking.
     real(dp) :: conv_min_mix = 1.0e-20_dp
     !> Threshold normalized change in mixing ratios for converchecking check.
-    real(dp) :: conv_longdy = 1.0e-4_dp
+    !> A reasonable value is ~1.0e-2.
+    real(dp) :: conv_longdy = 0.0_dp
     !> Threshold normalized change in mixing ratios per time change for
     !> convergence checking.
     real(dp) :: conv_longdydt = 1.0e-6_dp
     real(c_double) :: initial_dt = 1.0e-6_dp !! intial timestep size (seconds)
     integer(c_int) :: max_err_test_failures = 15 !! CVODE max error test failures
     integer(c_int) :: max_order = 5 !! CVODE max order for BDF method.
-    real(dp) :: epsj = 1.0e-4_dp ! perturbation for jacobian calculation
+    !> If .true., then the chemistry terms of the Jacobian are computed uses 
+    !> foward mode automatic differentiation.
+    logical :: autodiff = .false.
+    !> Perturbation for finite difference Jacobian calculation, when autodiff == .false.
+    real(dp) :: epsj = 1.0e-4_dp 
     integer :: verbose = 1 !! 0 == no printing. 1 == some printing. 2 == bunch of printing.
-    !> arbitrary rate that is fast (1/s). Used for keeping H2O at saturation in troposphere
+    !> Arbitrary rate that is fast (1/s). Used for keeping H2O at saturation in troposphere
     real(dp) :: fast_arbitrary_rate = 1.0e-2_dp 
   end type
 
@@ -499,6 +506,7 @@ module photochem_types ! make a giant IO object
     ! used in cvode
     integer(c_long) :: nsteps_previous = -10 !! For printing
     type(SundialsData) :: sun !! CVODE data
+
     ! All for determining convergence
     integer :: nsteps = 0 !! Number of integration steps excuted. Updated
                           !! after every successful step.
@@ -517,6 +525,7 @@ module photochem_types ! make a giant IO object
     !> Normalized change in mixing ratios divided by change in time
     !> over some number of integrations steps.
     real(dp) :: longdydt = 0.0_dp
+    ! end stuff for determining convergence
 
     !> The current time (seconds). The is updated with each call to the
     !> right hand side, and jacobian. It is only important if
@@ -558,6 +567,12 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: molecules_per_particle(:,:)
     real(dp), allocatable :: rainout_rates(:,:)
     ! end used in prep_all_background_gas
+
+    ! Work space for autodiff jacobian
+    !> A sparse representation of the block diagonal Jacobian.
+    !> chemistry terms only.
+    real(dp), allocatable :: djac_chem(:,:)
+    ! end work space for autodiff jacobian
     
   contains
     procedure :: init => init_PhotochemWrk
@@ -629,6 +644,7 @@ contains
       deallocate(self%gas_sat_den)
       deallocate(self%molecules_per_particle)
       deallocate(self%rainout_rates)
+      deallocate(self%djac_chem)
     endif
     
     allocate(self%t_history(nsteps_save))
@@ -661,6 +677,7 @@ contains
     allocate(self%gas_sat_den(np,nz))
     allocate(self%molecules_per_particle(np,nz))
     allocate(self%rainout_rates(nq,nz))
+    allocate(self%djac_chem(nq,nz*nq))
   end subroutine
 
   subroutine SundialsData_finalize(self, err)

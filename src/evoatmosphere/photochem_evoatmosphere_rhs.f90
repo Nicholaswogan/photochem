@@ -1,6 +1,13 @@
+#:set TYPES = ['real(dp)', 'type(dual)']
+#:set NAMES = ['real', 'dual']
+#:set TYPES_NAMES = list(zip(TYPES, NAMES))
 
 submodule(photochem_evoatmosphere) photochem_evoatmosphere_rhs
   implicit none
+  
+  interface dochem
+    module procedure :: dochem_real, dochem_dual
+  end interface
 
   interface
     module subroutine equilibrium_climate(self, usol_den, molecules_per_particle, T_trop, T_surf_guess, &
@@ -16,7 +23,9 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_rhs
   end interface
 
 contains
-  subroutine dochem(self, usol, rx_rates, &
+
+  #:for TYPE1, NAME in TYPES_NAMES
+  subroutine dochem_${NAME}$(self, usol, rx_rates, &
                     gas_sat_den, molecules_per_particle, &
                     H2O_sat_mix, H2O_rh, rainout_rates, &
                     density, mix, densities, xp, xl, rhs)                 
@@ -24,18 +33,23 @@ contains
     use photochem_common, only: chempl, chempl_sl
     use photochem_eqns, only: damp_condensation_rate
     use photochem_const, only: N_avo, pi, small_real, T_crit_H2O
-
+    #:if NAME == 'dual'
+    use forwarddiff
+    #:endif
     class(EvoAtmosphere), target, intent(in) :: self
-    real(dp), intent(in) :: usol(:,:)
+    ${TYPE1}$, intent(in) :: usol(:,:)
     real(dp), intent(in) :: rx_rates(:,:)
     real(dp), intent(in) :: gas_sat_den(:,:)
     real(dp), intent(in) :: molecules_per_particle(:,:)
     real(dp), intent(in) :: H2O_sat_mix(:), H2O_rh(:)
     real(dp), intent(in) :: rainout_rates(:,:)
-    real(dp), intent(inout) :: density(:), mix(:,:), densities(:,:), xp(:), xl(:)
-    real(dp), intent(out) :: rhs(:) ! neqs
+    real(dp), intent(in) :: density(:)
+    ${TYPE1}$, intent(inout) :: mix(:,:)
+    ${TYPE1}$, intent(inout) :: densities(:,:), xp(:), xl(:)
+    ${TYPE1}$, intent(inout) :: rhs(:) ! neqs
 
-    real(dp) :: dn_gas_dt, dn_particle_dt, H2O_cold_trap, cond_rate
+    real(dp) :: H2O_cold_trap
+    ${TYPE1}$ :: dn_gas_dt, dn_particle_dt, cond_rate
     integer :: i, ii, j, k, kk
 
     type(PhotochemData), pointer :: dat
@@ -44,8 +58,12 @@ contains
     dat => self%dat
     var => self%var
 
+    #:if NAME == 'dual'
+    dn_gas_dt = dual(size(usol(1,1)%der))
+    dn_particle_dt = dual(size(usol(1,1)%der))
+    cond_rate = dual(size(usol(1,1)%der))
+    #:endif
     do j = 1,var%nz
-      density(j) = sum(usol(dat%ng_1:,j)) 
       mix(:,j) = usol(:,j)/density(j)
     enddo
 
@@ -168,6 +186,7 @@ contains
 
   end subroutine
 
+  #:endfor
   subroutine diffusion_coefficients_evo(dat, var, den, mubar, &
                                     DU, DD, DL, ADU, ADL, ADD, wfall, VH2_esc, VH_esc)
     use photochem_eqns, only: dynamic_viscosity_air, fall_velocity, slip_correction_factor, &
@@ -749,6 +768,54 @@ contains
 
   end subroutine
 
+  subroutine autodiff_chemistry_jacobian(self, usol, rhs, djac, err)
+    use forwarddiff, only: jacobian, dual, BlockDiagonalJacobian, initialize_dual_array
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), target, contiguous, intent(in) :: usol(:,:)
+    real(dp), intent(out) :: rhs(:), djac(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), pointer :: usol_flat(:)
+    type(dual), allocatable :: mix(:,:), densities(:,:), xp(:), xl(:)
+    integer :: blocksize
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+
+    usol_flat(1:var%neqs) => usol(:,:) ! reshape input
+    blocksize = dat%nq
+    ! allocate some work memory
+    allocate(mix(dat%nq,var%nz))
+    call initialize_dual_array(mix, blocksize)
+    allocate(densities(size(wrk%densities,1),size(wrk%densities,2)))
+    call initialize_dual_array(densities, blocksize)
+    allocate(xp(size(wrk%xp)))
+    call initialize_dual_array(xp, blocksize)
+    allocate(xl(size(wrk%xl)))
+    call initialize_dual_array(xl, blocksize)
+
+    call jacobian(fcn, usol_flat, rhs, djac, jt=BlockDiagonalJacobian, blocksize=blocksize, err=err)
+    if (allocated(err)) return
+
+  contains
+    subroutine fcn(x_, f_)
+      type(dual), target, intent(in) :: x_(:)
+      type(dual), target, intent(out) :: f_(:)
+      type(dual), pointer :: usol_(:,:)
+      usol_(1:dat%nq,1:var%nz) => x_(:)
+      call initialize_dual_array(f_, blocksize)
+      call dochem(self, usol_, wrk%rx_rates, &
+                  wrk%gas_sat_den, wrk%molecules_per_particle, &
+                  wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
+                  wrk%density, mix, densities, xp, xl, f_) 
+    end subroutine
+  end subroutine
+
   module subroutine jac_evo_gas(self, lda_neqs, neqs, usol_flat, jac, err)
     use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
     use photochem_enum, only: ZahnleHydrogenEscape
@@ -763,13 +830,8 @@ contains
     
     real(dp), pointer :: usol_in(:,:)
     real(dp), pointer :: djac(:,:)
-    real(dp) :: usol_perturb(self%dat%nq,self%var%nz)
-    real(dp) :: R(self%var%nz)
     real(dp) :: rhs(self%var%neqs)
-    real(dp) :: rhs_perturb(self%var%neqs)
-    real(dp) :: density(self%var%nz), mix(self%dat%nq,self%var%nz)
-    real(dp) :: densities(self%dat%nsp+1,self%var%nz), xl(self%var%nz), xp(self%var%nz)
-  
+
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
@@ -792,14 +854,23 @@ contains
     call prep_all_evo_gas(self, usol_in, err)
     if (allocated(err)) return
   
+    if (.not. var%autodiff) then; block
+    real(dp) :: usol_perturb(dat%nq,var%nz)
+    real(dp) :: R(var%nz)
+    real(dp) :: rhs_perturb(var%neqs)
+    real(dp) :: mix(dat%nq,var%nz)
+    real(dp) :: densities(dat%nsp+1,self%var%nz), xl(var%nz), xp(var%nz)
+  
+    ! Finite differenced Jacobian
+
     ! compute chemistry contribution to jacobian using forward differences
     jac = 0.0_dp
     call dochem(self, wrk%usol, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
                 wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
-                density, mix, densities, xp, xl, rhs) 
+                wrk%density, mix, densities, xp, xl, rhs) 
 
-    !$omp parallel private(i, j, k, m, mm, usol_perturb, R, density, mix, densities, xl, xp, rhs_perturb)
+    !$omp parallel private(i, j, k, m, mm, usol_perturb, R, mix, densities, xl, xp, rhs_perturb)
     usol_perturb = wrk%usol
     !$omp do
     do i = 1,dat%nq
@@ -811,7 +882,7 @@ contains
       call dochem(self, usol_perturb, wrk%rx_rates, &
                   wrk%gas_sat_den, wrk%molecules_per_particle, &
                   wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
-                  density, mix, densities, xp, xl, rhs_perturb) 
+                  wrk%density, mix, densities, xp, xl, rhs_perturb) 
   
       do m = 1,dat%nq
         mm = m - i + dat%kd
@@ -827,6 +898,23 @@ contains
     enddo
     !$omp enddo
     !$omp end parallel
+    
+    endblock; else 
+
+    call autodiff_chemistry_jacobian(self, wrk%usol, rhs, wrk%djac_chem, err)
+    if (allocated(err)) return
+
+    do mm = 1,dat%nq
+      do m = 1,var%nz
+        j = mm + dat%nq*(m-1)
+        do i = 1,dat%nq
+          djac(i + 2*dat%nq - (mm-1),j) = wrk%djac_chem(i,j)
+        enddo
+      enddo
+    enddo
+
+    endif
+
   
     ! diffusion (interior grid points)
     do j = 2,var%nz-1

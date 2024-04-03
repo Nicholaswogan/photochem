@@ -1,7 +1,19 @@
+#:set TYPES = ['real(dp)', 'type(dual)']
+#:set NAMES = ['real', 'dual']
+#:set TYPES_NAMES = list(zip(TYPES, NAMES))
+
 module photochem_common
   use photochem_const, only: dp
   use photochem_types, only : PhotochemData, PhotochemVars
   implicit none
+
+  interface chempl
+    module procedure :: chempl_real, chempl_dual
+  end interface
+
+  interface chempl_sl
+    module procedure :: chempl_sl_real, chempl_sl_dual
+  end interface
   
 contains
   
@@ -340,22 +352,29 @@ contains
     
   end subroutine
   
-  pure subroutine chempl(dat, var, densities, rx_rates, k, xp, xl)
+  #:for TYPE1, NAME in TYPES_NAMES
+  subroutine chempl_${NAME}$(dat, var, densities, rx_rates, k, xp, xl)
+    #:if NAME == 'dual'
+    use forwarddiff
+    #:endif
     
     ! input
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
-    real(dp), intent(in) :: densities(:,:) ! (nsp+1, nz) molecules/cm3 of each species
+    ${TYPE1}$, intent(in) :: densities(:,:) ! (nsp+1, nz) molecules/cm3 of each species
     real(dp), intent(in) :: rx_rates(:,:) ! (nz,nrT) reaction rates (various units)
     integer, intent(in) :: k ! species number
     
     ! output
-    real(dp), intent(out) :: xp(:), xl(:) ! (nz) molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
+    ${TYPE1}$, intent(inout) :: xp(:), xl(:) ! (nz) molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
     
     ! local
-    real(dp) :: DD
+    ${TYPE1}$ :: DD
     integer :: i, ii, iii, m, l, j
-    
+
+    #:if NAME == 'dual'
+    DD = dual(size(densities(1,1)%der))
+    #:endif
     xp = 0.0_dp
     xl = 0.0_dp
     
@@ -391,22 +410,29 @@ contains
     
   end subroutine
   
-  pure subroutine chempl_sl(dat, var, densities, rx_rates, k, xp, xl)
-    
+  #:endfor
+  #:for TYPE1, NAME in TYPES_NAMES
+  subroutine chempl_sl_${NAME}$(dat, var, densities, rx_rates, k, xp, xl)
+    #:if NAME == 'dual'
+    use forwarddiff
+    #:endif
     ! input
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
-    real(dp), intent(in) :: densities(:,:) ! (nsp+1, nz) molecules/cm3 of each species
+    ${TYPE1}$, intent(in) :: densities(:,:) ! (nsp+1, nz) molecules/cm3 of each species
     real(dp), intent(in) :: rx_rates(:,:) ! (nz,nrT) reaction rates (various units)
     integer, intent(in) :: k ! species number
     
     ! output
-    real(dp), intent(out) :: xp(:), xl(:) ! (nz) molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
+    ${TYPE1}$, intent(inout) :: xp(:), xl(:) ! (nz) molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
     
     ! local
-    real(dp) :: DD
+    ${TYPE1}$ :: DD
     integer :: i, ii, iii, m, l, j
-    
+
+    #:if NAME == 'dual'
+    DD = dual(size(densities(1,1)%der))
+    #:endif
     xp = 0.0_dp
     xl = 0.0_dp
     
@@ -445,6 +471,7 @@ contains
     
   end subroutine
   
+  #:endfor
   pure subroutine chempl_t(dat, var, densities, rx_rates, k, xpT, xlT)
     
     ! input

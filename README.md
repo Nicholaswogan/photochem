@@ -15,7 +15,7 @@ You need a Fortran compiler (`gfortran>=9.30`, [install instructions here](https
 Create a `conda` environment with all dependencies
 
 ```sh
-conda create -n photochem -c conda-forge python numpy scipy pyyaml numba scikit-build cython cmake ninja pip hdf5
+conda create -n photochem -c conda-forge python numpy scipy pyyaml numba scikit-build cython cmake ninja pip hdf5 fypp
 ```
 
 Clone this Gitub repository: 

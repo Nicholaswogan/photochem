@@ -15,6 +15,7 @@ endif()
 
 # includes
 include(cmake/CPM.cmake)
+include(cmake/fypp.cmake)
 
 # options
 option(SKBUILD "Should be ON of being build by skbuild, 

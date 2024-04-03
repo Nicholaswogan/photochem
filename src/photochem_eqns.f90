@@ -1,6 +1,14 @@
+#:set TYPES = ['real(dp)', 'type(dual)']
+#:set NAMES = ['real', 'dual']
+#:set TYPES_NAMES = list(zip(TYPES, NAMES))
+
 module photochem_eqns
   use photochem_const, only: dp
   implicit none
+
+  interface damp_condensation_rate
+    module procedure :: damp_condensation_rate_real, damp_condensation_rate_dual 
+  end interface
   
 contains
   
@@ -316,18 +324,23 @@ contains
     F = 10.0_dp**((log10Fcent)/(1.0_dp + f1**2.0_dp))
   end function
 
-  pure function damp_condensation_rate(A, rhc, rh0, rh) result(k)
+  #:for TYPE1, NAME in TYPES_NAMES
+  pure function damp_condensation_rate_${NAME}$(A, rhc, rh0, rh) result(k)
+    #:if NAME == 'dual'
+    use forwarddiff
+    #:endif
     use photochem_const, only: pi
     real(dp), intent(in) :: A
     real(dp), intent(in) :: rhc, rh0
-    real(dp), intent(in) :: rh ! the relative humidity
-    real(dp) :: k 
+    ${TYPE1}$, intent(in) :: rh ! the relative humidity
+    ${TYPE1}$ :: k 
     ! k = 0 for rh = rhc
     ! k = A for rh = infinity, approaches asymptotically
     ! k = 0.5*A for rh = rh0
     k = A*(2.0_dp/pi)*atan((rh - rhc)/(rh0 - rhc))
   end function
   
+  #:endfor
   pure function henrys_law(T, A, B) result(H)
     real(dp), intent(in) :: T
     real(dp), intent(in) :: A

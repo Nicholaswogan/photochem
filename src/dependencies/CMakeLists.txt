@@ -60,3 +60,13 @@ CPMAddPackage(
   GIT_TAG "v0.4.2"
   EXCLUDE_FROM_ALL OFF
 )
+
+CPMAddPackage(
+  NAME forwarddiff
+  VERSION 0.1.1
+  OPTIONS 
+    "BUILD_EXECUTABLE OFF"
+  GITHUB_REPOSITORY "Nicholaswogan/forwarddiff"
+  GIT_TAG "v0.1.1"
+  EXCLUDE_FROM_ALL ON
+)
