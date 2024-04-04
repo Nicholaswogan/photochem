@@ -788,6 +788,8 @@ contains
     call prep_all_background_gas(self, usol_in, err)
     if (allocated(err)) return
 
+    jac = 0.0_dp
+
     if (.not. var%autodiff) then; block
     real(dp) :: usol_perturb(dat%nq,var%nz)
     real(dp) :: R(var%nz)
@@ -797,7 +799,6 @@ contains
     ! Finite differenced Jacobian
   
     ! compute chemistry contribution to jacobian using forward differences
-    jac = 0.0_dp
     call dochem(self, var%neqs, dat%nsp, dat%np, dat%nsl, dat%nq, var%nz, var%trop_ind, dat%nrT, &
                 wrk%usol, wrk%density, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
