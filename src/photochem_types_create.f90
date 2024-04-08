@@ -63,6 +63,11 @@ contains
     s%nz = dict%get_integer('number-of-layers',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
 
+    if (s%bottom /= 0.0_dp) then
+      err = 'The bottom of the atmosphere must be 0.'
+      return
+    endif
+
     if (s%top < s%bottom) then
       err = 'The top of the atmosphere must be bigger than the bottom'
       return
@@ -192,6 +197,10 @@ contains
       err = "IOError: Only 'deposition velocity' or 'Moses' can be default boundary conditions."
       return
     endif
+
+    ! Atmosphere initialization
+    s%conserving_init = dict%get_logical('conserving-initialization',default=.false.,error = io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
 
     ! climate
     s%evolve_climate = dict%get_logical('evolve-climate',default=.false.,error = io_err)

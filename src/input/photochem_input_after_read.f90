@@ -85,39 +85,17 @@ contains
       enddo
       var%usol_init = 10.0_dp**var%usol_init
 
-    else; block
-      real(dp) :: dz_file
-      real(dp), allocatable :: densities_file(:,:) ! molecules/cm3
-      real(dp), allocatable :: ze_file(:), ze(:)
+    else
 
-      dz_file = dat%z_file(2)-dat%z_file(1)
+      if (dat%conserving_init) then
+        call interp2atmosfile_mixconserving(dat, var, err)
+        if (allocated(err)) return
+      else
+        call interp2atmosfile_mix(dat, var, err)
+        if (allocated(err)) return
+      endif
 
-      allocate(densities_file(dat%nq,dat%nzf))
-      allocate(ze_file(dat%nzf+1))
-      allocate(ze(var%nz+1))
-
-      do i = 1,dat%nq
-        densities_file(i,:) = dat%mix_file(i,:)*dat%den_file
-      enddo
-
-      ze_file(1) = dat%z_file(1) - 0.5_dp*dz_file
-      do i = 1,dat%nzf
-        ze_file(i+1) = dat%z_file(i) + 0.5_dp*dz_file
-      enddo
-      ze = var%z(1) - 0.5_dp*var%dz(1)
-      do i = 1,var%nz
-        ze(i+1) = var%z(i) + 0.5_dp*var%dz(i)
-      enddo
-
-      do i = 1,dat%nq
-        call conserving_rebin(ze_file, densities_file(i,:), ze, var%usol_init(i,:), ierr)
-        if (ierr /= 0) then
-          err = 'subroutine conserving_rebin returned an error'
-          return
-        endif
-      enddo
-
-    endblock; endif
+    endif
     
     if (dat%there_are_particles) then
       do i = 1,dat%npq
@@ -138,6 +116,110 @@ contains
     if (var%z(var%nz) > dat%z_file(dat%nzf)) then
       print*,'Warning: vertical grid is being extrapolated above where there is input data.'
     endif
+
+  end subroutine
+
+  subroutine interp2atmosfile_mixconserving(dat, var, err)
+    use futils, only: interp, conserving_rebin
+    use photochem_const, only: small_real
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    character(:), allocatable, intent(out) :: err
+
+    integer :: i, ierr
+    real(dp) :: dz_file
+    real(dp), allocatable :: densities_file(:,:) ! molecules/cm3
+    real(dp), allocatable :: ze_file(:), ze(:)
+
+    dz_file = dat%z_file(2)-dat%z_file(1)
+
+    allocate(densities_file(dat%nq,dat%nzf))
+    allocate(ze_file(dat%nzf+1))
+    allocate(ze(var%nz+1))
+
+    do i = 1,dat%nq
+      densities_file(i,:) = dat%mix_file(i,:)*dat%den_file
+    enddo
+
+    ze_file(1) = dat%z_file(1) - 0.5_dp*dz_file
+    do i = 1,dat%nzf
+      ze_file(i+1) = dat%z_file(i) + 0.5_dp*dz_file
+    enddo
+    ze = var%z(1) - 0.5_dp*var%dz(1)
+    do i = 1,var%nz
+      ze(i+1) = var%z(i) + 0.5_dp*var%dz(i)
+    enddo
+
+    do i = 1,dat%nq
+      call conserving_rebin(ze_file, densities_file(i,:), ze, var%usol_init(i,:), ierr)
+      if (ierr /= 0) then
+        err = 'subroutine conserving_rebin returned an error'
+        return
+      endif
+    enddo
+
+  end subroutine
+
+  subroutine interp2atmosfile_mix(dat, var, err)
+    use futils, only: interp, conserving_rebin
+    use photochem_const, only: small_real
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    character(:), allocatable, intent(out) :: err
+
+    integer :: i, ierr, nzf1
+    real(dp), allocatable :: z_file(:), den_file(:), density(:)
+    real(dp) :: slope, y_intercept, den_tmp
+
+    z_file = dat%z_file
+    den_file = dat%den_file
+    nzf1 = dat%nzf
+    allocate(density(var%nz))
+
+    if (dat%z_file(dat%nzf) < var%z(var%nz)) then
+      ! If TOA file is smaller than TOA of model.
+      ! We must extrapolate density of the file to higher altitudes
+      z_file = [z_file, var%z(var%nz)]
+      slope = (log10(dat%den_file(dat%nzf)) - log10(dat%den_file(dat%nzf-1)))/(dat%z_file(dat%nzf) - dat%z_file(dat%nzf-1))
+      y_intercept = log10(dat%den_file(dat%nzf)) - slope*dat%z_file(dat%nzf)
+      den_tmp = slope*var%z(var%nz) + y_intercept
+      den_tmp = 10.0_dp**den_tmp
+      den_file = [den_file, den_tmp]
+      nzf1 = nzf1 + 1
+    elseif (dat%z_file(1) > var%z(1)) then
+      ! If BOA file is high altitude then BOA of model.
+      ! We must extrapolate density of the file to lower altitudes
+      z_file = [var%z(1), z_file]
+      slope = (log10(dat%den_file(2)) - log10(dat%den_file(1)))/(dat%z_file(2) - dat%z_file(1))
+      y_intercept = log10(dat%den_file(1)) - slope*dat%z_file(1)
+      den_tmp = slope*var%z(1) + y_intercept
+      den_tmp = 10.0_dp**den_tmp
+      den_file = [den_tmp, den_file]
+      nzf1 = nzf1 + 1
+    endif
+
+    ! Interpolate file density to model grid
+    call interp(var%nz, nzf1, var%z, z_file,&
+                log10(den_file), density, ierr)
+    if (ierr /= 0) then
+      err = 'Subroutine interp returned an error.'
+      return
+    endif
+    density = 10.0_dp**density
+
+    do i = 1,dat%nq
+      call interp(var%nz, dat%nzf, var%z, dat%z_file,&
+                  log10(abs(dat%mix_file(i,:))), var%usol_init(i,:), ierr)
+      if (ierr /= 0) then
+        err = 'Subroutine interp returned an error.'
+        return
+      endif
+    enddo
+    var%usol_init = 10.0_dp**var%usol_init
+
+    do i = 1,var%nz
+      var%usol_init(:,i) = var%usol_init(:,i)*density(i)
+    enddo 
 
   end subroutine
 

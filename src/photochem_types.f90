@@ -64,6 +64,8 @@ module photochem_types ! make a giant IO object
     integer :: H_escape_type
     real(dp), allocatable :: H_escape_S1
     integer :: default_lowerboundcond
+    ! initialization
+    logical :: conserving_init
     ! climate
     logical :: evolve_climate
     ! water
@@ -334,6 +336,10 @@ module photochem_types ! make a giant IO object
     type(ParticleXsections), allocatable :: part_xs_file(:) !! np in length
     
     ! initial conditions  
+    !> Only used in EVOATMOSPHERE.
+    !> If True, then during initialization, molecules in the atmosphere will
+    !> be conserved.
+    logical :: conserving_init = .false.
     integer :: nzf !! number of atmospheric layers in file
     real(dp), allocatable :: z_file(:) !! (nzf) cm
     real(dp), allocatable :: T_file(:) !! (nzf) K

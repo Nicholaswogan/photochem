@@ -720,6 +720,9 @@ contains
     endif
     
     ! default-gas-lower-boundary already applied to PhotoSettings
+
+    ! conserving initialization?
+    dat%conserving_init = s%conserving_init
     
     ! water
     dat%fix_water_in_trop = s%fix_water_in_trop
