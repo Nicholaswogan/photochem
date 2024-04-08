@@ -20,6 +20,7 @@ program memtest
   call test_custom_binary_diffusion(pcs)
   call test_update_vertical_grid(pcs)
   call test_press_temp_edd(pcs)
+  call test_autodiff(pcs)
   
 contains
   
@@ -307,6 +308,35 @@ contains
       stop 1
     endif
 
+  end subroutine
+
+  subroutine test_autodiff(pc)
+    type(Atmosphere), intent(inout) :: pc
+    
+    character(:), allocatable :: err
+    real(dp) :: tn
+
+    pc%var%autodiff = .true.
+    pc%var%atol = 1.0e-20_dp
+    
+    call pc%initialize_stepper(pc%var%usol_init, err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    
+    tn = pc%step(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    
   end subroutine
   
 end program
