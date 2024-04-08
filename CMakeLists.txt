@@ -17,6 +17,9 @@ endif()
 include(cmake/CPM.cmake)
 include(cmake/fypp.cmake)
 
+# Need fypp
+find_program(FYPP fypp REQUIRED)
+
 # options
 option(SKBUILD "Should be ON of being build by skbuild, 
 and OFF of being build by regular cmake" OFF)
