@@ -448,7 +448,7 @@ module photochem_types ! make a giant IO object
     real(c_double) :: rtol = 1.0e-3_dp !! integration relative tolerance
     !> Integration absolute tolerance. If autodiff == .true., then the model
     !> works better when atol is smaller (e.g., atol = ~1.0e-18).
-    real(c_double) :: atol = 1.0e-27_dp 
+    real(c_double) :: atol = 1.0e-25_dp 
     integer :: mxsteps = 10000 !! max number of steps before integrator will give up.
     !> seconds. atomsphere considered in equilibrium if integrations reaches this time.
     real(dp) :: equilibrium_time = 1.0e17_dp
