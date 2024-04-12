@@ -29,6 +29,10 @@ contains
 
     call get_photomech(mechanism_file, dat, var, err)
     if (allocated(err)) return
+
+    ! initial atmosphere
+    call read_atmosphere_file(atmosphere_txt, dat, var, err)
+    if (allocated(err)) return
     
     call unpack_settings(s%filename, s, dat, var, err)
     if (allocated(err)) return
@@ -45,10 +49,6 @@ contains
     ! stellar flux
     allocate(var%photon_flux(dat%nw))
     call read_stellar_flux(flux_file, dat%nw, dat%wavl, var%photon_flux, err)
-    if (allocated(err)) return
-    
-    ! initial atmosphere
-    call read_atmosphere_file(atmosphere_txt, dat, var, err)
     if (allocated(err)) return
     
   end subroutine
@@ -639,7 +639,22 @@ contains
     !!! atmosphere-grid !!!
     !!!!!!!!!!!!!!!!!!!!!!!
     var%bottom_atmos = s%bottom
-    var%top_atmos = s%top
+
+    read(s%top,*,iostat = io) var%top_atmos
+    if (io /= 0) then
+      ! it isn't a float
+      if (trim(s%top) == "atmospherefile") then
+        ! Use the TOA in the initialization file
+        var%top_atmos = dat%z_file(dat%nzf) + 0.5_dp*(dat%z_file(2) - dat%z_file(1))
+      else
+        err = '"top" can only be a number or "atmospherefile". See '//trim(infile)
+        return 
+      endif
+    endif
+    if (var%top_atmos < var%bottom_atmos) then
+      err = 'The top of the atmosphere must be bigger than the bottom'
+      return
+    endif
     var%nz = s%nz
     
     !!!!!!!!!!!!!!!!!!!!!!!
@@ -772,6 +787,10 @@ contains
     if (dat%fix_water_in_trop .or. dat%gas_rainout) then
       ! we need a tropopause altitude
       var%trop_alt = s%trop_alt
+      if (var%trop_alt > var%top_atmos) then
+        err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
+        return
+      endif
     endif
     
     if (dat%water_cond) then        
@@ -2531,7 +2550,6 @@ contains
     enddo
     
   end subroutine
-  
   
   subroutine read_atmosphere_file(atmosphere_txt, dat, var, err)
     character(len=*), intent(in) :: atmosphere_txt

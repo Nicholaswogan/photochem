@@ -58,18 +58,13 @@ contains
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     s%bottom = dict%get_real('bottom',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    s%top = dict%get_real('top',error = io_err)
+    s%top = trim(dict%get_string('top',error = io_err))
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     s%nz = dict%get_integer('number-of-layers',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
 
     if (s%bottom /= 0.0_dp) then
       err = 'The bottom of the atmosphere must be 0.'
-      return
-    endif
-
-    if (s%top < s%bottom) then
-      err = 'The top of the atmosphere must be bigger than the bottom'
       return
     endif
 
@@ -256,10 +251,9 @@ contains
         err = "tropopause-altitude must be specified if fix-water-in-troposphere = true, or gas-rainout = true"
         return
       endif
-      if ((s%trop_alt < s%bottom) .or. &
-          (s%trop_alt > s%top)) then
-          err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
-          return
+      if (s%trop_alt < s%bottom) then
+        err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
+        return
       endif
     
     endif

@@ -43,7 +43,7 @@ module photochem_types ! make a giant IO object
   
     ! atmosphere-grid
     real(dp) :: bottom
-    real(dp) :: top
+    character(:), allocatable :: top
     integer :: nz
   
     ! photolysis-grid
