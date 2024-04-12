@@ -793,6 +793,8 @@ module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
 
   end subroutine
 
+  ! Below is mostly stuff needed in `evolve` routine
+
   module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_old(:,:)

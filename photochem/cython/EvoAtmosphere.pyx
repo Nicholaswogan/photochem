@@ -75,6 +75,28 @@ cdef class EvoAtmosphere:
       wrk._ptr = self._wrk_ptr
       return wrk
 
+  def prep_atmosphere(self, ndarray[double, ndim=2] usol):
+    """Given `usol`, the densities of each species in the atmosphere,
+    this subroutine calculates reaction rates, photolysis rates, etc.
+    and puts this information into self.wrk. self.wrk contains all the
+    information needed for `dochem` to compute chemistry.
+
+    Parameters
+    ----------
+    usol : ndarray[double,ndim=2]
+        densities
+    """
+    cdef char err[ERR_LEN+1]
+    cdef int nq = self.dat.nq
+    cdef int nz = self.var.nz
+    cdef ndarray usol_ = np.asfortranarray(usol)
+    if usol_.shape[0] != nq or usol_.shape[1] != nz:
+      raise PhotoException("Input usol is the wrong size.")
+      
+    ea_pxd.evoatmosphere_prep_atmosphere_wrapper(&self._ptr, &nq, &nz, <double *>usol_.data, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+
   def out2atmosphere_txt(self,filename = None, bool overwrite = False, bool clip = True):
     """Saves state of the atmosphere using the mixing ratios in self.wrk.usol.
 

@@ -314,6 +314,8 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    ! Both below are needed only for `evolve` routine and probably should not be used most of the time.
+
     module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_old(:,:)
