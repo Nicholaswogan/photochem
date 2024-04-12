@@ -161,46 +161,20 @@ contains
   end subroutine
 
   subroutine interp2atmosfile_mix(dat, var, err)
-    use futils, only: interp, conserving_rebin
+    use futils, only: interp
+    use photochem_eqns, only: interp_new
     use photochem_const, only: small_real
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
 
-    integer :: i, ierr, nzf1
-    real(dp), allocatable :: z_file(:), den_file(:), density(:)
-    real(dp) :: slope, y_intercept, den_tmp
+    integer :: i, ierr
+    real(dp), allocatable :: density(:)
 
-    z_file = dat%z_file
-    den_file = dat%den_file
-    nzf1 = dat%nzf
     allocate(density(var%nz))
 
-    if (dat%z_file(dat%nzf) < var%z(var%nz)) then
-      ! If TOA file is smaller than TOA of model.
-      ! We must extrapolate density of the file to higher altitudes
-      z_file = [z_file, var%z(var%nz)]
-      slope = (log10(dat%den_file(dat%nzf)) - log10(dat%den_file(dat%nzf-1)))/(dat%z_file(dat%nzf) - dat%z_file(dat%nzf-1))
-      y_intercept = log10(dat%den_file(dat%nzf)) - slope*dat%z_file(dat%nzf)
-      den_tmp = slope*var%z(var%nz) + y_intercept
-      den_tmp = 10.0_dp**den_tmp
-      den_file = [den_file, den_tmp]
-      nzf1 = nzf1 + 1
-    elseif (dat%z_file(1) > var%z(1)) then
-      ! If BOA file is high altitude then BOA of model.
-      ! We must extrapolate density of the file to lower altitudes
-      z_file = [var%z(1), z_file]
-      slope = (log10(dat%den_file(2)) - log10(dat%den_file(1)))/(dat%z_file(2) - dat%z_file(1))
-      y_intercept = log10(dat%den_file(1)) - slope*dat%z_file(1)
-      den_tmp = slope*var%z(1) + y_intercept
-      den_tmp = 10.0_dp**den_tmp
-      den_file = [den_tmp, den_file]
-      nzf1 = nzf1 + 1
-    endif
-
     ! Interpolate file density to model grid
-    call interp(var%nz, nzf1, var%z, z_file,&
-                log10(den_file), density, ierr)
+    call interp_new(var%z, dat%z_file, log10(dat%den_file), density, linear_extrap=.true., ierr=ierr)
     if (ierr /= 0) then
       err = 'Subroutine interp returned an error.'
       return

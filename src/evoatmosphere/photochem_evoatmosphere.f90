@@ -63,6 +63,7 @@ module photochem_evoatmosphere
     procedure :: set_rate_fcn
     procedure :: set_temperature
     procedure :: set_press_temp_edd
+    procedure :: update_vertical_grid
     procedure :: rebin_update_vertical_grid
     procedure :: regrid_prep_atmosphere
 
@@ -300,6 +301,17 @@ module photochem_evoatmosphere
       !> If .true., then use hydrostatic pressure. If .false. then use the
       !> actual pressure in the atmosphere. Default is .true..
       logical, optional, intent(in) :: hydro_pressure
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Re-does the vertical grid so that the pressure at the top of the
+    !> atmosphere is a `TOA_alt` or `TOA_pressure`. If the TOA needs to be raised above the current
+    !> TOA, then the function constantly extrapolates mixing ratios, temperature,
+    !> eddy diffusion, and particle radii.
+    module subroutine update_vertical_grid(self, TOA_alt, TOA_pressure, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), optional, intent(in) :: TOA_alt !! New top of atmosphere altitude (cm)
+      real(dp), optional, intent(in) :: TOA_pressure !! New top of atmosphere pressure (dynes/cm^2)
       character(:), allocatable, intent(out) :: err
     end subroutine
 

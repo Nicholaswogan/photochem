@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION "3.14")
 cmake_policy(SET CMP0148 OLD)
-project(Photochem LANGUAGES Fortran C VERSION "0.5.1")
+project(Photochem LANGUAGES Fortran C VERSION "0.5.2")
 
 include(FortranCInterface)
 FortranCInterface_VERIFY()

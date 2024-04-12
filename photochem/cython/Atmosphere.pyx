@@ -536,8 +536,10 @@ cdef class Atmosphere:
 
     Parameters
     ----------
+    TOA_alt : float
+        New top of atmosphere altitude (cm)
     TOA_pressure : float
-        New top of the atmosphere pressure in dynes/cm^2
+        New top of atmosphere pressure (dynes/cm^2)
     """
     cdef char err[ERR_LEN+1]
 
