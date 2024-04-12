@@ -45,7 +45,7 @@ cdef extern double evoatmosphere_step_wrapper(void *ptr, char *err)
 cdef extern void evoatmosphere_destroy_stepper_wrapper(void *ptr, char *err)
 
 cdef extern void evoatmosphere_production_and_loss_wrapper(void *ptr, char *species, int *nq, 
-                                                        int *nz, double *usol, double *top_atmos, void *pl_ptr, char *err)
+                                                        int *nz, double *usol, void *pl_ptr, char *err)
 
 # getters and setters
 cdef extern void evoatmosphere_t_surf_get(void *ptr, double *val)

@@ -47,7 +47,7 @@ contains
 
     deallocate(t_eval)
 
-    call pc%production_and_loss('CH4', pc%var%usol_init, pc%var%top_atmos, pl, err)  
+    call pc%production_and_loss('CH4', pc%var%usol_init, pl, err)  
     if (allocated(err)) then
       print*,trim(err)
       stop 1

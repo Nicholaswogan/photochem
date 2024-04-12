@@ -141,12 +141,11 @@ module photochem_evoatmosphere
       ! The jacobian of the rhs_background_gas.
     end subroutine
 
-    module subroutine production_and_loss(self, species, usol, top_atmos, pl, err)  
+    module subroutine production_and_loss(self, species, usol, pl, err)  
       use photochem_types, only: ProductionLoss   
       class(EvoAtmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: species
       real(dp), intent(in) :: usol(:,:)
-      real(dp), intent(in) :: top_atmos
       type(ProductionLoss), intent(out) :: pl
       character(:), allocatable, intent(out) :: err
     end subroutine

@@ -339,8 +339,10 @@ cdef class EvoAtmosphere:
 
     Parameters
     ----------
+    TOA_alt : float
+        New top of atmosphere altitude (cm)
     TOA_pressure : float
-        New top of the atmosphere pressure in dynes/cm^2
+        New top of atmosphere pressure (dynes/cm^2)
     """
     cdef char err[ERR_LEN+1]
 
@@ -472,7 +474,7 @@ cdef class EvoAtmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
-  def production_and_loss(self, str species, ndarray[double, ndim=2] usol, double top_atmos):
+  def production_and_loss(self, str species, ndarray[double, ndim=2] usol):
     """Computes the production and loss of input `species`.
     See ProductionLoss object in photochem_types.f90.
 
@@ -499,7 +501,7 @@ cdef class EvoAtmosphere:
       raise PhotoException("Input usol is the wrong size.")
       
     cdef void *pl_ptr
-    ea_pxd.evoatmosphere_production_and_loss_wrapper(&self._ptr, species_c, &nq, &nz, <double *>usol_.data, &top_atmos, &pl_ptr, err)
+    ea_pxd.evoatmosphere_production_and_loss_wrapper(&self._ptr, species_c, &nq, &nz, <double *>usol_.data, &pl_ptr, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     pl = ProductionLoss()

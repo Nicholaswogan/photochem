@@ -1017,7 +1017,7 @@ contains
                               
   end subroutine
 
-  module subroutine production_and_loss(self, species, usol, top_atmos, pl, err)     
+  module subroutine production_and_loss(self, species, usol, pl, err)     
     use futils, only: argsort            
     use photochem_common, only: chempl_sl, chempl_t
     use photochem_types, only: ProductionLoss
@@ -1026,7 +1026,6 @@ contains
     class(EvoAtmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: species
     real(dp), intent(in) :: usol(:,:)
-    real(dp), intent(in) :: top_atmos
     type(ProductionLoss), intent(out) :: pl
     character(:), allocatable, intent(out) :: err
   
@@ -1053,7 +1052,7 @@ contains
       return
     endif
     
-    call self%regrid_prep_atmosphere(usol, top_atmos, err)
+    call self%prep_atmosphere(usol, err)
     if (allocated(err)) return
   
     np = dat%pl(sp_ind)%nump

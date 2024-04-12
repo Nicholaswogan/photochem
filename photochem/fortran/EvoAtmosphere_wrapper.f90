@@ -440,13 +440,12 @@
     endif
   end subroutine
 
-  subroutine evoatmosphere_production_and_loss_wrapper(ptr, species, nq, nz, usol, top_atmos, pl_ptr, err) bind(c)
+  subroutine evoatmosphere_production_and_loss_wrapper(ptr, species, nq, nz, usol, pl_ptr, err) bind(c)
     use photochem, only: ProductionLoss
     type(c_ptr), intent(in) :: ptr
     character(kind=c_char), intent(in) :: species(*)
     integer(c_int), intent(in) :: nq, nz
     real(c_double), intent(in) :: usol(nq, nz)
-    real(c_double), intent(in) :: top_atmos
     type(c_ptr), intent(out) :: pl_ptr
     character(kind=c_char), intent(out) :: err(err_len+1)
     
@@ -461,7 +460,7 @@
     allocate(character(len=len_cstring(species))::species_f)
     call copy_string_ctof(species, species_f)
     
-    call pc%production_and_loss(species_f, usol, top_atmos, pl, err_f)
+    call pc%production_and_loss(species_f, usol, pl, err_f)
     if (allocated(err_f)) then
       deallocate(pl)
     else
