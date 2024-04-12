@@ -1,5 +1,5 @@
 
-set(PHOTOCHEM_TESTS testrun testevo memtest)
+set(PHOTOCHEM_TESTS testrun testevo memtest memtest_evo)
 
 if (BUILD_EXECUTABLES)
   foreach(PHOTOCHEM_TEST ${PHOTOCHEM_TESTS})

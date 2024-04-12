@@ -44,6 +44,7 @@ jobs:
       run: |
         valgrind --error-exitcode=1 --leak-check=full ./tests/memtest
         valgrind --error-exitcode=1 --leak-check=full ./tests/testevo
+        valgrind --error-exitcode=1 --leak-check=full ./tests/memtest_evo
 
     - name: build python
       run: python -m pip install . -v
