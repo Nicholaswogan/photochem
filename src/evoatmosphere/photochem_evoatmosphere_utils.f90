@@ -455,7 +455,7 @@ module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
       z_ = var%z
       z_ = z_(var%nz:1:-1)
       
-      call interp(1, var%nz, [log10(trop_p)], log10P_wrk, z_, trop_alt(1), ierr)
+      call interp(1, var%nz, [log10(trop_p)], log10P_wrk, z_, trop_alt, ierr)
       if (ierr /= 0) then
         err = 'Subroutine interp returned an error.'
         return
@@ -605,7 +605,7 @@ module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
                               particle_radius_new, pressure_new, err)
     use photochem_enum, only: DensityBC, PressureBC
     use futils, only: interp
-    use photochem_eqns, only: vertical_grid, molar_weight, press_and_den, gravity, interp_new
+    use photochem_eqns, only: vertical_grid, molar_weight, press_and_den, gravity
     use photochem_const, only: small_real, k_boltz
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol(:,:)
@@ -662,7 +662,7 @@ module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
     enddo
     ! Interpolate mixing ratios, with constant extrapolation
     do i = 1,dat%nq
-      call interp_new(z_new, var%z, log10(max(mix(i,:),small_real)), mix_new(i,:), ierr=ierr)
+      call interp(z_new, var%z, log10(max(mix(i,:),small_real)), mix_new(i,:), ierr=ierr)
       if (ierr /= 0) then
         err = 'Subroutine interp returned an error.'
         return
@@ -671,7 +671,7 @@ module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
     mix_new = 10.0_dp**mix_new
 
     ! Interpolate density, with linear extrapolation
-    call interp_new(z_new, var%z, log10(density), density_new, linear_extrap=.true., ierr=ierr)
+    call interp(z_new, var%z, log10(density), density_new, linear_extrap=.true., ierr=ierr)
     if (ierr /= 0) then
       err = 'Subroutine interp returned an error.'
       return

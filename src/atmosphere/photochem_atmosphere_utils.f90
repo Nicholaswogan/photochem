@@ -723,7 +723,7 @@ contains
       z_ = var%z
       z_ = z_(var%nz:1:-1)
       
-      call interp(1, var%nz, [log10(trop_p)], log10P_wrk, z_, trop_alt(1), ierr)
+      call interp(1, var%nz, [log10(trop_p)], log10P_wrk, z_, trop_alt, ierr)
       if (ierr /= 0) then
         err = 'Subroutine interp returned an error.'
         return

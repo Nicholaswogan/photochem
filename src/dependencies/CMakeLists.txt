@@ -1,9 +1,9 @@
 
 CPMAddPackage(
   NAME futils
-  VERSION 0.1.7
+  VERSION 0.1.8
   GITHUB_REPOSITORY "Nicholaswogan/futils"
-  GIT_TAG "v0.1.7"
+  GIT_TAG "v0.1.8"
   EXCLUDE_FROM_ALL ON
 )
 
@@ -49,7 +49,7 @@ CPMAddPackage(
 
 CPMAddPackage(
   NAME clima 
-  VERSION 0.4.2
+  VERSION 0.4.3
   OPTIONS 
     "BUILD_EXECUTABLE OFF"
     "BUILD_WITH_OPENMP ${BUILD_WITH_OPENMP}"
@@ -57,16 +57,16 @@ CPMAddPackage(
     "BUILD_PYTHON_CLIMA ${BUILD_PYTHON_PHOTOCHEM}"
     "PYTHON_CLIMA_DESTINATION photochem"
   GITHUB_REPOSITORY "Nicholaswogan/clima"
-  GIT_TAG "v0.4.2"
+  GIT_TAG "v0.4.3"
   EXCLUDE_FROM_ALL OFF
 )
 
 CPMAddPackage(
   NAME forwarddiff
-  VERSION 0.1.1
+  VERSION 0.1.2
   OPTIONS 
     "BUILD_EXECUTABLE OFF"
   GITHUB_REPOSITORY "Nicholaswogan/forwarddiff"
-  GIT_TAG "v0.1.1"
+  GIT_TAG "v0.1.2"
   EXCLUDE_FROM_ALL ON
 )

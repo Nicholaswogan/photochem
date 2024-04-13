@@ -162,7 +162,6 @@ contains
 
   subroutine interp2atmosfile_mix(dat, var, err)
     use futils, only: interp
-    use photochem_eqns, only: interp_new
     use photochem_const, only: small_real
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
@@ -174,7 +173,7 @@ contains
     allocate(density(var%nz))
 
     ! Interpolate file density to model grid
-    call interp_new(var%z, dat%z_file, log10(dat%den_file), density, linear_extrap=.true., ierr=ierr)
+    call interp(var%z, dat%z_file, log10(dat%den_file), density, linear_extrap=.true., ierr=ierr)
     if (ierr /= 0) then
       err = 'Subroutine interp returned an error.'
       return
