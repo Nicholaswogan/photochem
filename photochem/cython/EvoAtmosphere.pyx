@@ -385,6 +385,18 @@ cdef class EvoAtmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
+  def update_planet_mass_radius(self, double planet_mass, double planet_radius):
+    """Updates planet mass and radius. The routine recomputes gravity vs. altitude.
+
+    Parameters
+    ----------
+    planet_mass : float
+        In grams
+    planet_radius : float
+        In cm
+    """
+    ea_pxd.evoatmosphere_update_planet_mass_radius_wrapper(&self._ptr, &planet_mass, &planet_radius)
+
   def regrid_prep_atmosphere(self, ndarray[double, ndim=2] usol, double top_atmos):
     """This subroutine calculates re-grids the model so that the top of the model domain 
     is at `top_atmos` the computes reaction rates, photolysis rates, etc.

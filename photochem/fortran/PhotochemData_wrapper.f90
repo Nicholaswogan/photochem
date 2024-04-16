@@ -76,6 +76,22 @@
     call c_f_pointer(ptr, dat)
     val = dat%nw
   end subroutine
+
+  subroutine photochemdata_planet_mass_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    val = dat%planet_mass
+  end subroutine
+
+  subroutine photochemdata_planet_radius_get(ptr, val) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    val = dat%planet_radius
+  end subroutine
   
   subroutine photochemdata_species_names_get_size(ptr, dim1) bind(c)
     type(c_ptr), intent(in) :: ptr

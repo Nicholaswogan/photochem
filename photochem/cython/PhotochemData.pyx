@@ -69,6 +69,20 @@ cdef class PhotochemData:
       dat_pxd.photochemdata_nw_get(&self._ptr, &val)
       return val
 
+  property planet_mass:
+    "Planet mass (g)."
+    def __get__(self):
+      cdef double val
+      dat_pxd.photochemdata_planet_mass_get(&self._ptr, &val)
+      return val
+
+  property planet_radius:
+    "Planet radius (cm)."
+    def __get__(self):
+      cdef double val
+      dat_pxd.photochemdata_planet_radius_get(&self._ptr, &val)
+      return val
+
   property species_names:
     """List, shape (nsp+2). A list of the species in the model (particles and gases). 
     The last two elements are 'hv' and 'M'.

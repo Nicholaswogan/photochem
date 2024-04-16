@@ -334,6 +334,16 @@
     
   end subroutine
 
+  subroutine evoatmosphere_update_planet_mass_radius_wrapper(ptr, planet_mass, planet_radius) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    real(c_double), intent(in) :: planet_mass, planet_radius
+    type(EvoAtmosphere), pointer :: pc
+    
+    call c_f_pointer(ptr, pc)
+    call pc%update_planet_mass_radius(planet_mass, planet_radius)
+
+  end subroutine
+
   subroutine evoatmosphere_regrid_prep_atmosphere_wrapper(ptr, nq, nz, usol, top_atmos, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     integer(c_int), intent(in) :: nq, nz

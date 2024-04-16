@@ -64,6 +64,7 @@ module photochem_evoatmosphere
     procedure :: set_temperature
     procedure :: set_press_temp_edd
     procedure :: update_vertical_grid
+    procedure :: update_planet_mass_radius
     procedure :: rebin_update_vertical_grid
     procedure :: regrid_prep_atmosphere
 
@@ -312,6 +313,12 @@ module photochem_evoatmosphere
       real(dp), optional, intent(in) :: TOA_alt !! New top of atmosphere altitude (cm)
       real(dp), optional, intent(in) :: TOA_pressure !! New top of atmosphere pressure (dynes/cm^2)
       character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Updates planet mass and radius. The routine recomputes gravity vs. altitude.
+    module subroutine update_planet_mass_radius(self, planet_mass, planet_radius)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: planet_mass, planet_radius
     end subroutine
 
     ! Both below are needed only for `evolve` routine and probably should not be used most of the time.
