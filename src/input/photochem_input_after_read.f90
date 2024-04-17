@@ -109,14 +109,6 @@ contains
       var%particle_radius = 10.0_dp**var%particle_radius
     endif
     
-    if (var%z(1) < dat%z_file(1)) then
-      print*,'Warning: vertical grid is being extrapolated below where there is input data.'
-    endif
-    
-    if (var%z(var%nz) > dat%z_file(dat%nzf)) then
-      print*,'Warning: vertical grid is being extrapolated above where there is input data.'
-    endif
-
   end subroutine
 
   subroutine interp2atmosfile_mixconserving(dat, var, err)

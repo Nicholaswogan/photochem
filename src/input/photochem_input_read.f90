@@ -2558,14 +2558,12 @@ contains
     character(:), allocatable, intent(out) :: err
     
     character(len=10000) :: line
-    character(len=:), allocatable :: message
     character(len=s_str_len) :: arr1(1000)
     character(len=s_str_len) :: arr11(1000)
     character(len=s_str_len),allocatable, dimension(:) :: labels
     integer :: ind(1)
     real(dp), allocatable :: temp(:,:)
     integer :: io, i, n, nn, ii
-    logical :: missing
     
     open(4, file=trim(atmosphere_txt),status='old',iostat=io)
     if (io /= 0) then
@@ -2632,24 +2630,14 @@ contains
     close(4)
     
     ! reads in mixing ratios
-    missing = .false.
     do i=1,dat%nq
       ind = findloc(labels,dat%species_names(i))
       if (ind(1) /= 0) then
         dat%mix_file(i,:) = temp(ind(1),:)
-      else
-        missing = .true.
       endif
     enddo
     
-    if (missing) then
-      message = 'Warning: Did not find initial data for some species in '// &
-                trim(atmosphere_txt)//' . The program will assume initial mixing ratios of 1.0e-40'
-      print*,message
-    endif
-    
     if (dat%there_are_particles) then
-      missing = .false.
       do i=1,dat%npq
         ind = findloc(labels,trim(dat%species_names(i))//"_r")
         if (ind(1) /= 0) then
@@ -2658,14 +2646,8 @@ contains
           ! did not find the data
           ! will set to 0.1 micron
           dat%particle_radius_file(i,:) = 1.0e-5_dp
-          missing = .true.
         endif
       enddo
-      
-      if (missing) then
-        print*,'Warning: Did not find particle radii for some species in '//&
-                trim(atmosphere_txt)//' . The program will assume 0.1 micron raddii.'
-      endif
     endif
     
     ! reads in temperature

@@ -82,6 +82,8 @@ cdef class PhotochemData:
       cdef double val
       dat_pxd.photochemdata_planet_radius_get(&self._ptr, &val)
       return val
+    def __set__(self, double val):
+      dat_pxd.photochemdata_planet_radius_set(&self._ptr, &val)
 
   property species_names:
     """List, shape (nsp+2). A list of the species in the model (particles and gases). 

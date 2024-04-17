@@ -16,6 +16,7 @@ cdef extern void photochemdata_nw_get(void *ptr, int *nq)
 cdef extern void photochemdata_planet_mass_get(void *ptr, double *val)
 
 cdef extern void photochemdata_planet_radius_get(void *ptr, double *val)
+cdef extern void photochemdata_planet_radius_set(void *ptr, double *val)
 
 cdef extern void photochemdata_species_names_get_size(void *ptr, int *dim1)
 cdef extern void photochemdata_species_names_get(void *ptr, int *dim1, char* species_names)

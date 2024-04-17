@@ -32,7 +32,6 @@ cdef extern void evoatmosphere_set_press_temp_edd_wrapper(void *ptr, int *P_dim1
                                                       bool *hydro_pressure, bool *hydro_pressure_present, char *err)
 cdef extern void evoatmosphere_update_vertical_grid_wrapper(void *ptr, double *toa_alt, bool *toa_alt_present,
                                                          double *toa_pressure, bool *toa_pressure_present, char *err)
-cdef extern void evoatmosphere_update_planet_mass_radius_wrapper(void *ptr, double *planet_mass, double *planet_radius)
 cdef extern void evoatmosphere_regrid_prep_atmosphere_wrapper(void *ptr, int *nq, int *nz, double *usol, double *top_atmos, char *err)
 
 cdef extern void evoatmosphere_evolve_wrapper(void *ptr, char *filename, 

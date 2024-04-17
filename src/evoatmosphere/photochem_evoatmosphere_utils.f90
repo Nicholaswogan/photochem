@@ -793,16 +793,6 @@ module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
 
   end subroutine
 
-  module subroutine update_planet_mass_radius(self, planet_mass, planet_radius)
-    use photochem_eqns, only: gravity
-    class(EvoAtmosphere), target, intent(inout) :: self
-    real(dp), intent(in) :: planet_mass, planet_radius
-    self%dat%planet_mass = planet_mass
-    self%dat%planet_radius = planet_radius
-    call gravity(self%dat%planet_radius, self%dat%planet_mass, &
-                 self%var%nz, self%var%z, self%var%grav)
-  end subroutine
-
   ! Below is mostly stuff needed in `evolve` routine
 
   module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
