@@ -73,11 +73,12 @@ def FormatReactions_main(data):
             data['species'][i]['composition'] = flowmap(data['species'][i]['composition'])
             if 'thermo' in data['species'][i].keys():
                 
-                order = ['model','temperature-ranges','data','note']
+                order = ['model', 'reference-pressure','temperature-ranges','data']
                 copy = data['species'][i]['thermo'].copy()
                 data['species'][i]['thermo'].clear()
-                for key in copy:
-                    data['species'][i]['thermo'][key] = copy[key]
+                for key in order:
+                    if key in copy.keys():
+                        data['species'][i]['thermo'][key] = copy[key]
                     
                 data['species'][i]['thermo']['temperature-ranges'] = blockseqtrue(data['species'][i]['thermo']['temperature-ranges'])
                 

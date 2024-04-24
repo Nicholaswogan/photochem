@@ -64,7 +64,8 @@ def photochem2cantera_main(data):
 
     # Cantera can't handle > 2 temperature ranges for thermodynamic data
     for i in range(len(data['species'])):
-        if len(data['species'][i]['thermo']['temperature-ranges']) > 3:
+        data['species'][i]['thermo']['reference-pressure'] = '1.0e6' # dynes/cm^2
+        if len(data['species'][i]['thermo']['temperature-ranges']) > 3 and data['species'][i]['thermo']['model'] == 'Shomate':
             data['species'][i]['thermo']['temperature-ranges'] = data['species'][i]['thermo']['temperature-ranges'][:3]
             data['species'][i]['thermo']['data'] = data['species'][i]['thermo']['data'][:2] 
 
@@ -76,7 +77,7 @@ def photochem2cantera_main(data):
     phases[0]["species"] = blockseqtrue(species)
     phases[0]["kinetics"] = "gas"
     phases[0]["reactions"] = "all"
-    phases[0]["state"] = flowmap({"T": 300.0,"P":1.0e5})
+    phases[0]["state"] = flowmap({"T": 300.0,"P": 1.0e5})
 
     data = FormatReactions_main(data)
     data['units'] = units
