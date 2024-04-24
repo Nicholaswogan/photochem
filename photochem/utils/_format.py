@@ -96,7 +96,8 @@ def FormatReactions_main(data):
     # Reactions
     if 'reactions' in data:
         for i in range(len(data['reactions'])):
-            order = ['equation','type','rate-constant','low-P-rate-constant','high-P-rate-constant','duplicate','efficiencies','JPL','citation']
+            order = ['equation','type','rate-constant','rate-constants','low-P-rate-constant',
+                     'high-P-rate-constant','duplicate','efficiencies','JPL','citation']
             copy = data['reactions'][i].copy()
             data['reactions'][i].clear()
             for key in order:
@@ -107,6 +108,10 @@ def FormatReactions_main(data):
             for key in flowstyle:
                 if key in data['reactions'][i].keys():
                     data['reactions'][i][key] = flowmap(data['reactions'][i][key])
+
+            if 'rate-constants' in data['reactions'][i]:
+                for j in range(len(data['reactions'][i]['rate-constants'])):
+                    data['reactions'][i]['rate-constants'][j] = flowmap(data['reactions'][i]['rate-constants'][j])
                     
     return data
     

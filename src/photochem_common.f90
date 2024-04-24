@@ -17,14 +17,15 @@ module photochem_common
   
 contains
   
-  pure subroutine reaction_rates(dat, var, density, densities, rx_rates)
+  subroutine reaction_rates(dat, var, pressure, density, densities, rx_rates)
     use photochem_enum, only: NoFalloff, TroeWithoutT2Falloff, TroeWithT2Falloff, JPLFalloff
-    use photochem_types, only: ElementaryRate, ThreeBodyRate, FalloffRate
-    use photochem_eqns, only: arrhenius_rate, Troe_noT2, Troe_withT2, falloff_rate
+    use photochem_types, only: ElementaryRate, ThreeBodyRate, FalloffRate, PressDependentRate
+    use photochem_eqns, only: arrhenius_rate, Troe_noT2, Troe_withT2, falloff_rate, searchsorted
     use photochem_const, only: Rgas, k_boltz, smallest_real ! constants
     
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
+    real(dp), intent(in) :: pressure(:) ! (nz)
     real(dp), intent(in) :: density(:) ! (nz)
     real(dp), intent(in) :: densities(:,:) ! (nsp+1,nz)
     real(dp), intent(out) :: rx_rates(:,:) ! (nz,nrT) 
@@ -32,9 +33,9 @@ contains
     integer :: i, j, k, n, l, m
     real(dp) :: eff_den(var%nz), F(var%nz)
     real(dp) :: k0, kinf(var%nz), Pr(var%nz)
+    real(dp) :: logP, k1, k2, logk
     real(dp) :: gibbR_forward, gibbP_forward
     real(dp) :: Dg_forward
-    
     
     do i = 1,dat%nrF
       select type(rp => dat%rx(i)%rp)
@@ -101,6 +102,57 @@ contains
           rx_rates(j,i) = falloff_rate(kinf(j), Pr(j), F(j))
         enddo
 
+      class is (PressDependentRate)
+        n = size(rp%logP) ! number of pressures in grid
+
+        do j = 1,var%nz
+          logP = log(pressure(j))
+
+          if (logP <= rp%logP(1)) then
+            ! If P below grid, then constant extrapolation below.
+            k1 = 0.0_dp
+            do k = 1,size(rp%rate(1)%A)
+              k1 = k1 + &
+                   arrhenius_rate(rp%rate(1)%A(k), rp%rate(1)%b(k), &
+                                  rp%rate(1)%Ea(k), var%temperature(j))
+            enddo
+            rx_rates(j,i) = k1
+          elseif (logP >= rp%logP(n)) then
+            ! If P above grid, then constant extrapolation above.
+            k1 = 0.0_dp
+            do k = 1,size(rp%rate(n)%A)
+              k1 = k1 + &
+                   arrhenius_rate(rp%rate(n)%A(k), rp%rate(n)%b(k), &
+                                  rp%rate(n)%Ea(k), var%temperature(j))
+            enddo
+            rx_rates(j,i) = k1
+          else
+            ! P lies within grid
+            l = searchsorted(rp%logP, logP) - 1
+
+            ! Compute rate at lower pressure
+            k1 = 0.0_dp
+            do k = 1,size(rp%rate(l)%A)
+              k1 = k1 + &
+                   arrhenius_rate(rp%rate(l)%A(k), rp%rate(l)%b(k), &
+                                  rp%rate(l)%Ea(k), var%temperature(j))
+            enddo
+            k1 = log(k1)
+
+            ! Compute rate at higher pressure
+            k2 = 0.0_dp
+            do k = 1,size(rp%rate(l+1)%A)
+              k2 = k2 + &
+                   arrhenius_rate(rp%rate(l+1)%A(k), rp%rate(l+1)%b(k), &
+                                  rp%rate(l+1)%Ea(k), var%temperature(j))
+            enddo
+            k2 = log(k2)
+
+            ! log-interpolate to get rate at intermediate pressure.
+            logk = k1 + (k2 - k1)*((logP - rp%logP(l))/(rp%logP(l+1) - rp%logP(l)))
+            rx_rates(j,i) = exp(logk)
+          endif
+        enddo
       end select
       
     enddo ! end loop over forward reactions

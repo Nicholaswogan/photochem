@@ -34,6 +34,11 @@ def photochem2cantera_main(data):
             rxt = "elementary"
         else:
             rxt = data['reactions'][i]['type']
+
+        if rxt == 'falloff':
+            if ' + M ' in data['reactions'][i]['equation']:
+                data['reactions'][i]['equation'] = data['reactions'][i]['equation'].replace('+ M','(+ M)')
+
         if rxt != 'photolysis':
             reactions_new.append(data['reactions'][i])
             
@@ -63,7 +68,7 @@ def photochem2cantera_main(data):
             data['species'][i]['thermo']['temperature-ranges'] = data['species'][i]['thermo']['temperature-ranges'][:3]
             data['species'][i]['thermo']['data'] = data['species'][i]['thermo']['data'][:2] 
 
-    units = flowmap({"length": "cm", "quantity": "molec", "activation-energy": "K"})
+    units = flowmap({"length": "cm", "quantity": "molec", "activation-energy": "K", "pressure": "dyn/cm^2"})
     phases = [{}]
     phases[0]["name"] = "gas name"
     phases[0]["thermo"] = 'ideal-gas'

@@ -540,7 +540,7 @@ contains
     enddo
     
     !!! reaction rates
-    call reaction_rates(self%dat, self%var, wrk%density, wrk%densities, wrk%rx_rates)
+    call reaction_rates(self%dat, self%var, wrk%pressure, wrk%density, wrk%densities, wrk%rx_rates)
 
     ! Update the photon_flux if the function is associated.
     ! we use time wrk%tn, which MUST be updated.

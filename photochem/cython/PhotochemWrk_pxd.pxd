@@ -33,6 +33,9 @@ cdef extern void photochemwrk_density_get(void *ptr, int *dim1, double *arr)
 cdef extern void photochemwrk_densities_get_size(void *ptr, int *dim1, int *dim2)
 cdef extern void photochemwrk_densities_get(void *ptr, int *dim1, int *dim2, double *arr)
 
+cdef extern void photochemwrk_rx_rates_get_size(void *ptr, int *dim1, int *dim2)
+cdef extern void photochemwrk_rx_rates_get(void *ptr, int *dim1, int *dim2, double *arr)
+
 cdef extern void photochemwrk_mubar_get_size(void *ptr, int *dim1)
 cdef extern void photochemwrk_mubar_get(void *ptr, int *dim1, double *arr)
 

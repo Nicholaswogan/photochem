@@ -1208,7 +1208,7 @@ contains
     logical, intent(in) :: reverse
     integer, intent(in) :: rxtype_int
     character(:), allocatable, intent(out) :: err
-    character(len=s_str_len) :: rxtype
+    character(:), allocatable :: rxtype
     integer i
     logical k, j, m, l, kk, jj
     l = .false.
@@ -1225,6 +1225,11 @@ contains
       rxtype = 'three-body'
     elseif (rxtype_int == 3) then
       rxtype = 'falloff'
+    elseif (rxtype_int == 4) then
+      rxtype = 'pressure-dependent-Arrhenius'
+    else
+      err = 'Internal error in Photochem involving "compare_rxtype_string". Report this bug!'
+      return
     endif
   
     if ((trim(rxtype) == 'three-body') .or. (trim(rxtype) == 'falloff')) then
@@ -1265,7 +1270,7 @@ contains
                 ' can not contain "hv". Only photolysis reactions can.'
         return
       endif
-    elseif (trim(rxtype) == 'elementary') then
+    elseif (trim(rxtype) == 'elementary' .or. trim(rxtype) == 'pressure-dependent-Arrhenius') then
       do i = 1,size(eqr)
         if (trim(eqr(i)) == 'M') j = .true.
         if (trim(eqr(i)) == 'hv') m = .true.
@@ -1530,7 +1535,7 @@ contains
   
   subroutine get_rateparams(dat, reaction_d, infile, rx, err)
     use photochem_enum, only: NoFalloff, TroeWithoutT2Falloff, TroeWithT2Falloff, JPLFalloff
-    use photochem_types, only: Reaction, BaseRate, ElementaryRate, ThreeBodyRate, FalloffRate, PhotolysisRate
+    use photochem_types, only: Reaction, BaseRate, ElementaryRate, ThreeBodyRate, FalloffRate, PhotolysisRate, PressDependentRate
     type(PhotochemData), intent(in) :: dat
     class(type_dictionary), intent(in) :: reaction_d
     character(len=*), intent(in) :: infile
@@ -1541,10 +1546,11 @@ contains
     type (type_error), allocatable :: io_err
     character(len=str_len) :: rxtype_str
     type(type_dictionary), pointer :: dict
+    type(type_list), pointer :: list
+    class(type_list_item), pointer :: item
     logical :: use_jpl
     real(dp) :: T2
-    
-    
+        
     rxtype_str = reaction_d%get_string("type", default="elementary", error = io_err) 
     
     if (rxtype_str == 'photolysis') then
@@ -1559,6 +1565,9 @@ contains
     elseif (rxtype_str == 'falloff') then
       allocate(FalloffRate::rx%rp)
       rx%rp%rxtype = 3
+    elseif (rxtype_str == 'pressure-dependent-Arrhenius') then
+      allocate(PressDependentRate::rx%rp)
+      rx%rp%rxtype = 4
     else
       err = 'IOError: reaction type '//trim(rxtype_str)//' is not a valid reaction type.'
       return
@@ -1642,9 +1651,88 @@ contains
         rp%T3 = dict%get_real('T3',error = io_err)
         if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       endif
+
+    class is (PressDependentRate); block
+      use futils, only: argsort
+      use photochem_types, only: MultiArrheniusRate
+      type(MultiArrheniusRate) :: rate
+      real(dp), allocatable :: P(:), A(:), b(:), Ea(:)
+      integer, allocatable :: inds(:)
+      integer :: i, j
+
+      list => reaction_d%get_list('rate-constants',.true.,error=io_err)
+      if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+
+      i = list%size()
+      allocate(P(i), A(i), b(i), Ea(i), inds(i))
+
+      i = 1
+      item => list%first
+      do while (associated(item))
+        select type (listitem => item%node)
+        class is (type_dictionary)
+
+          P(i) = listitem%get_real('P',error = io_err)
+          if (allocated(io_err)) then; err = trim(io_err%message); return; endif
+
+          if (P(i) <= 0.0_dp) then
+            err = 'Pressures must be positive in pressure-dependent-Arrhenius reaction '// &
+            trim(reaction_d%get_string("equation",error=io_err))
+            return
+          endif
+          
+          call get_arrhenius(listitem, A(i), b(i), Ea(i), err)
+          if (allocated(err)) return
+
+        class default
+          err = '"rate-constants" must be a list of dictionaries for reaction '// &
+          trim(reaction_d%get_string("equation",error=io_err))
+          return
+        end select
+        i = i + 1
+        item => item%next
+      enddo
+
+      ! sort
+      inds = argsort(P)
+      P = P(inds)
+      A = A(inds)
+      b = b(inds)
+      Ea = Ea(inds)
+
+      allocate(rp%logP(0))
+      allocate(rp%rate(0))
+      i = 1
+      do while (i <= size(P))
+        rp%logP = [rp%logP, log(P(i))]
+        rate = MultiArrheniusRate([A(i)], [b(i)], [Ea(i)])  
+        j = i + 1
+        do
+          if (j > size(P)) then
+            i = j
+            exit
+          endif
+          if (P(j) == P(i)) then
+            rate%A = [rate%A, A(j)]
+            rate%b = [rate%b, b(j)]
+            rate%Ea = [rate%Ea, Ea(j)]
+          else
+            i = j
+            exit
+          endif
+          j = j + 1
+        enddo
+        rp%rate = [rp%rate, rate]
+      enddo
+
+      if (size(rp%logP) < 2) then
+        err = 'pressure-dependent-Arrhenius reaction '// &
+        trim(reaction_d%get_string("equation",error=io_err))// &
+        ' must have > 1 unique pressures.'
+        return
+      endif
       
-        
-    end select
+    endblock; end select
     
   end subroutine
   

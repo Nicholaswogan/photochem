@@ -13,7 +13,7 @@ module photochem_types ! make a giant IO object
   public :: PhotoSettings, SettingsBC
   public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
   public :: ProductionLoss, AtomConservation, ThermodynamicData
-  public :: Reaction, Efficiencies, BaseRate, PhotolysisRate
+  public :: Reaction, Efficiencies, BaseRate, PhotolysisRate, PressDependentRate, MultiArrheniusRate
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
   public :: SundialsDataFinalizer
   public :: time_dependent_flux_fcn, time_dependent_rate_fcn, binary_diffusion_fcn
@@ -235,6 +235,17 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: T3 !! Troe falloff parameter
     
     type(Efficiencies) :: eff
+  end type
+  
+  type :: MultiArrheniusRate
+    real(dp), allocatable :: A(:)
+    real(dp), allocatable :: b(:)
+    real(dp), allocatable :: Ea(:)
+  end type
+
+  type, extends(BaseRate) :: PressDependentRate
+    real(dp), allocatable :: logP(:)
+    type(MultiArrheniusRate), allocatable :: rate(:)
   end type
   
   type :: Reaction

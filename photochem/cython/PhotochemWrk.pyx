@@ -138,6 +138,17 @@ cdef class PhotochemWrk:
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
       wrk_pxd.photochemwrk_densities_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
+
+  property rx_rates:
+    """ndarray[double,dim=2], shape (nz,nrT). Reaction rate constants in various units
+    involving molecules cm^3 and s. These rates include 3rd body contributions.
+    """
+    def __get__(self):
+      cdef int dim1, dim2
+      wrk_pxd.photochemwrk_rx_rates_get_size(&self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      wrk_pxd.photochemwrk_rx_rates_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
       
   property mubar:
     """ndarray[double,dim=1], shape (nz). The mean molar mass of each atmospheric layer
