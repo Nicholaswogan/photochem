@@ -730,6 +730,11 @@ module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
     var => self%var
     wrk => self%wrk
 
+    if (self%evolve_climate) then
+      err = 'You can not call "update_vertical_grid" when evolving climate'
+      return
+    endif
+
     if (present(TOA_alt) .and. present(TOA_pressure)) then
       err = 'Both "TOA_alt" and "TOA_pressure" can not be specified'
       return
