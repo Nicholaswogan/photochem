@@ -4,7 +4,7 @@
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
   subroutine deallocate_atomconservation(ptr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     type(AtomConservation), pointer :: con
     call c_f_pointer(ptr, con)
     deallocate(con)
@@ -15,7 +15,7 @@
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
   
   subroutine atomconservation_in_surf_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(AtomConservation), pointer :: con
     call c_f_pointer(ptr, con)
@@ -23,7 +23,7 @@
   end subroutine
   
   subroutine atomconservation_in_top_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(AtomConservation), pointer :: con
     call c_f_pointer(ptr, con)
@@ -31,7 +31,7 @@
   end subroutine
   
   subroutine atomconservation_in_dist_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(AtomConservation), pointer :: con
     call c_f_pointer(ptr, con)
@@ -39,7 +39,7 @@
   end subroutine
 
   subroutine atomconservation_in_other_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(AtomConservation), pointer :: con
     call c_f_pointer(ptr, con)
@@ -47,7 +47,7 @@
   end subroutine
 
   subroutine atomconservation_out_surf_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(AtomConservation), pointer :: con
     call c_f_pointer(ptr, con)
@@ -55,7 +55,7 @@
   end subroutine
   
   subroutine atomconservation_out_top_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(AtomConservation), pointer :: con
     call c_f_pointer(ptr, con)
@@ -63,7 +63,7 @@
   end subroutine
   
   subroutine atomconservation_out_rain_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(AtomConservation), pointer :: con
     call c_f_pointer(ptr, con)
@@ -71,7 +71,7 @@
   end subroutine
   
   subroutine atomconservation_out_other_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(AtomConservation), pointer :: con
     call c_f_pointer(ptr, con)
@@ -79,7 +79,7 @@
   end subroutine
   
   subroutine atomconservation_net_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(AtomConservation), pointer :: con
     call c_f_pointer(ptr, con)
@@ -87,7 +87,7 @@
   end subroutine
   
   subroutine atomconservation_factor_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(AtomConservation), pointer :: con
     call c_f_pointer(ptr, con)
@@ -98,7 +98,7 @@
 
 !~~ Getters and setters ~~!
 subroutine condensationparameters_k_cond_get(ptr, val) bind(c)
-  type(c_ptr), intent(in) :: ptr
+  type(c_ptr), value, intent(in) :: ptr
   real(c_double), intent(out) :: val
   type(CondensationParameters), pointer :: c
   call c_f_pointer(ptr, c)
@@ -106,7 +106,7 @@ subroutine condensationparameters_k_cond_get(ptr, val) bind(c)
 end subroutine
 
 subroutine condensationparameters_k_cond_set(ptr, val) bind(c)
-  type(c_ptr), intent(in) :: ptr
+  type(c_ptr), value, intent(in) :: ptr
   real(c_double), intent(in) :: val
   type(CondensationParameters), pointer :: c
   call c_f_pointer(ptr, c)
@@ -114,7 +114,7 @@ subroutine condensationparameters_k_cond_set(ptr, val) bind(c)
 end subroutine
 
 subroutine condensationparameters_k_evap_get(ptr, val) bind(c)
-  type(c_ptr), intent(in) :: ptr
+  type(c_ptr), value, intent(in) :: ptr
   real(c_double), intent(out) :: val
   type(CondensationParameters), pointer :: c
   call c_f_pointer(ptr, c)
@@ -122,7 +122,7 @@ subroutine condensationparameters_k_evap_get(ptr, val) bind(c)
 end subroutine
 
 subroutine condensationparameters_k_evap_set(ptr, val) bind(c)
-  type(c_ptr), intent(in) :: ptr
+  type(c_ptr), value, intent(in) :: ptr
   real(c_double), intent(in) :: val
   type(CondensationParameters), pointer :: c
   call c_f_pointer(ptr, c)
@@ -130,7 +130,7 @@ subroutine condensationparameters_k_evap_set(ptr, val) bind(c)
 end subroutine
 
 subroutine condensationparameters_rhc_get(ptr, val) bind(c)
-  type(c_ptr), intent(in) :: ptr
+  type(c_ptr), value, intent(in) :: ptr
   real(c_double), intent(out) :: val
   type(CondensationParameters), pointer :: c
   call c_f_pointer(ptr, c)
@@ -138,7 +138,7 @@ subroutine condensationparameters_rhc_get(ptr, val) bind(c)
 end subroutine
 
 subroutine condensationparameters_rhc_set(ptr, val) bind(c)
-  type(c_ptr), intent(in) :: ptr
+  type(c_ptr), value, intent(in) :: ptr
   real(c_double), intent(in) :: val
   type(CondensationParameters), pointer :: c
   call c_f_pointer(ptr, c)
@@ -146,7 +146,7 @@ subroutine condensationparameters_rhc_set(ptr, val) bind(c)
 end subroutine
 
 subroutine condensationparameters_smooth_factor_get(ptr, val) bind(c)
-  type(c_ptr), intent(in) :: ptr
+  type(c_ptr), value, intent(in) :: ptr
   real(c_double), intent(out) :: val
   type(CondensationParameters), pointer :: c
   call c_f_pointer(ptr, c)
@@ -154,7 +154,7 @@ subroutine condensationparameters_smooth_factor_get(ptr, val) bind(c)
 end subroutine
 
 subroutine condensationparameters_smooth_factor_set(ptr, val) bind(c)
-  type(c_ptr), intent(in) :: ptr
+  type(c_ptr), value, intent(in) :: ptr
   real(c_double), intent(in) :: val
   type(CondensationParameters), pointer :: c
   call c_f_pointer(ptr, c)

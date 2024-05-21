@@ -14,10 +14,10 @@ cdef class EvoAtmosphere:
   def __cinit__(self, mechanism_file = None, settings_file = None, 
                 flux_file = None, atmosphere_txt = None, data_dir = None):
     self._init_called = False
-    ea_pxd.allocate_evoatmosphere(&self._ptr)
+    self._ptr = ea_pxd.allocate_evoatmosphere()
 
   def __dealloc__(self):
-    ea_pxd.deallocate_evoatmosphere(&self._ptr)
+    ea_pxd.deallocate_evoatmosphere(self._ptr)
 
   def __getattribute__(self, name):
     if not self._init_called:
@@ -53,7 +53,7 @@ cdef class EvoAtmosphere:
     cdef char err[ERR_LEN+1]
     
     # Initialize
-    ea_pxd.evoatmosphere_create_wrapper(&self._ptr, mechanism_file_c,
+    ea_pxd.evoatmosphere_create_wrapper(self._ptr, mechanism_file_c,
                                        settings_file_c, flux_file_c,
                                        atmosphere_txt_c, data_dir_c, err)
     if len(err.strip()) > 0:
@@ -65,7 +65,7 @@ cdef class EvoAtmosphere:
     """
     def __get__(self):
       dat = PhotochemData()
-      ea_pxd.evoatmosphere_dat_get(&self._ptr, &dat._ptr)
+      ea_pxd.evoatmosphere_dat_get(self._ptr, &dat._ptr)
       return dat
       
   property var:
@@ -74,7 +74,7 @@ cdef class EvoAtmosphere:
     """
     def __get__(self):
       var = PhotochemVars()
-      ea_pxd.evoatmosphere_var_get(&self._ptr, &var._ptr)
+      ea_pxd.evoatmosphere_var_get(self._ptr, &var._ptr)
       return var
       
   property wrk:
@@ -83,7 +83,7 @@ cdef class EvoAtmosphere:
     """
     def __get__(self):
       wrk = PhotochemWrkEvo()
-      ea_pxd.evoatmosphere_wrk_get(&self._ptr, &wrk._ptr)
+      ea_pxd.evoatmosphere_wrk_get(self._ptr, &wrk._ptr)
       return wrk
 
   def prep_atmosphere(self, ndarray[double, ndim=2] usol):
@@ -104,7 +104,7 @@ cdef class EvoAtmosphere:
     if usol_.shape[0] != nq or usol_.shape[1] != nz:
       raise PhotoException("Input usol is the wrong size.")
       
-    ea_pxd.evoatmosphere_prep_atmosphere_wrapper(&self._ptr, &nq, &nz, <double *>usol_.data, err)
+    ea_pxd.evoatmosphere_prep_atmosphere_wrapper(self._ptr, &nq, &nz, <double *>usol_.data, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
@@ -124,7 +124,7 @@ cdef class EvoAtmosphere:
     cdef bytes filename_b = pystring2cstring(filename)
     cdef char *filename_c = filename_b
     cdef char err[ERR_LEN+1]
-    ea_pxd.evoatmosphere_out2atmosphere_txt_wrapper(&self._ptr, filename_c, &overwrite, &clip, err)  
+    ea_pxd.evoatmosphere_out2atmosphere_txt_wrapper(self._ptr, filename_c, &overwrite, &clip, err)  
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
@@ -143,7 +143,7 @@ cdef class EvoAtmosphere:
     cdef ndarray top_fluxes = np.empty(self.dat.nq, np.double)
     cdef int nq = self.dat.nq
     cdef char err[ERR_LEN+1]
-    ea_pxd.evoatmosphere_gas_fluxes_wrapper(&self._ptr, &nq, <double *>surf_fluxes.data, <double *>top_fluxes.data, err)
+    ea_pxd.evoatmosphere_gas_fluxes_wrapper(self._ptr, &nq, <double *>surf_fluxes.data, <double *>top_fluxes.data, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     surface = {}
@@ -218,7 +218,7 @@ cdef class EvoAtmosphere:
       pass
       
     cdef char err[ERR_LEN+1]
-    ea_pxd.evoatmosphere_set_lower_bc_wrapper(&self._ptr, species_c, bc_type_c, 
+    ea_pxd.evoatmosphere_set_lower_bc_wrapper(self._ptr, species_c, bc_type_c, 
                                       &vdep_c, &den_c, &press_c, &flux_c, &height_c, &missing, err);
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -256,7 +256,7 @@ cdef class EvoAtmosphere:
         flux_c = flux
       
     cdef char err[ERR_LEN+1]
-    ea_pxd.evoatmosphere_set_upper_bc_wrapper(&self._ptr, species_c, bc_type_c, 
+    ea_pxd.evoatmosphere_set_upper_bc_wrapper(self._ptr, species_c, bc_type_c, 
                                       &veff_c, &flux_c, &missing, err);
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -293,7 +293,7 @@ cdef class EvoAtmosphere:
       fcn_l = fcn.address
       fcn_c = <ea_pxd.time_dependent_rate_fcn> fcn_l
       
-    ea_pxd.evoatmosphere_set_rate_fcn_wrapper(&self._ptr, species_c, fcn_c, err)
+    ea_pxd.evoatmosphere_set_rate_fcn_wrapper(self._ptr, species_c, fcn_c, err)
     if len(err.strip()) > 0:
        raise PhotoException(err.decode("utf-8").strip())
 
@@ -317,7 +317,7 @@ cdef class EvoAtmosphere:
       trop_alt_present = True
       trop_alt_ = trop_alt
       
-    ea_pxd.evoatmosphere_set_temperature_wrapper(&self._ptr, &nz, <double *>temperature.data, 
+    ea_pxd.evoatmosphere_set_temperature_wrapper(self._ptr, &nz, <double *>temperature.data, 
                                        &trop_alt_, &trop_alt_present, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -358,7 +358,7 @@ cdef class EvoAtmosphere:
       hydro_pressure_present = True
       hydro_pressure_ = hydro_pressure
       
-    ea_pxd.evoatmosphere_set_press_temp_edd_wrapper(&self._ptr, &P_dim1, <double *>P.data, &T_dim1, <double *>T.data, &edd_dim1, <double *>edd.data,
+    ea_pxd.evoatmosphere_set_press_temp_edd_wrapper(self._ptr, &P_dim1, <double *>P.data, &T_dim1, <double *>T.data, &edd_dim1, <double *>edd.data,
                                                &trop_p_, &trop_p_present, 
                                                &hydro_pressure_, &hydro_pressure_present, err)
     if len(err.strip()) > 0:
@@ -391,7 +391,7 @@ cdef class EvoAtmosphere:
       TOA_pressure_present = True
       TOA_pressure_ = TOA_pressure
 
-    ea_pxd.evoatmosphere_update_vertical_grid_wrapper(&self._ptr, &TOA_alt_, &TOA_alt_present, 
+    ea_pxd.evoatmosphere_update_vertical_grid_wrapper(self._ptr, &TOA_alt_, &TOA_alt_present, 
                                                   &TOA_pressure_, &TOA_pressure_present, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -416,7 +416,7 @@ cdef class EvoAtmosphere:
     if usol_.shape[0] != nq or usol_.shape[1] != nz:
       raise PhotoException("Input usol is the wrong size.")
       
-    ea_pxd.evoatmosphere_regrid_prep_atmosphere_wrapper(&self._ptr, &nq, &nz, <double *>usol_.data, &top_atmos, err)
+    ea_pxd.evoatmosphere_regrid_prep_atmosphere_wrapper(self._ptr, &nq, &nz, <double *>usol_.data, &top_atmos, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     
@@ -453,7 +453,7 @@ cdef class EvoAtmosphere:
     if usol_.shape[0] != nq or usol_.shape[1] != nz:
       raise PhotoException("Input usol is the wrong size.")
       
-    ea_pxd.evoatmosphere_evolve_wrapper(&self._ptr, filename_c, &tstart, &nq, &nz, <double *>usol_.data, &nt, <double *>t_eval.data, &overwrite, &restart_from_file, &success, err)
+    ea_pxd.evoatmosphere_evolve_wrapper(self._ptr, filename_c, &tstart, &nq, &nz, <double *>usol_.data, &nt, <double *>t_eval.data, &overwrite, &restart_from_file, &success, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     return success
@@ -462,7 +462,7 @@ cdef class EvoAtmosphere:
     "Determines if integration has converged to photochemical steady-state."  
     cdef bool converged
     cdef char err[ERR_LEN+1]
-    ea_pxd.evoatmosphere_check_for_convergence_wrapper(&self._ptr, &converged, err)
+    ea_pxd.evoatmosphere_check_for_convergence_wrapper(self._ptr, &converged, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     return converged
@@ -481,7 +481,7 @@ cdef class EvoAtmosphere:
     cdef ndarray usol_start_ = np.asfortranarray(usol_start)
     if usol_start_.shape[0] != nq or usol_start_.shape[1] != nz:
       raise PhotoException("Input usol_start is the wrong size.")
-    ea_pxd.evoatmosphere_initialize_stepper_wrapper(&self._ptr, &nq, &nz,  <double *>usol_start_.data, err)
+    ea_pxd.evoatmosphere_initialize_stepper_wrapper(self._ptr, &nq, &nz,  <double *>usol_start_.data, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     
@@ -495,7 +495,7 @@ cdef class EvoAtmosphere:
         Current time in the integration.
     """
     cdef char err[ERR_LEN+1]
-    cdef double tn = ea_pxd.evoatmosphere_step_wrapper(&self._ptr, err)
+    cdef double tn = ea_pxd.evoatmosphere_step_wrapper(self._ptr, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     return tn
@@ -503,7 +503,7 @@ cdef class EvoAtmosphere:
   def destroy_stepper(self):
     "Deallocates memory created during `initialize_stepper`"
     cdef char err[ERR_LEN+1]
-    ea_pxd.evoatmosphere_destroy_stepper_wrapper(&self._ptr, err)
+    ea_pxd.evoatmosphere_destroy_stepper_wrapper(self._ptr, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
@@ -534,7 +534,7 @@ cdef class EvoAtmosphere:
       raise PhotoException("Input usol is the wrong size.")
       
     cdef void *pl_ptr
-    ea_pxd.evoatmosphere_production_and_loss_wrapper(&self._ptr, species_c, &nq, &nz, <double *>usol_.data, &pl_ptr, err)
+    ea_pxd.evoatmosphere_production_and_loss_wrapper(self._ptr, species_c, &nq, &nz, <double *>usol_.data, &pl_ptr, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     pl = ProductionLoss()
@@ -545,19 +545,19 @@ cdef class EvoAtmosphere:
     "double. The surface temperature (K)"
     def __get__(self):
       cdef double val
-      ea_pxd.evoatmosphere_t_surf_get(&self._ptr, &val)
+      ea_pxd.evoatmosphere_t_surf_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      ea_pxd.evoatmosphere_t_surf_set(&self._ptr, &val)
+      ea_pxd.evoatmosphere_t_surf_set(self._ptr, &val)
 
   property T_trop:
     "double. The tropopause temperature."
     def __get__(self):
       cdef double val
-      ea_pxd.evoatmosphere_t_trop_get(&self._ptr, &val)
+      ea_pxd.evoatmosphere_t_trop_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      ea_pxd.evoatmosphere_t_trop_set(&self._ptr, &val)
+      ea_pxd.evoatmosphere_t_trop_set(self._ptr, &val)
 
   property albedo_fcn:
     """A function describing a temperature dependent surface albedo.
@@ -581,7 +581,7 @@ cdef class EvoAtmosphere:
         fcn_l = fcn.address
         fcn_c = <ea_pxd.temp_dependent_albedo_fcn> fcn_l
       
-      ea_pxd.evoatmosphere_albedo_fcn_set(&self._ptr, fcn_c)
+      ea_pxd.evoatmosphere_albedo_fcn_set(self._ptr, fcn_c)
 
   property P_top_min:
     """double. When running the `evolve` routine, this determines
@@ -592,10 +592,10 @@ cdef class EvoAtmosphere:
     """
     def __get__(self):
       cdef double val
-      ea_pxd.evoatmosphere_p_top_min_get(&self._ptr, &val)
+      ea_pxd.evoatmosphere_p_top_min_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      ea_pxd.evoatmosphere_p_top_min_set(&self._ptr, &val)
+      ea_pxd.evoatmosphere_p_top_min_set(self._ptr, &val)
 
   property P_top_max:
     """double. When running the `evolve` routine, this determines
@@ -606,10 +606,10 @@ cdef class EvoAtmosphere:
     """
     def __get__(self):
       cdef double val
-      ea_pxd.evoatmosphere_p_top_max_get(&self._ptr, &val)
+      ea_pxd.evoatmosphere_p_top_max_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      ea_pxd.evoatmosphere_p_top_max_set(&self._ptr, &val)
+      ea_pxd.evoatmosphere_p_top_max_set(self._ptr, &val)
 
   property top_atmos_adjust_frac:
     """Sets the fractional amount that the top of the model domain changes
@@ -617,8 +617,8 @@ cdef class EvoAtmosphere:
     """
     def __get__(self):
       cdef double val
-      ea_pxd.evoatmosphere_top_atmos_adjust_frac_get(&self._ptr, &val)
+      ea_pxd.evoatmosphere_top_atmos_adjust_frac_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      ea_pxd.evoatmosphere_top_atmos_adjust_frac_set(&self._ptr, &val)
+      ea_pxd.evoatmosphere_top_atmos_adjust_frac_set(self._ptr, &val)
     

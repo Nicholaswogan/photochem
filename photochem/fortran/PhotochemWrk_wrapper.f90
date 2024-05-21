@@ -4,7 +4,7 @@
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine photochemwrk_nsteps_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
     type(PhotochemWrk), pointer :: var
     call c_f_pointer(ptr, var)
@@ -12,7 +12,7 @@
   end subroutine
 
   subroutine photochemwrk_t_history_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -20,7 +20,7 @@
   end subroutine
   
   subroutine photochemwrk_t_history_get(ptr, dim1, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     real(c_double), intent(out) :: arr(dim1)
     type(PhotochemWrk), pointer :: wrk
@@ -29,7 +29,7 @@
   end subroutine
 
   subroutine photochemwrk_mix_history_get_size(ptr, dim1, dim2, dim3) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1, dim2, dim3
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -39,7 +39,7 @@
   end subroutine
   
   subroutine photochemwrk_mix_history_get(ptr, dim1, dim2, dim3, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1, dim2, dim3
     real(c_double), intent(out) :: arr(dim1, dim2, dim3)
     type(PhotochemWrk), pointer :: wrk
@@ -48,7 +48,7 @@
   end subroutine
 
   subroutine photochemwrk_longdy_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -56,7 +56,7 @@
   end subroutine
 
   subroutine photochemwrk_longdydt_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -64,7 +64,7 @@
   end subroutine
 
   subroutine photochemwrk_tn_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -72,7 +72,7 @@
   end subroutine
   
   subroutine photochemwrk_tn_set(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(in) :: val
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -80,7 +80,7 @@
   end subroutine
   
   subroutine photochemwrk_usol_get_size(ptr, dim1, dim2) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1, dim2
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -89,7 +89,7 @@
   end subroutine
   
   subroutine photochemwrk_usol_get(ptr, dim1, dim2, usol) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1, dim2
     real(c_double), intent(out) :: usol(dim1, dim2)
     type(PhotochemWrk), pointer :: wrk
@@ -98,7 +98,7 @@
   end subroutine
   
   subroutine photochemwrk_usol_set(ptr, dim1, dim2, usol) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1, dim2
     real(c_double), intent(in) :: usol(dim1, dim2)
     type(PhotochemWrk), pointer :: wrk
@@ -107,7 +107,7 @@
   end subroutine
   
   subroutine photochemwrk_pressure_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -115,7 +115,7 @@
   end subroutine
   
   subroutine photochemwrk_pressure_get(ptr, dim1, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     real(c_double), intent(out) :: arr(dim1)
     type(PhotochemWrk), pointer :: wrk
@@ -124,7 +124,7 @@
   end subroutine
   
   subroutine photochemwrk_density_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -132,7 +132,7 @@
   end subroutine
   
   subroutine photochemwrk_density_get(ptr, dim1, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     real(c_double), intent(out) :: arr(dim1)
     type(PhotochemWrk), pointer :: wrk
@@ -141,7 +141,7 @@
   end subroutine
   
   subroutine photochemwrk_densities_get_size(ptr, dim1, dim2) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1, dim2
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -150,7 +150,7 @@
   end subroutine
   
   subroutine photochemwrk_densities_get(ptr, dim1, dim2, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1, dim2
     real(c_double), intent(out) :: arr(dim1, dim2)
     type(PhotochemWrk), pointer :: wrk
@@ -159,7 +159,7 @@
   end subroutine
 
   subroutine photochemwrk_rx_rates_get_size(ptr, dim1, dim2) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1, dim2
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -168,7 +168,7 @@
   end subroutine
   
   subroutine photochemwrk_rx_rates_get(ptr, dim1, dim2, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1, dim2
     real(c_double), intent(out) :: arr(dim1, dim2)
     type(PhotochemWrk), pointer :: wrk
@@ -177,7 +177,7 @@
   end subroutine
 
   subroutine photochemwrk_mubar_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -185,7 +185,7 @@
   end subroutine
   
   subroutine photochemwrk_mubar_get(ptr, dim1, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     real(c_double), intent(out) :: arr(dim1)
     type(PhotochemWrk), pointer :: wrk
@@ -194,7 +194,7 @@
   end subroutine
   
   subroutine photochemwrk_prates_get_size(ptr, dim1, dim2) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1, dim2
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -203,7 +203,7 @@
   end subroutine
   
   subroutine photochemwrk_prates_get(ptr, dim1, dim2, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1, dim2
     real(c_double), intent(out) :: arr(dim1, dim2)
     type(PhotochemWrk), pointer :: wrk
@@ -212,7 +212,7 @@
   end subroutine
   
   subroutine photochemwrk_amean_grd_get_size(ptr, dim1, dim2) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1, dim2
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -221,7 +221,7 @@
   end subroutine
   
   subroutine photochemwrk_amean_grd_get(ptr, dim1, dim2, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1, dim2
     real(c_double), intent(out) :: arr(dim1, dim2)
     type(PhotochemWrk), pointer :: wrk
@@ -230,7 +230,7 @@
   end subroutine
   
   subroutine photochemwrk_optical_depth_get_size(ptr, dim1, dim2) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1, dim2
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -239,7 +239,7 @@
   end subroutine
   
   subroutine photochemwrk_optical_depth_get(ptr, dim1, dim2, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1, dim2
     real(c_double), intent(out) :: arr(dim1, dim2)
     type(PhotochemWrk), pointer :: wrk
@@ -248,7 +248,7 @@
   end subroutine
   
   subroutine photochemwrk_surf_radiance_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -256,7 +256,7 @@
   end subroutine
   
   subroutine photochemwrk_surf_radiance_get(ptr, dim1, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     real(c_double), intent(out) :: arr(dim1)
     type(PhotochemWrk), pointer :: wrk
@@ -267,7 +267,7 @@
 ! PhotochemWrkEvo
 
   subroutine photochemwrkevo_pressure_hydro_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(PhotochemWrkEvo), pointer :: wrk
     call c_f_pointer(ptr, wrk)
@@ -275,7 +275,7 @@
   end subroutine
   
   subroutine photochemwrkevo_pressure_hydro_get(ptr, dim1, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     real(c_double), intent(out) :: arr(dim1)
     type(PhotochemWrkEvo), pointer :: wrk

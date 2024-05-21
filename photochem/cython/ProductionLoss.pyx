@@ -11,7 +11,7 @@ cdef class ProductionLoss:
     self._ptr = NULL
 
   def __dealloc__(self):
-    pl_pxd.deallocate_productionloss(&self._ptr)
+    pl_pxd.deallocate_productionloss(self._ptr)
     self._ptr = NULL 
       
   property production:
@@ -21,9 +21,9 @@ cdef class ProductionLoss:
     """
     def __get__(self):
       cdef int dim1, dim2
-      pl_pxd.productionloss_production_get_size(&self._ptr, &dim1, &dim2)
+      pl_pxd.productionloss_production_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
-      pl_pxd.productionloss_production_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
+      pl_pxd.productionloss_production_get(self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
       
   property loss:
@@ -33,9 +33,9 @@ cdef class ProductionLoss:
     """
     def __get__(self):
       cdef int dim1, dim2
-      pl_pxd.productionloss_loss_get_size(&self._ptr, &dim1, &dim2)
+      pl_pxd.productionloss_loss_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
-      pl_pxd.productionloss_loss_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
+      pl_pxd.productionloss_loss_get(self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
   
   property integrated_production:
@@ -44,9 +44,9 @@ cdef class ProductionLoss:
     """
     def __get__(self):
       cdef int dim1
-      pl_pxd.productionloss_integrated_production_get_size(&self._ptr, &dim1)
+      pl_pxd.productionloss_integrated_production_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty((dim1), np.double)
-      pl_pxd.productionloss_integrated_production_get(&self._ptr, &dim1, <double *>arr.data)
+      pl_pxd.productionloss_integrated_production_get(self._ptr, &dim1, <double *>arr.data)
       return arr
       
   property integrated_loss:
@@ -55,26 +55,26 @@ cdef class ProductionLoss:
     """
     def __get__(self):
       cdef int dim1
-      pl_pxd.productionloss_integrated_loss_get_size(&self._ptr, &dim1)
+      pl_pxd.productionloss_integrated_loss_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty((dim1), np.double)
-      pl_pxd.productionloss_integrated_loss_get(&self._ptr, &dim1, <double *>arr.data)
+      pl_pxd.productionloss_integrated_loss_get(self._ptr, &dim1, <double *>arr.data)
       return arr
       
   property production_rx:
     "List, shape (nproduction). The reaction equations that produce the molecule."
     def __get__(self):
       cdef int dim1
-      pl_pxd.productionloss_production_rx_get_size(&self._ptr, &dim1)
+      pl_pxd.productionloss_production_rx_get_size(self._ptr, &dim1)
       cdef ndarray names_c = np.empty(dim1*M_STR_LEN + 1, 'S1')
-      pl_pxd.productionloss_production_rx_get(&self._ptr, &dim1, <char *>names_c.data)
+      pl_pxd.productionloss_production_rx_get(self._ptr, &dim1, <char *>names_c.data)
       return c2stringarr(names_c, M_STR_LEN, dim1)
     
   property loss_rx:
     "List, shape (nloss). The reaction equations that destroy the molecule."
     def __get__(self):
       cdef int dim1
-      pl_pxd.productionloss_loss_rx_get_size(&self._ptr, &dim1)
+      pl_pxd.productionloss_loss_rx_get_size(self._ptr, &dim1)
       cdef ndarray names_c = np.empty(dim1*M_STR_LEN + 1, 'S1')
-      pl_pxd.productionloss_loss_rx_get(&self._ptr, &dim1, <char *>names_c.data)
+      pl_pxd.productionloss_loss_rx_get(self._ptr, &dim1, <char *>names_c.data)
       return c2stringarr(names_c, M_STR_LEN, dim1)
   

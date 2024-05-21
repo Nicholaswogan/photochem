@@ -4,7 +4,7 @@
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
   
   subroutine photochemdata_nq_get(ptr, nq) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: nq
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -12,7 +12,7 @@
   end subroutine
   
   subroutine photochemdata_np_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -20,7 +20,7 @@
   end subroutine
   
   subroutine photochemdata_nsp_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -28,7 +28,7 @@
   end subroutine
   
   subroutine photochemdata_ng_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -36,7 +36,7 @@
   end subroutine
   
   subroutine photochemdata_nsl_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -44,7 +44,7 @@
   end subroutine
   
   subroutine photochemdata_nll_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -52,7 +52,7 @@
   end subroutine
   
   subroutine photochemdata_nw_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -60,7 +60,7 @@
   end subroutine
 
   subroutine photochemdata_planet_mass_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -68,7 +68,7 @@
   end subroutine
 
   subroutine photochemdata_planet_radius_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -76,7 +76,7 @@
   end subroutine
 
   subroutine photochemdata_planet_radius_set(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(in) :: val
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -84,7 +84,7 @@
   end subroutine
   
   subroutine photochemdata_species_names_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -92,7 +92,7 @@
   end subroutine
   
   subroutine photochemdata_species_names_get(ptr, dim1, species_names) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     character(kind=c_char), intent(out) :: species_names(dim1*s_str_len+1)
     type(PhotochemData), pointer :: dat
@@ -112,7 +112,7 @@
   end subroutine
   
   subroutine photochemdata_atoms_names_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -120,7 +120,7 @@
   end subroutine
   
   subroutine photochemdata_atoms_names_get(ptr, dim1, names) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     character(kind=c_char), intent(out) :: names(dim1*s_str_len+1)
     type(PhotochemData), pointer :: dat
@@ -140,7 +140,7 @@
   end subroutine
   
   subroutine photochemdata_reaction_equations_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -148,7 +148,7 @@
   end subroutine
   
   subroutine photochemdata_reaction_equations_get(ptr, dim1, names) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     character(kind=c_char), intent(out) :: names(dim1*m_str_len+1)
     type(PhotochemData), pointer :: dat
@@ -167,7 +167,7 @@
   end subroutine
   
   subroutine photochemdata_photonums_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -175,7 +175,7 @@
   end subroutine
   
   subroutine photochemdata_photonums_get(ptr, dim1, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     integer(c_int), intent(out) :: arr(dim1)
     type(PhotochemData), pointer :: dat
@@ -184,7 +184,7 @@
   end subroutine
   
   subroutine photochemdata_wavl_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -192,7 +192,7 @@
   end subroutine
   
   subroutine photochemdata_wavl_get(ptr, dim1, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     real(c_double), intent(out) :: arr(dim1)
     type(PhotochemData), pointer :: dat
@@ -201,7 +201,7 @@
   end subroutine
   
   subroutine photochemdata_species_mass_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -209,7 +209,7 @@
   end subroutine
   
   subroutine photochemdata_species_mass_get(ptr, dim1, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     real(c_double), intent(out) :: arr(dim1)
     type(PhotochemData), pointer :: dat
@@ -218,7 +218,7 @@
   end subroutine
   
   subroutine photochemdata_species_redox_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(PhotochemData), pointer :: dat
     call c_f_pointer(ptr, dat)
@@ -226,7 +226,7 @@
   end subroutine
   
   subroutine photochemdata_species_redox_get(ptr, dim1, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     real(c_double), intent(out) :: arr(dim1)
     type(PhotochemData), pointer :: dat

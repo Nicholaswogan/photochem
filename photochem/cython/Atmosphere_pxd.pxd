@@ -6,7 +6,7 @@ cdef extern from "<stdbool.h>":
 ctypedef void (*time_dependent_rate_fcn)(double tn, int nz, double *rate)
 
 # allocate and destroy
-cdef extern void allocate_atmosphere(void *ptr);
+cdef extern void *allocate_atmosphere();
 cdef extern void deallocate_atmosphere(void *ptr);
 
 # subroutines

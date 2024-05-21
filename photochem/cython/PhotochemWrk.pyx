@@ -8,9 +8,9 @@ cdef class PhotochemWrkEvo(PhotochemWrk):
     """
     def __get__(self):
       cdef int dim1
-      wrk_pxd.photochemwrkevo_pressure_hydro_get_size(&self._ptr, &dim1)
+      wrk_pxd.photochemwrkevo_pressure_hydro_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty(dim1, np.double)
-      wrk_pxd.photochemwrkevo_pressure_hydro_get(&self._ptr, &dim1, <double *>arr.data)
+      wrk_pxd.photochemwrkevo_pressure_hydro_get(self._ptr, &dim1, <double *>arr.data)
       return arr
 
 cdef class PhotochemWrk:
@@ -27,7 +27,7 @@ cdef class PhotochemWrk:
     "int. Number of integration steps excuted. Updated after every successful step."
     def __get__(self):
       cdef int val
-      wrk_pxd.photochemwrk_nsteps_get(&self._ptr, &val)
+      wrk_pxd.photochemwrk_nsteps_get(self._ptr, &val)
       return val
 
   property t_history:
@@ -36,9 +36,9 @@ cdef class PhotochemWrk:
     """
     def __get__(self):
       cdef int dim1
-      wrk_pxd.photochemwrk_t_history_get_size(&self._ptr, &dim1)
+      wrk_pxd.photochemwrk_t_history_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty((dim1), np.double, order="F")
-      wrk_pxd.photochemwrk_t_history_get(&self._ptr, &dim1, <double *>arr.data)
+      wrk_pxd.photochemwrk_t_history_get(self._ptr, &dim1, <double *>arr.data)
       return arr
 
   property mix_history:
@@ -47,16 +47,16 @@ cdef class PhotochemWrk:
     """
     def __get__(self):
       cdef int dim1,dim2,dim3
-      wrk_pxd.photochemwrk_mix_history_get_size(&self._ptr, &dim1, &dim2, &dim3)
+      wrk_pxd.photochemwrk_mix_history_get_size(self._ptr, &dim1, &dim2, &dim3)
       cdef ndarray arr = np.empty((dim1,dim2,dim3), np.double, order="F")
-      wrk_pxd.photochemwrk_mix_history_get(&self._ptr, &dim1, &dim2, &dim3, <double *>arr.data)
+      wrk_pxd.photochemwrk_mix_history_get(self._ptr, &dim1, &dim2, &dim3, <double *>arr.data)
       return arr
 
   property longdy:
     "double. Normalized change in mixing ratios over some number of integrations steps."
     def __get__(self):
       cdef double val
-      wrk_pxd.photochemwrk_longdy_get(&self._ptr, &val)
+      wrk_pxd.photochemwrk_longdy_get(self._ptr, &val)
       return val
 
   property longdydt:
@@ -65,17 +65,17 @@ cdef class PhotochemWrk:
     """
     def __get__(self):
       cdef double val
-      wrk_pxd.photochemwrk_longdydt_get(&self._ptr, &val)
+      wrk_pxd.photochemwrk_longdydt_get(self._ptr, &val)
       return val
 
   property tn:
     "double. The current time of integration."
     def __get__(self):
       cdef double val
-      wrk_pxd.photochemwrk_tn_get(&self._ptr, &val)
+      wrk_pxd.photochemwrk_tn_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      wrk_pxd.photochemwrk_tn_set(&self._ptr, &val)
+      wrk_pxd.photochemwrk_tn_set(self._ptr, &val)
 
   property usol:
     """ndarray[double,dim=2], shape (nq,nz). Current gas concentrations in the atmosphere.
@@ -83,17 +83,17 @@ cdef class PhotochemWrk:
     """
     def __get__(self):
       cdef int dim1, dim2
-      wrk_pxd.photochemwrk_usol_get_size(&self._ptr, &dim1, &dim2)
+      wrk_pxd.photochemwrk_usol_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
-      wrk_pxd.photochemwrk_usol_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
+      wrk_pxd.photochemwrk_usol_get(self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
     def __set__(self, ndarray[double, ndim=2] usol_new_):
       cdef int dim1, dim2
-      wrk_pxd.photochemwrk_usol_get_size(&self._ptr, &dim1, &dim2)
+      wrk_pxd.photochemwrk_usol_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray usol_new = np.asfortranarray(usol_new_)
       if usol_new.shape[0] != dim1 or usol_new.shape[1] != dim2:
         raise PhotoException("Input usol is the wrong size.")
-      wrk_pxd.photochemwrk_usol_set(&self._ptr, &dim1, &dim2, <double *>usol_new.data)  
+      wrk_pxd.photochemwrk_usol_set(self._ptr, &dim1, &dim2, <double *>usol_new.data)  
   
   property pressure:
     """ndarray[double,dim=1], shape (nz). The pressure at the center of each 
@@ -101,9 +101,9 @@ cdef class PhotochemWrk:
     """
     def __get__(self):
       cdef int dim1
-      wrk_pxd.photochemwrk_pressure_get_size(&self._ptr, &dim1)
+      wrk_pxd.photochemwrk_pressure_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty(dim1, np.double)
-      wrk_pxd.photochemwrk_pressure_get(&self._ptr, &dim1, <double *>arr.data)
+      wrk_pxd.photochemwrk_pressure_get(self._ptr, &dim1, <double *>arr.data)
       return arr
       
   property density:
@@ -112,9 +112,9 @@ cdef class PhotochemWrk:
     """
     def __get__(self):
       cdef int dim1
-      wrk_pxd.photochemwrk_density_get_size(&self._ptr, &dim1)
+      wrk_pxd.photochemwrk_density_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty(dim1, np.double)
-      wrk_pxd.photochemwrk_density_get(&self._ptr, &dim1, <double *>arr.data)
+      wrk_pxd.photochemwrk_density_get(self._ptr, &dim1, <double *>arr.data)
       return arr
       
   property densities:
@@ -124,9 +124,9 @@ cdef class PhotochemWrk:
     """
     def __get__(self):
       cdef int dim1, dim2
-      wrk_pxd.photochemwrk_densities_get_size(&self._ptr, &dim1, &dim2)
+      wrk_pxd.photochemwrk_densities_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
-      wrk_pxd.photochemwrk_densities_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
+      wrk_pxd.photochemwrk_densities_get(self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
 
   property rx_rates:
@@ -135,9 +135,9 @@ cdef class PhotochemWrk:
     """
     def __get__(self):
       cdef int dim1, dim2
-      wrk_pxd.photochemwrk_rx_rates_get_size(&self._ptr, &dim1, &dim2)
+      wrk_pxd.photochemwrk_rx_rates_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
-      wrk_pxd.photochemwrk_rx_rates_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
+      wrk_pxd.photochemwrk_rx_rates_get(self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
       
   property mubar:
@@ -146,18 +146,18 @@ cdef class PhotochemWrk:
     """
     def __get__(self):
       cdef int dim1
-      wrk_pxd.photochemwrk_mubar_get_size(&self._ptr, &dim1)
+      wrk_pxd.photochemwrk_mubar_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty(dim1, np.double)
-      wrk_pxd.photochemwrk_mubar_get(&self._ptr, &dim1, <double *>arr.data)
+      wrk_pxd.photochemwrk_mubar_get(self._ptr, &dim1, <double *>arr.data)
       return arr
       
   property prates:
     "ndarray[double,dim=2], shape (nz,kj). The rates of each photolysis reaction (1/s)"
     def __get__(self):
       cdef int dim1, dim2
-      wrk_pxd.photochemwrk_prates_get_size(&self._ptr, &dim1, &dim2)
+      wrk_pxd.photochemwrk_prates_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
-      wrk_pxd.photochemwrk_prates_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
+      wrk_pxd.photochemwrk_prates_get(self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
   
   property amean_grd:
@@ -167,9 +167,9 @@ cdef class PhotochemWrk:
     """
     def __get__(self):
       cdef int dim1, dim2
-      wrk_pxd.photochemwrk_amean_grd_get_size(&self._ptr, &dim1, &dim2)
+      wrk_pxd.photochemwrk_amean_grd_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
-      wrk_pxd.photochemwrk_amean_grd_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
+      wrk_pxd.photochemwrk_amean_grd_get(self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
       
   property optical_depth:
@@ -178,9 +178,9 @@ cdef class PhotochemWrk:
     """
     def __get__(self):
       cdef int dim1, dim2
-      wrk_pxd.photochemwrk_optical_depth_get_size(&self._ptr, &dim1, &dim2)
+      wrk_pxd.photochemwrk_optical_depth_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
-      wrk_pxd.photochemwrk_optical_depth_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
+      wrk_pxd.photochemwrk_optical_depth_get(self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
       
   property surf_radiance:
@@ -189,8 +189,8 @@ cdef class PhotochemWrk:
     """
     def __get__(self):
       cdef int dim1
-      wrk_pxd.photochemwrk_surf_radiance_get_size(&self._ptr, &dim1)
+      wrk_pxd.photochemwrk_surf_radiance_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty(dim1, np.double)
-      wrk_pxd.photochemwrk_surf_radiance_get(&self._ptr, &dim1, <double *>arr.data)
+      wrk_pxd.photochemwrk_surf_radiance_get(self._ptr, &dim1, <double *>arr.data)
       return arr
   

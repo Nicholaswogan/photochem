@@ -3,15 +3,15 @@
   !!! allocator and destroyer !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-  subroutine allocate_evoatmosphere(ptr) bind(c)
-    type(c_ptr), intent(out) :: ptr
+  function allocate_evoatmosphere() result(ptr) bind(c)
+    type(c_ptr) :: ptr
     type(EvoAtmosphere), pointer :: pc
     allocate(pc)
     ptr = c_loc(pc)
-  end subroutine
+  end function
   
   subroutine deallocate_evoatmosphere(ptr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     type(EvoAtmosphere), pointer :: pc
     character(:), allocatable :: err_f
     
@@ -26,7 +26,7 @@
   subroutine evoatmosphere_create_wrapper(ptr, mechanism_file, &
                                         settings_file, flux_file, &
                                         atmosphere_txt, data_dir, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: mechanism_file(*)
     character(kind=c_char), intent(in) :: settings_file(*)
     character(kind=c_char), intent(in) :: flux_file(*)
@@ -70,7 +70,7 @@
   end subroutine
 
   subroutine evoatmosphere_dat_get(ptr, ptr1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     type(c_ptr), intent(out) :: ptr1
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -78,7 +78,7 @@
   end subroutine
 
   subroutine evoatmosphere_var_get(ptr, ptr1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     type(c_ptr), intent(out) :: ptr1
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -86,7 +86,7 @@
   end subroutine
 
   subroutine evoatmosphere_wrk_get(ptr, ptr1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     type(c_ptr), intent(out) :: ptr1
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -94,7 +94,7 @@
   end subroutine
 
   subroutine evoatmosphere_prep_atmosphere_wrapper(ptr, nq, nz, usol, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: nq, nz
     real(c_double), intent(in) :: usol(nq, nz)
     character(kind=c_char), intent(out) :: err(err_len+1)
@@ -112,7 +112,7 @@
   end subroutine
 
   subroutine evoatmosphere_out2atmosphere_txt_wrapper(ptr, filename, overwrite, clip, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: filename(*)
     logical(c_bool), intent(in) :: overwrite, clip
     character(kind=c_char), intent(out) :: err(err_len+1)
@@ -138,7 +138,7 @@
   end subroutine
 
   subroutine evoatmosphere_gas_fluxes_wrapper(ptr, nq, surf_fluxes, top_fluxes, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: nq
     real(c_double), intent(out) :: surf_fluxes(nq)
     real(c_double), intent(out) :: top_fluxes(nq)
@@ -156,7 +156,7 @@
   end subroutine
 
   subroutine evoatmosphere_set_lower_bc_wrapper(ptr, species, bc_type, vdep, den, press, flux, height, missing, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: species(*)
     character(kind=c_char), intent(in) :: bc_type(*)
     real(c_double), intent(in) :: vdep
@@ -192,7 +192,7 @@
   end subroutine
   
   subroutine evoatmosphere_set_upper_bc_wrapper(ptr, species, bc_type, veff, flux, missing, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: species(*)
     character(kind=c_char), intent(in) :: bc_type(*)
     real(c_double), intent(in) :: veff
@@ -226,7 +226,7 @@
 
   subroutine evoatmosphere_set_rate_fcn_wrapper(ptr, species_c, fcn_c, err) bind(c)
     use photochem_types, only: time_dependent_rate_fcn
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: species_c(*)
     type(c_funptr), value, intent(in) :: fcn_c
     character(kind=c_char), intent(out) :: err(err_len+1)
@@ -258,7 +258,7 @@
 
   subroutine evoatmosphere_set_temperature_wrapper(ptr, nz, temperature, &
                                                 trop_alt, trop_alt_present, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: nz
     real(c_double), intent(in) :: temperature(nz)
     real(c_double), intent(in) :: trop_alt
@@ -285,7 +285,7 @@
   subroutine evoatmosphere_set_press_temp_edd_wrapper(ptr, P_dim1, P, T_dim1, T, edd_dim1, edd, &
                                                       trop_p, trop_p_present, &
                                                       hydro_pressure, hydro_pressure_present, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: P_dim1
     real(c_double), intent(in) :: P(P_dim1)
     integer(c_int), intent(in) :: T_dim1
@@ -324,7 +324,7 @@
   
   subroutine evoatmosphere_update_vertical_grid_wrapper(ptr, TOA_alt, TOA_alt_present, &
                                                      TOA_pressure, TOA_pressure_present, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(in) :: TOA_alt
     logical(c_bool), intent(in) :: TOA_alt_present
     real(c_double), intent(in) :: TOA_pressure
@@ -354,7 +354,7 @@
   end subroutine
 
   subroutine evoatmosphere_regrid_prep_atmosphere_wrapper(ptr, nq, nz, usol, top_atmos, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: nq, nz
     real(c_double), intent(in) :: usol(nq, nz)
     real(c_double), intent(in) :: top_atmos
@@ -374,7 +374,7 @@
   
   subroutine evoatmosphere_evolve_wrapper(ptr, filename, tstart, nq, nz, usol, nt, t_eval, overwrite, restart_from_file, &
                                           success, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: filename(*)
     real(c_double), intent(inout) :: tstart
     integer(c_int), intent(in) :: nq, nz
@@ -408,7 +408,7 @@
   end subroutine
 
   subroutine evoatmosphere_check_for_convergence_wrapper(ptr, converged, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     logical(c_bool), intent(out) :: converged
     character(len=c_char), intent(out) :: err(err_len+1)
     
@@ -428,7 +428,7 @@
   end subroutine
 
   subroutine evoatmosphere_initialize_stepper_wrapper(ptr, nq, nz, usol_start, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: nq, nz
     real(c_double), intent(in) :: usol_start(nq, nz)
     character(len=c_char), intent(out) :: err(err_len+1)
@@ -446,7 +446,7 @@
   end subroutine
   
   function evoatmosphere_step_wrapper(ptr, err) result(tn) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(len=c_char), intent(out) :: err(err_len+1)
     real(c_double) :: tn
   
@@ -462,7 +462,7 @@
   end function
   
   subroutine evoatmosphere_destroy_stepper_wrapper(ptr, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(len=c_char), intent(out) :: err(err_len+1)
     
     character(:), allocatable :: err_f
@@ -479,7 +479,7 @@
 
   subroutine evoatmosphere_production_and_loss_wrapper(ptr, species, nq, nz, usol, pl_ptr, err) bind(c)
     use photochem, only: ProductionLoss
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: species(*)
     integer(c_int), intent(in) :: nq, nz
     real(c_double), intent(in) :: usol(nq, nz)
@@ -514,7 +514,7 @@
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine evoatmosphere_t_surf_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -522,7 +522,7 @@
   end subroutine
 
   subroutine evoatmosphere_t_surf_set(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(in) :: val
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -530,7 +530,7 @@
   end subroutine
   
   subroutine evoatmosphere_t_trop_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -538,7 +538,7 @@
   end subroutine
 
   subroutine evoatmosphere_t_trop_set(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(in) :: val
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -547,7 +547,7 @@
 
   subroutine evoatmosphere_albedo_fcn_set(ptr, albedo_fcn_c) bind(c)
     use photochem_evoatmosphere, only: temp_dependent_albedo_fcn
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     type(c_funptr), value, intent(in) :: albedo_fcn_c
 
     procedure(temp_dependent_albedo_fcn), pointer :: albedo_fcn_f
@@ -560,7 +560,7 @@
   end subroutine
   
   subroutine evoatmosphere_p_top_min_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -568,7 +568,7 @@
   end subroutine
 
   subroutine evoatmosphere_p_top_min_set(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(in) :: val
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -576,7 +576,7 @@
   end subroutine
 
   subroutine evoatmosphere_p_top_max_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -584,7 +584,7 @@
   end subroutine
 
   subroutine evoatmosphere_p_top_max_set(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(in) :: val
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -592,7 +592,7 @@
   end subroutine
 
   subroutine evoatmosphere_top_atmos_adjust_frac_get(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -600,7 +600,7 @@
   end subroutine
 
   subroutine evoatmosphere_top_atmos_adjust_frac_set(ptr, val) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(in) :: val
     type(EvoAtmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)

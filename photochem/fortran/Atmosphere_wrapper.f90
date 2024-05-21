@@ -13,15 +13,15 @@
   !!! allocator and destroyer !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-  subroutine allocate_atmosphere(ptr) bind(c)
-    type(c_ptr), intent(out) :: ptr
+  function allocate_atmosphere() result(ptr) bind(c)
+    type(c_ptr) :: ptr
     type(Atmosphere), pointer :: pc
     allocate(pc)
     ptr = c_loc(pc)
-  end subroutine
+  end function
   
   subroutine deallocate_atmosphere(ptr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     type(Atmosphere), pointer :: pc
     character(:), allocatable :: err_f
     call c_f_pointer(ptr, pc)
@@ -35,7 +35,7 @@
   subroutine atmosphere_create_wrapper(ptr, mechanism_file, &
                                      settings_file, flux_file, &
                                      atmosphere_txt, data_dir, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: mechanism_file(*)
     character(kind=c_char), intent(in) :: settings_file(*)
     character(kind=c_char), intent(in) :: flux_file(*)
@@ -79,7 +79,7 @@
   end subroutine
 
   subroutine atmosphere_dat_get(ptr, ptr1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     type(c_ptr), intent(out) :: ptr1
     type(Atmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -87,7 +87,7 @@
   end subroutine
 
   subroutine atmosphere_var_get(ptr, ptr1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     type(c_ptr), intent(out) :: ptr1
     type(Atmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -95,7 +95,7 @@
   end subroutine
 
   subroutine atmosphere_wrk_get(ptr, ptr1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     type(c_ptr), intent(out) :: ptr1
     type(Atmosphere), pointer :: pc
     call c_f_pointer(ptr, pc)
@@ -103,7 +103,7 @@
   end subroutine
   
   subroutine atmosphere_photochemical_equilibrium_wrapper(ptr, success, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     logical(c_bool), intent(out) :: success
     character(len=c_char), intent(out) :: err(err_len+1)
     
@@ -123,7 +123,7 @@
   end subroutine
 
   subroutine atmosphere_check_for_convergence_wrapper(ptr, converged, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     logical(c_bool), intent(out) :: converged
     character(len=c_char), intent(out) :: err(err_len+1)
     
@@ -143,7 +143,7 @@
   end subroutine
   
   subroutine atmosphere_out2atmosphere_txt_wrapper(ptr, filename, overwrite, clip, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: filename(*)
     logical(c_bool), intent(in) :: overwrite, clip
     character(kind=c_char), intent(out) :: err(err_len+1)
@@ -169,7 +169,7 @@
   end subroutine
   
   subroutine atmosphere_out2in_wrapper(ptr, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(out) :: err(err_len+1)
     
     character(:), allocatable :: err_f
@@ -186,7 +186,7 @@
   end subroutine
   
   subroutine atmosphere_gas_fluxes_wrapper(ptr, nq, surf_fluxes, top_fluxes, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: nq
     real(c_double), intent(out) :: surf_fluxes(nq)
     real(c_double), intent(out) :: top_fluxes(nq)
@@ -204,7 +204,7 @@
   end subroutine
   
   subroutine atmosphere_set_lower_bc_wrapper(ptr, species, bc_type, vdep, mix, flux, height, missing, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: species(*)
     character(kind=c_char), intent(in) :: bc_type(*)
     real(c_double), intent(in) :: vdep
@@ -239,7 +239,7 @@
   end subroutine
   
   subroutine atmosphere_set_upper_bc_wrapper(ptr, species, bc_type, veff, flux, missing, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: species(*)
     character(kind=c_char), intent(in) :: bc_type(*)
     real(c_double), intent(in) :: veff
@@ -272,7 +272,7 @@
   end subroutine
   
   subroutine atmosphere_initialize_stepper_wrapper(ptr, nq, nz, usol_start, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: nq, nz
     real(c_double), intent(in) :: usol_start(nq, nz)
     character(len=c_char), intent(out) :: err(err_len+1)
@@ -290,7 +290,7 @@
   end subroutine
   
   function atmosphere_step_wrapper(ptr, err) result(tn) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(len=c_char), intent(out) :: err(err_len+1)
     real(c_double) :: tn
   
@@ -306,7 +306,7 @@
   end function
   
   subroutine atmosphere_destroy_stepper_wrapper(ptr, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(len=c_char), intent(out) :: err(err_len+1)
     
     character(:), allocatable :: err_f
@@ -323,7 +323,7 @@
   
   subroutine atmosphere_production_and_loss_wrapper(ptr, species, nq, nz, usol, pl_ptr, err) bind(c)
     use photochem, only: ProductionLoss
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: species(*)
     integer(c_int), intent(in) :: nq, nz
     real(c_double), intent(in) :: usol(nq, nz)
@@ -355,7 +355,7 @@
   end subroutine
   
   subroutine atmosphere_prep_atmosphere_wrapper(ptr, nq, nz, usol, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: nq, nz
     real(c_double), intent(in) :: usol(nq, nz)
     character(kind=c_char), intent(out) :: err(err_len+1)
@@ -374,7 +374,7 @@
   end subroutine
   
   subroutine atmosphere_redox_conservation_wrapper(ptr, redox_factor, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: redox_factor
     character(kind=c_char), intent(out) :: err(err_len+1)
     
@@ -393,7 +393,7 @@
   
   subroutine atmosphere_atom_conservation_wrapper(ptr, atom, con_ptr, err) bind(c)
     use photochem_types, only: AtomConservation
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: atom(*)
     type(c_ptr), intent(out) :: con_ptr
     character(kind=c_char), intent(out) :: err(err_len+1)
@@ -424,7 +424,7 @@
   end subroutine
   
   subroutine atmosphere_evolve_wrapper(ptr, filename, tstart, nq, nz, usol, nt, t_eval, overwrite, success, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: filename(*)
     real(c_double), intent(in) :: tstart
     integer(c_int), intent(in) :: nq, nz
@@ -457,7 +457,7 @@
   
   subroutine atmosphere_set_temperature_wrapper(ptr, nz, temperature, &
                                                 trop_alt, trop_alt_present, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: nz
     real(c_double), intent(in) :: temperature(nz)
     real(c_double), intent(in) :: trop_alt
@@ -483,7 +483,7 @@
 
   subroutine atmosphere_set_press_temp_edd_wrapper(ptr, P_dim1, P, T_dim1, T, edd_dim1, edd, &
                                                   trop_p, trop_p_present, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: P_dim1
     real(c_double), intent(in) :: P(P_dim1)
     integer(c_int), intent(in) :: T_dim1
@@ -513,7 +513,7 @@
 
   subroutine atmosphere_set_rate_fcn_wrapper(ptr, species_c, fcn_c, err) bind(c)
     use photochem_types, only: time_dependent_rate_fcn
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: species_c(*)
     type(c_funptr), value, intent(in) :: fcn_c
     character(kind=c_char), intent(out) :: err(err_len+1)
@@ -545,7 +545,7 @@
 
   subroutine atmosphere_update_vertical_grid_wrapper(ptr, TOA_alt, TOA_alt_present, &
                                                      TOA_pressure, TOA_pressure_present, err) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(in) :: TOA_alt
     logical(c_bool), intent(in) :: TOA_alt_present
     real(c_double), intent(in) :: TOA_pressure

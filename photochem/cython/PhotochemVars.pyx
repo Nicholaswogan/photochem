@@ -14,21 +14,21 @@ cdef class PhotochemVars:
     "The number of vertical atmospheric layers"
     def __get__(self):
       cdef int nz
-      var_pxd.photochemvars_nz_get(&self._ptr, &nz)
+      var_pxd.photochemvars_nz_get(self._ptr, &nz)
       return nz
 
   property top_atmos:
     "The top of the model domain (cm)"
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_top_atmos_get(&self._ptr, &val)
+      var_pxd.photochemvars_top_atmos_get(self._ptr, &val)
       return val
 
   property bottom_atmos:
     "The bottom of the model domain (cm)"
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_bottom_atmos_get(&self._ptr, &val)
+      var_pxd.photochemvars_bottom_atmos_get(self._ptr, &val)
       return val
       
   property usol_init:
@@ -38,39 +38,39 @@ cdef class PhotochemVars:
     """
     def __get__(self):
       cdef int dim1, dim2
-      var_pxd.photochemvars_usol_init_get_size(&self._ptr, &dim1, &dim2)
+      var_pxd.photochemvars_usol_init_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
-      var_pxd.photochemvars_usol_init_get(&self._ptr, &dim1, &dim2, <double *>arr.data)
+      var_pxd.photochemvars_usol_init_get(self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
 
   property trop_alt:
     "double. Tropopause altitude."
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_trop_alt_get(&self._ptr, &val)
+      var_pxd.photochemvars_trop_alt_get(self._ptr, &val)
       return val
 
   property trop_ind:
     "int. Tropopause index."
     def __get__(self):
       cdef int val
-      var_pxd.photochemvars_trop_ind_get(&self._ptr, &val)
+      var_pxd.photochemvars_trop_ind_get(self._ptr, &val)
       return val
 
   property relative_humidity:
     "double. Relative humidity of H2O in the troposphere."
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_relative_humidity_get(&self._ptr, &val)
+      var_pxd.photochemvars_relative_humidity_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      var_pxd.photochemvars_relative_humidity_set(&self._ptr, &val)
+      var_pxd.photochemvars_relative_humidity_set(self._ptr, &val)
 
   property H2O_cond_params:
     "CondensationParameters. H2O condensation rate parameters."
     def __get__(self):
       cdef void *ptr1
-      var_pxd.photochemvars_h2o_cond_params_get(&self._ptr, &ptr1)
+      var_pxd.photochemvars_h2o_cond_params_get(self._ptr, &ptr1)
       val = CondensationParameters()
       val._ptr = ptr1
       return val
@@ -79,9 +79,9 @@ cdef class PhotochemVars:
     "ndarray[double,dim=1], shape (nz). The altitude of the center of each atmopsheric layer (cm)"
     def __get__(self):
       cdef int dim1
-      var_pxd.photochemvars_z_get_size(&self._ptr, &dim1)
+      var_pxd.photochemvars_z_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty(dim1, np.double)
-      var_pxd.photochemvars_z_get(&self._ptr, &dim1, <double *>arr.data)
+      var_pxd.photochemvars_z_get(self._ptr, &dim1, <double *>arr.data)
       return arr
 
   property photon_flux_fcn:
@@ -102,7 +102,7 @@ cdef class PhotochemVars:
         fcn_l = fcn.address
         fcn_c = <var_pxd.time_dependent_flux_fcn> fcn_l
 
-      var_pxd.photochemvars_photon_flux_fcn_set(&self._ptr, fcn_c)
+      var_pxd.photochemvars_photon_flux_fcn_set(self._ptr, fcn_c)
 
   property cond_params:
     """list, shape (np). Parameters describing condensation and evaporation rates and
@@ -110,9 +110,9 @@ cdef class PhotochemVars:
     """
     def __get__(self):
       cdef int dim1
-      var_pxd.photochemvars_cond_params_get_size(&self._ptr, &dim1)
+      var_pxd.photochemvars_cond_params_get_size(self._ptr, &dim1)
       cdef void **arrp = <void **> malloc(dim1 * sizeof(void *))
-      var_pxd.photochemvars_cond_params_get(&self._ptr, &dim1, arrp)
+      var_pxd.photochemvars_cond_params_get(self._ptr, &dim1, arrp)
       arr1 = []
       for i in range(dim1):
         tmp = CondensationParameters()
@@ -125,26 +125,26 @@ cdef class PhotochemVars:
     "ndarray[double,dim=1], shape (nz). The temperature of each atmospheric layer (K)"
     def __get__(self):
       cdef int dim1
-      var_pxd.photochemvars_temperature_get_size(&self._ptr, &dim1)
+      var_pxd.photochemvars_temperature_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty(dim1, np.double)
-      var_pxd.photochemvars_temperature_get(&self._ptr, &dim1, <double *>arr.data)
+      var_pxd.photochemvars_temperature_get(self._ptr, &dim1, <double *>arr.data)
       return arr
       
   property edd:
     "ndarray[double,dim=1], shape (nz). The eddy diffusion of each atmospheric layer (cm^2/s)"
     def __get__(self):
       cdef int dim1
-      var_pxd.photochemvars_edd_get_size(&self._ptr, &dim1)
+      var_pxd.photochemvars_edd_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty(dim1, np.double)
-      var_pxd.photochemvars_edd_get(&self._ptr, &dim1, <double *>arr.data)
+      var_pxd.photochemvars_edd_get(self._ptr, &dim1, <double *>arr.data)
       return arr
     def __set__(self, ndarray[double, ndim=1] edd_new_):
       cdef int dim1
-      var_pxd.photochemvars_edd_get_size(&self._ptr, &dim1)
+      var_pxd.photochemvars_edd_get_size(self._ptr, &dim1)
       cdef ndarray edd_new = np.asfortranarray(edd_new_)
       if edd_new.shape[0] != dim1:
         raise PhotoException("Input edd is the wrong size.")
-      var_pxd.photochemvars_edd_set(&self._ptr, &dim1, <double *>edd_new.data)
+      var_pxd.photochemvars_edd_set(self._ptr, &dim1, <double *>edd_new.data)
 
   property custom_binary_diffusion_fcn:
     "A function for specifying a custom binary diffusion parameter (b_ij)"
@@ -164,41 +164,41 @@ cdef class PhotochemVars:
         fcn_l = fcn.address
         fcn_c = <var_pxd.binary_diffusion_fcn> fcn_l
 
-      var_pxd.photochemvars_custom_binary_diffusion_fcn_set(&self._ptr, fcn_c)
+      var_pxd.photochemvars_custom_binary_diffusion_fcn_set(self._ptr, fcn_c)
       
   property photon_flux:
     "ndarray[double,dim=1], shape (nw). photon/cm^2/s in each wavelength bin hitting planet."
     def __get__(self):
       cdef int dim1
-      var_pxd.photochemvars_photon_flux_get_size(&self._ptr, &dim1)
+      var_pxd.photochemvars_photon_flux_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty(dim1, np.double)
-      var_pxd.photochemvars_photon_flux_get(&self._ptr, &dim1, <double *>arr.data)
+      var_pxd.photochemvars_photon_flux_get(self._ptr, &dim1, <double *>arr.data)
       return arr
   
   property grav:
     "ndarray[double,dim=1], shape (nz). The gravitational acceleration at the center of each grid cell (cm/s^2)."
     def __get__(self):
       cdef int dim1
-      var_pxd.photochemvars_grav_get_size(&self._ptr, &dim1)
+      var_pxd.photochemvars_grav_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty(dim1, np.double)
-      var_pxd.photochemvars_grav_get(&self._ptr, &dim1, <double *>arr.data)
+      var_pxd.photochemvars_grav_get(self._ptr, &dim1, <double *>arr.data)
       return arr
       
   property at_photo_equilibrium:
     "bool. If True, then the model is at photochemical equilibrium."
     def __get__(self):
       cdef bool at_photo_equilibrium
-      var_pxd.photochemvars_at_photo_equilibrium_get(&self._ptr, &at_photo_equilibrium)
+      var_pxd.photochemvars_at_photo_equilibrium_get(self._ptr, &at_photo_equilibrium)
       return at_photo_equilibrium
       
   property surface_pressure:
     "double. The surface pressure in bars."
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_surface_pressure_get(&self._ptr, &val)
+      var_pxd.photochemvars_surface_pressure_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      var_pxd.photochemvars_surface_pressure_set(&self._ptr, &val)
+      var_pxd.photochemvars_surface_pressure_set(self._ptr, &val)
 
   property max_error_reinit_attempts:
     """int. number of times to reinitialize CVODE when it returns
@@ -206,19 +206,19 @@ cdef class PhotochemVars:
     """
     def __get__(self):
       cdef int val
-      var_pxd.photochemvars_max_error_reinit_attempts_get(&self._ptr, &val)
+      var_pxd.photochemvars_max_error_reinit_attempts_get(self._ptr, &val)
       return val
     def __set__(self, int val):
-      var_pxd.photochemvars_max_error_reinit_attempts_set(&self._ptr, &val)
+      var_pxd.photochemvars_max_error_reinit_attempts_set(self._ptr, &val)
   
   property rtol:
     "double. Integration relative tolerance."
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_rtol_get(&self._ptr, &val)
+      var_pxd.photochemvars_rtol_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      var_pxd.photochemvars_rtol_set(&self._ptr, &val)
+      var_pxd.photochemvars_rtol_set(self._ptr, &val)
       
   property atol:
     """double. Integration absolute tolerance. If autodiff == .true., then the model
@@ -226,28 +226,28 @@ cdef class PhotochemVars:
     """
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_atol_get(&self._ptr, &val)
+      var_pxd.photochemvars_atol_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      var_pxd.photochemvars_atol_set(&self._ptr, &val)
+      var_pxd.photochemvars_atol_set(self._ptr, &val)
 
   property mxsteps:
     "int. Max number of steps before integrator will give up."
     def __get__(self):
       cdef int val
-      var_pxd.photochemvars_mxsteps_get(&self._ptr, &val)
+      var_pxd.photochemvars_mxsteps_get(self._ptr, &val)
       return val
     def __set__(self, int val):
-      var_pxd.photochemvars_mxsteps_set(&self._ptr, &val)
+      var_pxd.photochemvars_mxsteps_set(self._ptr, &val)
       
   property equilibrium_time:
     "double. Atomsphere considered in equilibrium if integrations reaches this time (seconds)"
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_equilibrium_time_get(&self._ptr, &val)
+      var_pxd.photochemvars_equilibrium_time_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      var_pxd.photochemvars_equilibrium_time_set(&self._ptr, &val)
+      var_pxd.photochemvars_equilibrium_time_set(self._ptr, &val)
 
   property conv_hist_factor:
     """double. For convergence checking. Considers mixing ratio change between t_now and time 
@@ -255,19 +255,19 @@ cdef class PhotochemVars:
     """
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_conv_hist_factor_get(&self._ptr, &val)
+      var_pxd.photochemvars_conv_hist_factor_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      var_pxd.photochemvars_conv_hist_factor_set(&self._ptr, &val)
+      var_pxd.photochemvars_conv_hist_factor_set(self._ptr, &val)
 
   property conv_min_mix:
     "double. Minimum mixing ratio considered in convergence checking."
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_conv_min_mix_get(&self._ptr, &val)
+      var_pxd.photochemvars_conv_min_mix_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      var_pxd.photochemvars_conv_min_mix_set(&self._ptr, &val)
+      var_pxd.photochemvars_conv_min_mix_set(self._ptr, &val)
 
   property conv_longdy:
     """double. Threshold normalized change in mixing ratios for converchecking check.
@@ -275,10 +275,10 @@ cdef class PhotochemVars:
     """
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_conv_longdy_get(&self._ptr, &val)
+      var_pxd.photochemvars_conv_longdy_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      var_pxd.photochemvars_conv_longdy_set(&self._ptr, &val)
+      var_pxd.photochemvars_conv_longdy_set(self._ptr, &val)
 
   property conv_longdydt:
     """double. Threshold normalized change in mixing ratios per time change for 
@@ -286,10 +286,10 @@ cdef class PhotochemVars:
     """
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_conv_longdydt_get(&self._ptr, &val)
+      var_pxd.photochemvars_conv_longdydt_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      var_pxd.photochemvars_conv_longdydt_set(&self._ptr, &val)
+      var_pxd.photochemvars_conv_longdydt_set(self._ptr, &val)
 
   property autodiff:
     """bool. If True, then the chemistry terms of the Jacobian are computed uses 
@@ -297,37 +297,37 @@ cdef class PhotochemVars:
     """
     def __get__(self):
       cdef bool val
-      var_pxd.photochemvars_autodiff_get(&self._ptr, &val)
+      var_pxd.photochemvars_autodiff_get(self._ptr, &val)
       return val
     def __set__(self, bool val):
-      var_pxd.photochemvars_autodiff_set(&self._ptr, &val)
+      var_pxd.photochemvars_autodiff_set(self._ptr, &val)
 
   property epsj:
     "double. Perturbation for finite difference Jacobian calculation, when autodiff == .false."
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_epsj_get(&self._ptr, &val)
+      var_pxd.photochemvars_epsj_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      var_pxd.photochemvars_epsj_set(&self._ptr, &val)
+      var_pxd.photochemvars_epsj_set(self._ptr, &val)
   
   property verbose:
     "int. 0 == no printing. 1 == some printing. 2 == bunch of printing."
     def __get__(self):
       cdef int val
-      var_pxd.photochemvars_verbose_get(&self._ptr, &val)
+      var_pxd.photochemvars_verbose_get(self._ptr, &val)
       return val
     def __set__(self, int val):
-      var_pxd.photochemvars_verbose_set(&self._ptr, &val)
+      var_pxd.photochemvars_verbose_set(self._ptr, &val)
 
   property fast_arbitrary_rate:
     "double. arbitrary rate that is fast (1/s). Used for keeping H2O at saturation in troposphere"
     def __get__(self):
       cdef double val
-      var_pxd.photochemvars_fast_arbitrary_rate_get(&self._ptr, &val)
+      var_pxd.photochemvars_fast_arbitrary_rate_get(self._ptr, &val)
       return val
     def __set__(self, double val):
-      var_pxd.photochemvars_fast_arbitrary_rate_set(&self._ptr, &val)
+      var_pxd.photochemvars_fast_arbitrary_rate_set(self._ptr, &val)
 
     
   

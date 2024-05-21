@@ -4,7 +4,7 @@
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
   subroutine deallocate_productionloss(ptr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     type(ProductionLoss), pointer :: pl
     call c_f_pointer(ptr, pl)
     deallocate(pl)
@@ -15,7 +15,7 @@
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
   
   subroutine productionloss_production_get_size(ptr, dim1, dim2) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1, dim2
     type(ProductionLoss), pointer :: pl
     call c_f_pointer(ptr, pl)
@@ -23,7 +23,7 @@
     dim2 = size(pl%production,2)
   end subroutine
   subroutine productionloss_production_get(ptr, dim1, dim2, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1, dim2
     real(c_double), intent(out) :: arr(dim1, dim2)
     type(ProductionLoss), pointer :: pl
@@ -32,7 +32,7 @@
   end subroutine
 
   subroutine productionloss_loss_get_size(ptr, dim1, dim2) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1, dim2
     type(ProductionLoss), pointer :: pl
     call c_f_pointer(ptr, pl)
@@ -40,7 +40,7 @@
     dim2 = size(pl%loss,2)
   end subroutine
   subroutine productionloss_loss_get(ptr, dim1, dim2, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1, dim2
     real(c_double), intent(out) :: arr(dim1, dim2)
     type(ProductionLoss), pointer :: pl
@@ -49,14 +49,14 @@
   end subroutine
 
   subroutine productionloss_integrated_production_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(ProductionLoss), pointer :: pl
     call c_f_pointer(ptr, pl)
     dim1 = size(pl%integrated_production,1)
   end subroutine
   subroutine productionloss_integrated_production_get(ptr, dim1, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     real(c_double), intent(out) :: arr(dim1)
     type(ProductionLoss), pointer :: pl
@@ -65,14 +65,14 @@
   end subroutine
   
   subroutine productionloss_integrated_loss_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(ProductionLoss), pointer :: pl
     call c_f_pointer(ptr, pl)
     dim1 = size(pl%integrated_loss,1)
   end subroutine
   subroutine productionloss_integrated_loss_get(ptr, dim1, arr) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     real(c_double), intent(out) :: arr(dim1)
     type(ProductionLoss), pointer :: pl
@@ -81,14 +81,14 @@
   end subroutine
   
   subroutine productionloss_production_rx_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(ProductionLoss), pointer :: pl
     call c_f_pointer(ptr, pl)
     dim1 = size(pl%production_rx)
   end subroutine
   subroutine productionloss_production_rx_get(ptr, dim1, names) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     character(kind=c_char), intent(out) :: names(dim1*m_str_len+1)
     type(ProductionLoss), pointer :: pl
@@ -105,14 +105,14 @@
   end subroutine
   
   subroutine productionloss_loss_rx_get_size(ptr, dim1) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
     type(ProductionLoss), pointer :: pl
     call c_f_pointer(ptr, pl)
     dim1 = size(pl%loss_rx)
   end subroutine
   subroutine productionloss_loss_rx_get(ptr, dim1, names) bind(c)
-    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     character(kind=c_char), intent(out) :: names(dim1*m_str_len+1)
     type(ProductionLoss), pointer :: pl

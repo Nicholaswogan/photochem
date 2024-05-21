@@ -13,10 +13,10 @@ cdef class Atmosphere:
   def __cinit__(self, mechanism_file = None, settings_file = None, 
                 flux_file = None, atmosphere_txt = None, data_dir = None):
     self._init_called = False
-    a_pxd.allocate_atmosphere(&self._ptr)
+    self._ptr = a_pxd.allocate_atmosphere()
 
   def __dealloc__(self):
-    a_pxd.deallocate_atmosphere(&self._ptr)
+    a_pxd.deallocate_atmosphere(self._ptr)
 
   def __getattribute__(self, name):
     if not self._init_called:
@@ -52,7 +52,7 @@ cdef class Atmosphere:
     cdef char err[ERR_LEN+1]
     
     # Initialize
-    a_pxd.atmosphere_create_wrapper(&self._ptr, mechanism_file_c,
+    a_pxd.atmosphere_create_wrapper(self._ptr, mechanism_file_c,
                                   settings_file_c, flux_file_c,
                                   atmosphere_txt_c, data_dir_c, err)
     if len(err.strip()) > 0:
@@ -64,7 +64,7 @@ cdef class Atmosphere:
     """
     def __get__(self):
       dat = PhotochemData()
-      a_pxd.atmosphere_dat_get(&self._ptr, &dat._ptr)
+      a_pxd.atmosphere_dat_get(self._ptr, &dat._ptr)
       return dat
       
   property var:
@@ -73,7 +73,7 @@ cdef class Atmosphere:
     """
     def __get__(self):
       var = PhotochemVars()
-      a_pxd.atmosphere_var_get(&self._ptr, &var._ptr)
+      a_pxd.atmosphere_var_get(self._ptr, &var._ptr)
       return var
       
   property wrk:
@@ -82,14 +82,14 @@ cdef class Atmosphere:
     """
     def __get__(self):
       wrk = PhotochemWrk()
-      a_pxd.atmosphere_wrk_get(&self._ptr, &wrk._ptr)
+      a_pxd.atmosphere_wrk_get(self._ptr, &wrk._ptr)
       return wrk
 
   def check_for_convergence(self):
     "Determines if integration has converged to photochemical steady-state."
     cdef bool converged
     cdef char err[ERR_LEN+1]
-    a_pxd.atmosphere_check_for_convergence_wrapper(&self._ptr, &converged, err)
+    a_pxd.atmosphere_check_for_convergence_wrapper(self._ptr, &converged, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     return converged
@@ -98,7 +98,7 @@ cdef class Atmosphere:
     "Integrates to photochemical equilibrium starting from `self.var.usol_init`"  
     cdef bool success
     cdef char err[ERR_LEN+1]
-    a_pxd.atmosphere_photochemical_equilibrium_wrapper(&self._ptr, &success, err)
+    a_pxd.atmosphere_photochemical_equilibrium_wrapper(self._ptr, &success, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     return success
@@ -117,7 +117,7 @@ cdef class Atmosphere:
     cdef ndarray usol_start_ = np.asfortranarray(usol_start)
     if usol_start_.shape[0] != nq or usol_start_.shape[1] != nz:
       raise PhotoException("Input usol_start is the wrong size.")
-    a_pxd.atmosphere_initialize_stepper_wrapper(&self._ptr, &nq, &nz,  <double *>usol_start_.data, err)
+    a_pxd.atmosphere_initialize_stepper_wrapper(self._ptr, &nq, &nz,  <double *>usol_start_.data, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     
@@ -131,7 +131,7 @@ cdef class Atmosphere:
         Current time in the integration.
     """
     cdef char err[ERR_LEN+1]
-    cdef double tn = a_pxd.atmosphere_step_wrapper(&self._ptr, err)
+    cdef double tn = a_pxd.atmosphere_step_wrapper(self._ptr, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     return tn
@@ -139,7 +139,7 @@ cdef class Atmosphere:
   def destroy_stepper(self):
     "Deallocates memory created during `initialize_stepper`"
     cdef char err[ERR_LEN+1]
-    a_pxd.atmosphere_destroy_stepper_wrapper(&self._ptr, err)
+    a_pxd.atmosphere_destroy_stepper_wrapper(self._ptr, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
       
@@ -159,14 +159,14 @@ cdef class Atmosphere:
     cdef bytes filename_b = pystring2cstring(filename)
     cdef char *filename_c = filename_b
     cdef char err[ERR_LEN+1]
-    a_pxd.atmosphere_out2atmosphere_txt_wrapper(&self._ptr, filename_c, &overwrite, &clip, err)  
+    a_pxd.atmosphere_out2atmosphere_txt_wrapper(self._ptr, filename_c, &overwrite, &clip, err)  
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
       
   def out2in(self):
     "Copies self.var.usol_out to self.var.usol_init"
     cdef char err[ERR_LEN+1]
-    a_pxd.atmosphere_out2in_wrapper(&self._ptr, err)  
+    a_pxd.atmosphere_out2in_wrapper(self._ptr, err)  
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
       
@@ -206,7 +206,7 @@ cdef class Atmosphere:
     cdef ndarray top_fluxes = np.empty(self.dat.nq, np.double)
     cdef int nq = self.dat.nq
     cdef char err[ERR_LEN+1]
-    a_pxd.atmosphere_gas_fluxes_wrapper(&self._ptr, &nq, <double *>surf_fluxes.data, <double *>top_fluxes.data, err)
+    a_pxd.atmosphere_gas_fluxes_wrapper(self._ptr, &nq, <double *>surf_fluxes.data, <double *>top_fluxes.data, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     surface = {}
@@ -273,7 +273,7 @@ cdef class Atmosphere:
       pass
       
     cdef char err[ERR_LEN+1]
-    a_pxd.atmosphere_set_lower_bc_wrapper(&self._ptr, species_c, bc_type_c, 
+    a_pxd.atmosphere_set_lower_bc_wrapper(self._ptr, species_c, bc_type_c, 
                                       &vdep_c, &mix_c, &flux_c, &height_c, &missing, err);
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -311,7 +311,7 @@ cdef class Atmosphere:
         flux_c = flux
       
     cdef char err[ERR_LEN+1]
-    a_pxd.atmosphere_set_upper_bc_wrapper(&self._ptr, species_c, bc_type_c, 
+    a_pxd.atmosphere_set_upper_bc_wrapper(self._ptr, species_c, bc_type_c, 
                                       &veff_c, &flux_c, &missing, err);
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -343,7 +343,7 @@ cdef class Atmosphere:
       raise PhotoException("Input usol is the wrong size.")
       
     cdef void *pl_ptr
-    a_pxd.atmosphere_production_and_loss_wrapper(&self._ptr, species_c, &nq, &nz, <double *>usol_.data, &pl_ptr, err)
+    a_pxd.atmosphere_production_and_loss_wrapper(self._ptr, species_c, &nq, &nz, <double *>usol_.data, &pl_ptr, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     pl = ProductionLoss()
@@ -368,7 +368,7 @@ cdef class Atmosphere:
     if usol_.shape[0] != nq or usol_.shape[1] != nz:
       raise PhotoException("Input usol is the wrong size.")
       
-    a_pxd.atmosphere_prep_atmosphere_wrapper(&self._ptr, &nq, &nz, <double *>usol_.data, err)
+    a_pxd.atmosphere_prep_atmosphere_wrapper(self._ptr, &nq, &nz, <double *>usol_.data, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     
@@ -383,7 +383,7 @@ cdef class Atmosphere:
     """
     cdef char err[ERR_LEN+1]
     cdef double redox_factor
-    a_pxd.atmosphere_redox_conservation_wrapper(&self._ptr, &redox_factor, err)
+    a_pxd.atmosphere_redox_conservation_wrapper(self._ptr, &redox_factor, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     return redox_factor
@@ -401,7 +401,7 @@ cdef class Atmosphere:
     cdef char *atom_c = atom_b
     cdef char err[ERR_LEN+1]
     cdef void *con_ptr
-    a_pxd.atmosphere_atom_conservation_wrapper(&self._ptr, atom_c, &con_ptr, err)
+    a_pxd.atmosphere_atom_conservation_wrapper(self._ptr, atom_c, &con_ptr, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     con = AtomConservation()
@@ -441,7 +441,7 @@ cdef class Atmosphere:
     if usol_.shape[0] != nq or usol_.shape[1] != nz:
       raise PhotoException("Input usol is the wrong size.")
       
-    a_pxd.atmosphere_evolve_wrapper(&self._ptr, filename_c, &tstart, &nq, &nz, <double *>usol_.data, &nt, <double *>t_eval.data, &overwrite, &success, err)
+    a_pxd.atmosphere_evolve_wrapper(self._ptr, filename_c, &tstart, &nq, &nz, <double *>usol_.data, &nt, <double *>t_eval.data, &overwrite, &success, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     return success
@@ -466,7 +466,7 @@ cdef class Atmosphere:
       trop_alt_present = True
       trop_alt_ = trop_alt
       
-    a_pxd.atmosphere_set_temperature_wrapper(&self._ptr, &nz, <double *>temperature.data, 
+    a_pxd.atmosphere_set_temperature_wrapper(self._ptr, &nz, <double *>temperature.data, 
                                        &trop_alt_, &trop_alt_present, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -498,7 +498,7 @@ cdef class Atmosphere:
       trop_p_present = True
       trop_p_ = trop_p
       
-    a_pxd.atmosphere_set_press_temp_edd_wrapper(&self._ptr, &P_dim1, <double *>P.data, &T_dim1, <double *>T.data, &edd_dim1, <double *>edd.data,
+    a_pxd.atmosphere_set_press_temp_edd_wrapper(self._ptr, &P_dim1, <double *>P.data, &T_dim1, <double *>T.data, &edd_dim1, <double *>edd.data,
                                                &trop_p_, &trop_p_present, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -535,7 +535,7 @@ cdef class Atmosphere:
       fcn_l = fcn.address
       fcn_c = <a_pxd.time_dependent_rate_fcn> fcn_l
       
-    a_pxd.atmosphere_set_rate_fcn_wrapper(&self._ptr, species_c, fcn_c, err)
+    a_pxd.atmosphere_set_rate_fcn_wrapper(self._ptr, species_c, fcn_c, err)
     if len(err.strip()) > 0:
        raise PhotoException(err.decode("utf-8").strip())
 
@@ -566,7 +566,7 @@ cdef class Atmosphere:
       TOA_pressure_present = True
       TOA_pressure_ = TOA_pressure
 
-    a_pxd.atmosphere_update_vertical_grid_wrapper(&self._ptr, &TOA_alt_, &TOA_alt_present, 
+    a_pxd.atmosphere_update_vertical_grid_wrapper(self._ptr, &TOA_alt_, &TOA_alt_present, 
                                                   &TOA_pressure_, &TOA_pressure_present, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())

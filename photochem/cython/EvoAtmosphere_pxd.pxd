@@ -7,7 +7,7 @@ cdef extern from "<stdbool.h>":
 ctypedef double (*temp_dependent_albedo_fcn)(double T_surf)
 
 # allocate and destroy
-cdef extern void allocate_evoatmosphere(void *ptr);
+cdef extern void *allocate_evoatmosphere();
 cdef extern void deallocate_evoatmosphere(void *ptr);
 
 # subroutines
