@@ -9,14 +9,30 @@ cdef class EvoAtmosphere:
   """
 
   cdef void *_ptr
-  cdef void *_dat_ptr
-  cdef void *_var_ptr
-  cdef void *_wrk_ptr
+  cdef bool _init_called
+
+  def __cinit__(self, mechanism_file = None, settings_file = None, 
+                flux_file = None, atmosphere_txt = None, data_dir = None):
+    self._init_called = False
+    ea_pxd.allocate_evoatmosphere(&self._ptr)
+
+  def __dealloc__(self):
+    ea_pxd.deallocate_evoatmosphere(&self._ptr)
+
+  def __getattribute__(self, name):
+    if not self._init_called:
+      raise PhotoException('The "__init__" method of EvoAtmosphere has not been called.')
+    return super().__getattribute__(name)
+
+  def __setattr__(self, name, value):
+    if not self._init_called:
+      raise PhotoException('The "__init__" method of EvoAtmosphere has not been called.')
+    PyObject_GenericSetAttr(self, name, value)
 
   def __init__(self, mechanism_file = None, settings_file = None, 
-                     flux_file = None, atmosphere_txt = None, data_dir = None):           
-    # Allocate memory
-    ea_pxd.allocate_evoatmosphere(&self._ptr)
+               flux_file = None, atmosphere_txt = None, data_dir = None):           
+
+    self._init_called = True
 
     if data_dir == None:
       data_dir_ = os.path.dirname(os.path.realpath(__file__))+'/data'
@@ -42,9 +58,6 @@ cdef class EvoAtmosphere:
                                        atmosphere_txt_c, data_dir_c, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
-
-  def __dealloc__(self):
-    ea_pxd.deallocate_evoatmosphere(&self._ptr);
     
   property dat:
     """The PhotochemData class. Data in this class almost never changes after the

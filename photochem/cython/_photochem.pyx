@@ -2,6 +2,7 @@ from numpy cimport ndarray
 from libcpp cimport bool
 from libc.stdlib cimport malloc, free
 from libc.stdint cimport uintptr_t
+from cpython.object cimport PyObject_GenericSetAttr
 import numpy as np
 import ctypes as ct
 import os
