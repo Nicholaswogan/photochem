@@ -27,7 +27,7 @@ contains
   #:for TYPE1, NAME in TYPES_NAMES
   subroutine dochem_${NAME}$(self, usol, rx_rates, &
                     gas_sat_den, molecules_per_particle, &
-                    H2O_sat_mix, H2O_rh, rainout_rates, &
+                    H2O_sat_mix, H2O_rh, rainout_rates, scale_height, wfall, &
                     density, mix, densities, xp, xl, rhs)                 
     use photochem_enum, only: CondensingParticle
     use photochem_common, only: chempl, chempl_sl
@@ -42,14 +42,14 @@ contains
     real(dp), intent(in) :: gas_sat_den(:,:)
     real(dp), intent(in) :: molecules_per_particle(:,:)
     real(dp), intent(in) :: H2O_sat_mix(:), H2O_rh(:)
-    real(dp), intent(in) :: rainout_rates(:,:)
+    real(dp), intent(in) :: rainout_rates(:,:), scale_height(:), wfall(:,:)
     real(dp), intent(in) :: density(:)
     ${TYPE1}$, intent(inout) :: mix(:,:)
     ${TYPE1}$, intent(inout) :: densities(:,:), xp(:), xl(:)
     ${TYPE1}$, intent(inout) :: rhs(:) ! neqs
 
-    real(dp) :: H2O_cold_trap
-    ${TYPE1}$ :: dn_gas_dt, dn_particle_dt, cond_rate
+    real(dp) :: H2O_cold_trap, cond_rate0
+    ${TYPE1}$ :: rh, dn_gas_dt, dn_particle_dt, cond_rate
     integer :: i, ii, j, k, kk
 
     type(PhotochemData), pointer :: dat
@@ -59,6 +59,7 @@ contains
     var => self%var
 
     #:if NAME == 'dual'
+    rh = dual(size(usol(1,1)%der))
     dn_gas_dt = dual(size(usol(1,1)%der))
     dn_particle_dt = dual(size(usol(1,1)%der))
     cond_rate = dual(size(usol(1,1)%der))
@@ -144,6 +145,12 @@ contains
           rhs(k) = rhs(k) + (xp(j) - xl(j))
         enddo
       enddo
+
+      ! 4 numbers for each condensing species.
+      ! condensation rate coefficient ~ 100.0
+      ! evaporation rate coefficient ~ 10.0
+      ! RH of condensation ~ 1.0
+      ! RH smoothing factor ~ 0.1
     
       ! particle condensation
       do j = 1,var%nz
@@ -153,30 +160,48 @@ contains
             ii = dat%particle_gas_phase_ind(i) ! index of gas phase
             kk = ii + (j - 1) * dat%nq ! gas phase rhs index
             k = i + (j - 1) * dat%nq ! particle rhs index
+
+            ! compute the relative humidity
+            rh = max(usol(ii,j)/gas_sat_den(i,j),small_real)
+
+            if (rh > var%cond_params(i)%RHc) then
+              ! Condensation occurs
+
+              ! Condensation rate is based on how rapidly gases are mixing
+              ! in the atmosphere. We also smooth the rate to prevent stiffness.
+              cond_rate0 = var%cond_params(i)%k_cond*(var%edd(j)/scale_height(j)**2.0_dp)
+              cond_rate = damp_condensation_rate(cond_rate0, &
+                                                 var%cond_params(i)%RHc, &
+                                                 (1.0_dp + var%cond_params(i)%smooth_factor)*var%cond_params(i)%RHc, &
+                                                 rh)
             
-            ! if the gas phase is super-saturated
-            if (densities(ii,j) >= gas_sat_den(i,j)*var%condensation_rate(2,i)) then
-              ! compute condensation rate
-              cond_rate = damp_condensation_rate(var%condensation_rate(1,i), &
-                                                 var%condensation_rate(2,i), &
-                                                 var%condensation_rate(3,i), &
-                                                 densities(ii,j)/gas_sat_den(i,j))
-            
-              ! rate the gas molecules are going to particles
-              ! in molecules/cm3/s
-              dn_gas_dt = - cond_rate* &
-                            (densities(ii,j) - gas_sat_den(i,j)*var%condensation_rate(2,i))
-              ! add to rhs vector, convert to change in mixing ratio/s
+              ! Rate gases are being destroyed (molecules/cm^3/s)
+              dn_gas_dt = - cond_rate*usol(ii,j)
               rhs(kk) = rhs(kk) + dn_gas_dt          
             
-              ! rate of particle production from gas condensing
-              ! in particles/cm3/s
+              ! Rate particles are being produced (molecules/cm^3/s)
               dn_particle_dt = - dn_gas_dt
-              ! add to rhs vector, convert to moles/cm3/s
               rhs(k) = rhs(k) + dn_particle_dt
-            else
-              ! particles don't change!
-              rhs(k) = rhs(k) + 0.0_dp
+
+            elseif (rh <= var%cond_params(i)%RHc .and. var%evaporation) then
+              ! Evaporation occurs
+
+              ! Evaporation rate is based on how rapidly particles are falling
+              ! in the atmosphere. We also smooth the rate to prevent stiffness.
+              cond_rate0 = var%cond_params(i)%k_evap*(wfall(i,j)/scale_height(j))
+              cond_rate = damp_condensation_rate(cond_rate0, &
+                                                 1.0_dp/var%cond_params(i)%RHc, &
+                                                 (1.0_dp + var%cond_params(i)%smooth_factor)/var%cond_params(i)%RHc, &
+                                                 1.0_dp/rh)
+
+              ! Rate gases are being produced (molecules/cm^3/s)                   
+              dn_gas_dt = cond_rate*usol(i,j)
+              rhs(kk) = rhs(kk) + dn_gas_dt
+
+              ! Rate particles are being destroyed (molecules/cm^3/s)
+              dn_particle_dt = - dn_gas_dt
+              rhs(k) = rhs(k) + dn_particle_dt
+
             endif
           endif          
         enddo
@@ -289,38 +314,50 @@ contains
       ADD(i,j) = ADL(i,j)
     enddo
     
-    ! particles (eddy diffusion)
-    ! middle
-    do j = 2,var%nz-1
+    ! ! particles (eddy diffusion)
+    ! ! middle
+    ! do j = 2,var%nz-1
+    !   do i = 1,dat%np
+    !     ! diffusion
+    !     DU(i,j) = eddav(j)/(var%dz(j)**2.0_dp)
+    !     DL(i,j) = eddav(j-1)/(var%dz(j)**2.0_dp)
+    !     DD(i,j) = - DU(i,j) - DL(i,j)
+
+    !     ! advection
+    !     ADU(i,j) = gamma_i_part_av(i,j)/(2.0_dp*var%dz(j))
+    !     ADL(i,j) = - gamma_i_part_av(i,j-1)/(2.0_dp*var%dz(j))
+    !     ADD(i,j) = ADU(i,j) + ADL(i,j)
+    !   enddo
+    ! enddo
+    ! ! lower boundary
+    ! j = 1
+    ! do i = 1,dat%np
+    !   DU(i,j) = eddav(j)/(var%dz(j)**2.0_dp)
+    !   DD(i,j) = - DU(i,j)
+
+    !   ADU(i,j) = gamma_i_part_av(i,j)/(2.0_dp*var%dz(j))
+    !   ADD(i,j) = ADU(i,j)
+    ! enddo
+    ! ! upper boundary
+    ! j = var%nz
+    ! do i = 1,dat%np
+    !   DL(i,j) = eddav(j-1)/(var%dz(j)**2.0_dp)
+    !   DD(i,j) = - DL(i,j)
+
+    !   ADL(i,j) = - gamma_i_part_av(i,j-1)/(2.0_dp*var%dz(j))
+    !   ADD(i,j) = ADL(i,j)
+    ! enddo
+
+    ! We do not include eddy diffusion for particles
+    do j = 1,var%nz
       do i = 1,dat%np
-        ! diffusion
-        DU(i,j) = eddav(j)/(var%dz(j)**2.0_dp)
-        DL(i,j) = eddav(j-1)/(var%dz(j)**2.0_dp)
-        DD(i,j) = - DU(i,j) - DL(i,j)
-
-        ! advection
-        ADU(i,j) = gamma_i_part_av(i,j)/(2.0_dp*var%dz(j))
-        ADL(i,j) = - gamma_i_part_av(i,j-1)/(2.0_dp*var%dz(j))
-        ADD(i,j) = ADU(i,j) + ADL(i,j)
+        DU(i,j) = 0.0_dp
+        DL(i,j) = 0.0_dp
+        DD(i,j) = 0.0_dp
+        ADU(i,j) = 0.0_dp
+        ADL(i,j) = 0.0_dp
+        ADD(i,j) = 0.0_dp
       enddo
-    enddo
-    ! lower boundary
-    j = 1
-    do i = 1,dat%np
-      DU(i,j) = eddav(j)/(var%dz(j)**2.0_dp)
-      DD(i,j) = - DU(i,j)
-
-      ADU(i,j) = gamma_i_part_av(i,j)/(2.0_dp*var%dz(j))
-      ADD(i,j) = ADU(i,j)
-    enddo
-    ! upper boundary
-    j = var%nz
-    do i = 1,dat%np
-      DL(i,j) = eddav(j-1)/(var%dz(j)**2.0_dp)
-      DD(i,j) = - DL(i,j)
-
-      ADL(i,j) = - gamma_i_part_av(i,j-1)/(2.0_dp*var%dz(j))
-      ADD(i,j) = ADL(i,j)
     enddo
 
     ! particles (falling)
@@ -578,8 +615,8 @@ contains
     call diffusion_coefficients_evo(dat, var, wrk%density, wrk%mubar, &
     wrk%DU, wrk%DD, wrk%DL, wrk%ADU, wrk%ADL, wrk%ADD, wrk%wfall, wrk%VH2_esc, wrk%VH_esc)
     
-    wrk%surface_scale_height = (k_boltz*var%temperature(1)*N_avo)/(wrk%mubar(1)*var%grav(1))
-    
+    wrk%scale_height = (k_boltz*var%temperature(:)*N_avo)/(wrk%mubar(:)*var%grav(:))
+
     !!! H and H2 escape
     wrk%upper_veff_copy = var%upper_veff
     wrk%lower_vdep_copy = var%lower_vdep
@@ -678,7 +715,7 @@ contains
 
     call dochem(self, wrk%usol, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
-                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
+                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
                 wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs)  
 
     ! Extra functions specifying production or destruction
@@ -722,7 +759,7 @@ contains
       elseif (var%lowerboundcond(i) == MosesBC) then
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
                         + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
-                        - (var%edd(1)/wrk%surface_scale_height)*wrk%usol(i,1)/var%dz(1)
+                        - (var%edd(1)/wrk%scale_height(1))*wrk%usol(i,1)/var%dz(1)
       endif
     enddo
 
@@ -811,7 +848,7 @@ contains
       call initialize_dual_array(f_, blocksize)
       call dochem(self, usol_, wrk%rx_rates, &
                   wrk%gas_sat_den, wrk%molecules_per_particle, &
-                  wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
+                  wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
                   wrk%density, mix, densities, xp, xl, f_) 
     end subroutine
   end subroutine
@@ -868,7 +905,7 @@ contains
     ! compute chemistry contribution to jacobian using forward differences
     call dochem(self, wrk%usol, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
-                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
+                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
                 wrk%density, mix, densities, xp, xl, rhs) 
 
     !$omp parallel private(i, j, k, m, mm, usol_perturb, R, mix, densities, xl, xp, rhs_perturb)
@@ -882,7 +919,7 @@ contains
       
       call dochem(self, usol_perturb, wrk%rx_rates, &
                   wrk%gas_sat_den, wrk%molecules_per_particle, &
-                  wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
+                  wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
                   wrk%density, mix, densities, xp, xl, rhs_perturb) 
   
       do m = 1,dat%nq
@@ -951,7 +988,7 @@ contains
       elseif (var%lowerboundcond(i) == MosesBC) then
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
         djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) - &
-                         (var%edd(1)/wrk%surface_scale_height)/var%dz(1)
+                         (var%edd(1)/wrk%scale_height(1))/var%dz(1)
       endif
     enddo
   
@@ -1012,7 +1049,7 @@ contains
     
     call dochem(self, wrk%usol, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
-                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, &
+                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
                 wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs) 
                               
   end subroutine

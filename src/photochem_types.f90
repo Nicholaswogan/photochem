@@ -22,12 +22,6 @@ module photochem_types ! make a giant IO object
   !!! Settings !!!
   !!!!!!!!!!!!!!!!
   
-  type :: SettingsCondensationRate
-    real(dp) :: A
-    real(dp) :: rhc
-    real(dp) :: rh0
-  end type
-  
   type :: SettingsBC
     integer :: bc_type
     real(dp) :: vel
@@ -77,10 +71,6 @@ module photochem_types ! make a giant IO object
     character(s_str_len), allocatable :: rainout_species(:)
     real(dp) :: trop_alt
     real(dp) :: H2O_condensation_rate(3)
-  
-    ! particles
-    character(s_str_len), allocatable :: con_names(:)
-    type(SettingsCondensationRate), allocatable :: con(:)
   
     ! boundary-conditions
     type(SettingsBC), allocatable :: ubcs(:)
@@ -380,6 +370,15 @@ module photochem_types ! make a giant IO object
     integer :: LH !! H index
     
   end type
+
+  !> Condensation parameters
+  type :: CondensationParameters
+    real(dp) :: k_cond = 100.0_dp !! rate coefficient for condensation
+    real(dp) :: k_evap = 10.0_dp !! rate coefficient for evaporation
+    real(dp) :: RHc = 1.0_dp !! RH where condensation occurs
+    real(dp) :: smooth_factor = 0.1_dp !! A factor that smooths condensation/evaporation 
+                                       !! rate to prevents stiffness
+  end type
   
   type :: PhotochemVars
     ! PhotochemVars contains information that can change between
@@ -434,8 +433,10 @@ module photochem_types ! make a giant IO object
     procedure(time_dependent_flux_fcn), nopass, pointer :: photon_flux_fcn => null()
     
     ! particles
-    ! condensation rate of particles
-    real(dp), allocatable :: condensation_rate(:,:) ! (3,np)
+    !> Parameters describing condensation and evaporation rates and
+    !> the RH needed for condensation
+    type(CondensationParameters), allocatable :: cond_params(:) ! (np)
+    logical :: evaporation = .true. !! If true, then evaporation occurs.
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! set AFTER file read-in !!!
@@ -578,7 +579,7 @@ module photochem_types ! make a giant IO object
     real(dp) :: VH_esc
     ! other
     real(dp), allocatable :: sum_usol(:) !! (nz)
-    real(dp) :: surface_scale_height
+    real(dp), allocatable :: scale_height(:)
     real(dp), allocatable :: wfall(:,:)
     real(dp), allocatable :: gas_sat_den(:,:)
     real(dp), allocatable :: molecules_per_particle(:,:)
@@ -657,6 +658,7 @@ contains
       deallocate(self%upper_veff_copy)
       deallocate(self%lower_vdep_copy)
       deallocate(self%sum_usol)
+      deallocate(self%scale_height)
       deallocate(self%wfall)
       deallocate(self%gas_sat_den)
       deallocate(self%molecules_per_particle)
@@ -690,6 +692,7 @@ contains
     allocate(self%upper_veff_copy(nq))
     allocate(self%lower_vdep_copy(nq))
     allocate(self%sum_usol(nz))
+    allocate(self%scale_height(nz))
     allocate(self%wfall(np,nz))
     allocate(self%gas_sat_den(np,nz))
     allocate(self%molecules_per_particle(np,nz))

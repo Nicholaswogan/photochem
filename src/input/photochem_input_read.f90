@@ -633,7 +633,6 @@ contains
     character(:), allocatable, intent(out) :: err
     
     integer :: j, i, ind(1), io
-    logical, allocatable :: particle_checklist(:)
     
     !!!!!!!!!!!!!!!!!!!!!!!
     !!! atmosphere-grid !!!
@@ -760,6 +759,15 @@ contains
         return
       endif
     endif
+    if ((dat%fix_water_in_trop .or. dat%water_cond) .and. dat%there_are_particles) then
+      ind = findloc(dat%particle_gas_phase,'H2O')
+      if (ind(1) /= 0) then
+        err = 'IOError: Either "fix-water-in-troposphere" or "water-condensation" is turned on'// &
+              ' in the settings file, but the reaction mechanism already implements H2O condensation'// &
+              ' via a particle.'
+        return
+      endif
+    endif
     
     if (dat%fix_water_in_trop) then  
       
@@ -800,52 +808,8 @@ contains
     !!!!!!!!!!!!!!!!!
     !!! particles !!!
     !!!!!!!!!!!!!!!!!
-    if (dat%there_are_particles) then
-      if (any(dat%particle_formation_method == CondensingParticle)) then
-        ! then we need rate data
-      
-        if (.not. allocated(s%con_names)) then
-          err  = 'settings file "'//trim(infile)//'" does not contain'// &
-                 ' any particle condensation rate data.'
-          return
-        endif
-        
-        allocate(particle_checklist(dat%np))
-        allocate(var%condensation_rate(3,dat%np))
-        particle_checklist = .false.
-        
-        do i = 1,size(s%con_names)
-          
-          ind = findloc(dat%particle_names,trim(s%con_names(i)))
-          if (particle_checklist(ind(1))) then
-            err = "IOError: particle "//trim(s%con_names(i))//" in the settings"// &
-                  " file is listed more than once"
-            return
-          endif
-          if (ind(1) == 0) then
-            err = "IOError: particle "//trim(s%con_names(i))//" in the settings"// &
-                  " file isn't in the list of particles in the reaction mechanism file"
-            return
-          else
-            particle_checklist(ind(1)) = .true.
-          endif
-          
-          var%condensation_rate(1,ind(1)) = s%con(i)%A
-          var%condensation_rate(2,ind(1)) = s%con(i)%rhc
-          var%condensation_rate(3,ind(1)) = s%con(i)%rh0
-          
-        enddo
-        
-        do i = 1,dat%np
-          if (dat%particle_formation_method(i) == CondensingParticle .and. .not. particle_checklist(i)) then
-            err = 'IOError: Particle '//trim(dat%particle_names(i))// &
-                  ' does not have any condensation rate data in the file '//trim(infile)
-            return
-          endif
-        enddo
-        
-      endif
-    endif
+    ! Condensation rate parameters. size is zero when there are no particles
+    allocate(var%cond_params(dat%np))
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! boundary-conditions !!!

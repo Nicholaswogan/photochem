@@ -276,49 +276,6 @@ contains
       
     endif
     
-    !!!!!!!!!!!!!!!!!
-    !!! particles !!!
-    !!!!!!!!!!!!!!!!!
-    
-    list => root%get_list('particles', .false., error = io_err)
-      
-    if (associated(list)) then 
-      allocate(s%con_names(list%size()))
-      allocate(s%con(size(s%con_names)))
-      
-      j = 1
-      item => list%first
-      do while (associated(item))
-        select type (e => item%node)
-        class is (type_dictionary)
-          s%con_names(j) = trim(e%get_string('name',error = io_err))
-          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-      
-          tmp2 => e%get_dictionary('condensation-rate',.true.,error = io_err)
-          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-      
-          s%con(j)%A = tmp2%get_real('A',error = io_err)
-          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-          s%con(j)%rhc = tmp2%get_real('rhc',error = io_err)
-          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-          s%con(j)%rh0 = tmp2%get_real('rh0',error = io_err)
-          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-          if (s%con(j)%rh0 <= s%con(j)%rhc) then
-            err = 'IOError: Rate constant "rh0" for '//trim(s%con_names(j)) &
-                  //' condensation must be > "rhc". See '//trim(filename)
-            return
-          endif
-      
-        class default
-          err = "IOError: Particle settings must be a list of dictionaries."
-          return
-        end select
-        j = j + 1
-        item => item%next
-      end do
-
-    endif
-    
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! boundary-conditions !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
