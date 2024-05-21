@@ -39,7 +39,7 @@ contains
     
     type(PhotoSettings) :: s
     
-    type(type_dictionary), pointer :: dict, tmp2, tmp3
+    type(type_dictionary), pointer :: dict, tmp2
     type(type_list), pointer :: list, bcs
     type(type_list_item), pointer :: item
     type(type_scalar), pointer :: scalar
@@ -256,24 +256,6 @@ contains
         return
       endif
     
-    endif
-    
-    if (s%water_cond) then        
-    
-      tmp3 => tmp2%get_dictionary('condensation-rate',.true.,error = io_err)
-      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    
-      s%H2O_condensation_rate(1) = tmp3%get_real('A',error = io_err)
-      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-      s%H2O_condensation_rate(2) = tmp3%get_real('rhc',error = io_err)
-      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-      s%H2O_condensation_rate(3) = tmp3%get_real('rh0',error = io_err)
-      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-      if (s%H2O_condensation_rate(3) <= s%H2O_condensation_rate(2)) then
-        err = 'IOError: Rate constant "rh0" for H2O condensation must be > "rhc". See '//trim(filename)
-        return
-      endif
-      
     endif
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!

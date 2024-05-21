@@ -100,6 +100,7 @@ contains
     use photochem_enum, only: VelocityDistributedFluxBC
     use photochem_eqns, only: damp_condensation_rate
     use photochem_types, only: AtomConservation
+    use photochem_const, only: small_real
     class(Atmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: atom
     character(:), allocatable, intent(out) :: err
@@ -108,7 +109,7 @@ contains
     real(dp) :: surf_fluxes(self%dat%nq)
     real(dp) :: top_fluxes(self%dat%nq)
     real(dp) :: integrated_rainout(self%dat%nq)
-    real(dp) :: cond_rate, con_evap_rate
+    real(dp) :: rh, df_gas_dt, cond_rate0, cond_rate, con_evap_rate
     
     integer :: ind(1), i, j, kk
     
@@ -200,14 +201,20 @@ contains
         i = 1
       endif
       do j = i,var%nz
-        if (wrk%usol(dat%LH2O,j) >= var%H2O_condensation_rate(2)*wrk%H2O_sat_mix(j)) then
-          cond_rate = damp_condensation_rate(var%H2O_condensation_rate(1), &
-                                             var%H2O_condensation_rate(2), &
-                                             var%H2O_condensation_rate(3), &
-                                             wrk%usol(dat%LH2O,j)/wrk%H2O_sat_mix(j))
-          con%out_other = con%out_other + cond_rate*(wrk%usol(dat%LH2O,j)  &
-                        - var%H2O_condensation_rate(2)*wrk%H2O_sat_mix(j)) &
-                        *wrk%density(j)*var%dz(j)*dat%species_composition(kk,dat%LH2O)
+
+        rh = max(wrk%usol(dat%LH2O,j)/wrk%H2O_sat_mix(j),small_real)
+
+        if (rh > var%H2O_cond_params%RHc) then
+
+          cond_rate0 = var%H2O_cond_params%k_cond*(var%edd(j)/wrk%scale_height(j)**2.0_dp)
+          cond_rate = damp_condensation_rate(cond_rate0, &
+                                             var%H2O_cond_params%RHc, &
+                                             (1.0_dp + var%H2O_cond_params%smooth_factor)*var%H2O_cond_params%RHc, &
+                                             rh)
+                 
+          ! Rate H2O gas is destroyed (1/s)
+          df_gas_dt = - cond_rate*wrk%usol(dat%LH2O,j)
+          con%out_other = con%out_other - df_gas_dt*wrk%density(j)*var%dz(j)*dat%species_composition(kk,dat%LH2O)
            
         endif
       enddo

@@ -70,7 +70,6 @@ module photochem_types ! make a giant IO object
     real(dp) :: rainfall_rate
     character(s_str_len), allocatable :: rainout_species(:)
     real(dp) :: trop_alt
-    real(dp) :: H2O_condensation_rate(3)
   
     ! boundary-conditions
     type(SettingsBC), allocatable :: ubcs(:)
@@ -423,7 +422,7 @@ module photochem_types ! make a giant IO object
     integer :: trop_ind !! index of troposphere (only for fix_water_in_trop == true or gas_rainout == true)
     logical :: use_manabe !! use manabe formula
     real(dp) :: relative_humidity !! relative humidity if no manabe
-    real(dp) :: H2O_condensation_rate(3) !! H2O condesation rate parameters
+    type(CondensationParameters) :: H2O_cond_params !! H2O condesation rate parameters
     
     ! radiative transfer
     real(dp), allocatable :: photon_flux(:) !! (nw) photon/cm^2/s in each wavelength bin hitting planet.

@@ -36,7 +36,7 @@ contains
     ${TYPE1}$, intent(inout) :: densities(nsp+1,nz), xp(nz), xl(nz)
     ${TYPE1}$, intent(inout) :: rhs(neqs)
     
-    real(dp) :: H2O_cold_trap, cond_rate0
+    real(dp) :: cond_rate0
     ${TYPE1}$ :: rh, df_gas_dt, df_particle_dt, cond_rate
     integer :: i, ii, j, k, kk
     type(PhotochemData), pointer :: dat
@@ -112,15 +112,21 @@ contains
         if (var%temperature(j) < T_crit_H2O) then
           ! water will condense if it is below the critical point.
 
-          k = dat%LH2O + (j - 1) * dat%nq
-          H2O_cold_trap = var%H2O_condensation_rate(2)*H2O_sat_mix(j)
-          if (usol(dat%LH2O,j) >= H2O_cold_trap) then
-            
-            cond_rate = damp_condensation_rate(var%H2O_condensation_rate(1), &
-                                              var%H2O_condensation_rate(2), &
-                                              var%H2O_condensation_rate(3), &
-                                              usol(dat%LH2O,j)/H2O_sat_mix(j))
-            rhs(k) = rhs(k) - cond_rate*(usol(dat%LH2O,j) - H2O_cold_trap)
+          k = dat%LH2O + (j - 1) * dat%nq ! gas phase rhs index
+
+          rh = max(usol(dat%LH2O,j)/H2O_sat_mix(j),small_real)
+
+          if (rh > var%H2O_cond_params%RHc) then
+
+            cond_rate0 = var%H2O_cond_params%k_cond*(var%edd(j)/scale_height(j)**2.0_dp)
+            cond_rate = damp_condensation_rate(cond_rate0, &
+                                               var%H2O_cond_params%RHc, &
+                                               (1.0_dp + var%H2O_cond_params%smooth_factor)*var%H2O_cond_params%RHc, &
+                                               rh)
+                   
+            ! Rate H2O gas is destroyed (1/s)
+            df_gas_dt = - cond_rate*usol(dat%LH2O,j)
+            rhs(k) = rhs(k) + df_gas_dt
             
           endif
         endif

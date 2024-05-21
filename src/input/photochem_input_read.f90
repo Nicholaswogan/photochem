@@ -805,10 +805,6 @@ contains
       endif
     endif
     
-    if (dat%water_cond) then        
-      var%H2O_condensation_rate = s%H2O_condensation_rate
-    endif
-    
     !!!!!!!!!!!!!!!!!
     !!! particles !!!
     !!!!!!!!!!!!!!!!!

@@ -26,33 +26,6 @@ planet:
     # rainout-species: [H2SO4aer] # specify rainout species. If omitted, then model will use all species with data.
     tropopause-altitude: 1.1e6 # cm. required if gas-rainout or fix-water-in-troposphere
     water-condensation: true
-    condensation-rate: {A: 1.0e-5, rhc: 0.01, rh0: 0.015}
-
-particles:
-- name: H2SO4aer
-  condensation-rate: {A: 1.0e-5, rhc: 1.0, rh0: 1.05}
-- name: S2aer
-  condensation-rate: {A: 1.0e-5, rhc: 1.0, rh0: 1.05}
-- name: S8aer
-  condensation-rate: {A: 1.0e-5, rhc: 1.0, rh0: 1.05}
-- name: HCNaer
-  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
-- name: HCCCNaer
-  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
-- name: CH3CNaer
-  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
-- name: C2H2aer
-  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
-- name: C2H4aer
-  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
-- name: C2H6aer
-  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
-- name: C4H4aer
-  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
-- name: N2Oaer
-  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
-- name: NH3aer
-  condensation-rate: {A: 1.0e-8, rhc: 1.0, rh0: 1.05}
 
 optical-properties:
   ir:
