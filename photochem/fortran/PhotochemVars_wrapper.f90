@@ -103,6 +103,14 @@
     var%relative_humidity = val
   end subroutine
 
+  subroutine photochemvars_h2o_cond_params_get(ptr, ptr1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), intent(out) :: ptr1
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    ptr1 = c_loc(var%H2O_cond_params)
+  end subroutine
+
   subroutine photochemvars_photon_flux_fcn_set(ptr, photon_flux_fcn_c) bind(c)
     use photochem_types, only: time_dependent_flux_fcn
     type(c_ptr), intent(in) :: ptr
@@ -115,6 +123,28 @@
     call c_f_procpointer(photon_flux_fcn_c, photon_flux_fcn_f)
     var%photon_flux_fcn => photon_flux_fcn_f
   
+  end subroutine
+
+  subroutine photochemvars_cond_params_get_size(ptr, dim1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    dim1 = size(var%cond_params,1)
+  end subroutine
+
+  subroutine photochemvars_cond_params_get(ptr, dim1, ptr1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    type(c_ptr), intent(out) :: ptr1(dim1)
+    integer :: i
+    type(CondensationParameters), pointer :: t1_p(:)
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    t1_p => var%cond_params
+    do i = 1,dim1
+      ptr1(i) = c_loc(t1_p(i))
+    enddo
   end subroutine
   
   subroutine photochemvars_temperature_get_size(ptr, dim1) bind(c)

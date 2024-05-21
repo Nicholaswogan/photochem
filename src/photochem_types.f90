@@ -12,7 +12,7 @@ module photochem_types ! make a giant IO object
   
   public :: PhotoSettings, SettingsBC
   public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
-  public :: ProductionLoss, AtomConservation, ThermodynamicData
+  public :: ProductionLoss, AtomConservation, ThermodynamicData, CondensationParameters
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate, PressDependentRate, MultiArrheniusRate
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
   public :: SundialsDataFinalizer
@@ -422,7 +422,7 @@ module photochem_types ! make a giant IO object
     integer :: trop_ind !! index of troposphere (only for fix_water_in_trop == true or gas_rainout == true)
     logical :: use_manabe !! use manabe formula
     real(dp) :: relative_humidity !! relative humidity if no manabe
-    type(CondensationParameters) :: H2O_cond_params !! H2O condesation rate parameters
+    type(CondensationParameters) :: H2O_cond_params !! H2O condensation rate parameters
     
     ! radiative transfer
     real(dp), allocatable :: photon_flux(:) !! (nw) photon/cm^2/s in each wavelength bin hitting planet.

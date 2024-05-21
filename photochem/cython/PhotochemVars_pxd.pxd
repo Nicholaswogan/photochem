@@ -27,7 +27,12 @@ cdef extern void photochemvars_trop_ind_get(void *ptr, int *val)
 cdef extern void photochemvars_relative_humidity_get(void *ptr, double *val)
 cdef extern void photochemvars_relative_humidity_set(void *ptr, double *val)
 
+cdef extern void photochemvars_h2o_cond_params_get(void *ptr, void *ptr1)
+
 cdef extern void photochemvars_photon_flux_fcn_set(void *ptr, time_dependent_flux_fcn fcn)
+
+cdef extern void photochemvars_cond_params_get_size(void *ptr, int *dim1)
+cdef extern void photochemvars_cond_params_get(void *ptr, int *dim1, void **ptr1)
 
 cdef extern void photochemvars_temperature_get_size(void *ptr, int *dim1)
 cdef extern void photochemvars_temperature_get(void *ptr, int *dim1, double *temperature)

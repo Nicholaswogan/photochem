@@ -15,3 +15,16 @@ cdef extern void atomconservation_out_rain_get(void *ptr, double *val)
 cdef extern void atomconservation_out_other_get(void *ptr, double *val)
 cdef extern void atomconservation_net_get(void *ptr, double *val)
 cdef extern void atomconservation_factor_get(void *ptr, double *val)
+
+# CondensationParameters
+cdef extern void condensationparameters_k_cond_get(void *ptr, double *val)
+cdef extern void condensationparameters_k_cond_set(void *ptr, double *val)
+
+cdef extern void condensationparameters_k_evap_get(void *ptr, double *val)
+cdef extern void condensationparameters_k_evap_set(void *ptr, double *val)
+
+cdef extern void condensationparameters_rhc_get(void *ptr, double *val)
+cdef extern void condensationparameters_rhc_set(void *ptr, double *val)
+
+cdef extern void condensationparameters_smooth_factor_get(void *ptr, double *val)
+cdef extern void condensationparameters_smooth_factor_set(void *ptr, double *val)

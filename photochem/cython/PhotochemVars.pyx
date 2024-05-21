@@ -75,6 +75,15 @@ cdef class PhotochemVars:
       return val
     def __set__(self, double val):
       var_pxd.photochemvars_relative_humidity_set(&self._ptr, &val)
+
+  property H2O_cond_params:
+    "CondensationParameters. H2O condensation rate parameters."
+    def __get__(self):
+      cdef void *ptr1
+      var_pxd.photochemvars_h2o_cond_params_get(&self._ptr, &ptr1)
+      val = CondensationParameters()
+      val._ptr = ptr1
+      return val
   
   property z:
     "ndarray[double,dim=1], shape (nz). The altitude of the center of each atmopsheric layer (cm)"
@@ -104,6 +113,23 @@ cdef class PhotochemVars:
         fcn_c = <var_pxd.time_dependent_flux_fcn> fcn_l
 
       var_pxd.photochemvars_photon_flux_fcn_set(&self._ptr, fcn_c)
+
+  property cond_params:
+    """list, shape (np). Parameters describing condensation and evaporation rates and
+    the RH needed for condensation.
+    """
+    def __get__(self):
+      cdef int dim1
+      var_pxd.photochemvars_cond_params_get_size(&self._ptr, &dim1)
+      cdef void **arrp = <void **> malloc(dim1 * sizeof(void *))
+      var_pxd.photochemvars_cond_params_get(&self._ptr, &dim1, arrp)
+      arr1 = []
+      for i in range(dim1):
+        tmp = CondensationParameters()
+        tmp._ptr = arrp[i]
+        arr1.append(tmp)
+      free(arrp)
+      return arr1
 
   property temperature:
     "ndarray[double,dim=1], shape (nz). The temperature of each atmospheric layer (K)"
