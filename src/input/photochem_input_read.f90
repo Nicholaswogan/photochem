@@ -760,13 +760,17 @@ contains
       endif
     endif
     if ((dat%fix_water_in_trop .or. dat%water_cond) .and. dat%there_are_particles) then
-      ind = findloc(dat%particle_gas_phase,'H2O')
-      if (ind(1) /= 0) then
-        err = 'IOError: Either "fix-water-in-troposphere" or "water-condensation" is turned on'// &
-              ' in the settings file, but the reaction mechanism already implements H2O condensation'// &
-              ' via a particle.'
-        return
-      endif
+      ! Make sure there isn't already H2O condensation implemented by a particle.
+      do i = 1,dat%np
+        if (dat%particle_formation_method(i) == CondensingParticle) then
+          if (dat%particle_gas_phase(i) == 'H2O') then
+            err = 'IOError: Either "fix-water-in-troposphere" or "water-condensation" is turned on'// &
+            ' in the settings file, but the reaction mechanism already implements H2O condensation'// &
+            ' via a particle.'
+            return
+          endif
+        endif
+      enddo
     endif
     
     if (dat%fix_water_in_trop) then  
