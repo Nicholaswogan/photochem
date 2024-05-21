@@ -12,8 +12,11 @@ cdef extern void deallocate_atmosphere(void *ptr);
 # subroutines
 cdef extern void atmosphere_create_wrapper(void *ptr, char *mechanism_file,
                                         char *settings_file, char *flux_file,
-                                        char *atmosphere_txt, char *data_dir, void *dat_ptr, void *var_ptr,
-                                        void *wrk_ptr, char *err);
+                                        char *atmosphere_txt, char *data_dir, char *err);
+
+cdef extern void atmosphere_dat_get(void *ptr, void **ptr1)
+cdef extern void atmosphere_var_get(void *ptr, void **ptr1)
+cdef extern void atmosphere_wrk_get(void *ptr, void **ptr1)
 
 cdef extern void atmosphere_check_for_convergence_wrapper(void *ptr, bool *converged, char* err)
 cdef extern void atmosphere_photochemical_equilibrium_wrapper(void *ptr, bool *success, char* err)
@@ -31,12 +34,12 @@ cdef extern double atmosphere_step_wrapper(void *ptr, char *err)
 cdef extern void atmosphere_destroy_stepper_wrapper(void *ptr, char *err)
 
 cdef extern void atmosphere_production_and_loss_wrapper(void *ptr, char *species, int *nq, 
-                                                        int *nz, double *usol, void *pl_ptr, char *err)
+                                                        int *nz, double *usol, void **pl_ptr, char *err)
 
 cdef extern void atmosphere_prep_atmosphere_wrapper(void *ptr, int *nq, int *nz, double *usol, char *err)
 
 cdef extern void atmosphere_redox_conservation_wrapper(void *ptr, double *redox_factor, char *err)
-cdef extern void atmosphere_atom_conservation_wrapper(void *ptr, char *atom, void *con_ptr, char *err)
+cdef extern void atmosphere_atom_conservation_wrapper(void *ptr, char *atom, void **con_ptr, char *err)
 
 cdef extern void atmosphere_evolve_wrapper(void *ptr, char *filename, 
                 double *tstart, int *nq, int *nz, double *usol, 

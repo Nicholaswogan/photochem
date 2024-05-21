@@ -3,13 +3,6 @@
   !!! allocator and destroyer !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-  subroutine allocate_atomconservation(ptr) bind(c)
-    type(c_ptr), intent(out) :: ptr
-    type(AtomConservation), pointer :: con
-    allocate(con)
-    ptr = c_loc(con)
-  end subroutine
-  
   subroutine deallocate_atomconservation(ptr) bind(c)
     type(c_ptr), intent(in) :: ptr
     type(AtomConservation), pointer :: con

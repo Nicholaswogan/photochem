@@ -39,9 +39,7 @@ cdef class EvoAtmosphere:
     # Initialize
     ea_pxd.evoatmosphere_create_wrapper(&self._ptr, mechanism_file_c,
                                        settings_file_c, flux_file_c,
-                                       atmosphere_txt_c, data_dir_c, 
-                                       &self._dat_ptr, &self._var_ptr, &self._wrk_ptr,
-                                       err)
+                                       atmosphere_txt_c, data_dir_c, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
@@ -53,8 +51,8 @@ cdef class EvoAtmosphere:
     `Atmosphere` class is initialized.
     """
     def __get__(self):
-      dat = PhotochemData(alloc = False)
-      dat._ptr = self._dat_ptr
+      dat = PhotochemData()
+      ea_pxd.evoatmosphere_dat_get(&self._ptr, &dat._ptr)
       return dat
       
   property var:
@@ -62,8 +60,8 @@ cdef class EvoAtmosphere:
     integrations.
     """
     def __get__(self):
-      var = PhotochemVars(alloc = False)
-      var._ptr = self._var_ptr
+      var = PhotochemVars()
+      ea_pxd.evoatmosphere_var_get(&self._ptr, &var._ptr)
       return var
       
   property wrk:
@@ -71,8 +69,8 @@ cdef class EvoAtmosphere:
     integration.
     """
     def __get__(self):
-      wrk = PhotochemWrkEvo(alloc = False)
-      wrk._ptr = self._wrk_ptr
+      wrk = PhotochemWrkEvo()
+      ea_pxd.evoatmosphere_wrk_get(&self._ptr, &wrk._ptr)
       return wrk
 
   def prep_atmosphere(self, ndarray[double, ndim=2] usol):

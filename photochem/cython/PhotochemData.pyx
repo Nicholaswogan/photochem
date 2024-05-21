@@ -6,20 +6,10 @@ cdef class PhotochemData:
   """
 
   cdef void *_ptr
-  cdef bint _destroy
 
-  def __cinit__(self, bint alloc = True):
-    if alloc:
-      dat_pxd.allocate_photochemdata(&self._ptr)
-      self._destroy = True
-    else:
-      self._destroy = False
+  def __cinit__(self):
+    self._ptr = NULL
 
-  def __dealloc__(self):
-    if self._destroy:
-      dat_pxd.deallocate_photochemdata(&self._ptr)
-      self._ptr = NULL
-  
   property nq:
     "The number of atmospheric species which evolve according to the PDEs"
     def __get__(self):

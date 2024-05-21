@@ -1,22 +1,4 @@
-  
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!! allocator and destroyer !!!
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  
-  subroutine allocate_photochemwrk(ptr) bind(c)
-    type(c_ptr), intent(out) :: ptr
-    type(PhotochemWrk), pointer :: wrk
-    allocate(wrk)
-    ptr = c_loc(wrk)
-  end subroutine
-  
-  subroutine deallocate_photochemwrk(ptr) bind(c)
-    type(c_ptr), intent(in) :: ptr
-    type(PhotochemWrk), pointer :: wrk
-    call c_f_pointer(ptr, wrk)
-    deallocate(wrk)
-  end subroutine
-  
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! getters and setters !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!

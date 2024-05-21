@@ -6,9 +6,6 @@ cdef extern from "<stdbool.h>":
 ctypedef void (*time_dependent_flux_fcn)(double tn, int nw, double *photon_flux)
 ctypedef double (*binary_diffusion_fcn)(double mu_i, double mubar, double T)
 
-cdef extern void allocate_photochemvars(void *ptr)
-cdef extern void deallocate_photochemvars(void *ptr)
-
 cdef extern void photochemvars_nz_get(void *ptr, int *nz)
 
 cdef extern void photochemvars_top_atmos_get(void *ptr, double *val)
@@ -27,7 +24,7 @@ cdef extern void photochemvars_trop_ind_get(void *ptr, int *val)
 cdef extern void photochemvars_relative_humidity_get(void *ptr, double *val)
 cdef extern void photochemvars_relative_humidity_set(void *ptr, double *val)
 
-cdef extern void photochemvars_h2o_cond_params_get(void *ptr, void *ptr1)
+cdef extern void photochemvars_h2o_cond_params_get(void *ptr, void **ptr1)
 
 cdef extern void photochemvars_photon_flux_fcn_set(void *ptr, time_dependent_flux_fcn fcn)
 

@@ -19,19 +19,9 @@ cdef class PhotochemWrk:
   """
 
   cdef void *_ptr
-  cdef bint _destroy
 
-  def __cinit__(self, bint alloc = True):
-    if alloc:
-      wrk_pxd.allocate_photochemwrk(&self._ptr)
-      self._destroy = True
-    else:
-      self._destroy = False
-
-  def __dealloc__(self):
-    if self._destroy:
-      wrk_pxd.deallocate_photochemwrk(&self._ptr)
-      self._ptr = NULL
+  def __cinit__(self):
+    self._ptr = NULL
 
   property nsteps:
     "int. Number of integration steps excuted. Updated after every successful step."

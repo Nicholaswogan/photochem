@@ -6,19 +6,9 @@ cdef class PhotochemVars:
   """
 
   cdef void *_ptr
-  cdef bint _destroy
 
-  def __cinit__(self, bint alloc = True):
-    if alloc:
-      var_pxd.allocate_photochemvars(&self._ptr)
-      self._destroy = True
-    else:
-      self._destroy = False
-
-  def __dealloc__(self):
-    if self._destroy:
-      var_pxd.deallocate_photochemvars(&self._ptr)
-      self._ptr = NULL
+  def __cinit__(self):
+    self._ptr = NULL
   
   property nz:
     "The number of vertical atmospheric layers"

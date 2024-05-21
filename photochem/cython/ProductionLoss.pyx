@@ -8,8 +8,7 @@ cdef class ProductionLoss:
   cdef void *_ptr
 
   def __cinit__(self):
-    # never allocate. Only allow creation by functions.
-    pass
+    self._ptr = NULL
 
   def __dealloc__(self):
     pl_pxd.deallocate_productionloss(&self._ptr)

@@ -2,7 +2,6 @@ from libcpp cimport bool
 cdef extern from "<stdbool.h>":
   pass
 
-cdef extern void allocate_atomconservation(void *ptr)
 cdef extern void deallocate_atomconservation(void *ptr)
 
 cdef extern void atomconservation_in_surf_get(void *ptr, double *val)

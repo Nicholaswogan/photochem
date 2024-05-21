@@ -2,9 +2,6 @@ from libcpp cimport bool
 cdef extern from "<stdbool.h>":
   pass
 
-cdef extern void allocate_photochemdata(void *ptr)
-cdef extern void deallocate_photochemdata(void *ptr)
-
 cdef extern void photochemdata_nq_get(void *ptr, int *nq)
 cdef extern void photochemdata_np_get(void *ptr, int *nq)
 cdef extern void photochemdata_nsp_get(void *ptr, int *nq)

@@ -2,9 +2,6 @@ from libcpp cimport bool
 cdef extern from "<stdbool.h>":
   pass
 
-cdef extern void allocate_photochemwrk(void *ptr)
-cdef extern void deallocate_photochemwrk(void *ptr)
-
 cdef extern void photochemwrk_nsteps_get(void *ptr, int *val)
 
 cdef extern void photochemwrk_t_history_get_size(void *ptr, int *dim1)

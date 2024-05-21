@@ -3,13 +3,6 @@
   !!! allocator and destroyer !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-  subroutine allocate_productionloss(ptr) bind(c)
-    type(c_ptr), intent(out) :: ptr
-    type(ProductionLoss), pointer :: pl
-    allocate(pl)
-    ptr = c_loc(pl)
-  end subroutine
-  
   subroutine deallocate_productionloss(ptr) bind(c)
     type(c_ptr), intent(in) :: ptr
     type(ProductionLoss), pointer :: pl

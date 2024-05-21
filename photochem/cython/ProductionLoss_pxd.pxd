@@ -2,7 +2,6 @@ from libcpp cimport bool
 cdef extern from "<stdbool.h>":
   pass
 
-cdef extern void allocate_productionloss(void *ptr)
 cdef extern void deallocate_productionloss(void *ptr)
 
 cdef extern void productionloss_production_get_size(void *ptr, int *dim1, int *dim2)

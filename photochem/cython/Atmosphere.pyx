@@ -8,9 +8,6 @@ cdef class Atmosphere:
   """
 
   cdef void *_ptr
-  cdef void *_dat_ptr
-  cdef void *_var_ptr
-  cdef void *_wrk_ptr
   
   def __init__(self, mechanism_file = None, settings_file = None, 
                      flux_file = None, atmosphere_txt = None, data_dir = None):           
@@ -38,9 +35,7 @@ cdef class Atmosphere:
     # Initialize
     a_pxd.atmosphere_create_wrapper(&self._ptr, mechanism_file_c,
                                   settings_file_c, flux_file_c,
-                                  atmosphere_txt_c, data_dir_c, 
-                                  &self._dat_ptr, &self._var_ptr, &self._wrk_ptr,
-                                  err)
+                                  atmosphere_txt_c, data_dir_c, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
@@ -52,8 +47,8 @@ cdef class Atmosphere:
     `Atmosphere` class is initialized.
     """
     def __get__(self):
-      dat = PhotochemData(alloc = False)
-      dat._ptr = self._dat_ptr
+      dat = PhotochemData()
+      a_pxd.atmosphere_dat_get(&self._ptr, &dat._ptr)
       return dat
       
   property var:
@@ -61,8 +56,8 @@ cdef class Atmosphere:
     integrations.
     """
     def __get__(self):
-      var = PhotochemVars(alloc = False)
-      var._ptr = self._var_ptr
+      var = PhotochemVars()
+      a_pxd.atmosphere_var_get(&self._ptr, &var._ptr)
       return var
       
   property wrk:
@@ -70,8 +65,8 @@ cdef class Atmosphere:
     integration.
     """
     def __get__(self):
-      wrk = PhotochemWrk(alloc = False)
-      wrk._ptr = self._wrk_ptr
+      wrk = PhotochemWrk()
+      a_pxd.atmosphere_wrk_get(&self._ptr, &wrk._ptr)
       return wrk
 
   def check_for_convergence(self):

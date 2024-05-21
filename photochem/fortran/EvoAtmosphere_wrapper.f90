@@ -25,15 +25,13 @@
   
   subroutine evoatmosphere_create_wrapper(ptr, mechanism_file, &
                                         settings_file, flux_file, &
-                                        atmosphere_txt, data_dir, dat_ptr, &
-                                        var_ptr, wrk_ptr , err) bind(c)
+                                        atmosphere_txt, data_dir, err) bind(c)
     type(c_ptr), intent(in) :: ptr
     character(kind=c_char), intent(in) :: mechanism_file(*)
     character(kind=c_char), intent(in) :: settings_file(*)
     character(kind=c_char), intent(in) :: flux_file(*)
     character(kind=c_char), intent(in) :: atmosphere_txt(*)
     character(kind=c_char), intent(in) :: data_dir(*)
-    type(c_ptr), intent(out) :: dat_ptr, var_ptr, wrk_ptr
     character(kind=c_char), intent(out) :: err(err_len+1)
     
     character(len=:), allocatable :: mechanism_file_f
@@ -69,9 +67,30 @@
     if (allocated(err_f)) then
       call copy_string_ftoc(err_f, err)
     endif
-    dat_ptr = c_loc(pc%dat)
-    var_ptr = c_loc(pc%var)
-    wrk_ptr = c_loc(pc%wrk) 
+  end subroutine
+
+  subroutine evoatmosphere_dat_get(ptr, ptr1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), intent(out) :: ptr1
+    type(EvoAtmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+    ptr1 = c_loc(pc%dat)
+  end subroutine
+
+  subroutine evoatmosphere_var_get(ptr, ptr1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), intent(out) :: ptr1
+    type(EvoAtmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+    ptr1 = c_loc(pc%var)
+  end subroutine
+
+  subroutine evoatmosphere_wrk_get(ptr, ptr1) bind(c)
+    type(c_ptr), intent(in) :: ptr
+    type(c_ptr), intent(out) :: ptr1
+    type(EvoAtmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+    ptr1 = c_loc(pc%wrk)
   end subroutine
 
   subroutine evoatmosphere_prep_atmosphere_wrapper(ptr, nq, nz, usol, err) bind(c)

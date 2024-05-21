@@ -10,8 +10,8 @@ cdef class AtomConservation:
 
   cdef void *_ptr
 
-  def __cinit__(self, bint alloc = False):
-    pass
+  def __cinit__(self):
+    self._ptr = NULL 
 
   def __dealloc__(self):
     atom_pxd.deallocate_atomconservation(&self._ptr)
