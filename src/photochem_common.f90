@@ -18,9 +18,10 @@ module photochem_common
 contains
   
   subroutine reaction_rates(dat, var, pressure, density, densities, rx_rates)
+    use futils, only: searchsorted
     use photochem_enum, only: NoFalloff, TroeWithoutT2Falloff, TroeWithT2Falloff, JPLFalloff
     use photochem_types, only: ElementaryRate, ThreeBodyRate, FalloffRate, PressDependentRate
-    use photochem_eqns, only: arrhenius_rate, Troe_noT2, Troe_withT2, falloff_rate, searchsorted
+    use photochem_eqns, only: arrhenius_rate, Troe_noT2, Troe_withT2, falloff_rate
     use photochem_const, only: Rgas, k_boltz, smallest_real ! constants
     
     type(PhotochemData), intent(in) :: dat
