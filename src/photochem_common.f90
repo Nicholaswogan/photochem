@@ -619,16 +619,20 @@ contains
 
   subroutine out2atmosphere_txt_base(dat, var, &
                                      pressure, density, densities, molecules_per_particle, &
-                                     filename, overwrite, clip, err)
+                                     filename, number_of_decimals, overwrite, clip, err)
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     real(dp), intent(in) :: pressure(:), density(:), densities(:,:), molecules_per_particle(:,:)
     character(len=*), intent(in) :: filename
+    integer, intent(in) :: number_of_decimals
     logical, intent(in) :: overwrite, clip
     character(:), allocatable, intent(out) :: err
     
     character(len=100) :: tmp
     integer :: io, i, j
+    integer :: number_of_spaces
+    character(len=10) :: number_of_decimals_str, number_of_spaces_str
+    character(:), allocatable :: fmt_label, fmt_number
     real(dp) :: val, clip_value
 
     if (clip) then
@@ -650,51 +654,79 @@ contains
         return
       endif
     endif
+
+    ! number of decimals must be reasonable
+    if (number_of_decimals < 2 .or. number_of_decimals > 17) then
+      err = '"number_of_decimals" should be between 1 and 17.'
+      return
+    endif
+    number_of_spaces = number_of_decimals + 9
+    ! make sure number of spaces works with the length of species names
+    do i=1,dat%nsp
+      number_of_spaces = max(number_of_spaces,len_trim(dat%species_names(i)) + 3)
+    enddo
+    write(number_of_decimals_str,'(i10)') number_of_decimals
+    write(number_of_spaces_str,'(i10)') number_of_spaces
     
+    fmt_label = "(a"//trim(adjustl(number_of_spaces_str))//")"
+    fmt_number = "(es"//trim(adjustl(number_of_spaces_str))//"."//trim(adjustl(number_of_decimals_str))//"e3)"
+
     tmp = 'alt'
-    write(unit=1,fmt="(3x,a27)",advance='no') tmp
+    write(unit=1,fmt=fmt_label,advance='no') tmp
     tmp = 'press'
-    write(unit=1,fmt="(a27)",advance='no') tmp
+    write(unit=1,fmt=fmt_label,advance='no') tmp
     tmp = 'den'
-    write(unit=1,fmt="(a27)",advance='no') tmp
+    write(unit=1,fmt=fmt_label,advance='no') tmp
     tmp = 'temp'
-    write(unit=1,fmt="(a27)",advance='no') tmp
+    write(unit=1,fmt=fmt_label,advance='no') tmp
     tmp = 'eddy'
-    write(unit=1,fmt="(a27)",advance='no') tmp
+    write(unit=1,fmt=fmt_label,advance='no') tmp
     do j = 1,dat%nsp
       tmp = dat%species_names(j)
-      write(unit=1,fmt="(a27)",advance='no') tmp
+      write(unit=1,fmt=fmt_label,advance='no') tmp
     enddo
     if (dat%there_are_particles) then
       do j = 1,dat%npq
         tmp = trim(dat%species_names(j))//"_r"
-        write(unit=1,fmt="(a27)",advance='no') tmp
+        write(unit=1,fmt=fmt_label,advance='no') tmp
       enddo
     endif
     
     do i = 1,var%nz
       write(1,*)
-      write(unit=1,fmt="(es27.17e3)",advance='no') var%z(i)/1.e5_dp
-      write(unit=1,fmt="(es27.17e3)",advance='no') pressure(i)/1.e6_dp
-      write(unit=1,fmt="(es27.17e3)",advance='no') density(i)
-      write(unit=1,fmt="(es27.17e3)",advance='no') var%temperature(i)
-      write(unit=1,fmt="(es27.17e3)",advance='no') var%edd(i)
+      write(tmp,fmt=fmt_number) var%z(i)/1.e5_dp
+      write(unit=1,fmt=fmt_label,advance='no') adjustl(tmp)
+
+      write(tmp,fmt=fmt_number) pressure(i)/1.e6_dp
+      write(unit=1,fmt=fmt_label,advance='no') adjustl(tmp)
+
+      write(tmp,fmt=fmt_number) density(i)
+      write(unit=1,fmt=fmt_label,advance='no') adjustl(tmp)
+
+      write(tmp,fmt=fmt_number) var%temperature(i)
+      write(unit=1,fmt=fmt_label,advance='no') adjustl(tmp)
+
+      write(tmp,fmt=fmt_number) var%edd(i)
+      write(unit=1,fmt=fmt_label,advance='no') adjustl(tmp)
       ! particles
       if (dat%there_are_particles) then
         do j = 1,dat%npq
           val = densities(j,i)*(molecules_per_particle(j,i)/density(i)) ! mixing ratio of particle
-          write(unit=1,fmt="(es27.17e3)",advance='no') max(val, clip_value)
+          write(tmp,fmt=fmt_number) max(val, clip_value)
+          write(unit=1,fmt=fmt_label,advance='no') adjustl(tmp)
         enddo
       endif
       ! gases
       do j = dat%ng_1,dat%nsp
         val = densities(j,i)/density(i)
-        write(unit=1,fmt="(es27.17e3)",advance='no') max(val, clip_value)
+        write(tmp,fmt=fmt_number) max(val, clip_value)
+        write(unit=1,fmt=fmt_label,advance='no') adjustl(tmp)
       enddo
       ! particle radii
       if (dat%there_are_particles) then
         do j = 1,dat%npq
-          write(unit=1,fmt="(es27.17e3)",advance='no') var%particle_radius(j,i)
+          write(tmp,fmt=fmt_number) var%particle_radius(j,i)
+          write(unit=1,fmt=fmt_label,advance='no') adjustl(tmp)
         enddo
       endif
     enddo

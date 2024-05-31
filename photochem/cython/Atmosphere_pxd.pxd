@@ -21,7 +21,7 @@ cdef extern void atmosphere_wrk_get(void *ptr, void **ptr1)
 cdef extern void atmosphere_check_for_convergence_wrapper(void *ptr, bool *converged, char* err)
 cdef extern void atmosphere_photochemical_equilibrium_wrapper(void *ptr, bool *success, char* err)
   
-cdef extern void atmosphere_out2atmosphere_txt_wrapper(void *ptr, char *filename, bool *overwrite, bool *clip, char *err)                         
+cdef extern void atmosphere_out2atmosphere_txt_wrapper(void *ptr, char *filename, int *number_of_decimals, bool *overwrite, bool *clip, char *err)                         
 cdef extern void atmosphere_out2in_wrapper(void *ptr, char *err)
 cdef extern void atmosphere_gas_fluxes_wrapper(void *ptr, int *nq, double *surf_fluxes, double *top_fluxes, char *err)
 cdef extern void atmosphere_set_lower_bc_wrapper(void *ptr, char *species, char *bc_type, 

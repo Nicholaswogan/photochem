@@ -142,9 +142,10 @@
     endif
   end subroutine
   
-  subroutine atmosphere_out2atmosphere_txt_wrapper(ptr, filename, overwrite, clip, err) bind(c)
+  subroutine atmosphere_out2atmosphere_txt_wrapper(ptr, filename, number_of_decimals, overwrite, clip, err) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: filename(*)
+    integer(c_int), intent(in) :: number_of_decimals
     logical(c_bool), intent(in) :: overwrite, clip
     character(kind=c_char), intent(out) :: err(err_len+1)
     
@@ -160,7 +161,7 @@
     overwrite_f = overwrite
     clip_f = clip
     
-    call pc%out2atmosphere_txt(filename_f, overwrite_f, clip_f, err_f)
+    call pc%out2atmosphere_txt(filename_f, number_of_decimals, overwrite_f, clip_f, err_f)
     err(1) = c_null_char
     if (allocated(err_f)) then
       call copy_string_ftoc(err_f, err)

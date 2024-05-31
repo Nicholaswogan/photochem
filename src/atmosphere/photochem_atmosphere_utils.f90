@@ -6,10 +6,11 @@ submodule(photochem_atmosphere) photochem_atmosphere_utils
   
 contains
   
-  module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
+  module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwrite, clip, err)
     use photochem_common, only: out2atmosphere_txt_base
     class(Atmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: filename
+    integer, intent(in) :: number_of_decimals
     logical, intent(in) :: overwrite, clip
     character(:), allocatable, intent(out) :: err
     
@@ -28,7 +29,7 @@ contains
 
     call out2atmosphere_txt_base(dat, var, &
                                  wrk%pressure, wrk%density, wrk%densities, wrk%molecules_per_particle, &
-                                 filename, overwrite, clip, err)
+                                 filename, number_of_decimals, overwrite, clip, err)
     if (allocated(err)) return
 
   end subroutine

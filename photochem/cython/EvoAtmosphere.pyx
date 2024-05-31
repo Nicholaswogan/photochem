@@ -108,13 +108,15 @@ cdef class EvoAtmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
-  def out2atmosphere_txt(self,filename = None, bool overwrite = False, bool clip = True):
+  def out2atmosphere_txt(self,filename = None, int number_of_decimals=5, bool overwrite = False, bool clip = True):
     """Saves state of the atmosphere using the mixing ratios in self.wrk.usol.
 
     Parameters
     ----------
     filename : str
         Output filename
+    number_of_decimals : int, optional
+        Number of decimals
     overwrite : bool, optional
         If true, then output file can be overwritten, by default False
     clip : bool, optional
@@ -124,7 +126,7 @@ cdef class EvoAtmosphere:
     cdef bytes filename_b = pystring2cstring(filename)
     cdef char *filename_c = filename_b
     cdef char err[ERR_LEN+1]
-    ea_pxd.evoatmosphere_out2atmosphere_txt_wrapper(self._ptr, filename_c, &overwrite, &clip, err)  
+    ea_pxd.evoatmosphere_out2atmosphere_txt_wrapper(self._ptr, filename_c, &number_of_decimals, &overwrite, &clip, err)  
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 

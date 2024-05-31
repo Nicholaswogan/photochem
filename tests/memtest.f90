@@ -121,7 +121,7 @@ contains
     type(Atmosphere), intent(inout) :: pc
     character(:), allocatable :: err
     
-    call pc%out2atmosphere_txt("test.txt", .true., .false., err)
+    call pc%out2atmosphere_txt("test.txt", 4, .true., .false., err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1

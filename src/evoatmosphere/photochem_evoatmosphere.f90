@@ -228,10 +228,11 @@ module photochem_evoatmosphere
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! photochem_evoatmosphere_utils.f90 !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
+    module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwrite, clip, err)
       use photochem_common, only: out2atmosphere_txt_base
       class(EvoAtmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: filename
+      integer, intent(in) :: number_of_decimals
       logical, intent(in) :: overwrite, clip
       character(:), allocatable, intent(out) :: err
     end subroutine

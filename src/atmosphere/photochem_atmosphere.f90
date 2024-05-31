@@ -214,9 +214,10 @@ module photochem_atmosphere
     !~~ photochem_atmosphere_utils.f90 ~~!
 
     !> Saves state of the atmosphere, using the mixing ratios in self%wrk%usol.
-    module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
+    module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwrite, clip, err)
       class(Atmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: filename !! Output filename
+      integer, intent(in) :: number_of_decimals
       logical, intent(in) :: overwrite !! If true, then output file can be overwritten
       logical, intent(in) :: clip !! If true, then mixing ratios are 
                                   !! clipped at a very small positive number
