@@ -10,8 +10,7 @@ cdef class Atmosphere:
   cdef void *_ptr
   cdef bool _init_called
 
-  def __cinit__(self, mechanism_file = None, settings_file = None, 
-                flux_file = None, atmosphere_txt = None, data_dir = None):
+  def __cinit__(self, *args, **kwargs):
     self._init_called = False
     self._ptr = a_pxd.allocate_atmosphere()
 
