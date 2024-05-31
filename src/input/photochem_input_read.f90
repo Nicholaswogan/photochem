@@ -393,14 +393,20 @@ contains
         if (dat%particle_formation_method(i) == CondensingParticle) then
           ! if a condensing molecule
           ind = findloc(dat%species_names,dat%particle_gas_phase(i))
-          if (ind(1) /= 0) then
-            dat%particle_gas_phase_ind(i) = ind(1)
-          else
+          if (ind(1) == 0) then
             err = "IOError: particle "//trim(dat%particle_names(i))// &
                   " can not be made from "//trim(dat%particle_gas_phase(i))// &
                   " because "//trim(dat%particle_gas_phase(i))//" is not a gas"// &
                   " in the model."
             return
+          elseif (ind(1) > dat%nq .or. ind(1) < dat%ng_1) then
+            err = "Particle "//trim(dat%particle_names(i))// &
+                  " can not be made from "//trim(dat%particle_gas_phase(i))// &
+                  " because "//trim(dat%particle_gas_phase(i))//" is"// &
+                  " is a particle, short-lived species, or background gas."
+            return
+          else
+            dat%particle_gas_phase_ind(i) = ind(1)
           endif
         endif
       enddo
