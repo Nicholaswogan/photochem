@@ -78,8 +78,8 @@ contains
   
   subroutine get_rxmechanism(mapping, infile, dat, var, err)
     use photochem_enum, only: CondensingParticle, ReactionParticle
-    use photochem_enum, only: ArrheniusSaturation, H2SO4Saturation
     use photochem_enum, only: MieParticle, FractalParticle 
+    use clima_saturationdata, only: SaturationData
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
     type(PhotochemData), intent(inout) :: dat
@@ -157,8 +157,7 @@ contains
       allocate(dat%particle_names(dat%np))
       allocate(dat%particle_formation_method(dat%np))
       allocate(dat%particle_density(dat%np))
-      allocate(dat%particle_sat_type(dat%np))
-      allocate(dat%particle_sat_params(3,dat%np))
+      allocate(dat%particle_sat(dat%np))
       allocate(dat%particle_gas_phase(dat%np))
       allocate(dat%particle_optical_prop(dat%np))
       allocate(dat%particle_optical_type(dat%np))
@@ -204,51 +203,16 @@ contains
           endif
   
           if (dat%particle_formation_method(j) == CondensingParticle) then
-            ! there should be saturation vapor pressure information
-            tmpchar = element%get_string("saturation-type",default="arrhenius",error = io_err)
-            if (tmpchar == 'arrhenius') then
-              dat%particle_sat_type(j) = ArrheniusSaturation
-              sat_params => element%get_dictionary('saturation-parameters',.true.,error = io_err) 
-              if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-              i = 0
-              key_value_pair => sat_params%first
-              do while (associated(key_value_pair))
-                tmpchar = trim(key_value_pair%key)
-                
-                if (trim(tmpchar) == "A") then
-                  dat%particle_sat_params(1,j) = sat_params%get_real(trim(tmpchar),error = io_err)
-                  if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-                elseif (trim(tmpchar) == "B") then
-                  dat%particle_sat_params(2,j) = sat_params%get_real(trim(tmpchar),error = io_err)
-                  if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-                elseif (trim(tmpchar) == "C") then
-                  dat%particle_sat_params(3,j) = sat_params%get_real(trim(tmpchar),error = io_err)
-                  if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
-                else
-                  err = "Particle "//trim(dat%particle_names(j))//" saturation parameters "//&
-                        "can only be 'A', 'B', or 'C'"
-                  return
-                endif                
-                key_value_pair => key_value_pair%next
-                i = i + 1
-              enddo
-              if (i /= 3) then
-                err = "IOError: Missing or two many saturation parameters for "//trim(dat%particle_names(j))
-                return 
-              endif
-            elseif (tmpchar == 'H2SO4') then
-              dat%particle_sat_type(j) = H2SO4Saturation
-              ! make a H2SO4 interpolator
-              call H2SO4_interpolator(var, dat%H2SO4_sat, err)
-              if (allocated(err)) return
-            else
-              err = "Saturation type '"//trim(tmpchar)//"' is not a valid type."
-              return
-            endif
-            
-            ! gas phase
+
             dat%particle_gas_phase(j) = element%get_string("gas-phase",error = io_err) 
             if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+
+            sat_params => element%get_dictionary('saturation',.true.,error=io_err)
+            if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
+
+            dat%particle_sat(j) = SaturationData(sat_params, trim(dat%particle_names(j)), trim(infile), err)
+            if (allocated(err)) return
+            
           elseif (dat%particle_formation_method(j) == ReactionParticle) then
             ! add the reaction to the list of reactions
             call all_reactions%append(item%node)
@@ -261,6 +225,28 @@ contains
         item => item%next
         j = j + 1
       enddo
+
+      block
+        character(s_str_len), allocatable :: str_list(:), str_list1(:)
+        ! Check for duplicate gas phases species
+        str_list = ['']
+        str_list1 = ['']
+        do j = 1,dat%np
+          if (dat%particle_formation_method(j) == CondensingParticle) then
+            str_list = [str_list, dat%particle_gas_phase(j)]
+            str_list1 = [str_list1, dat%particle_names(j)]
+          endif
+        enddo
+        str_list = str_list(2:size(str_list))
+        str_list1 = str_list1(2:size(str_list1))
+        i = check_for_duplicates(str_list)
+        if (i /= 0) then
+          err = 'Particle "'//trim(str_list1(i))//'" has gas phase species "'//trim(str_list(i))// &
+                '"  which is duplicate with another particle.'
+          return
+        endif
+      endblock
+
     else ! there are no particles
       dat%there_are_particles = .false.
       dat%np = 0
@@ -392,6 +378,11 @@ contains
         err = 'IOError: The specified background gas is not in '//trim(infile)
         return
       endif
+    endif
+    i = check_for_duplicates(dat%species_names)
+    if (i /= 0) then
+      err = 'Species "'//trim(dat%species_names(i))//'" is a duplicate in '//trim(infile)
+      return
     endif
     !!! done with species !!!
     
@@ -582,46 +573,7 @@ contains
     
   end subroutine
   
-  subroutine H2SO4_interpolator(var, s2, err)
-    use linear_interpolation_module, only: linear_interp_2d
-    type(PhotochemVars), intent(in) :: var
-    type(linear_interp_2d), intent(out) :: s2
-    character(:), allocatable, intent(out) :: err
-    
-    real(dp), allocatable :: H2O(:)
-    real(dp), allocatable :: Temp(:)
-    real(dp), allocatable :: H2SO4(:,:)
-    integer :: io
-    integer :: nT, nH2O
-    character(len=:), allocatable :: filename
-    
-    
-    filename = trim(var%data_dir)//"/misc/H2SO4.dat"
-    open(unit=1,file=filename, status='old',iostat=io,form='unformatted')
-    if (io /= 0) then
-      err = "Could not open "//trim(filename)
-      return
-    endif
-    read(1) nT
-    read(1) nH2O
-    allocate(Temp(nT))
-    allocate(H2O(nH2O))
-    allocate(H2SO4(nT,nH2O))
-    read(1) Temp
-    read(1) H2O
-    read(1) H2SO4
-    close(1)
-    
-    call s2%initialize(Temp, H2O, H2SO4, io)
-    if (io /= 0) then
-      err = "Failed to initialize H2SO4 interpolator."
-      return
-    endif
-    
-  end subroutine
-  
   subroutine unpack_settings(infile, s, dat, var, err)
-    use photochem_enum, only: H2SO4Saturation
     use photochem_enum, only: CondensingParticle
     use photochem_enum, only: VelocityBC, DensityBC, MixingRatioBC, PressureBC
     use photochem_enum, only: DiffusionLimHydrogenEscape, ZahnleHydrogenEscape, NoHydrogenEscape
@@ -753,11 +705,6 @@ contains
     elseif (ind(1) == 0 .and. dat%gas_rainout) then
       err = 'IOError: H2O must be a species if gas-rainout = True.'
       return
-    elseif (ind(1) == 0 .and. dat%there_are_particles) then
-      if (any(dat%particle_sat_type == H2SO4Saturation)) then
-        err = 'IOError: H2O must be a species if H2SO4 condensation is on.'
-        return
-      endif
     endif
     if ((dat%fix_water_in_trop .or. dat%water_cond) .and. dat%there_are_particles) then
       ! Make sure there isn't already H2O condensation implemented by a particle.
@@ -2739,5 +2686,20 @@ contains
     endif
 
   end subroutine
+
+  pure function check_for_duplicates(str_list) result(ind)
+    character(*), intent(in) :: str_list(:)
+    integer :: ind
+    integer :: i, j
+    ind = 0
+    do i = 1,size(str_list)-1
+      do j = i+1,size(str_list)
+        if (str_list(i) == str_list(j)) then
+          ind = i
+          exit
+        endif
+      enddo
+    enddo
+  end function
   
 end submodule

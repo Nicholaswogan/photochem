@@ -200,22 +200,6 @@ contains
   
   end subroutine
   
-  pure function saturation_pressure(T, A, B, C) result(Psat)
-      real(dp), intent(in) :: T ! Kelvin
-      real(dp), intent(in) :: A, B, C ! parameters
-      real(dp) :: Psat ! saturation pressure [bar]
-      ! Simple exponential fit to saturation pressure data
-      Psat = exp(A + B/T + C/T**2.0_dp)
-  end function
-  
-  pure function saturation_density(T, A, B, C) result(nsat)
-      use photochem_const, only: k_boltz
-      real(dp), intent(in) :: T ! Kelvin
-      real(dp), intent(in) :: A, B, C ! parameters
-      real(dp) :: nsat ! saturation density [molecules/cm3]
-      nsat = saturation_pressure(T, A, B, C)*1.e6_dp/(k_boltz*T)
-  end function
-  
   pure function dynamic_viscosity_air(T) result(eta)
       real(dp), intent(in) :: T
       real(dp) :: eta ! dynamic viscosity [dynes s/cm^2]

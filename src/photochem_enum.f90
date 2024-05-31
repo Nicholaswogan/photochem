@@ -20,12 +20,7 @@ module photochem_enum
   enumerator :: &
     CondensingParticle = 1, &
     ReactionParticle = 2
-    
-  ! particle_sat_type
-  enumerator :: &
-    ArrheniusSaturation = 1, &
-    H2SO4Saturation = 2
-  
+
   ! particle_optical_type
   enumerator ::  &
     MieParticle = 0, &

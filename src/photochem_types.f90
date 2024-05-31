@@ -2,8 +2,7 @@
 module photochem_types ! make a giant IO object
   use, intrinsic :: iso_c_binding, only: c_double, c_int, c_long, c_ptr, c_null_ptr
   use photochem_const, only: dp, str_len, s_str_len, m_str_len
-  
-  use linear_interpolation_module, only: linear_interp_2d
+  use clima_saturationdata, only: SaturationData
   use fsundials_nvector_mod, only: N_Vector
   use fsundials_matrix_mod, only: SUNMatrix
   use fsundials_linearsolver_mod, only: SUNLinearSolver
@@ -299,9 +298,7 @@ module photochem_types ! make a giant IO object
     character(len=s_str_len), allocatable :: particle_names(:) !! np
     integer, allocatable :: particle_formation_method(:) !! np. 1 == saturation, 2 == reaction
     real(dp), allocatable :: particle_density(:) !! np (g/cm3)
-    type(linear_interp_2d) :: H2SO4_sat !! interpolator for H2SO4 saturation, which depends on T and H2O.
-    integer, allocatable :: particle_sat_type(:) !! np, 1 == arrhenius, 2 == H2SO4
-    real(dp), allocatable :: particle_sat_params(:,:) !! (3,np)
+    type(SaturationData), allocatable :: particle_sat(:) !! (np)
     character(len=s_str_len), allocatable :: particle_gas_phase(:) !! (np). gas phase of particle. 
     ! Only for saturation particles
     integer, allocatable :: particle_gas_phase_ind(:) !! np. index of gas phase of particle

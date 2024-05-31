@@ -23,7 +23,7 @@ planet:
   water:
     fix-water-in-troposphere: false
     gas-rainout: false
-    water-condensation: true
+    water-condensation: false
 
 boundary-conditions:
 - name: CH4

@@ -477,11 +477,9 @@ contains
   
   module subroutine prep_all_background_gas(self, usol_in, err)
     use photochem_enum, only: CondensingParticle
-    use photochem_enum, only: ArrheniusSaturation, H2SO4Saturation
     use photochem_enum, only: DiffusionLimHydrogenEscape
     use photochem_common, only: reaction_rates, rainout, photorates
     use photochem_common, only: gas_saturation_density
-    use photochem_eqns, only: saturation_density
     use clima_eqns_water, only: sat_pressure_H2O
     use photochem_eqns, only: molar_weight, press_and_den
     use photochem_const, only: pi, k_boltz, N_avo, small_real
@@ -561,8 +559,7 @@ contains
         wrk%lower_vdep_copy(i) = wrk%lower_vdep_copy(i) + wrk%wfall(i,1)
       enddo
 
-      call gas_saturation_density(dat, var, wrk%usol(dat%LH2O,:), wrk%pressure, &
-                                  wrk%gas_sat_den)
+      call gas_saturation_density(dat, var, wrk%gas_sat_den)
     endif
   
     !!! densities

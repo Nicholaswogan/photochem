@@ -19,15 +19,17 @@ planet:
   hydrogen-escape:
     type: diffusion limited
   water:
-    fix-water-in-troposphere: true
-    relative-humidity: 0.7
+    fix-water-in-troposphere: false
     gas-rainout: true
     rainfall-rate: 1 # relative to modern earth's rainfall rate
     # rainout-species: [H2SO4aer] # specify rainout species. If omitted, then model will use all species with data.
     tropopause-altitude: 1.1e6 # cm. required if gas-rainout or fix-water-in-troposphere
-    water-condensation: true
+    water-condensation: false
 
 boundary-conditions:
+- name: H2O
+  lower-boundary: {type: press, press: 0.02e6}
+  upper-boundary: {type: veff, veff: 1.0e-8}
 - name: N2
   lower-boundary: {type: press, press: 0.78e6}
   upper-boundary: {type: veff, veff: 1.0e-8}

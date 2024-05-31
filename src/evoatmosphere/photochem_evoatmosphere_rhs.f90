@@ -640,8 +640,7 @@ contains
         wrk%lower_vdep_copy(i) = wrk%lower_vdep_copy(i) + wrk%wfall(i,1)
       enddo
 
-      call gas_saturation_density(dat, var, wrk%mix(dat%LH2O,:), wrk%pressure, &
-                                  wrk%gas_sat_den)
+      call gas_saturation_density(dat, var, wrk%gas_sat_den)
     endif
 
     !!! densities

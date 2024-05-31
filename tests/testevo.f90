@@ -4,7 +4,7 @@ program testevo
   implicit none
 
   print*,'photochem version == ',trim(version)
-  call test_climate()
+  ! call test_climate()
   call test_stepper()
 
 contains

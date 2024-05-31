@@ -22,10 +22,8 @@ planet:
     type: diffusion limited
   water:
     fix-water-in-troposphere: false
-    # relative-humidity: 0.05
     gas-rainout: false
-    tropopause-altitude: 1.5e6
-    water-condensation: true
+    water-condensation: false
 
 boundary-conditions:
 - name: H2O

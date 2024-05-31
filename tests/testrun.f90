@@ -19,6 +19,7 @@ program main
     print*,trim(err)
     stop 1
   endif
+  pc%var%atol = 1.0e-21
 
   call pc%photochemical_equilibrium(success, err)
   if (allocated(err)) then

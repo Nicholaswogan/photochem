@@ -5,7 +5,7 @@ from threadpoolctl import threadpool_limits
 threadpool_limits(limits=4)
 
 pc = EvoAtmosphere(zahnle_earth,\
-                    "testevo_settings.yaml",\
+                    "testevo_settings1.yaml",\
                     "../templates/ModernEarth/Sun_now.txt",\
                     "../templates/ModernEarth/atmosphere_ModernEarth.txt")
 
