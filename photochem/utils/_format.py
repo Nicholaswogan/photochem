@@ -93,6 +93,10 @@ def FormatReactions_main(data):
                 for key in flowstyle:
                     if key in data['particles'][i].keys():
                         data['particles'][i][key] = flowmap(data['particles'][i][key])
+            elif data['particles'][i]['formation'] == 'saturation':
+                flowstyle = ['parameters','vaporization','sublimation','super-critical']
+                for key in flowstyle:
+                    data['particles'][i]['saturation'][key] = flowmap(data['particles'][i]['saturation'][key])
             
     # Reactions
     if 'reactions' in data:

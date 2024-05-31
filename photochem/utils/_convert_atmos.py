@@ -308,11 +308,6 @@ def make_rx_yaml(species, particles, rx, photo_database = "Photochem"):
     
     out['species'] = species
     
-    out['particles'] = []
-    particle_index = {"SO4AER":0,"S8AER":1,"HCAER":2,"HCAER2":3}
-    for part in particles:
-        out['particles'].append(atmos_particles[particle_index[part]])
-    
     possible_photos = generate_photo_yaml_entries([sp['name'] for sp in species])
     missing, not_missing = sort_photos(rx['photolysis'], possible_photos)
     
@@ -326,37 +321,3 @@ def make_rx_yaml(species, particles, rx, photo_database = "Photochem"):
         raise Exception('"Photochem" and "Atmos" are the only options for photo_database')
         
     return out
-
-atmos_particles_str = """
-- name: SO4AER
-  formation: saturation
-  density: 1.0
-  gas-phase: H2SO4
-  saturation-type: H2SO4
-  composition: {H: 2, S: 1, O: 4}
-  optical-properties: none
-- name: S8AER
-  formation: 
-  density: 1.0
-  composition: {S: 8}
-  optical-properties: none
-- name: HCAER
-  formation: reaction
-  density: 1.0
-  composition: {C: 4, H: 2}
-  optical-properties: khare1984
-  optical-type: mie
-  equation: C2H + C2H2 => HCAER + H
-  type: elementary
-  rate-constant: {A: 1.5e-10, b: 0.0, Ea: 0.0}
-- name: HCAER2
-  formation: reaction
-  density: 1.0
-  composition: {C: 5, H: 4}
-  optical-properties: khare1984
-  optical-type: mie
-  equation: C2H + CH2CCH2 => HCAER2 + H
-  type: elementary
-  rate-constant: {A: 1.5e-10, b: 0.0, Ea: 0.0}
-"""
-atmos_particles = yaml.load(atmos_particles_str,Loader=Loader) 
