@@ -468,7 +468,7 @@ contains
     real(dp), intent(out) :: pressure_hydro(:), density_hydro(:)
     character(:), allocatable, intent(out) :: err
 
-    real(dp) :: T_surf_guess
+    real(dp) :: T_surf_guess, Psat
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     integer :: i, j
@@ -491,7 +491,12 @@ contains
       if (var%lowerboundcond(i) == DensityBC) then
         usol(i,1) = var%lower_fix_den(i)
       elseif (var%lowerboundcond(i) == PressureBC) then
-        usol(i,1) = var%lower_fix_press(i)/(k_boltz*var%temperature(1))
+        Psat = huge(1.0_dp)
+        if (dat%gas_particle_ind(i) /= 0) then
+          j = dat%gas_particle_ind(i)
+          Psat = dat%particle_sat(j)%sat_pressure(var%temperature(1))*var%cond_params(j)%RHc
+        endif
+        usol(i,1) = min(var%lower_fix_press(i), Psat)/(k_boltz*var%temperature(1))
       endif
     enddo
 

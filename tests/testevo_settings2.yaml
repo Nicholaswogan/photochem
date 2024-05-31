@@ -28,7 +28,7 @@ planet:
 
 boundary-conditions:
 - name: H2O
-  lower-boundary: {type: press, press: 0.02e6}
+  lower-boundary: {type: press, press: 200.0e6}
   upper-boundary: {type: veff, veff: 1.0e-8}
 - name: N2
   lower-boundary: {type: press, press: 0.78e6}

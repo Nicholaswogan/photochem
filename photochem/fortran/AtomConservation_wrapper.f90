@@ -160,3 +160,14 @@ subroutine condensationparameters_smooth_factor_set(ptr, val) bind(c)
   call c_f_pointer(ptr, c)
   c%smooth_factor = val
 end subroutine
+
+! SaturationData
+
+subroutine saturationdata_sat_pressure_wrapper(ptr, T, Psat) bind(c)
+  type(c_ptr), value, intent(in) :: ptr
+  real(c_double), intent(in) :: T
+  real(c_double), intent(out) :: Psat
+  type(SaturationData), pointer :: sat
+  call c_f_pointer(ptr, sat)
+  Psat = sat%sat_pressure(T)
+end subroutine

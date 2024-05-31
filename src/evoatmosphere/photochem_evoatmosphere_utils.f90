@@ -620,6 +620,7 @@ module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
     real(dp), intent(out) :: pressure_new(:)
     character(:), allocatable, intent(out) :: err
 
+    real(dp) :: Psat
     real(dp), allocatable :: mix(:,:), mix_new(:,:)
     real(dp), allocatable :: density(:), density_new(:)
     integer :: i, j, ierr
@@ -701,7 +702,12 @@ module subroutine out2atmosphere_txt(self, filename, overwrite, clip, err)
       if (var%lowerboundcond(i) == DensityBC) then
         usol_new(i,1) = var%lower_fix_den(i)
       elseif (var%lowerboundcond(i) == PressureBC) then
-        usol_new(i,1) = var%lower_fix_press(i)/(k_boltz*temperature_new(1))
+        Psat = huge(1.0_dp)
+        if (dat%gas_particle_ind(i) /= 0) then
+          j = dat%gas_particle_ind(i)
+          Psat = dat%particle_sat(j)%sat_pressure(var%temperature(1))*var%cond_params(j)%RHc
+        endif
+        usol_new(i,1) = min(var%lower_fix_press(i), Psat)/(k_boltz*temperature_new(1))
       endif
     enddo
 

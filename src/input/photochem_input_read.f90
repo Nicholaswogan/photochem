@@ -82,7 +82,7 @@ contains
     use clima_saturationdata, only: SaturationData
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
-    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemData), target, intent(inout) :: dat
     type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
     
@@ -385,7 +385,9 @@ contains
       return
     endif
     !!! done with species !!!
-    
+
+    allocate(dat%gas_particle_ind(dat%nq))
+    dat%gas_particle_ind = 0
     if (dat%there_are_particles) then
       ! get indexes of gas phase condensing species
       allocate(dat%particle_gas_phase_ind(dat%np))
@@ -408,6 +410,9 @@ contains
           else
             dat%particle_gas_phase_ind(i) = ind(1)
           endif
+
+          ! Index of particle
+          dat%gas_particle_ind(ind(1)) = i
         endif
       enddo
     endif

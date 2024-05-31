@@ -1,5 +1,6 @@
 module photochem_c_api
   use iso_c_binding
+  use clima_saturationdata, only: SaturationData
   use photochem, only: Atmosphere
   use photochem, only: EvoAtmosphere
   use photochem_types, only: PhotochemData

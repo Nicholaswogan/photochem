@@ -43,6 +43,22 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_usol_init_get(self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
 
+  property particle_radius:
+    "ndarray[double,dim=2], shape (npq,nz). cm"
+    def __get__(self):
+      cdef int dim1, dim2
+      var_pxd.photochemvars_particle_radius_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      var_pxd.photochemvars_particle_radius_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+    def __set__(self, ndarray[double, ndim=2] arr):
+      cdef int dim1, dim2
+      var_pxd.photochemvars_particle_radius_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr_ = np.asfortranarray(arr)
+      if arr_.shape[0] != dim1 or arr_.shape[1] != dim2:
+        raise PhotoException("Input array is the wrong size.")
+      var_pxd.photochemvars_particle_radius_set(self._ptr, &dim1, &dim2, <double *>arr_.data)
+
   property trop_alt:
     "double. Tropopause altitude."
     def __get__(self):

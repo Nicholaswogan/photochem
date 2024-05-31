@@ -234,3 +234,24 @@
     arr = dat%species_redox
   end subroutine
   
+  subroutine photochemdata_particle_sat_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    dim1 = 0
+    if (.not.allocated(dat%particle_sat)) return
+    dim1 = size(dat%particle_sat,1)
+  end subroutine
+
+  subroutine photochemdata_particle_sat_get(ptr, dim1, ptr1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    type(c_ptr), intent(out) :: ptr1(dim1)
+    integer :: i
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    do i = 1,dim1
+      ptr1(i) = c_loc(dat%particle_sat(i))
+    enddo
+  end subroutine

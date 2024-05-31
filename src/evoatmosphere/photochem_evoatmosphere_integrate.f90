@@ -235,6 +235,7 @@ contains
     integer :: i, j, k, ii, io
     integer :: istart
     logical :: overwrite_, restart_from_file_
+    real(dp) :: Psat
     
     type(SundialsDataFinalizer) :: sunfin
     type(c_ptr)    :: user_data
@@ -332,7 +333,12 @@ contains
       if (var%lowerboundcond(i) == DensityBC) then
         wrk%sun%yvec(i) = var%lower_fix_den(i)
       elseif (var%lowerboundcond(i) == PressureBC) then
-        wrk%sun%yvec(i) = var%lower_fix_press(i)/(k_boltz*var%temperature(1))
+        Psat = huge(1.0_dp)
+        if (dat%gas_particle_ind(i) /= 0) then
+          j = dat%gas_particle_ind(i)
+          Psat = dat%particle_sat(j)%sat_pressure(var%temperature(1))*var%cond_params(j)%RHc
+        endif
+        wrk%sun%yvec(i) = min(var%lower_fix_press(i), Psat)/(k_boltz*var%temperature(1))
       endif
     enddo
     ! set abstol
@@ -785,6 +791,7 @@ contains
     type(PhotochemWrkEvo), pointer :: wrk
     type(EvoAtmosphere), pointer :: self_ptr
     
+    real(dp) :: Psat
     integer :: i, j, k
 
     dat => self%dat
@@ -827,7 +834,12 @@ contains
       if (var%lowerboundcond(i) == DensityBC) then
         wrk%sun%yvec(i) = var%lower_fix_den(i)
       elseif (var%lowerboundcond(i) == PressureBC) then
-        wrk%sun%yvec(i) = var%lower_fix_press(i)/(k_boltz*var%temperature(1))
+        Psat = huge(1.0_dp)
+        if (dat%gas_particle_ind(i) /= 0) then
+          j = dat%gas_particle_ind(i)
+          Psat = dat%particle_sat(j)%sat_pressure(var%temperature(1))*var%cond_params(j)%RHc
+        endif
+        wrk%sun%yvec(i) = min(var%lower_fix_press(i), Psat)/(k_boltz*var%temperature(1))
       endif
     enddo
     ! set abstol

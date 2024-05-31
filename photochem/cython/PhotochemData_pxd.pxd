@@ -36,3 +36,6 @@ cdef extern void photochemdata_species_mass_get(void *ptr, int *dim1, double *ar
 cdef extern void photochemdata_species_redox_get_size(void *ptr, int *dim1)
 cdef extern void photochemdata_species_redox_get(void *ptr, int *dim1, double *arr)
 
+cdef extern void photochemdata_particle_sat_get_size(void *ptr, int *dim1)
+cdef extern void photochemdata_particle_sat_get(void *ptr, int *dim1, void **ptr1)
+

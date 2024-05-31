@@ -302,6 +302,7 @@ module photochem_types ! make a giant IO object
     character(len=s_str_len), allocatable :: particle_gas_phase(:) !! (np). gas phase of particle. 
     ! Only for saturation particles
     integer, allocatable :: particle_gas_phase_ind(:) !! np. index of gas phase of particle
+    integer, allocatable :: gas_particle_ind(:) !! (nq). Index of particle phase of gas
     character(len=s_str_len), allocatable :: particle_optical_prop(:) !! (np)
     integer, allocatable :: particle_optical_type(:) !! (np) 1 == mie, 2 == fractal
     
@@ -372,7 +373,7 @@ module photochem_types ! make a giant IO object
     real(dp) :: k_cond = 100.0_dp !! rate coefficient for condensation
     real(dp) :: k_evap = 10.0_dp !! rate coefficient for evaporation
     real(dp) :: RHc = 1.0_dp !! RH where condensation occurs
-    real(dp) :: smooth_factor = 0.1_dp !! A factor that smooths condensation/evaporation 
+    real(dp) :: smooth_factor = 0.2_dp !! A factor that smooths condensation/evaporation 
                                        !! rate to prevents stiffness
   end type
   

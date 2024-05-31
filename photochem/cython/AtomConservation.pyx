@@ -116,3 +116,14 @@ cdef class CondensationParameters:
     def __set__(self, double val):
       atom_pxd.condensationparameters_smooth_factor_set(self._ptr, &val)
     
+cdef class SaturationData:
+
+  cdef void *_ptr
+
+  def __cinit__(self):
+    self._ptr = NULL
+
+  def sat_pressure(self, double T):
+    cdef double Psat
+    atom_pxd.saturationdata_sat_pressure_wrapper(self._ptr, &T, &Psat)
+    return Psat

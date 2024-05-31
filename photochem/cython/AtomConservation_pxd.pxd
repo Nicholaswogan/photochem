@@ -27,3 +27,6 @@ cdef extern void condensationparameters_rhc_set(void *ptr, double *val)
 
 cdef extern void condensationparameters_smooth_factor_get(void *ptr, double *val)
 cdef extern void condensationparameters_smooth_factor_set(void *ptr, double *val)
+
+# SaturationData
+cdef extern void saturationdata_sat_pressure_wrapper(void *ptr, double *T, double *Psat)

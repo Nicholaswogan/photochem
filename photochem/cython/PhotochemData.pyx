@@ -139,4 +139,19 @@ cdef class PhotochemData:
       cdef ndarray arr = np.empty(dim1, np.double)
       dat_pxd.photochemdata_species_redox_get(self._ptr, &dim1, <double *>arr.data)
       return arr
+
+  property particle_sat:
+    "list, shape(np)."
+    def __get__(self):
+      cdef int dim1
+      dat_pxd.photochemdata_particle_sat_get_size(self._ptr, &dim1)
+      cdef void **arrp = <void **> malloc(dim1 * sizeof(void *))
+      dat_pxd.photochemdata_particle_sat_get(self._ptr, &dim1, arrp)
+      arr1 = []
+      for i in range(dim1):
+        tmp = SaturationData()
+        tmp._ptr = arrp[i]
+        arr1.append(tmp)
+      free(arrp)
+      return arr1
     
