@@ -164,7 +164,11 @@ contains
     ! distributed fluxes
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == VelocityDistributedFluxBC) then
+        if (var%lower_dist_height(i)*1.e5_dp < var%z(1) - 0.5_dp*var%dz(1)) then
+        ! do nothing
+        else
         con%in_dist = con%in_dist + var%lower_flux(i)*dat%species_composition(kk,i)
+        endif
       endif
     enddo
     
@@ -340,10 +344,14 @@ contains
     ! distributed fluxes
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == VelocityDistributedFluxBC) then
+        if (var%lower_dist_height(i)*1.e5_dp < var%z(1) - 0.5_dp*var%dz(1)) then
+        ! do nothing
+        else
         if (dat%species_redox(i) > 0) then
           oxi_in_dist = oxi_in_dist + var%lower_flux(i)*dat%species_redox(i)
         elseif (dat%species_redox(i) < 0) then
           red_in_dist = red_in_dist + var%lower_flux(i)*dat%species_redox(i)*(-1.0_dp)
+        endif
         endif
       endif
     enddo

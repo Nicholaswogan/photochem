@@ -427,11 +427,6 @@ contains
               ' must be positive.'
         return
       endif
-      if (sbc%height < 0.0_dp) then
-        err = 'Distributed height in '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
-              ' must be positive.'
-        return
-      endif
     elseif (bctype == "den") then
       if (bc_kind == "upper") then
         err = 'Upper boundary conditions can not be "den" for '//trim(sp_name)

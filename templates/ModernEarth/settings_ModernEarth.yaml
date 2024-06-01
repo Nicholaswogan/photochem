@@ -111,7 +111,7 @@ boundary-conditions:
   lower-boundary: {type: vdep + dist flux, vdep: 0.02, flux: 1.0e8, height: 10.0}
   upper-boundary: {type: veff, veff: 0.0}
 - name: OCS
-  lower-boundary: {type: vdep + dist flux, vdep: 0.003, flux: 5.0e7, height: 10.0}
+  lower-boundary: {type: vdep + dist flux, vdep: 0.003, flux: 5.0e7, height: -1.0}
   upper-boundary: {type: veff, veff: 0.0}
 - name: HSO
   lower-boundary: {type: vdep, vdep: 1.0}

@@ -709,6 +709,11 @@ contains
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == VelocityDistributedFluxBC) then
         disth = var%lower_dist_height(i)*1.e5_dp        
+        if (disth < var%z(1) - 0.5_dp*var%dz(1)) then
+        ! If the height is below the model domain, then we will put all flux into
+        ! lowest layer.
+        rhs(i) = rhs(i) + var%lower_flux(i)/(wrk%density(1)*var%dz(1))
+        else
         jdisth = minloc(var%Z,1, var%Z >= disth) - 1
         jdisth = max(jdisth,2)
         ztop = var%z(jdisth)-var%z(1)
@@ -717,6 +722,7 @@ contains
           k = i + (j-1)*dat%nq
           rhs(k) = rhs(k) + 2.0_dp*var%lower_flux(i)*(ztop1-var%z(j))/(wrk%density(j)*ztop**2.0_dp)
         enddo
+        endif
       endif
     enddo 
 
