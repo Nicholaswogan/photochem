@@ -2,27 +2,46 @@
 program memtest
   use photochem, only: Atmosphere, dp
   implicit none
-  
-  type(Atmosphere) :: pcs
 
-  call test_badfile(pcs)
-  call test_twoinitializations(pcs)
-  call test_photochemical_equilibrium(pcs)
-  call test_out2atmosphere(pcs)
-  call test_gas_fluxes(pcs)
-  call test_set_lower_bc(pcs)
-  call test_set_upper_bc(pcs)
-  call test_production_and_loss(pcs)
-  call test_redox_conservation(pcs)
-  call test_atom_conservation(pcs)
-  call test_evolve(pcs)
-  call test_set_temperature(pcs)
-  call test_custom_binary_diffusion(pcs)
-  call test_update_vertical_grid(pcs)
-  call test_press_temp_edd(pcs)
-  call test_autodiff(pcs)
+  call test()
   
 contains
+
+  subroutine test()
+    type(Atmosphere) :: pcs
+
+    call test_badfile(pcs)
+    call test_twoinitializations(pcs)
+
+    ! prep_atm_background_gas : test_gas_fluxes
+    ! prep_atmosphere : test_gas_fluxes
+    ! right_hand_side_chem : test_gas_fluxes
+    call test_production_and_loss(pcs)
+    ! right_hand_side : test_photochemical_equilibrium
+    ! jacobian : test_photochemical_equilibrium
+    call test_evolve(pcs)
+    ! check_for_convergence : test_photochemical_equilibrium
+    call test_photochemical_equilibrium(pcs)
+    ! initialize_stepper : test_photochemical_equilibrium
+    ! step : test_photochemical_equilibrium
+    ! destory_stepper : test_photochemical_equilibrium
+    call test_out2atmosphere(pcs)
+    ! out2in : NOT TESTED
+    call test_gas_fluxes(pcs)
+    call test_atom_conservation(pcs)
+    call test_redox_conservation(pcs)
+    call test_set_lower_bc(pcs)
+    call test_set_upper_bc(pcs)
+    call test_set_temperature(pcs)
+    call test_set_press_temp_edd(pcs)
+    ! set_rate_fcn :: NOT TESTED
+    call test_update_vertical_grid(pcs)
+
+    ! Other tests
+    call test_custom_binary_diffusion(pcs)
+    call test_autodiff(pcs)
+
+  end subroutine
   
   subroutine test_badfile(pc)
     type(Atmosphere), intent(inout) :: pc
@@ -298,7 +317,7 @@ contains
 
   end subroutine
 
-  subroutine test_press_temp_edd(pc)
+  subroutine test_set_press_temp_edd(pc)
     type(Atmosphere), intent(inout) :: pc
     character(:), allocatable :: err
 

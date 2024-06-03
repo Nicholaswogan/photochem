@@ -3,22 +3,43 @@ program memtest_evo
   use photochem, only: EvoAtmosphere, dp
   implicit none
 
-  type(EvoAtmosphere) :: pcs
-
-  call test_climate()
-  call test_twoinitializations(pcs)
-  call test_out2atmosphere(pcs)
-  call test_gas_fluxes(pcs)
-  call test_set_lower_bc(pcs)
-  call test_set_upper_bc(pcs)
-  call test_production_and_loss(pcs)
-  call test_set_temperature(pcs)
-  call test_update_vertical_grid(pcs)
-  call test_press_temp_edd(pcs)
-  call test_autodiff(pcs)
-  call test_evolve(pcs)
+  call test()
 
 contains
+
+  subroutine test()
+    type(EvoAtmosphere) :: pcs
+
+    call test_climate() ! Test climate version
+    call test_twoinitializations(pcs) ! Test initialization
+    
+    ! Test all functions in code. Comments indicates if function is already
+    ! tested in another test.
+
+    ! set_trop_ind : test_climate
+    ! prep_atm_evo_gas : test_production_and_loss
+    ! prep_atmosphere : test_production_and_loss
+    ! right_hand_side_chem : gas_fluxes
+    call test_production_and_loss(pcs)
+    ! right_hand_side : test_step
+    ! jacobian : test_step
+    call test_evolve(pcs)
+    ! check_for_convergence : test_step
+    ! initialize_stepper : test_step
+    call test_step(pcs)
+    ! destroy_stepper : test_step
+    call test_out2atmosphere(pcs)
+    call test_gas_fluxes(pcs) 
+    call test_set_lower_bc(pcs)
+    call test_set_upper_bc(pcs)
+    ! set_rate_fcn : NOT TESTED
+    call test_set_temperature(pcs)
+    call test_set_press_temp_edd(pcs)
+    call test_update_vertical_grid(pcs)
+    ! rebin_update_vertical_grid : NOT TESTED
+    ! regrid_prep_atmosphere : NOT TESTED
+    
+  end subroutine
 
   subroutine make_new_mechanism(err)
     use fortran_yaml_c, only: YamlFile, type_dictionary, type_list, type_error, type_list_item
@@ -254,7 +275,7 @@ contains
 
   end subroutine
 
-  subroutine test_press_temp_edd(pc)
+  subroutine test_set_press_temp_edd(pc)
     type(EvoAtmosphere), intent(inout) :: pc
     character(:), allocatable :: err
 
@@ -266,11 +287,12 @@ contains
 
   end subroutine
 
-  subroutine test_autodiff(pc)
+  subroutine test_step(pc)
     type(EvoAtmosphere), intent(inout) :: pc
     
     character(:), allocatable :: err
     real(dp) :: tn
+    logical :: converged
 
     pc%var%autodiff = .true.
     pc%var%atol = 1.0e-20_dp
@@ -282,6 +304,38 @@ contains
     endif
     
     tn = pc%step(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    converged = pc%check_for_convergence(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    pc%var%autodiff = .false.
+    
+    call pc%initialize_stepper(pc%var%usol_init, err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    
+    tn = pc%step(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    converged = pc%check_for_convergence(err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
