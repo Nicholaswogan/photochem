@@ -63,7 +63,7 @@ def FormatReactions_main(data):
             if data['species'][i]['name'] == False:
                 data['species'][i]['name'] = "NO"
             
-            order = ['name', 'composition', 'thermo','note']
+            order = ['name', 'composition', 'condensate', 'thermo','note']
             copy = data['species'][i].copy()
             data['species'][i].clear()
             for key in order:
