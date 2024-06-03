@@ -542,6 +542,39 @@ cdef class EvoAtmosphere:
     pl._ptr = pl_ptr
     return pl
 
+  def mole_fraction_dict(self):
+    """Makes a dictionary describing the atmospheric composition and structure
+    using the densities in `self.wrk.usol`
+
+    Returns
+    -------
+    dict
+        Atmospheric composition and structure.
+        - Key "alt" is altitude in cm
+        - Key "temp" is temperature in K
+        - Key "pressure" is pressure in dynes/cm^2
+        - Key "density" is number density in molecules/cm^3
+        - There is a key for each species giving its volume mixing ratio
+    """   
+    out = {}
+    out['alt'] = self.var.z
+    out['temp'] = self.var.temperature
+    out['pressure'] = self.wrk.pressure
+    out['density'] = self.wrk.density
+    names = self.dat.species_names[:-2] # all but hv and M
+    cdef ndarray usol = self.wrk.usol
+    cdef ndarray densities = self.wrk.densities
+    cdef ndarray density = self.wrk.density
+    cdef int nq = self.dat.nq
+    cdef int i
+    # Evolving species
+    for i in range(nq):
+      out[names[i]] = usol[i,:]/density
+    # Short lived species
+    for i in range(self.dat.nsl):
+      out[names[nq+i]] = densities[nq+i,:]/density
+    return out
+
   property T_surf:
     "double. The surface temperature (K)"
     def __get__(self):
