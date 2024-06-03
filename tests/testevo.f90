@@ -1,71 +1,24 @@
-program testevo
-  use futils, only: linspace
-  use photochem, only: EvoAtmosphere, version, dp, ProductionLoss
+program main
   implicit none
-
-  print*,'photochem version == ',trim(version)
-  ! call test_climate()
-  call test_stepper()
-
+  call main_()
 contains
 
-  subroutine test_climate()
-
+  subroutine main_()
+    use photochem, only: EvoAtmosphere, version, dp
     character(:), allocatable :: err
     type(EvoAtmosphere) :: pc
-    logical :: success
-    integer :: i, j
-    real(dp) :: tstart, tn
-    real(dp), allocatable :: t_eval(:)
-    type(ProductionLoss) :: pl
-
-    pc = EvoAtmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-                      "../tests/testevo_settings1.yaml", &
-                      "../templates/ModernEarth/Sun_now.txt", &
-                      "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
-                      "../photochem/data", &
-                      err)
-    if (allocated(err)) then
-      print*,trim(err)
-      stop 1
-    endif
-
-    ! Just take a few steps
-    pc%var%max_error_reinit_attempts = 0
-    pc%var%mxsteps = 3
-
-    allocate(t_eval(100))
-    call linspace(5.0_dp, 17.0_dp, t_eval)
-    t_eval = 10.0_dp**t_eval
-    tstart = 0.0_dp
-
-    success = pc%evolve('testevo.dat', tstart, pc%var%usol_init, t_eval, overwrite=.true., restart_from_file=.false., err=err)
-    if (allocated(err)) then
-      print*,trim(err)
-      stop 1
-    endif
-
-    deallocate(t_eval)
-
-    call pc%production_and_loss('CH4', pc%var%usol_init, pl, err)  
-    if (allocated(err)) then
-      print*,trim(err)
-      stop 1
-    endif
-
-  end subroutine
-
-  subroutine test_stepper()
-    character(:), allocatable :: err
-    type(EvoAtmosphere) :: pc
-    integer :: i
+    integer :: ind
     real(dp) :: tn
     logical :: converged
 
+    ! Print version
+    print*,'photochem version == ',trim(version)
+
+    ! Initialize code
     pc = EvoAtmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-                      "../tests/testevo_settings2.yaml", &
-                      "../templates/ModernEarth/Sun_now.txt", &
-                      "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
+                      "../examples/ModernEarth/settings.yaml", &
+                      "../examples/ModernEarth/Sun_now.txt", &
+                      "../examples/ModernEarth/atmosphere.txt", &
                       "../photochem/data", &
                       err)
     if (allocated(err)) then
@@ -73,13 +26,19 @@ contains
       stop 1
     endif
 
+    ! Change RH to 0.5.
+    ind = findloc(pc%dat%species_names, 'H2Oaer', 1)
+    pc%var%cond_params(ind)%RHc = 0.5_dp
+
+    ! Initialize stepper
     call pc%initialize_stepper(pc%var%usol_init, err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
     endif
 
-    do i = 1,3
+    ! Integrate to photochemical equilibrium
+    do
       tn = pc%step(err)
       if (allocated(err)) then
         print*,trim(err)
@@ -93,6 +52,7 @@ contains
       if (converged) exit
     enddo
 
+    ! Destroy stepper
     call pc%destroy_stepper(err)
     if (allocated(err)) then
       print*,trim(err)

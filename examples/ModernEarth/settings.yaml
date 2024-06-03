@@ -13,43 +13,55 @@ photolysis-grid:
 planet:
   planet-mass: 5.972e27 # grams
   planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
-  surface-albedo: 0.2 # cm
-  solar-zenith-angle: 60.0
-  # evolve-climate: true
+  surface-albedo: 0.25 # cm
+  # photon-scale-factor: 1.0 # Optional. Scales the stellar flux for diff planets in the same system
+  solar-zenith-angle: 60.0 # degrees
   hydrogen-escape:
-    type: diffusion limited
+    type: diffusion limited # options are "diffusion limited", "zahnle" and "none"
+    # S1: 20 # required for type zahnle
   water:
-    fix-water-in-troposphere: false
+    # will fix water in the troposphere to a relative humidity between the surface
+    # and `tropopause-altitude`.
+    fix-water-in-troposphere: false 
+    # Options are a number like 1.0, or "manabe", which is the Mamabe-Wetherald 
+    # parameterization for Earth's troposphere relative humidity
+    relative-humidity: manabe
+    # If "true", then gases will dissolve in rainwater and fall to the surface
     gas-rainout: true
     rainfall-rate: 1 # relative to modern earth's rainfall rate
-    # rainout-species: [H2SO4aer] # specify rainout species. If omitted, then model will use all species with data.
+    # You can specify rainout species. If omitted, then model will use all species with data.
+    # rainout-species: [H2SO4aer] 
     tropopause-altitude: 1.1e6 # cm. required if gas-rainout or fix-water-in-troposphere
+    # If true, then water will condense.
     water-condensation: false
-
+    
+# Specifies boundary conditions. If a species is not specified, then
+# the model assumes zero-flux boundary conditions at the top and
+# bottom of the atmosphere
 boundary-conditions:
 - name: H2O
-  lower-boundary: {type: press, press: 200.0e6}
-  upper-boundary: {type: veff, veff: 1.0e-8}
+  lower-boundary: {type: press, press: 270.0e6}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: N2
   lower-boundary: {type: press, press: 0.78e6}
-  upper-boundary: {type: veff, veff: 1.0e-8}
+  upper-boundary: {type: veff, veff: 0.0}
 - name: O2
   lower-boundary: {type: press, press: 0.21e6}
   upper-boundary: {type: veff, veff: 0.0}
 - name: H2
-  lower-boundary: {type: vdep, vdep: 0.002101353876412517}
+  lower-boundary: {type: press, press: 0.53}
   upper-boundary: {type: veff, veff: 0.0}
 - name: CO2
-  lower-boundary: {type: vdep, vdep: 1.022423385788315e-05}
+  lower-boundary: {type: press, press: 360.0}
   upper-boundary: {type: veff, veff: 0.0}
 - name: CH4
-  lower-boundary: {type: flux, flux: 57208927884.609665}
+  lower-boundary: {type: flux, flux: 5.0e10}
   upper-boundary: {type: veff, veff: 0.0}
 - name: CO
-  lower-boundary: {type: flux, flux: 48199295836.73972}
+  lower-boundary: {type: press, press: 0.11}
   upper-boundary: {type: veff, veff: 0.0}
 - name: N2O
-  lower-boundary: {type: flux, flux: 1320333762.837339}
+  lower-boundary: {type: press, press: 0.31}
   upper-boundary: {type: veff, veff: 0.0}
 - name: HCl
   lower-boundary: {type: vdep + dist flux, vdep: 0.02, flux: 1.0e8, height: 20.0}

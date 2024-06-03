@@ -5,6 +5,7 @@ program memtest_evo
 
   type(EvoAtmosphere) :: pcs
 
+  call test_climate()
   call test_twoinitializations(pcs)
   call test_out2atmosphere(pcs)
   call test_gas_fluxes(pcs)
@@ -15,8 +16,85 @@ program memtest_evo
   call test_update_vertical_grid(pcs)
   call test_press_temp_edd(pcs)
   call test_autodiff(pcs)
+  call test_evolve(pcs)
 
 contains
+
+  subroutine make_new_mechanism(err)
+    use fortran_yaml_c, only: YamlFile, type_dictionary, type_list, type_error, type_list_item
+    character(:), allocatable, intent(out) :: err
+    type(YamlFile) :: f
+    type(type_list), pointer :: particles
+    type(type_list_item), pointer :: list_item
+    type (type_error), allocatable :: io_err
+
+    call f%parse('../photochem/data/reaction_mechanisms/zahnle_earth.yaml', err)
+    if (allocated(err)) return
+
+    select type (root => f%root)
+      class is (type_dictionary)
+      particles => root%get_list('particles',.true.,error=io_err)
+      if (allocated(io_err)) then; err = io_err%message; return; endif
+
+      ! Save the first list item
+      list_item => particles%first
+
+      ! Skip the first (H2O)
+      particles%first => particles%first%next
+
+      open(unit=2,file='tmp.yaml',status='replace')
+      call f%dump(2, 0)
+      close(2)
+
+      ! Replace the first list item with H2O
+      particles%first => list_item
+
+    end select
+
+  end subroutine
+
+  subroutine test_climate()
+    use futils, only: linspace
+    character(:), allocatable :: err
+    type(EvoAtmosphere) :: pc
+    logical :: success
+    real(dp) :: tstart
+    real(dp), allocatable :: t_eval(:)
+
+    ! Make new mechanism that deletes H2Oaer
+    call make_new_mechanism(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    pc = EvoAtmosphere("tmp.yaml", &
+                      "../tests/test_settings1.yaml", &
+                      "../examples/ModernEarth/Sun_now.txt", &
+                      "../examples/ModernEarth/atmosphere.txt", &
+                      "../photochem/data", &
+                      err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    ! Just take a few steps
+    pc%var%max_error_reinit_attempts = 0
+    pc%var%mxsteps = 3
+
+    allocate(t_eval(100))
+    call linspace(5.0_dp, 17.0_dp, t_eval)
+    t_eval = 10.0_dp**t_eval
+    tstart = 0.0_dp
+
+    success = pc%evolve('testevo.dat', tstart, pc%var%usol_init, t_eval, overwrite=.true., restart_from_file=.false., err=err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+  end subroutine
 
   subroutine test_twoinitializations(pc)
     type(EvoAtmosphere), intent(inout) :: pc
@@ -25,11 +103,11 @@ contains
     real(dp) :: tn
     
     pc = EvoAtmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-                    "..//tests/testevo_settings2.yaml", &
-                    "../templates/ModernEarth/Sun_now.txt", &
-                    "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
-                    "../photochem/data", &
-                    err)
+                       "../examples/ModernEarth/settings.yaml", &
+                       "../examples/ModernEarth/Sun_now.txt", &
+                       "../examples/ModernEarth/atmosphere.txt", &
+                       "../photochem/data", &
+                       err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
@@ -48,11 +126,11 @@ contains
     endif
     
     pc = EvoAtmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-                    "../tests/testevo_settings2.yaml", &
-                    "../templates/ModernEarth/Sun_now.txt", &
-                    "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
-                    "../photochem/data", &
-                    err)
+                       "../examples/ModernEarth/settings.yaml", &
+                       "../examples/ModernEarth/Sun_now.txt", &
+                       "../examples/ModernEarth/atmosphere.txt", &
+                       "../photochem/data", &
+                       err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
@@ -217,7 +295,28 @@ contains
     
   end subroutine
 
+  subroutine test_evolve(pc)
+    use futils, only: linspace
+    type(EvoAtmosphere), intent(inout) :: pc
+    character(:), allocatable :: err
+    logical :: success
+    real(dp) :: tstart
+    real(dp), allocatable :: t_eval(:)
 
+    pc%var%max_error_reinit_attempts = 0
+    pc%var%mxsteps = 3
+
+    allocate(t_eval(100))
+    call linspace(5.0_dp, 17.0_dp, t_eval)
+    t_eval = 10.0_dp**t_eval
+    tstart = 0.0_dp
+    success = pc%evolve('tmp.dat',tstart, pc%wrk%usol, t_eval, overwrite=.true., err=err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+  end subroutine
 
 end program
 

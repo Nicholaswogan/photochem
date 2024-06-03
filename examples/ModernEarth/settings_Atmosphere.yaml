@@ -2,7 +2,7 @@
 atmosphere-grid:
   bottom: 0.0 # cm
   top: 1.0e7 # cm
-  number-of-layers: 200
+  number-of-layers: 100
 
 photolysis-grid:
   regular-grid: true
@@ -12,7 +12,7 @@ photolysis-grid:
 
 planet:
   background-gas: N2
-  surface-pressure: 1.013 # bar
+  surface-pressure: 1.01325
   planet-mass: 5.972e27 # grams
   planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
   surface-albedo: 0.25 # cm
@@ -42,25 +42,25 @@ planet:
 # bottom of the atmosphere
 boundary-conditions:
 - name: H2O
-  lower-boundary: {type: mix, mix: 0.02}
+  lower-boundary: {type: mix, mix: 7.718506e-03}
   upper-boundary: {type: veff, veff: 0.0}
 - name: O2
-  lower-boundary: {type: mix, mix: 0.21}
+  lower-boundary: {type: mix, mix: 2.104069e-01}
   upper-boundary: {type: veff, veff: 0.0}
 - name: H2
-  lower-boundary: {type: mix, mix: 5.3e-07}
+  lower-boundary: {type: mix, mix: 5.310269e-07}
   upper-boundary: {type: veff, veff: 0.0}
 - name: CO2
-  lower-boundary: {type: mix, mix: 0.00036}
+  lower-boundary: {type: mix, mix: 3.606975e-04}
   upper-boundary: {type: veff, veff: 0.0}
 - name: CH4
-  lower-boundary: {type: mix, mix: 1.8e-06}
+  lower-boundary: {type: flux, flux: 5.0e10}
   upper-boundary: {type: veff, veff: 0.0}
 - name: CO
-  lower-boundary: {type: mix, mix: 1.1e-07}
+  lower-boundary: {type: mix, mix: 1.102131e-07}
   upper-boundary: {type: veff, veff: 0.0}
 - name: N2O
-  lower-boundary: {type: mix, mix: 3.1e-07}
+  lower-boundary: {type: mix, mix: 3.106007e-07}
   upper-boundary: {type: veff, veff: 0.0}
 - name: HCl
   lower-boundary: {type: vdep + dist flux, vdep: 0.02, flux: 1.0e8, height: 20.0}

@@ -93,17 +93,17 @@ def test_wrapper(pc):
 
 def main():
 
-    pc = Atmosphere(zahnle_earth,\
-                    "../templates/ModernEarth/settings_ModernEarth.yaml",\
-                    "../templates/ModernEarth/Sun_now.txt",\
-                    "../templates/ModernEarth/atmosphere_ModernEarth.txt")
-    test_wrapper(pc)
-
     pc1 = EvoAtmosphere(zahnle_earth,\
-                    "testevo_settings2.yaml",\
-                    "../templates/ModernEarth/Sun_now.txt",\
-                    "../templates/ModernEarth/atmosphere_ModernEarth.txt")
+                        "../examples/ModernEarth/settings.yaml",\
+                        "../examples/ModernEarth/Sun_now.txt",\
+                        "../examples/ModernEarth/atmosphere.txt")
     test_wrapper(pc1)
+
+    pc = Atmosphere(zahnle_earth,\
+                    "../examples/ModernEarth/settings_Atmosphere.yaml",\
+                    "../examples/ModernEarth/Sun_now.txt",\
+                    "../examples/ModernEarth/atmosphere.txt")
+    test_wrapper(pc)
 
 if __name__ == "__main__":
     main()

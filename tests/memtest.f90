@@ -29,8 +29,8 @@ contains
     character(:), allocatable :: err
 
     pc = Atmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-                    "../templates/ModernEarth/settings_ModernEarth.yaml", &
-                    "../templates/ModernEarth/Sun_now.txt", &
+                    "../examples/ModernEarth/settings_Atmosphere.yaml", &
+                    "../examples/ModernEarth/Sun_now.txt", &
                     "../bad/path.txt", &
                     "../photochem/data", &
                     err)
@@ -48,9 +48,9 @@ contains
     real(dp) :: tn
     
     pc = Atmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-                    "../templates/Titan/settings_Titan.yaml", &
-                    "../templates/ModernEarth/Sun_now.txt", &
-                    "../templates/Titan/atmosphere_Titan.txt", &
+                    "../examples/ModernEarth/settings_Atmosphere.yaml", &
+                    "../examples/ModernEarth/Sun_now.txt", &
+                    "../examples/ModernEarth/atmosphere.txt", &
                     "../photochem/data", &
                     err)
     if (allocated(err)) then
@@ -71,9 +71,9 @@ contains
     endif
     
     pc = Atmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
-                    "../templates/ModernEarth/settings_ModernEarth.yaml", &
-                    "../templates/ModernEarth/Sun_now.txt", &
-                    "../templates/ModernEarth/atmosphere_ModernEarth.txt", &
+                    "../examples/ModernEarth/settings_Atmosphere.yaml", &
+                    "../examples/ModernEarth/Sun_now.txt", &
+                    "../examples/ModernEarth/atmosphere.txt", &
                     "../photochem/data", &
                     err)
     if (allocated(err)) then
