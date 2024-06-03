@@ -30,7 +30,21 @@ module photochem_types ! make a giant IO object
     real(dp) :: den
     real(dp) :: press
   end type
+
+  !> Condensation parameters
+  type :: CondensationParameters
+    real(dp) :: k_cond = 100.0_dp !! rate coefficient for condensation
+    real(dp) :: k_evap = 10.0_dp !! rate coefficient for evaporation
+    real(dp) :: RHc = 1.0_dp !! RH where condensation occurs
+    real(dp) :: smooth_factor = 0.2_dp !! A factor that smooths condensation/evaporation 
+                                       !! rate to prevents stiffness
+  end type
   
+  type :: SettingsParticle
+    character(:), allocatable :: name
+    type(CondensationParameters) :: params
+  endtype
+
   type :: PhotoSettings
     character(:), allocatable :: filename
   
@@ -69,6 +83,9 @@ module photochem_types ! make a giant IO object
     real(dp) :: rainfall_rate
     character(s_str_len), allocatable :: rainout_species(:)
     real(dp) :: trop_alt
+
+    ! particles
+    type(SettingsParticle), allocatable :: particles(:)
   
     ! boundary-conditions
     type(SettingsBC), allocatable :: ubcs(:)
@@ -366,15 +383,6 @@ module photochem_types ! make a giant IO object
     integer :: LH2 !! H2 index
     integer :: LH !! H index
     
-  end type
-
-  !> Condensation parameters
-  type :: CondensationParameters
-    real(dp) :: k_cond = 100.0_dp !! rate coefficient for condensation
-    real(dp) :: k_evap = 10.0_dp !! rate coefficient for evaporation
-    real(dp) :: RHc = 1.0_dp !! RH where condensation occurs
-    real(dp) :: smooth_factor = 0.2_dp !! A factor that smooths condensation/evaporation 
-                                       !! rate to prevents stiffness
   end type
   
   type :: PhotochemVars

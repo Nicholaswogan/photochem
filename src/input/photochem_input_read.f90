@@ -768,6 +768,17 @@ contains
     !!!!!!!!!!!!!!!!!
     ! Condensation rate parameters. size is zero when there are no particles
     allocate(var%cond_params(dat%np))
+    ! Replace default values with values from settings file, if needed
+    if (allocated(s%particles) .and. dat%there_are_particles) then
+      do i = 1,size(s%particles)
+        ind = findloc(dat%species_names(1:dat%np),s%particles(i)%name)
+        if (ind(1) == 0) then
+          err = 'Particle '//s%particles(i)%name//' in the settings file is not a particle in the reaction file.'
+          return
+        endif
+        var%cond_params(ind(1)) = s%particles(i)%params
+      enddo
+    endif
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! boundary-conditions !!!

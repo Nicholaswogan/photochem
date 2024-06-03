@@ -47,6 +47,7 @@ contains
     character(:), allocatable :: temp_char
     logical :: success
     integer :: i, j
+    real(dp) :: tmp_real
 
     ! filename
     s%filename = filename
@@ -233,6 +234,7 @@ contains
     if (s%gas_rainout) then
       nullify(list)
       list => tmp2%get_list('rainout-species', required = .false., error = io_err)
+      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
       if (associated(list)) then
         call unpack_string_list(list, s%rainout_species, err)
         if (allocated(err)) return
@@ -256,6 +258,61 @@ contains
         return
       endif
     
+    endif
+
+    ! Particles
+    nullify(list)
+    list => root%get_list('particles',.false.,error=io_err)
+    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    if (associated(list)) then
+      allocate(s%particles(list%size()))
+      i = 1
+      item => list%first
+      do while (associated(item))
+
+        select type (e => item%node)
+        class is (type_dictionary)
+          s%particles(i)%name = e%get_string('name', error=io_err)
+          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+
+          tmp_real = s%particles(i)%params%k_cond
+          s%particles(i)%params%k_cond = e%get_real('condensation-rate', default=tmp_real, error=io_err)
+          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+
+          tmp_real = s%particles(i)%params%k_evap
+          s%particles(i)%params%k_evap = e%get_real('evaporation-rate', default=tmp_real, error=io_err)
+          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+
+          tmp_real = s%particles(i)%params%RHc
+          s%particles(i)%params%RHc = e%get_real('RH-condensation', default=tmp_real, error=io_err)
+          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+
+          tmp_real = s%particles(i)%params%smooth_factor
+          s%particles(i)%params%smooth_factor = e%get_real('smooth-factor', default=tmp_real, error=io_err)
+          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+
+        class default
+          err = "IOError: Particles must be a list of dictionaries"
+          return
+        end select 
+
+        i = i + 1
+        item => item%next
+      enddo
+
+      block
+        character(s_str_len), allocatable :: names(:)
+        allocate(names(size(s%particles)))
+        do i = 1,size(names)
+          names(i) = s%particles(i)%name
+        enddo
+        i = check_for_duplicates(names)
+        if (i /= 0) then
+          err = '"'//trim(names(i))//'" is a duplicate particle in '//trim(filename)
+          return
+        endif
+      endblock
+
     endif
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!

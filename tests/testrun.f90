@@ -26,10 +26,6 @@ contains
       stop 1
     endif
 
-    ! Change RH to 0.5.
-    ind = findloc(pc%dat%species_names, 'H2Oaer', 1)
-    pc%var%cond_params(ind)%RHc = 0.5_dp
-
     ! Initialize stepper
     call pc%initialize_stepper(pc%var%usol_init, err)
     if (allocated(err)) then

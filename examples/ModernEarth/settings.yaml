@@ -35,6 +35,9 @@ planet:
     # If true, then water will condense.
     water-condensation: false
     
+particles:
+- {name: H2Oaer, RH-condensation: 0.5}
+    
 # Specifies boundary conditions. If a species is not specified, then
 # the model assumes zero-flux boundary conditions at the top and
 # bottom of the atmosphere
