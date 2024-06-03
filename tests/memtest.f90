@@ -8,10 +8,16 @@ program memtest
 contains
 
   subroutine test()
+    call test_methods('../photochem/data/reaction_mechanisms/zahnle_earth.yaml')
+    call test_methods('../tests/no_particle_test.yaml')
+  end subroutine
+
+  subroutine test_methods(filename)
+    character(*), intent(in) :: filename
     type(Atmosphere) :: pcs
 
-    call test_badfile(pcs)
-    call test_twoinitializations(pcs)
+    call test_badfile(pcs, filename)
+    call test_twoinitializations(pcs, filename)
 
     ! prep_atm_background_gas : test_gas_fluxes
     ! prep_atmosphere : test_gas_fluxes
@@ -43,11 +49,12 @@ contains
 
   end subroutine
   
-  subroutine test_badfile(pc)
+  subroutine test_badfile(pc, filename)
     type(Atmosphere), intent(inout) :: pc
+    character(*), intent(in) :: filename
     character(:), allocatable :: err
 
-    pc = Atmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
+    pc = Atmosphere(filename, &
                     "../examples/ModernEarth/settings_Atmosphere.yaml", &
                     "../examples/ModernEarth/Sun_now.txt", &
                     "../bad/path.txt", &
@@ -60,13 +67,14 @@ contains
     
   end subroutine
   
-  subroutine test_twoinitializations(pc)
+  subroutine test_twoinitializations(pc, filename)
     type(Atmosphere), intent(inout) :: pc
+    character(*), intent(in) :: filename
     
     character(:), allocatable :: err
     real(dp) :: tn
     
-    pc = Atmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
+    pc = Atmosphere(filename, &
                     "../examples/ModernEarth/settings_Atmosphere.yaml", &
                     "../examples/ModernEarth/Sun_now.txt", &
                     "../examples/ModernEarth/atmosphere.txt", &
@@ -89,7 +97,7 @@ contains
       stop 1
     endif
     
-    pc = Atmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
+    pc = Atmosphere(filename, &
                     "../examples/ModernEarth/settings_Atmosphere.yaml", &
                     "../examples/ModernEarth/Sun_now.txt", &
                     "../examples/ModernEarth/atmosphere.txt", &

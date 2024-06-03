@@ -8,10 +8,18 @@ program memtest_evo
 contains
 
   subroutine test()
-    type(EvoAtmosphere) :: pcs
 
     call test_climate() ! Test climate version
-    call test_twoinitializations(pcs) ! Test initialization
+    call test_methods('../photochem/data/reaction_mechanisms/zahnle_earth.yaml')
+    call test_methods('../tests/no_particle_test.yaml')
+
+  end subroutine
+
+  subroutine test_methods(filename)
+    character(*), intent(in) :: filename
+    type(EvoAtmosphere) :: pcs
+
+    call test_twoinitializations(pcs, filename) ! Test initialization
     
     ! Test all functions in code. Comments indicates if function is already
     ! tested in another test.
@@ -117,13 +125,14 @@ contains
 
   end subroutine
 
-  subroutine test_twoinitializations(pc)
+  subroutine test_twoinitializations(pc, filename)
     type(EvoAtmosphere), intent(inout) :: pc
+    character(*), intent(in) :: filename
     
     character(:), allocatable :: err
     real(dp) :: tn
     
-    pc = EvoAtmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
+    pc = EvoAtmosphere(filename, &
                        "../examples/ModernEarth/settings.yaml", &
                        "../examples/ModernEarth/Sun_now.txt", &
                        "../examples/ModernEarth/atmosphere.txt", &
@@ -146,7 +155,7 @@ contains
       stop 1
     endif
     
-    pc = EvoAtmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
+    pc = EvoAtmosphere(filename, &
                        "../examples/ModernEarth/settings.yaml", &
                        "../examples/ModernEarth/Sun_now.txt", &
                        "../examples/ModernEarth/atmosphere.txt", &
