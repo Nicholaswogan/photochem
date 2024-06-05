@@ -5,7 +5,7 @@ cdef class PhotochemData:
   has been initialized.
   """
 
-  cdef void *_ptr
+  cdef dat_pxd.PhotochemData *_ptr
 
   def __cinit__(self):
     self._ptr = NULL
@@ -145,7 +145,7 @@ cdef class PhotochemData:
     def __get__(self):
       cdef int dim1
       dat_pxd.photochemdata_particle_sat_get_size(self._ptr, &dim1)
-      cdef void **arrp = <void **> malloc(dim1 * sizeof(void *))
+      cdef atom_pxd.SaturationData **arrp = <atom_pxd.SaturationData **> malloc(dim1 * sizeof(atom_pxd.SaturationData *))
       dat_pxd.photochemdata_particle_sat_get(self._ptr, &dim1, arrp)
       arr1 = []
       for i in range(dim1):

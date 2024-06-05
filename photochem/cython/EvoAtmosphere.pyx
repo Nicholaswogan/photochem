@@ -8,7 +8,7 @@ cdef class EvoAtmosphere:
   optionally self-consistently evolve climate.
   """
 
-  cdef void *_ptr
+  cdef ea_pxd.EvoAtmosphere *_ptr
   cdef bool _init_called
 
   def __cinit__(self, *args, **kwargs):
@@ -534,7 +534,7 @@ cdef class EvoAtmosphere:
     if usol_.shape[0] != nq or usol_.shape[1] != nz:
       raise PhotoException("Input usol is the wrong size.")
       
-    cdef void *pl_ptr
+    cdef pl_pxd.ProductionLoss *pl_ptr
     ea_pxd.evoatmosphere_production_and_loss_wrapper(self._ptr, species_c, &nq, &nz, <double *>usol_.data, &pl_ptr, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())

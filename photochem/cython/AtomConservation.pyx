@@ -8,7 +8,7 @@ cdef class AtomConservation:
   routine.
   """
 
-  cdef void *_ptr
+  cdef atom_pxd.AtomConservation *_ptr
 
   def __cinit__(self):
     self._ptr = NULL 
@@ -79,7 +79,7 @@ cdef class AtomConservation:
 
 cdef class CondensationParameters:
 
-  cdef void *_ptr
+  cdef atom_pxd.CondensationParameters *_ptr
 
   def __cinit__(self):
     self._ptr = NULL
@@ -118,7 +118,7 @@ cdef class CondensationParameters:
     
 cdef class SaturationData:
 
-  cdef void *_ptr
+  cdef atom_pxd.SaturationData *_ptr
 
   def __cinit__(self):
     self._ptr = NULL

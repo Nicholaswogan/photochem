@@ -5,7 +5,7 @@ cdef class ProductionLoss:
   a species. This class is produced when calling the `production_and_loss` routine.
   """
 
-  cdef void *_ptr
+  cdef pl_pxd.ProductionLoss *_ptr
 
   def __cinit__(self):
     self._ptr = NULL

@@ -7,7 +7,7 @@ cdef class Atmosphere:
   the reactions producing and destroying each molecule.
   """
 
-  cdef void *_ptr
+  cdef a_pxd.Atmosphere *_ptr
   cdef bool _init_called
 
   def __cinit__(self, *args, **kwargs):
@@ -343,7 +343,7 @@ cdef class Atmosphere:
     if usol_.shape[0] != nq or usol_.shape[1] != nz:
       raise PhotoException("Input usol is the wrong size.")
       
-    cdef void *pl_ptr
+    cdef pl_pxd.ProductionLoss *pl_ptr
     a_pxd.atmosphere_production_and_loss_wrapper(self._ptr, species_c, &nq, &nz, <double *>usol_.data, &pl_ptr, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -401,7 +401,7 @@ cdef class Atmosphere:
     cdef bytes atom_b = pystring2cstring(atom)
     cdef char *atom_c = atom_b
     cdef char err[ERR_LEN+1]
-    cdef void *con_ptr
+    cdef atom_pxd.AtomConservation *con_ptr
     a_pxd.atmosphere_atom_conservation_wrapper(self._ptr, atom_c, &con_ptr, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())

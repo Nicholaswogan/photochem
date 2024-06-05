@@ -8,9 +8,9 @@ cdef class PhotochemWrkEvo(PhotochemWrk):
     """
     def __get__(self):
       cdef int dim1
-      wrk_pxd.photochemwrkevo_pressure_hydro_get_size(self._ptr, &dim1)
+      wrk_pxd.photochemwrkevo_pressure_hydro_get_size(<wrk_pxd.PhotochemWrkEvo *>self._ptr, &dim1)
       cdef ndarray arr = np.empty(dim1, np.double)
-      wrk_pxd.photochemwrkevo_pressure_hydro_get(self._ptr, &dim1, <double *>arr.data)
+      wrk_pxd.photochemwrkevo_pressure_hydro_get(<wrk_pxd.PhotochemWrkEvo *>self._ptr, &dim1, <double *>arr.data)
       return arr
 
 cdef class PhotochemWrk:
@@ -18,7 +18,7 @@ cdef class PhotochemWrk:
   when integrating the photochemical model
   """
 
-  cdef void *_ptr
+  cdef wrk_pxd.PhotochemWrk *_ptr
 
   def __cinit__(self):
     self._ptr = NULL

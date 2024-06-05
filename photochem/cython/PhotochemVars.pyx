@@ -5,7 +5,7 @@ cdef class PhotochemVars:
   model integrations.
   """
 
-  cdef void *_ptr
+  cdef var_pxd.PhotochemVars *_ptr
 
   def __cinit__(self):
     self._ptr = NULL
@@ -85,7 +85,7 @@ cdef class PhotochemVars:
   property H2O_cond_params:
     "CondensationParameters. H2O condensation rate parameters."
     def __get__(self):
-      cdef void *ptr1
+      cdef atom_pxd.CondensationParameters *ptr1
       var_pxd.photochemvars_h2o_cond_params_get(self._ptr, &ptr1)
       val = CondensationParameters()
       val._ptr = ptr1
@@ -127,7 +127,7 @@ cdef class PhotochemVars:
     def __get__(self):
       cdef int dim1
       var_pxd.photochemvars_cond_params_get_size(self._ptr, &dim1)
-      cdef void **arrp = <void **> malloc(dim1 * sizeof(void *))
+      cdef atom_pxd.CondensationParameters **arrp = <atom_pxd.CondensationParameters **> malloc(dim1 * sizeof(atom_pxd.CondensationParameters *))
       var_pxd.photochemvars_cond_params_get(self._ptr, &dim1, arrp)
       arr1 = []
       for i in range(dim1):
