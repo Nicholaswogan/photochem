@@ -3,7 +3,7 @@ cimport Atmosphere_pxd as a_pxd
   
 cdef class Atmosphere:
   """A photochemical model which assumes a background gas (e.g. N2). Once initialized,
-  this class can integrate an atmosphere forward in time, and can investigate
+  this class can integrate an atmosphere forward in time and can investigate
   the reactions producing and destroying each molecule.
   """
 
@@ -27,9 +27,26 @@ cdef class Atmosphere:
       raise PhotoException('The "__init__" method of Atmosphere has not been called.')
     PyObject_GenericSetAttr(self, name, value)
   
-  def __init__(self, mechanism_file = None, settings_file = None, 
-               flux_file = None, atmosphere_txt = None, data_dir = None):           
-    
+  def __init__(self, str mechanism_file, str settings_file, 
+               str flux_file, str atmosphere_txt, data_dir = None):           
+    """Initializes the photochemical model.
+
+    Parameters
+    ----------
+    mechanism_file : str
+        Path to the reaction mechanism file (yaml format).
+    settings_file : str
+        Path to the settings file (yaml format).
+    flux_file : str
+        Path to the file describing the stellar flux.
+    atmosphere_txt : str
+        Path to the file containing altitude, total number density, temperature, 
+        eddy diffusion, initial concentrations of each gas (mixing ratios), 
+        and particle radii.
+    data_dir : str, optional
+        Path to the data directory containing photolysis cross sections and other data
+        needed to run the model
+    """
     self._init_called = True
 
     if data_dir == None:
@@ -142,7 +159,7 @@ cdef class Atmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
       
-  def out2atmosphere_txt(self,filename = None, int number_of_decimals=5, bool overwrite = False, bool clip = True):
+  def out2atmosphere_txt(self,str filename, int number_of_decimals=5, bool overwrite = False, bool clip = True):
     """Saves state of the atmosphere using the mixing ratios in self.wrk.usol.
 
     Parameters
@@ -201,7 +218,7 @@ cdef class Atmosphere:
     -------
     tuple
         First element are the surface fluxes, and the second are top-of-atmosphere
-        fluxes.
+        fluxes. Units are molecules/cm^2/s
     """
     cdef ndarray surf_fluxes = np.empty(self.dat.nq, np.double)
     cdef ndarray top_fluxes = np.empty(self.dat.nq, np.double)
@@ -220,7 +237,7 @@ cdef class Atmosphere:
       top[names[i]] = top_fluxes[i]
     return surface, top
     
-  def set_lower_bc(self, species = None, bc_type = None, vdep = None, mix = None,
+  def set_lower_bc(self, str species, str bc_type, vdep = None, mix = None,
                             flux = None, height = None):
     """Sets a lower boundary condition.
 
@@ -279,7 +296,7 @@ cdef class Atmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
   
-  def set_upper_bc(self, species = None, bc_type = None, veff = None,flux = None):
+  def set_upper_bc(self, str species, str bc_type, veff = None, flux = None):
     """Sets upper boundary condition.
 
     Parameters

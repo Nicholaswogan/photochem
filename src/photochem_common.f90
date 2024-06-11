@@ -620,6 +620,7 @@ contains
   subroutine out2atmosphere_txt_base(dat, var, &
                                      pressure, density, densities, molecules_per_particle, &
                                      filename, number_of_decimals, overwrite, clip, err)
+    use futils, only: FileCloser
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     real(dp), intent(in) :: pressure(:), density(:), densities(:,:), molecules_per_particle(:,:)
@@ -634,6 +635,7 @@ contains
     character(len=10) :: number_of_decimals_str, number_of_spaces_str
     character(:), allocatable :: fmt_label, fmt_number
     real(dp) :: val, clip_value
+    type(FileCloser) :: file
 
     if (clip) then
       clip_value = 1.0e-40_dp
@@ -643,12 +645,14 @@ contains
     
     if (overwrite) then
       open(1, file=filename, form='formatted', status='replace', iostat=io)
+      file%unit = 1
       if (io /= 0) then
         err = "Unable to overwrite file "//trim(filename)
         return
       endif
     else
       open(1, file=filename, form='formatted', status='new', iostat=io)
+      file%unit = 1
       if (io /= 0) then
         err = "Unable to create file "//trim(filename)//" because it already exists"
         return
@@ -730,8 +734,6 @@ contains
         enddo
       endif
     enddo
-    
-    close(1)
 
   end subroutine
   

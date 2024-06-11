@@ -2002,7 +2002,7 @@ contains
   ! also returns the radii of particles for that file.
   subroutine read_mie_data_file(filename, nw, wavl, &
                                  nrad_file, radii_file, w0_file, qext_file, g_file, err)
-    use futils, only: addpnt, inter2
+    use futils, only: addpnt, inter2, FileCloser
     
     character(len=*), intent(in) :: filename
     integer, intent(in) :: nw
@@ -2020,9 +2020,11 @@ contains
     integer :: nw_tmp
     real(dp) :: dum
     integer :: i, j, io, ierr
+    type(FileCloser) :: file
     
     
     open(2,file=filename,form="unformatted",status='old',iostat=io)
+    file%unit = 2
     if (io /= 0) then
       err = "Was unable to open mie data file "//trim(filename)
       return
@@ -2079,7 +2081,6 @@ contains
             ". Should have reached the end of the file, but did not."
       return
     endif
-    close(2)
     
     ! now lets interpolate a bunch
     allocate(w0_file(nrad_file,nw))
@@ -2504,7 +2505,7 @@ contains
   end subroutine
   
   subroutine read_stellar_flux(star_file, nw, wavl, photon_flux, err)
-    use futils, only: inter2, addpnt
+    use futils, only: inter2, addpnt, FileCloser
     use photochem_const, only: c_light, plank
     
     character(len=*), intent(in) :: star_file
@@ -2518,8 +2519,10 @@ contains
     real(dp) :: dum1, dum2
     integer :: io, i, n, ierr
     real(dp), parameter :: rdelta = 1.0e-4_dp
+    type(FileCloser) :: file
     
     open(1,file=star_file,status='old',iostat=io)
+    file%unit = 1
     if (io /= 0) then
       err = "The input file "//star_file//' does not exist.'
       return
@@ -2545,7 +2548,6 @@ contains
         return
       endif
     enddo
-    close(1)
     
     i = n
     ! interpolate 
@@ -2573,6 +2575,7 @@ contains
   end subroutine
   
   subroutine read_atmosphere_file(atmosphere_txt, dat, var, err)
+    use futils, only: FileCloser
     character(len=*), intent(in) :: atmosphere_txt
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(inout) :: var
@@ -2585,8 +2588,10 @@ contains
     integer :: ind(1)
     real(dp), allocatable :: temp(:,:)
     integer :: io, i, n, nn, ii
+    type(FileCloser) :: file
     
     open(4, file=trim(atmosphere_txt),status='old',iostat=io)
+    file%unit = 4
     if (io /= 0) then
       err = 'Can not open file '//trim(atmosphere_txt)
       return
@@ -2648,7 +2653,6 @@ contains
         return
       endif
     enddo
-    close(4)
     
     ! reads in mixing ratios
     do i=1,dat%nq

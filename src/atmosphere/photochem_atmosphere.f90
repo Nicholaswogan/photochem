@@ -169,11 +169,11 @@ module photochem_atmosphere
     end subroutine
     
     !> Takes one internal integration step. Function `initialize_stepper`
-    !> must have been called befe this
+    !> must have been called before this
     module function step(self, err) result(tn)
       class(Atmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
-      real(dp) :: tn
+      real(dp) :: tn !! Current time in the integration.
     end function
     
     !> Deallocates memory created during `initialize_stepper`

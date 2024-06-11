@@ -3,9 +3,9 @@ cimport EvoAtmosphere_pxd as ea_pxd
 
 cdef class EvoAtmosphere:
   """A photochemical model which assumes no background gas. Once initialized,
-  this class can integrate an atmosphere forward in time, and can investigate
-  the reactions producing and destroying each molecule. The model can also
-  optionally self-consistently evolve climate.
+  this class can integrate an atmosphere forward in time to a steady
+  state. The model can also, optionally, self-consistently evolve climate for
+  terrestrial planets.
   """
 
   cdef ea_pxd.EvoAtmosphere *_ptr
@@ -28,9 +28,26 @@ cdef class EvoAtmosphere:
       raise PhotoException('The "__init__" method of EvoAtmosphere has not been called.')
     PyObject_GenericSetAttr(self, name, value)
 
-  def __init__(self, mechanism_file = None, settings_file = None, 
-               flux_file = None, atmosphere_txt = None, data_dir = None):           
+  def __init__(self, str mechanism_file, str settings_file, 
+               str flux_file, str atmosphere_txt, data_dir = None):           
+    """Initializes the photochemical model.
 
+    Parameters
+    ----------
+    mechanism_file : str
+        Path to the reaction mechanism file (yaml format).
+    settings_file : str
+        Path to the settings file (yaml format).
+    flux_file : str
+        Path to the file describing the stellar flux.
+    atmosphere_txt : str
+        Path to the file containing altitude, total number density, temperature, 
+        eddy diffusion, initial concentrations of each gas (mixing ratios), 
+        and particle radii.
+    data_dir : str, optional
+        Path to the data directory containing photolysis cross sections and other data
+        needed to run the model
+    """
     self._init_called = True
 
     if data_dir == None:
@@ -94,7 +111,7 @@ cdef class EvoAtmosphere:
     Parameters
     ----------
     usol : ndarray[double,ndim=2]
-        densities
+        Number densities (molecules/cm^3)
     """
     cdef char err[ERR_LEN+1]
     cdef int nq = self.dat.nq
@@ -107,8 +124,8 @@ cdef class EvoAtmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
-  def out2atmosphere_txt(self,filename = None, int number_of_decimals=5, bool overwrite = False, bool clip = True):
-    """Saves state of the atmosphere using the mixing ratios in self.wrk.usol.
+  def out2atmosphere_txt(self,str filename, int number_of_decimals=5, bool overwrite = False, bool clip = True):
+    """Saves state of the atmosphere using the concentrations in self.wrk.usol.
 
     Parameters
     ----------
@@ -138,7 +155,7 @@ cdef class EvoAtmosphere:
     -------
     tuple
         First element are the surface fluxes, and the second are top-of-atmosphere
-        fluxes.
+        fluxes. Units molecules/cm^2/s.
     """
     cdef ndarray surf_fluxes = np.empty(self.dat.nq, np.double)
     cdef ndarray top_fluxes = np.empty(self.dat.nq, np.double)
@@ -157,7 +174,7 @@ cdef class EvoAtmosphere:
       top[names[i]] = top_fluxes[i]
     return surface, top
 
-  def set_lower_bc(self, species = None, bc_type = None, vdep = None, den = None, press = None,
+  def set_lower_bc(self, str species, str bc_type, vdep = None, den = None, press = None,
                             flux = None, height = None):
     """Sets a lower boundary condition.
 
@@ -224,7 +241,7 @@ cdef class EvoAtmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
   
-  def set_upper_bc(self, species = None, bc_type = None, veff = None,flux = None):
+  def set_upper_bc(self, str species, str bc_type, veff = None,flux = None):
     """Sets upper boundary condition.
 
     Parameters
@@ -437,6 +454,8 @@ cdef class EvoAtmosphere:
         times to evaluate the solution
     overwrite : bool
         If true, then overwrites pre-existing files with `filename`
+    restart_from_file : bool
+        If true, then the integration restarts from the input file.
 
     Returns
     -------
@@ -474,7 +493,7 @@ cdef class EvoAtmosphere:
     Parameters
     ----------
     usol_start : ndarray[double,ndim=2]
-        Initial mixing ratios
+        Initial number densities (molecules/cm^3)
     """   
     cdef char err[ERR_LEN+1]
     cdef int nq = self.dat.nq

@@ -39,7 +39,7 @@ module photochem_evoatmosphere
 
   contains
 
-    !!! photochem_evoatmosphere_rhs.f90 !!!
+    !~~ photochem_evoatmosphere_rhs.f90 ~~!
     procedure :: set_trop_ind
     procedure :: prep_atm_evo_gas
     procedure :: prep_atmosphere => prep_all_evo_gas
@@ -48,14 +48,14 @@ module photochem_evoatmosphere
     procedure :: right_hand_side => rhs_evo_gas
     procedure :: jacobian => jac_evo_gas
 
-    !!! photochem_evoatmosphere_integrate.f90 !!!
+    !~~ photochem_evoatmosphere_integrate.f90 ~~!
     procedure :: evolve
     procedure :: check_for_convergence
     procedure :: initialize_stepper
     procedure :: step
     procedure :: destroy_stepper
 
-    !!! photochem_evoatmosphere_utils.f90 !!!
+    !~~ photochem_evoatmosphere_utils.f90 ~~!
     procedure :: out2atmosphere_txt
     procedure :: gas_fluxes
     procedure :: set_lower_bc
@@ -73,23 +73,28 @@ module photochem_evoatmosphere
   end interface
 
   interface
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!! photochem_evoatmosphere_init.f90 !!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    !~~ photochem_evoatmosphere_init.f90 ~~!
+
+    !> Initializes the photochemical model.
     module function create_EvoAtmosphere(mechanism_file, &
                                          settings_file, flux_file, atmosphere_txt, data_dir, err) result(self)
-      character(len=*), intent(in) :: mechanism_file
-      character(len=*), intent(in) :: settings_file
-      character(len=*), intent(in) :: flux_file
+      character(len=*), intent(in) :: mechanism_file !! Path to the reaction mechanism file (yaml format).
+      character(len=*), intent(in) :: settings_file !! Path to the settings file (yaml format).
+      character(len=*), intent(in) :: flux_file !! Path to the file describing the stellar flux.
+      !> Path to the file containing altitude, total number density, temperature, 
+      !> eddy diffusion, initial concentrations of each gas (mixing ratios), 
+      !> and particle radii.
       character(len=*), intent(in) :: atmosphere_txt
+      !> Path to the data directory containing photolysis cross sections and other data
+      !> needed to run the model
       character(len=*), intent(in) :: data_dir
       character(:), allocatable, intent(out) :: err
       type(EvoAtmosphere) :: self
     end function
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!! photochem_atmosphere_rhs.f90 !!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !~~ photochem_atmosphere_rhs.f90 ~~!
+
     module subroutine set_trop_ind(self, usol_in, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:)
@@ -108,9 +113,13 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    !> Given `usol`, the densities of each species in the atmosphere,
+    !> this subroutine calculates reaction rates, photolysis rates, etc.
+    !> and puts this information into self.wrk. self.wrk contains all the
+    !> information needed for `dochem` to compute chemistry.
     module subroutine prep_all_evo_gas(self, usol_in, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_in(:,:)
+      real(dp), intent(in) :: usol_in(:,:) !! Number densities (molecules/cm^3)
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -121,6 +130,8 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    !> Computes the right-hand-side of the ODEs describing atmospheric chemistry
+    !> and transport.
     module subroutine rhs_evo_gas(self, neqs, tn, usol_flat, rhs, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       integer, intent(in) :: neqs
@@ -128,17 +139,15 @@ module photochem_evoatmosphere
       real(dp), target, intent(in) :: usol_flat(neqs)
       real(dp), intent(out) :: rhs(neqs)
       character(:), allocatable, intent(out) :: err
-      ! Computes the right-hand-side of the ODEs describing atmospheric chemistry
-      ! and transport.
     end subroutine
     
+    !> The jacobian of the rhs_background_gas.
     module subroutine jac_evo_gas(self, lda_neqs, neqs, usol_flat, jac, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       integer, intent(in) :: lda_neqs, neqs
       real(dp), target, intent(in) :: usol_flat(neqs)
       real(dp), intent(out), target :: jac(lda_neqs)
       character(:), allocatable, intent(out) :: err
-      ! The jacobian of the rhs_background_gas.
     end subroutine
 
     module subroutine production_and_loss(self, species, usol, pl, err)  
@@ -150,21 +159,20 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!! photochem_evoatmosphere_integrate.f90 !!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !~~ photochem_evoatmosphere_integrate.f90 ~~!
+
+    !> Evolve atmosphere through time, and saves output in a binary Fortran file.
     module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, restart_from_file, err) result(success)
       use, intrinsic :: iso_c_binding
       class(EvoAtmosphere), target, intent(inout) :: self
-      character(len=*), intent(in) :: filename
-      real(c_double), intent(inout) :: tstart
-      real(dp), intent(inout) :: usol_start(:,:)
-      real(c_double), intent(in) :: t_eval(:)
-      logical, optional, intent(in) :: overwrite
-      logical, optional, intent(in) :: restart_from_file
-      logical :: success
+      character(len=*), intent(in) :: filename !! Filename to save results.
+      real(c_double), intent(inout) :: tstart !! start time in seconds
+      real(dp), intent(inout) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
+      real(c_double), intent(in) :: t_eval(:) !! times to evaluate the solution
+      logical, optional, intent(in) :: overwrite !! If true, then overwrites pre-existing files with `filename`
+      logical, optional, intent(in) :: restart_from_file !! If true, then the integration restarts from the input file.
+      logical :: success !! If True, then integration was successful.
       character(:), allocatable, intent(out) :: err
-      ! Evolve atmosphere through time, and saves output in a binary Fortran file.
     end function
 
     !> Determines if integration has converged to photochemical steady-state.
@@ -177,7 +185,7 @@ module photochem_evoatmosphere
     !> Initializes an integration starting at `usol_start`
     module subroutine initialize_stepper(self, usol_start, err)      
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_start(:,:) !! Initial mixing ratios
+      real(dp), intent(in) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
       character(:), allocatable, intent(out) :: err
     end subroutine
     
@@ -186,7 +194,7 @@ module photochem_evoatmosphere
     module function step(self, err) result(tn)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
-      real(dp) :: tn
+      real(dp) :: tn !! Current time in the integration.
     end function
     
     !> Deallocates memory created during `initialize_stepper`
@@ -224,16 +232,18 @@ module photochem_evoatmosphere
       integer(c_int)        :: ierr
     end function
 
+    !~~ photochem_evoatmosphere_utils.f90 ~~!
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!! photochem_evoatmosphere_utils.f90 !!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !> Saves state of the atmosphere using the concentrations in self%wrk%usol.
     module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwrite, clip, err)
       use photochem_common, only: out2atmosphere_txt_base
       class(EvoAtmosphere), target, intent(inout) :: self
-      character(len=*), intent(in) :: filename
-      integer, intent(in) :: number_of_decimals
-      logical, intent(in) :: overwrite, clip
+      character(len=*), intent(in) :: filename !! Output filename
+      integer, intent(in) :: number_of_decimals !! Number of decimals
+      logical, intent(in) :: overwrite !! If true, then output file can be overwritten, by default False
+      !> If true, then mixing ratios are clipped at a very small 
+      !> positive number, by default False
+      logical, intent(in) :: clip
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -325,10 +335,14 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    !> This subroutine calculates re-grids the model so that the top of the model domain 
+    !> is at `top_atmos` the computes reaction rates, photolysis rates, etc.
+    !> and puts this information into self.wrk. self.wrk contains all the
+    !> information needed for `dochem` to compute chemistry.
     module subroutine regrid_prep_atmosphere(self, usol_new, top_atmos, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_new(:,:)
-      real(dp), intent(in) :: top_atmos
+      real(dp), intent(in) :: usol_new(:,:) !! The number densities (molecules/cm^3)
+      real(dp), intent(in) :: top_atmos !! The top of the model domain (cm)
       character(:), allocatable, intent(out) :: err
     end subroutine
 
