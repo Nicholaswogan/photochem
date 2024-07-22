@@ -345,5 +345,17 @@ cdef class PhotochemVars:
     def __set__(self, double val):
       var_pxd.photochemvars_fast_arbitrary_rate_set(self._ptr, &val)
 
+  property upwind_molec_diff:
+    """bool. If True, then the code uses a 1st order upwind method for the advective molecular
+    diffusion terms instead of a centered scheme. This permits stability (at the cost 
+    of accuracy) for atmospheres with strong molcular advection in the upper atmosphere.
+    """
+    def __get__(self):
+      cdef bool val
+      var_pxd.photochemvars_upwind_molec_diff_get(self._ptr, &val)
+      return val
+    def __set__(self, bool val):
+      var_pxd.photochemvars_upwind_molec_diff_set(self._ptr, &val)
+
     
   

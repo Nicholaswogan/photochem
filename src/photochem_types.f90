@@ -497,6 +497,10 @@ module photochem_types ! make a giant IO object
     integer :: verbose = 1 !! 0 == no printing. 1 == some printing. 2 == bunch of printing.
     !> Arbitrary rate that is fast (1/s). Used for keeping H2O at saturation in troposphere
     real(dp) :: fast_arbitrary_rate = 1.0e-2_dp 
+    !> If True, then the code uses a 1st order upwind method for the advective molecular
+    !> diffusion terms instead of a centered scheme. This permits stability (at the cost 
+    !> of accuracy) for atmospheres with strong molcular advection in the upper atmosphere.
+    logical :: upwind_molec_diff = .false.
   end type
 
   type :: SundialsData

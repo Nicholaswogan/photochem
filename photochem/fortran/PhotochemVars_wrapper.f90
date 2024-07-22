@@ -487,4 +487,20 @@
     call c_f_pointer(ptr, var)
     var%fast_arbitrary_rate = val
   end subroutine
+
+  subroutine photochemvars_upwind_molec_diff_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    logical(c_bool), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%upwind_molec_diff
+  end subroutine
+
+  subroutine photochemvars_upwind_molec_diff_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    logical(c_bool), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%upwind_molec_diff = val
+  end subroutine
   

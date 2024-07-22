@@ -99,3 +99,6 @@ cdef extern void photochemvars_verbose_set(PhotochemVars *ptr, int *val)
 
 cdef extern void photochemvars_fast_arbitrary_rate_get(PhotochemVars *ptr, double *val)
 cdef extern void photochemvars_fast_arbitrary_rate_set(PhotochemVars *ptr, double *val)
+
+cdef extern void photochemvars_upwind_molec_diff_get(PhotochemVars *ptr, bool *val)
+cdef extern void photochemvars_upwind_molec_diff_set(PhotochemVars *ptr, bool *val)

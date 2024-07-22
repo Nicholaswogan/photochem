@@ -242,6 +242,7 @@ contains
     real(dp) :: scale_height_av(var%nz-1),scale_height_i_av
     real(dp) :: b1x2av(dat%nll,var%nz-1)
     real(dp) :: gamma_i_gas_av(dat%nll,var%nz-1), gamma_i_part_av(dat%np,var%nz-1)
+    real(dp) :: gamma_i_gas_D(dat%nll,var%nz)
     real(dp) :: grav_av, mubar_av
     real(dp) :: bx1x2
 
@@ -262,6 +263,33 @@ contains
       binary_diffusion_param => default_binary_diffusion_param
     endif
 
+    if (var%upwind_molec_diff) then; block
+    real(dp) :: dTdz_tmp, scale_height_i_tmp, b1x2_tmp, grav_tmp, mubar_tmp
+    ! If using upwind scheme for molecular diffusion, then compute the needed
+    ! advective velocities.
+    do j = 1,var%nz-1
+      dTdz_tmp = (var%temperature(j+1) - var%temperature(j))/var%dz(j)
+      grav_tmp = var%grav(j)
+      mubar_tmp = mubar(j)
+      do i = dat%ng_1,dat%nq
+        k = i - dat%np
+        scale_height_i_tmp = (N_avo*k_boltz*var%temperature(j))/(grav_tmp*dat%species_mass(i))
+        b1x2_tmp = binary_diffusion_param(dat%species_mass(i), mubar_tmp, var%temperature(j))
+        gamma_i_gas_D(k,j) = (b1x2_tmp/den(j))*(1.0_dp/scale_height_i_tmp + (1.0_dp/var%temperature(j))*dTdz_tmp)
+      enddo
+    enddo
+    j = var%nz
+    dTdz_tmp = (var%temperature(var%nz) - var%temperature(var%nz-1))/var%dz(var%nz)
+    grav_tmp = var%grav(j)
+    mubar_tmp = mubar(j)
+    do i = dat%ng_1,dat%nq
+      k = i - dat%np
+      scale_height_i_tmp = (N_avo*k_boltz*var%temperature(j))/(grav_tmp*dat%species_mass(i))
+      b1x2_tmp = binary_diffusion_param(dat%species_mass(i), mubar_tmp, var%temperature(j))
+      gamma_i_gas_D(k,j) = (b1x2_tmp/den(j))*(1.0_dp/scale_height_i_tmp + (1.0_dp/var%temperature(j))*dTdz_tmp)     
+    enddo
+    endblock; endif
+
     ! compute relevant parameters at the edges of the grid cells
     do j = 1,var%nz-1
       eddav(j) = sqrt(var%edd(j)*var%edd(j+1))
@@ -279,8 +307,15 @@ contains
         scale_height_i_av = (N_avo*k_boltz*tav(j))/(grav_av*dat%species_mass(i))
         b1x2av(k,j) = binary_diffusion_param(dat%species_mass(i), mubar_av, tav(j))
 
-        gamma_i_gas_av(k,j) = eddav(j)*(1.0_dp/scale_height_av(j) + (1.0_dp/tav(j))*dTdz(j)) + &
-                           (b1x2av(k,j)/denav(j))*(1.0_dp/scale_height_i_av + (1.0_dp/tav(j))*dTdz(j))
+        gamma_i_gas_av(k,j) = eddav(j)*(1.0_dp/scale_height_av(j) + (1.0_dp/tav(j))*dTdz(j))
+
+        ! If we don't use upwind scheme for molecular diffusion, then we add the centered
+        ! molecular diffusion terms here.
+        if (.not.var%upwind_molec_diff) then
+          gamma_i_gas_av(k,j) = gamma_i_gas_av(k,j) + &
+            (b1x2av(k,j)/denav(j))*(1.0_dp/scale_height_i_av + (1.0_dp/tav(j))*dTdz(j))
+        endif
+
       enddo
     enddo
 
@@ -298,6 +333,12 @@ contains
         ADU(i,j) = gamma_i_gas_av(k,j)/(2.0_dp*var%dz(j))
         ADL(i,j) = - gamma_i_gas_av(k,j-1)/(2.0_dp*var%dz(j))
         ADD(i,j) = ADU(i,j) + ADL(i,j)
+
+        if (var%upwind_molec_diff) then
+          ADU(i,j) = ADU(i,j) + gamma_i_gas_D(k,j+1)/var%dz(j)
+          ADL(i,j) = ADL(i,j) + 0.0_dp
+          ADD(i,j) = ADD(i,j) + (- gamma_i_gas_D(k,j)/var%dz(j))
+        endif
       enddo
     enddo
     ! lower boundary
@@ -309,6 +350,11 @@ contains
 
       ADU(i,j) = gamma_i_gas_av(k,j)/(2.0_dp*var%dz(j))
       ADD(i,j) = ADU(i,j)
+
+      if (var%upwind_molec_diff) then
+        ADU(i,j) = ADU(i,j) + gamma_i_gas_D(k,j+1)/var%dz(j)
+        ADD(i,j) = ADD(i,j) + 0.0_dp
+      endif
     enddo
     ! upper boundary
     j = var%nz
@@ -319,6 +365,11 @@ contains
 
       ADL(i,j) = - gamma_i_gas_av(k,j-1)/(2.0_dp*var%dz(j))
       ADD(i,j) = ADL(i,j)
+
+      if (var%upwind_molec_diff) then
+        ADL(i,j) = ADL(i,j) + 0.0_dp
+        ADD(i,j) = ADD(i,j) + (- gamma_i_gas_D(k,j)/var%dz(j))
+      endif
     enddo
     
     ! ! particles (eddy diffusion)
