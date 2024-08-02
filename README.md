@@ -50,7 +50,7 @@ Funding for the development of Photochem comes from
 - [Simons Collaboration on the Origins of Life](https://www.simonsfoundation.org/life-sciences/origins-of-life/simons-collaboration-on-the-origins-of-life/)
 - [AEThER](https://planets.carnegiescience.edu/)
 
-This model was build in collaboration with
+This model was built in collaboration with
 - David Catling
 - Kevin Zahnle
 - Mark Claire
