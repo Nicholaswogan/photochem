@@ -52,7 +52,7 @@ boundary-conditions:
   lower-boundary: {type: press, press: 360.0}
   upper-boundary: {type: veff, veff: 0.0}
 - name: CH4
-  lower-boundary: {type: flux, flux: 1.0e11}
+  lower-boundary: {type: flux, flux: 9.0e10}
   upper-boundary: {type: veff, veff: 0.0}
 - name: CO
   lower-boundary: {type: press, press: 0.11}
