@@ -1,10 +1,6 @@
-import numpy as np
-import os
-from ._format import FormatReactions_main, FormatSettings_main, MyDumper, Loader, yaml
-from ._convert_utils import compare2reactions, generate_photo_yaml_entries, sort_photos
+from ._format import FormatReactions_main, FormatSettings_main, MyDumper, yaml
+from ._convert_utils import generate_photo_yaml_entries, sort_photos
     
-root_dir = os.path.dirname(os.path.realpath(__file__))
-
 def atmos2yaml(rx_file, species_file, outfile, photo_database = "Photochem", with_citations = False):
     """Converts Atmos reactions to .yaml format compatable with Photochem
 

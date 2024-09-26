@@ -1,8 +1,7 @@
 import os
+import h5py
 from ._format import Loader, MyDumper, yaml, FormatReactions_main
-import copy
-    
-root_dir = os.path.dirname(os.path.realpath(__file__))
+from photochem_clima_data import DATA_DIR
     
 def compare2reactions(rx1, rx2):
     rx1 = rx1.replace('<=>','=>').replace('(','').replace(')','')
@@ -13,21 +12,26 @@ def compare2reactions(rx1, rx2):
 
 def generate_photo_yaml_entries(species_list):
     species_set = set(species_list)
-    fil = open(root_dir+'/../data/xsections/metadata.yaml','r')
-    meta_data = yaml.load(fil,Loader=Loader)
-    fil.close()
-    all_photo_species = [key for key in meta_data.keys() if key != 'overall-notes']
-    photo_species = list(species_set.intersection(set(all_photo_species)))
-
-    # grab reactions
+    
+    filenames = [a for a in os.listdir(DATA_DIR+'/xsections') if '.h5' in a and a != 'bins.h5']
+    all_photoreactions = []
+    for filename in filenames:
+        with h5py.File(DATA_DIR+'/xsections/'+filename,'r') as f:
+            if 'photodissociation-qy' in f.keys():
+                for key in f['photodissociation-qy'].keys():
+                    if key == 'wavelengths':
+                        continue
+                    all_photoreactions.append(key)
     rx_list = []
-    for species in photo_species:
-        for rx in meta_data[species]['reactions'].keys():
-            tmp = set([a.strip() for a in rx.split('=')[1].split('+')])
-            if tmp.issubset(species_set):
-                rx_list.append({})
-                rx_list[-1]['equation'] = rx.replace('=','=>')
-                rx_list[-1]['type'] = 'photolysis'
+    for rx in all_photoreactions:
+        tmp1, tmp2 = rx.split('=>')
+        tmp = set([tmp1.split('+')[0].strip()] + [a.strip() for a in tmp2.split('+')])
+        if tmp.issubset(species_set):
+            entry = {
+                'equation': rx,
+                'type': 'photolysis'
+            }
+            rx_list.append(entry)
     return rx_list
 
 def sort_photos(data_photo, possible_photo):
