@@ -4,12 +4,6 @@ atmosphere-grid:
   top: 1.0e7 # cm
   number-of-layers: 100
 
-photolysis-grid:
-  regular-grid: true
-  lower-wavelength: 92.5 # nm
-  upper-wavelength: 855.0 # nm
-  number-of-bins: 200
-
 planet:
   background-gas: N2
   surface-pressure: 1.01325
@@ -57,7 +51,7 @@ boundary-conditions:
   lower-boundary: {type: mix, mix: 3.606975e-04}
   upper-boundary: {type: veff, veff: 0.0}
 - name: CH4
-  lower-boundary: {type: flux, flux: 5.0e10}
+  lower-boundary: {type: flux, flux: 9.0e10}
   upper-boundary: {type: veff, veff: 0.0}
 - name: CO
   lower-boundary: {type: mix, mix: 1.102131e-07}

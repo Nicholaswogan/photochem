@@ -74,42 +74,6 @@ contains
       return
     endif
   
-    !!!!!!!!!!!!!!!!!!!!!!!
-    !!! photolysis-grid !!!
-    !!!!!!!!!!!!!!!!!!!!!!!
-    dict => root%get_dictionary('photolysis-grid',.true.,error = io_err)
-    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    s%regular_grid = dict%get_logical('regular-grid',error = io_err)
-    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    
-    if (s%regular_grid) then
-      s%lower_wv = dict%get_real('lower-wavelength',error = io_err)
-      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-      s%upper_wv = dict%get_real('upper-wavelength',error = io_err)
-      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-      s%nw = dict%get_integer('number-of-bins',error = io_err)
-      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-      if (s%nw < 1) then 
-        err = 'Number of photolysis bins must be >= 1 in '//trim(filename)
-        return
-      endif
-      if (s%lower_wv > s%upper_wv) then
-        err = 'lower-wavelength must be smaller than upper-wavelength in '//trim(filename)
-        return
-      endif
-    else
-      s%grid_file = dict%get_string('input-file',error = io_err)
-      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    endif
-    ! make sure photon-scale-factor is not in the photolysis-grid dictionary
-    scalar => dict%get_scalar('photon-scale-factor',required=.false.,error = io_err)
-    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    if (associated(scalar)) then
-      err = '"photon-scale-factor" is no longer specified in the "photolysis-grid" dictionary. '// &
-            'Instead, specify "photon-scale-factor" in the "planet" dictionary.'
-      return
-    endif
-    
     !!!!!!!!!!!!!!
     !!! planet !!!
     !!!!!!!!!!!!!!

@@ -619,19 +619,6 @@ contains
     endif
     var%nz = s%nz
     
-    !!!!!!!!!!!!!!!!!!!!!!!
-    !!! photolysis-grid !!!
-    !!!!!!!!!!!!!!!!!!!!!!!
-    dat%regular_grid = s%regular_grid
-    
-    if (dat%regular_grid) then
-      dat%lower_wavelength = s%lower_wv
-      dat%upper_wavelength = s%upper_wv
-      dat%nw = s%nw
-    else
-      dat%grid_file = s%grid_file
-    endif
-    
     !!!!!!!!!!!!!!
     !!! planet !!!
     !!!!!!!!!!!!!!

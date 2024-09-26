@@ -4,12 +4,6 @@ atmosphere-grid:
   top: 1.0e7 # cm
   number-of-layers: 80
 
-photolysis-grid:
-  regular-grid: true
-  lower-wavelength: 92.5 # nm
-  upper-wavelength: 855.0 # nm
-  number-of-bins: 200
-
 planet:
   planet-mass: 5.972e27 # grams
   planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid

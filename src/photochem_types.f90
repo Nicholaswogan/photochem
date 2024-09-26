@@ -54,13 +54,6 @@ module photochem_types ! make a giant IO object
     character(:), allocatable :: top
     integer :: nz
   
-    ! photolysis-grid
-    logical :: regular_grid
-    real(dp) :: lower_wv
-    real(dp) :: upper_wv
-    integer :: nw
-    character(:), allocatable :: grid_file
-  
     ! planet
     character(:), allocatable :: back_gas_name
     real(dp), allocatable :: P_surf
@@ -366,10 +359,6 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: particle_radius_file(:,:) !! (np,nzf) cm
     
     ! settings
-    logical :: regular_grid !! True of wavelength grid is evenly spaced
-    real(dp) :: lower_wavelength !! nm
-    real(dp) :: upper_wavelength !! nm
-    character(:), allocatable :: grid_file !! filename of grid file. Only if regular_grid == False
     logical :: back_gas !! True if background gas is used
     character(:), allocatable :: back_gas_name !! Normally N2, but can be most any gas.
     real(dp), allocatable :: back_gas_mu !! g/mol
