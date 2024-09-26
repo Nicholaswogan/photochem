@@ -1,9 +1,9 @@
 
 CPMAddPackage(
   NAME futils
-  VERSION 0.1.11
+  VERSION 0.1.14
   GITHUB_REPOSITORY "Nicholaswogan/futils"
-  GIT_TAG "v0.1.11"
+  GIT_TAG "v0.1.14"
   EXCLUDE_FROM_ALL ON
 )
 
@@ -49,7 +49,7 @@ CPMAddPackage(
 
 CPMAddPackage(
   NAME clima 
-  VERSION 0.4.6
+  VERSION 0.5.0
   OPTIONS 
     "BUILD_EXECUTABLE OFF"
     "BUILD_WITH_OPENMP ${BUILD_WITH_OPENMP}"
@@ -57,7 +57,7 @@ CPMAddPackage(
     "BUILD_PYTHON_CLIMA ${BUILD_PYTHON_PHOTOCHEM}"
     "PYTHON_CLIMA_DESTINATION photochem"
   GITHUB_REPOSITORY "Nicholaswogan/clima"
-  GIT_TAG "v0.4.6"
+  GIT_TAG "v0.5.0"
   EXCLUDE_FROM_ALL OFF
 )
 

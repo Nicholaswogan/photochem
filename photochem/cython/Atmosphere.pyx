@@ -50,7 +50,7 @@ cdef class Atmosphere:
     self._init_called = True
 
     if data_dir == None:
-      data_dir_ = os.path.dirname(os.path.realpath(__file__))+'/data'
+      data_dir_ = photochem_clima_data.DATA_DIR
     else:
       data_dir_ = data_dir
     

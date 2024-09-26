@@ -1967,21 +1967,9 @@ contains
     type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
     
-    integer :: i
-    
-    ! compute wavelength grid
-    if (dat%regular_grid) then
-      allocate(dat%wavl(dat%nw+1))
-      dat%wavl(1) = dat%lower_wavelength
-      do i = 2,dat%nw+1
-        dat%wavl(i) = dat%wavl(i-1) + &
-                           (dat%upper_wavelength - dat%lower_wavelength)/dat%nw
-      enddo
-    else
-      ! read file
-      err = 'Still need to add support for reading in wavelength grid from file'
-      return
-    endif
+    ! Read wavelength grid
+    call get_wavl(dat, var, err)
+    if (allocated(err)) return
     
     ! get rayleigh
     call get_rayleigh(dat, var, err)
@@ -1997,171 +1985,146 @@ contains
     endif
     
   end subroutine
-  
-  ! Reads mie binary data file, then interpolates optical data to wavelength grid.
-  ! also returns the radii of particles for that file.
+
+  subroutine get_wavl(dat, var, err)
+    use h5fortran
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(in) :: var
+    character(:), allocatable, intent(out) :: err
+
+    type(hdf5_file) :: h
+    integer(HSIZE_T), allocatable :: dims(:)
+    character(:), allocatable :: xsroot, filename
+
+    ! Root directory
+    xsroot = trim(var%data_dir)//"/xsections/"
+    filename = xsroot//'bins.h5'
+
+    if (.not.is_hdf5(filename)) then
+      err = 'Failed to read in photolysis grid from "'//filename//'"'
+      return
+    endif
+
+    call h%open(filename)
+
+    call check_h5_dataset(h, 'wavl', 1, H5T_FLOAT_F, filename, err)
+    if (allocated(err)) then
+      call h%close()
+      return
+    endif
+    call h%shape("wavl", dims)
+    allocate(dat%wavl(dims(1)))
+    call h%read("wavl", dat%wavl)
+    dat%nw = size(dat%wavl) - 1
+
+    call h%close()
+
+  end subroutine
+
   subroutine read_mie_data_file(filename, nw, wavl, &
                                  nrad_file, radii_file, w0_file, qext_file, g_file, err)
-    use futils, only: addpnt, inter2, FileCloser
-    
-    character(len=*), intent(in) :: filename
+    use h5fortran
+    use futils, only: interp_discrete_to_bins
+    use clima_useful, only: hdf5_file_closer
+    character(*), intent(in) :: filename
     integer, intent(in) :: nw
-    real(dp), intent(in) :: wavl(nw+1)
+    real(dp), intent(in) :: wavl(:)
     
     integer, intent(out) :: nrad_file
     real(dp), allocatable, intent(out) :: radii_file(:)
     real(dp), allocatable, intent(out) :: w0_file(:,:), qext_file(:,:), g_file(:,:)
     character(:), allocatable, intent(out) :: err
+
+    type(hdf5_file), target :: h
+    integer(HSIZE_T), allocatable :: dims(:)
+    real(dp), allocatable :: wv_tmp(:)
+    real(dp), allocatable :: w0_tmp(:,:), qext_tmp(:,:), g0_tmp(:,:)
+    integer :: i
     
-    real(dp), allocatable :: wavl_tmp(:)
-    real(dp), allocatable :: w0_tmp(:,:), qext_tmp(:,:), g_tmp(:,:)
-    real(dp), allocatable :: temp_data(:), temp_wavelength(:)
-    
-    integer :: nw_tmp
-    real(dp) :: dum
-    integer :: i, j, io, ierr
-    type(FileCloser) :: file
-    
-    
-    open(2,file=filename,form="unformatted",status='old',iostat=io)
-    file%unit = 2
-    if (io /= 0) then
+    if (.not.is_hdf5(filename)) then
       err = "Was unable to open mie data file "//trim(filename)
       return
     endif
     
-    read(2, iostat=io) nw_tmp
-    if (io /= 0) then
-      err = "Problem reading mie data file "//trim(filename)
+    block
+    type(hdf5_file_closer) :: h_closer
+
+    ! Open file
+    call h%open(filename,'r')
+    h_closer%h => h
+
+    ! Wavelengths
+    call check_h5_dataset(h, 'wavelengths', 1, H5T_FLOAT_F, filename, err)
+    if (allocated(err)) return
+    call h%shape("wavelengths", dims)
+    allocate(wv_tmp(dims(1)))
+    call h%read("wavelengths", wv_tmp)
+
+    ! Radii
+    call check_h5_dataset(h, 'radii', 1, H5T_FLOAT_F, filename, err)
+    if (allocated(err)) return
+    call h%shape("radii", dims)
+    nrad_file = dims(1)
+    allocate(radii_file(dims(1)))
+    call h%read("radii", radii_file)
+
+    ! w0
+    call check_h5_dataset(h, 'w0', 2, H5T_FLOAT_F, filename, err)
+    if (allocated(err)) return
+    call h%shape("w0", dims)
+    allocate(w0_tmp(dims(1),dims(2)))
+    call h%read("w0", w0_tmp)
+
+    ! qext
+    call check_h5_dataset(h, 'qext', 2, H5T_FLOAT_F, filename, err)
+    if (allocated(err)) return
+    call h%shape("qext", dims)
+    allocate(qext_tmp(dims(1),dims(2)))
+    call h%read("qext", qext_tmp)
+
+    ! g0
+    call check_h5_dataset(h, 'g0', 2, H5T_FLOAT_F, filename, err)
+    if (allocated(err)) return
+    call h%shape("g0", dims)
+    allocate(g0_tmp(dims(1),dims(2)))
+    call h%read("g0", g0_tmp)
+
+    if (size(w0_tmp,1) /= nrad_file .or. size(w0_tmp,2) /= size(wv_tmp)) then
+      err = '"w0" has the wrong shape in "'//filename//'"'
       return
     endif
-    allocate(wavl_tmp(nw_tmp))
-    read(2, iostat=io) wavl_tmp
-    if (io /= 0) then
-      err = "Problem reading mie data file "//trim(filename)
+    if (size(qext_tmp,1) /= nrad_file.or. size(qext_tmp,2) /= size(wv_tmp)) then
+      err = '"qext" has the wrong shape in "'//filename//'"'
       return
     endif
-    
-    read(2, iostat=io) nrad_file
-    if (io /= 0) then
-      err = "Problem reading mie data file "//trim(filename)
+    if (size(g0_tmp,1) /= nrad_file .or. size(g0_tmp,2) /= size(wv_tmp)) then
+      err = '"g0" has the wrong shape in "'//filename//'"'
       return
     endif
-    allocate(radii_file(nrad_file))
-    read(2, iostat=io) radii_file
-    if (io /= 0) then
-      err = "Problem reading mie data file "//trim(filename)
-      return
-    endif
-    
-    allocate(w0_tmp(nw_tmp,nrad_file))
-    allocate(qext_tmp(nw_tmp,nrad_file))
-    allocate(g_tmp(nw_tmp,nrad_file))
-    
-    read(2, iostat=io) w0_tmp
-    if (io /= 0) then
-      err = "Problem reading mie data file "//trim(filename)
-      return
-    endif
-    read(2, iostat=io) qext_tmp
-    if (io /= 0) then
-      err = "Problem reading mie data file "//trim(filename)
-      return
-    endif
-    read(2, iostat=io) g_tmp
-    if (io /= 0) then
-      err = "Problem reading mie data file "//trim(filename)
-      return
-    endif
-    
-    ! this next read should be usuccessful
-    read(2, iostat=io) dum
-    if (io == 0) then
-      err = "Problem reading mie data file "//trim(filename)// &
-            ". Should have reached the end of the file, but did not."
-      return
-    endif
-    
-    ! now lets interpolate a bunch
-    allocate(w0_file(nrad_file,nw))
-    allocate(qext_file(nrad_file,nw))
-    allocate(g_file(nrad_file,nw))
-    
-    allocate(temp_data(nw_tmp+2)) ! for interpolation
-    allocate(temp_wavelength(nw_tmp+2))
-    
-    ! We do a constant extrapolation
-    ! beyond the aerosol data, if it is necessary.
-    ! If extrapolation happens, we print a warning
-    ! if (wavl(1) < wavl_tmp(1)) then
-    !   print*,"Warning: Constantly extrapolating aerosol data file"//trim(filename)// &
-    !           " to lower wavelengths than there is data."
-    ! endif
-    ! if (wavl(nw+1) > wavl_tmp(nw_tmp)) then
-    !   print*,"Warning: Constantly extrapolating aerosol data file"//trim(filename)// &
-    !           " to larger wavelengths than there is data."
-    ! endif
+
+    end block
+
+    ! Now lets interpolate a bunch
+    allocate(w0_file(nrad_file,size(wavl)-1))
+    allocate(qext_file(nrad_file,size(wavl)-1))
+    allocate(g_file(nrad_file,size(wavl)-1))
+
     do i = 1, nrad_file
-      
-      ! w0 (single scattering albedo)
-      temp_data(1:nw_tmp) = w0_tmp(1:nw_tmp,i)
-      temp_wavelength(1:nw_tmp) =  wavl_tmp(1:nw_tmp)
-      j = nw_tmp
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.0_dp, w0_tmp(1,i), ierr)
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.0_dp), w0_tmp(nw_tmp,i), ierr)
-      if (ierr /= 0) then
-        err = "Problems interpolating mie data from file "//trim(filename)// &
-              " to the wavelength grid"
-        return
-      endif
-      call inter2(nw+1, wavl, w0_file(i,:), &
-                  nw_tmp+2, temp_wavelength, temp_data, ierr)
-      if (ierr /= 0) then
-        err = "Problems interpolating mie data from file "//trim(filename)// &
-              " to the wavelength grid"
-        return
-      endif
-      
-      ! qext (The extinction efficiency)
-      temp_data(1:nw_tmp) = qext_tmp(1:nw_tmp,i)
-      temp_wavelength(1:nw_tmp) =  wavl_tmp(1:nw_tmp)
-      j = nw_tmp
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.0_dp, qext_tmp(1,i), ierr)
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.0_dp), qext_tmp(nw_tmp,i), ierr)
-      if (ierr /= 0) then
-        err = "Problems interpolating mie data from file "//trim(filename)// &
-              " to the wavelength grid"
-        return
-      endif
-      call inter2(nw+1, wavl, qext_file(i,:), &
-                  nw_tmp+2, temp_wavelength, temp_data, ierr)
-      if (ierr /= 0) then
-        err = "Problems interpolating mie data from file "//trim(filename)// &
-              " to the wavelength grid"
-        return
-      endif
-      
-      ! g (The scattering anisotropy or asymmetry factor)
-      temp_data(1:nw_tmp) = g_tmp(1:nw_tmp,i)
-      temp_wavelength(1:nw_tmp) =  wavl_tmp(1:nw_tmp)
-      j = nw_tmp
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, 0.0_dp, g_tmp(1,i), ierr)
-      call addpnt(temp_wavelength, temp_data, nw_tmp+2, j, huge(1.0_dp), g_tmp(nw_tmp,i), ierr)
-      if (ierr /= 0) then
-        err = "Problems interpolating mie data from file "//trim(filename)// &
-              " to the wavelength grid"
-        return
-      endif
-      call inter2(nw+1, wavl, g_file(i,:), &
-                  nw_tmp+2, temp_wavelength, temp_data, ierr)
-      if (ierr /= 0) then
-        err = "Problems interpolating mie data from file "//trim(filename)// &
-              " to the wavelength grid"
-        return
-      endif
-      
+
+      ! w0
+      call interp_discrete_to_bins(wavl, wv_tmp, w0_tmp(i,:), w0_file(i,:), 'Constant', err=err)
+      if (allocated(err)) return
+
+      ! ext
+      call interp_discrete_to_bins(wavl, wv_tmp, qext_tmp(i,:), qext_file(i,:), 'Constant', err=err)
+      if (allocated(err)) return
+
+      ! g0
+      call interp_discrete_to_bins(wavl, wv_tmp, g0_tmp(i,:), g_file(i,:), 'Constant', err=err)
+      if (allocated(err)) return
+
     enddo
-  
+
   end subroutine
   
   subroutine get_aerosol_xs(dat, var, err)
@@ -2201,10 +2164,10 @@ contains
       
       if (dat%particle_optical_type(i) == MieParticle) then
         filename = xsroot//trim(dat%particle_optical_prop(i))// &
-                  "/mie_"//trim(dat%particle_optical_prop(i))//".dat"
+                  "/mie_"//trim(dat%particle_optical_prop(i))//".h5"
       elseif (dat%particle_optical_type(i) == FractalParticle) then
         filename = xsroot//trim(dat%particle_optical_prop(i))// &
-                  "/frac_"//trim(dat%particle_optical_prop(i))//".dat"
+                  "/frac_"//trim(dat%particle_optical_prop(i))//".h5"
       endif
       
       if (allocated(radii)) then
@@ -2225,183 +2188,249 @@ contains
       dat%part_xs_file(i)%gt = g
 
     enddo
-    
+
   end subroutine
   
   subroutine get_photolysis_xs(dat, var, err)
-    use futils, only: inter2, addpnt, replaceStr
+    use h5fortran, only: is_hdf5
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
     
-    integer, parameter :: maxcols = 200
-    character(len=:), allocatable :: xsroot
-    character(len=:), allocatable :: filename, xsfilename, reaction
-    character(len=str_len) :: line
-    character(len=100) :: tmp(maxcols), tmp1
-    real(dp), allocatable :: file_xs(:,:), file_qy(:,:), file_wav(:), file_wav_save(:), file_line(:)
-    real(dp), allocatable :: dumby(:,:)
-    real(dp), parameter :: rdelta = 1.0e-4_dp
-    
-    integer :: i, j, k, l, m, io, kk, ierr
-    
-    xsroot = trim(var%data_dir)//"/"//trim(var%xs_folder_name)//"/"
-    
-    allocate(dat%xs_data(dat%kj))
-    
+    character(:), allocatable :: xsroot, species, filename, reaction
+    integer :: i, j, k
+
+    ! Root directory
+    xsroot = trim(var%data_dir)//"/xsections/"
+
+    !~~ First, we get total absorption ~~!
+
+    ! Count Species with opacities
+    k = 0
+    do i = 1,size(dat%species_names(dat%ng_1:dat%nq))
+      j = i + dat%np
+      species = trim(dat%species_names(j))
+      filename = xsroot//species//'.h5'
+
+      ! Skip the gases without opacities
+      if (.not. is_hdf5(filename)) cycle
+
+      k = k + 1
+    enddo
+
+    ! Allocate
+    allocate(dat%absorp_xs(k))
+
+    ! Get the opacities
+    k = 1
+    do i = 1,size(dat%species_names(dat%ng_1:dat%nq))
+      j = i + dat%np
+      species = trim(dat%species_names(j))
+      filename = xsroot//species//'.h5'
+
+      ! Skip the gases without opacities
+      if (.not. is_hdf5(filename)) cycle
+
+      dat%absorp_xs(k) = create_XsectionData(filename, j, dat%wavl, err)
+      if (allocated(err)) return
+
+      k = k + 1
+    enddo
+
+    !~~ Now, get the cross sections for specific reactions ~~!
+
+    allocate(dat%photolysis_xs(dat%kj,dat%nw))
     do i = 1,dat%kj
-      filename = ''
+
+      ! Get the reaction name
       j = dat%photonums(i)
-      call reaction_string(dat,j,reaction)
-      filename = reaction
-      filename = replaceStr(filename, ' ', '_')
-      filename = replaceStr(filename, '>', '')
-      filename = filename//'.txt'
+      call reaction_string(dat, j, reaction)
 
+      ! Get the absorbing species
       k = dat%rx(j)%react_sp_inds(1)
-      
-      filename = trim(dat%species_names(k))//'/'//filename
-      xsfilename = trim(dat%species_names(k))//'/'//trim(dat%species_names(k))//'_xs.txt'
-      open(101, file=xsroot//filename,status='old',iostat=io)
-      if (io /= 0) then
-        err = 'The photolysis reaction '//reaction//' does not have quantum yield data'
-        return
-      endif
-      read(101,*)
-      read(101,'(A)') line
-      do k=1,maxcols
-        read(line,*,iostat=io) tmp(1:k)
-        if (io /= 0) exit
-      enddo
-      if (k == maxcols+1) then
-        err = 'More cross section temperature data than allowed for reaction '//reaction
-        return
-      endif
-      dat%xs_data(i)%n_temps = k - 2
-      allocate(dat%xs_data(i)%xs(k - 2, dat%nw))
-      allocate(dat%xs_data(i)%xs_temps(k - 2))
-      
-      do k=1,dat%xs_data(i)%n_temps
-        tmp1 = tmp(k+1)
-        read(tmp1(1:index(tmp1,'K')-1),*,iostat=io) dat%xs_data(i)%xs_temps(k)
-        if (io /= 0) then
-          err = 'Problem reading in cross sections for reaction '//reaction
-          return
-        endif
-      enddo
-      
-      ! count lines
-      k = 0
-      do while(io == 0)
-        read(101,*, iostat=io)
-        if (io == 0) k = k + 1
-      enddo
-      allocate(file_wav(k+4))
-      allocate(file_wav_save(k+4))
-      allocate(file_qy(k+4,dat%xs_data(i)%n_temps))
-      allocate(file_line(dat%xs_data(i)%n_temps+1))
-      allocate(dumby(dat%nw,dat%xs_data(i)%n_temps))
+      species = trim(dat%species_names(k))
 
-      rewind(101)
-      read(101,*)
-      read(101,*)
-      do l = 1, k
-        read(101,'(A)',iostat=io) line
-        read(line,*) file_wav(l)
-        do m = 1,dat%xs_data(i)%n_temps+1
-          read(line,*) file_line(1:m)
-        enddo
-        file_qy(l,:) = file_line(2:)
-      enddo
-      file_wav_save = file_wav
-      
-      ! interpolate to grid
-      ierr = 0
-      do l = 1, dat%xs_data(i)%n_temps
-        kk = k
-        call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(1)*(1.0_dp-rdelta), 0.0_dp, ierr)
-        call addpnt(file_wav, file_qy(:,l), kk+4, k, 0.0_dp, 0.0_dp, ierr)
-        call addpnt(file_wav, file_qy(:,l), kk+4, k, file_wav(k)*(1.0_dp+rdelta), 0.0_dp, ierr)
-        call addpnt(file_wav, file_qy(:,l), kk+4, k, huge(rdelta), 0.0_dp, ierr)
-        if (ierr /= 0) then
-          err = 'IOError: Problem interpolating quantum yield data to photolysis grid for reaction '// &
-                trim(reaction)
-          return
-        endif
-        call inter2(dat%nw+1,dat%wavl,dumby(:,l), &
-                    kk+4,file_wav,file_qy(:,l),ierr)
-        if (ierr /= 0) then
-          err = 'IOError: Problem interpolating quantum yield data to photolysis grid for reaction '// &
-                trim(reaction)
-          return
-        endif
-        dat%xs_data(i)%xs(l,:) = dumby(:,l)
-        k = kk
-        file_wav = file_wav_save
-      enddo
-      
-      close(101)
-      deallocate(file_wav,file_wav_save,file_qy)
-      
-      ! now do xs
-      open(102, file=xsroot//xsfilename,status='old',iostat=io)
-      if (io /= 0) then
-        err = 'The photolysis reaction '//reaction//' does not have cross section data'
-        return
-      endif
-      ! count lines
-      k = -2 ! skip first two lines
-      do while(io == 0)
-        read(102,*, iostat=io)
-        if (io == 0) k = k + 1
-      enddo
-      allocate(file_wav(k+4))
-      allocate(file_wav_save(k+4))
-      allocate(file_xs(k+4,dat%xs_data(i)%n_temps))
-      
-      rewind(102)
-      read(102,*)
-      read(102,*)
-      do l = 1, k
-        read(102,'(A)',iostat=io) line
-        read(line,*) file_wav(l)
-        do m = 1,dat%xs_data(i)%n_temps+1
-          read(line,*) file_line(1:m)
-        enddo
-        file_xs(l,:) = file_line(2:)
-      enddo
-      file_wav_save = file_wav
-      
-      ierr = 0
-      do l = 1, dat%xs_data(i)%n_temps
-        kk = k
-        call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(1)*(1.0_dp-rdelta), 0.0_dp,ierr)
-        call addpnt(file_wav, file_xs(:,l), kk+4, k, 0.0_dp, 0.0_dp,ierr)
-        call addpnt(file_wav, file_xs(:,l), kk+4, k, file_wav(k)*(1.0_dp+rdelta), 0.0_dp,ierr)
-        call addpnt(file_wav, file_xs(:,l), kk+4, k, huge(rdelta), 0.0_dp,ierr)
-        if (ierr /= 0) then
-          err = 'IOError: Problem interpolating xs data to photolysis grid for reaction '// &
-                trim(reaction)
-          return
-        endif
-        call inter2(dat%nw+1,dat%wavl,dumby(:,l), &
-                    kk+4,file_wav,file_xs(:,l),ierr)  
-        if (ierr /= 0) then
-          err = 'IOError: Problem interpolating xs data to photolysis grid for reaction '// &
-                trim(reaction)
-          return
-        endif
-        dat%xs_data(i)%xs(l,:) = dat%xs_data(i)%xs(l,:)*dumby(:,l)
-        k = kk
-        file_wav = file_wav_save
-      enddo
+      ! Filename is based on the species
+      filename = xsroot//species//'.h5'
 
-      close(102)
-      deallocate(file_xs, file_wav, file_wav_save, file_line, dumby)
+      call get_photolysis_xs_for_reaction(filename, reaction, dat%wavl, dat%photolysis_xs(i,:), err)
+      if (allocated(err)) return
+
     enddo
     
   end subroutine
-  
+
+  subroutine get_photolysis_xs_for_reaction(filename, reaction, wavl, xs, err)
+    use futils, only: interp
+    use h5fortran
+    use futils, only: interp_discrete_to_bins
+    use clima_useful, only: hdf5_file_closer
+    character(*), intent(in) :: filename
+    character(*), intent(in) :: reaction
+    real(dp), intent(in) :: wavl(:)
+    real(dp), intent(out) :: xs(:)
+    character(:), allocatable, intent(out) :: err
+    
+    type(hdf5_file), target :: h
+    integer(HSIZE_T), allocatable :: dims(:)
+    real(dp), allocatable :: wv_tmp(:), xs_tmp(:), wv1(:), qy1(:), qy2(:), wv_av(:)
+    integer :: ierr
+    character(:), allocatable :: err_base
+
+    err_base = 'Failed to retrieve photolysis cross section data for the reaction "'//reaction//'". '
+
+    block
+    type(hdf5_file_closer) :: h_closer
+
+    if (.not. is_hdf5(filename)) then
+      err = err_base//'The file "'//filename//'" does not exist.'
+      return
+    endif
+
+    ! Open file
+    call h%open(filename,'r')
+    h_closer%h => h
+
+    ! Wavelengths
+    call check_h5_dataset(h, 'wavelengths', 1, H5T_FLOAT_F, filename, err)
+    if (allocated(err)) return
+    call h%shape("wavelengths", dims)
+    allocate(wv_tmp(dims(1)))
+    call h%read("wavelengths", wv_tmp)
+
+    ! Photodissociation
+    call check_h5_dataset(h, 'photodissociation', 1, H5T_FLOAT_F, filename, err)
+    if (allocated(err)) return
+    call h%shape("photodissociation", dims)
+    allocate(xs_tmp(dims(1)))
+    call h%read("photodissociation", xs_tmp)
+
+    ! Interpolate
+    call interp_discrete_to_bins(wavl, wv_tmp, xs_tmp, xs, 'FillValue', tiny(1.0_dp), err)
+    if (allocated(err)) return
+
+    ! Now do the quantum yields
+    if (.not. h%exists("photodissociation-qy")) then
+      err = err_base//filename//': dataset "photodissociation-qy" does not exist'
+      return
+    endif
+
+    call h%open_group("photodissociation-qy")
+    
+    ! Wavelengths
+    call check_h5_dataset(h, 'wavelengths', 1, H5T_FLOAT_F, filename, err)
+    if (allocated(err)) then
+      call h%close_group()
+      return
+    endif
+    call h%shape("wavelengths", dims)
+    allocate(wv1(dims(1)))
+    call h%read("wavelengths", wv1)
+
+    ! Quantum yields
+    call check_h5_dataset(h, reaction, 1, H5T_FLOAT_F, filename, err)
+    if (allocated(err)) then
+      call h%close_group()
+      return
+    endif
+    call h%shape(reaction, dims)
+    allocate(qy1(dims(1)))
+    call h%read(reaction, qy1)
+
+    ! Interpolate yield to the grid
+    wv_av = (wavl(2:) + wavl(1:size(wavl)-1))/2.0_dp
+    allocate(qy2(size(wv_av)))
+    call interp(wv_av, wv1, qy1, qy2, ierr=ierr)
+    if (ierr /= 0) then
+      call h%close_group()
+      err = err_base//'Subroutine "interp" returned an error.'
+      return
+    endif
+
+    call h%close_group()
+
+    ! Multiply the photolysis cross section by the yield.
+    xs = xs*qy2
+    
+    end block
+
+  end subroutine
+
+  function create_XsectionData(filename, sp_ind, wavl, err) result(xs)
+    use h5fortran
+    use clima_useful, only: hdf5_file_closer
+    use futils, only: interp_discrete_to_bins
+    use photochem_types, only: XsectionData
+    character(*), intent(in) :: filename
+    integer, intent(in) :: sp_ind
+    real(dp), intent(in) :: wavl(:)
+    character(:), allocatable, intent(out) :: err
+    type(XsectionData) :: xs
+
+    type(hdf5_file), target :: h
+    integer(HSIZE_T), allocatable :: dims(:)
+    real(dp), allocatable :: wv_tmp(:), xs_tmp(:)
+
+    ! Set the species index
+    xs%sp_ind = sp_ind
+
+    ! Block to close hdf5 file when we leave this function
+    block
+    type(hdf5_file_closer) :: h_closer
+
+    ! Open file
+    call h%open(filename,'r')
+    h_closer%h => h
+
+    ! Wavelengths
+    call check_h5_dataset(h, 'wavelengths', 1, H5T_FLOAT_F, filename, err)
+    if (allocated(err)) return
+    call h%shape("wavelengths", dims)
+    allocate(wv_tmp(dims(1)))
+    call h%read("wavelengths", wv_tmp)
+
+    ! Photoabsorption
+    call check_h5_dataset(h, 'photoabsorption', 1, H5T_FLOAT_F, filename, err)
+    if (allocated(err)) return
+    call h%shape("photoabsorption", dims)
+    allocate(xs_tmp(dims(1)))
+    call h%read("photoabsorption", xs_tmp)
+
+    ! Interpolate
+    allocate(xs%xs(size(wavl)-1))
+    call interp_discrete_to_bins(wavl, wv_tmp, xs_tmp, xs%xs, 'FillValue', tiny(1.0_dp), err)
+    if (allocated(err)) return
+
+    end block
+
+  end function
+
+  subroutine check_h5_dataset(h, dataset, ndims, dtype, prefix, err)
+    use h5fortran, only: hdf5_file
+    
+    type(hdf5_file), intent(in) :: h
+    character(*), intent(in) :: dataset
+    integer, intent(in) :: ndims
+    integer, intent(in) :: dtype
+    character(*), intent(in) :: prefix
+    character(:), allocatable, intent(out) :: err
+    
+    if (.not. h%exists(dataset)) then
+      err = prefix//': dataset "'//dataset//'" does not exist'
+      return
+    endif
+    
+    if (h%ndims(dataset) /= ndims) then
+      err = prefix//': dataset "'//dataset//'" has wrong number of dimensions'
+      return
+    endif
+    
+    if (h%class(dataset) /= dtype) then
+      err = prefix//': dataset "'//dataset//'" has the wrong type'
+      return
+    endif
+    
+  end subroutine
   
   subroutine get_rayleigh(dat, var, err)
     use fortran_yaml_c, only : YamlFile

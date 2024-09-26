@@ -15,11 +15,11 @@ contains
     print*,'photochem version == ',trim(version)
 
     ! Initialize code
-    pc = Atmosphere("../photochem/data/reaction_mechanisms/zahnle_earth.yaml", &
+    pc = Atmosphere("../data/reaction_mechanisms/zahnle_earth.yaml", &
                     "../examples/ModernEarth/settings_Atmosphere.yaml", &
                     "../examples/ModernEarth/Sun_now.txt", &
                     "../examples/ModernEarth/atmosphere.txt", &
-                    "../photochem/data", &
+                    "../data", &
                     err)
     if (allocated(err)) then
       print*,trim(err)

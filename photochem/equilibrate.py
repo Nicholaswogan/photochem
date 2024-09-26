@@ -1,7 +1,7 @@
 from ._equilibrate import ChemEquiAnalysis, EquilibrateException
 from ._equilibrate import __version__
 from .utils._format import FormatReactions_main, yaml, Loader, MyDumper
-import os
+from photochem_clima_data import DATA_DIR
 
 def generate_zahnle_earth_thermo(outfile='zahnle_earth_thermo.yaml'):
     """Generates a thermodynamic file for equilibrium solving that includes
@@ -13,7 +13,7 @@ def generate_zahnle_earth_thermo(outfile='zahnle_earth_thermo.yaml'):
         Name of the output file, by default 'zahnle_earth_thermo.yaml'
     """    
 
-    rx_folder = os.path.dirname(os.path.realpath(__file__))+'/data/reaction_mechanisms/'
+    rx_folder = DATA_DIR+'/reaction_mechanisms/'
 
     with open(rx_folder+'zahnle_earth.yaml','r') as f:
         dat = yaml.load(f, Loader=Loader)

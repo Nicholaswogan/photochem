@@ -2,26 +2,8 @@
 .ipynb_checkpoints
 __pycache__
 *.so
-*.o
-Photo.run
-*.mod
+data
 build
-*.a
-a.out
-test.run
-*.dSYM
-.vscode
 
-
-src/Stringifor
-build_dir
-src/dependencies/lib
-src/dependencies/include
-src/dependencies/examples
-src/dependencies/cmake
-src/dependencies/modules
-
-julia_wrap_photochem.ipynb
-random.ipynb
 
 

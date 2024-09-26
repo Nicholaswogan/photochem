@@ -8,7 +8,7 @@ program memtest
 contains
 
   subroutine test()
-    call test_methods('../photochem/data/reaction_mechanisms/zahnle_earth.yaml')
+    call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
   end subroutine
 
@@ -58,7 +58,7 @@ contains
                     "../examples/ModernEarth/settings_Atmosphere.yaml", &
                     "../examples/ModernEarth/Sun_now.txt", &
                     "../bad/path.txt", &
-                    "../photochem/data", &
+                    "../data", &
                     err)
     if (.not. allocated(err)) then
       stop 1
@@ -78,7 +78,7 @@ contains
                     "../examples/ModernEarth/settings_Atmosphere.yaml", &
                     "../examples/ModernEarth/Sun_now.txt", &
                     "../examples/ModernEarth/atmosphere.txt", &
-                    "../photochem/data", &
+                    "../data", &
                     err)
     if (allocated(err)) then
       print*,trim(err)
@@ -101,7 +101,7 @@ contains
                     "../examples/ModernEarth/settings_Atmosphere.yaml", &
                     "../examples/ModernEarth/Sun_now.txt", &
                     "../examples/ModernEarth/atmosphere.txt", &
-                    "../photochem/data", &
+                    "../data", &
                     err)
     if (allocated(err)) then
       print*,trim(err)

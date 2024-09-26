@@ -211,13 +211,13 @@ contains
     real(dp) :: amean(var%nz+1), surf_rad, flx
     real(dp) :: taup_1, gt_1, tausp_1(dat%np,var%nz)
     real(dp) :: u0
-    integer :: l, i, j, jj, k, n, ie, ierr, ierrs
+    integer :: l, i, j, k, n, ie, ierr, ierrs
     
     u0 = cos(var%solar_zenith*pi/180.0_dp)
 
     ierrs = 0
     prates = 0.0_dp
-    !$omp parallel private(l, i, j, jj, k, n, ie, ierr, partial_prates, &
+    !$omp parallel private(l, i, j, k, n, ie, ierr, partial_prates, &
     !$omp& taup, taup_1, tausp, tausp_1, tausg, taua, tau, w0, gt, gt_1, &
     !$omp& amean, surf_rad, &
     !$omp& flx)
@@ -236,14 +236,13 @@ contains
         enddo
       enddo
       
-      ! photolysis
+      ! Photoabsorption
       taua = 0.0_dp
-      do i = 1,dat%kj
-        jj = dat%photonums(i)
-        j = dat%rx(jj)%react_sp_inds(1)
+      do i = 1,size(dat%absorp_xs)
+        j = dat%absorp_xs(i)%sp_ind
         do k = 1,var%nz
           n = var%nz+1-k
-          taua(n) = taua(n) + var%xs_x_qy(k,i,l)*densities(j,k)*var%dz(k)
+          taua(n) = taua(n) + dat%absorp_xs(i)%xs(l)*densities(j,k)*var%dz(k)
         enddo
       enddo
       
@@ -302,8 +301,8 @@ contains
       
       flx = var%photon_flux(l)*var%diurnal_fac*var%photon_scale_factor ! photons/cm2/s
       
-      do i=1,dat%kj
-        do j=1,var%nz
+      do i = 1,dat%kj
+        do j = 1,var%nz
           partial_prates(j,i) = partial_prates(j,i) + flx*amean_grd(j,l)*var%xs_x_qy(j,i,l)
         enddo
       enddo

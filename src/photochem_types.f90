@@ -10,6 +10,7 @@ module photochem_types ! make a giant IO object
   private
   
   public :: PhotoSettings, SettingsBC
+  public :: XsectionData
   public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
   public :: ProductionLoss, AtomConservation, ThermodynamicData, CondensationParameters
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate, PressDependentRate, MultiArrheniusRate
@@ -172,10 +173,10 @@ module photochem_types ! make a giant IO object
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! XS and thermodynamic data !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
   type :: XsectionData
-    integer :: n_temps
-    real(dp), allocatable :: xs(:,:) ! (n_temps, nw)
-    real(dp), allocatable :: xs_temps(:) ! (n_temps)
+    integer :: sp_ind !! Species index
+    real(dp), allocatable :: xs(:) !! The cross section in cm^2/molecule (nw)
   end type
   
   type :: ParticleXsections
@@ -337,7 +338,8 @@ module photochem_types ! make a giant IO object
     ! raditative transfer
     integer :: nw !! number of wavelength bins
     real(dp), allocatable :: wavl(:) !! (nw+1) wavelength bins in nm
-    type(XsectionData), allocatable :: xs_data(:) !! (kj)
+    type(XsectionData), allocatable :: absorp_xs(:) !! Contains photoabsorption species
+    real(dp), allocatable :: photolysis_xs(:,:) !! (kj,nw) The xs time qy for each photolysis reaction
     integer :: nray !! number of species with rayleigh scattering
     real(dp), allocatable :: sigray(:,:) !! (len(raynums), nw)
     integer, allocatable :: raynums(:) !! species number of rayleigh species
@@ -391,9 +393,7 @@ module photochem_types ! make a giant IO object
     ! files.
     
     !> where the photochem data is
-    character(len=str_len) :: data_dir = "../data"
-    !> the name of the xsections folder
-    character(len=str_len) :: xs_folder_name = "xsections"
+    character(:), allocatable :: data_dir
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! set DURING file read-in !!!

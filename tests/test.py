@@ -96,13 +96,15 @@ def main():
     pc1 = EvoAtmosphere(zahnle_earth,\
                         "../examples/ModernEarth/settings.yaml",\
                         "../examples/ModernEarth/Sun_now.txt",\
-                        "../examples/ModernEarth/atmosphere.txt")
+                        "../examples/ModernEarth/atmosphere.txt",\
+                        data_dir="../data")
     test_wrapper(pc1)
 
     pc = Atmosphere(zahnle_earth,\
                     "../examples/ModernEarth/settings_Atmosphere.yaml",\
                     "../examples/ModernEarth/Sun_now.txt",\
-                    "../examples/ModernEarth/atmosphere.txt")
+                    "../examples/ModernEarth/atmosphere.txt",\
+                    data_dir="../data")
     test_wrapper(pc)
 
 if __name__ == "__main__":

@@ -221,25 +221,12 @@ contains
 
     character(:), allocatable, intent(out) :: err
     
-    integer :: i, j, k
-    real(dp) :: val(1), T_temp(1)
+    integer :: i, k
 
+    ! No temperature dependence, so we just copy over
     do k = 1, dat%nw
       do i = 1,dat%kj
-        if (dat%xs_data(i)%n_temps > 1) then
-          do j = 1,var%nz
-            T_temp(1) = var%temperature(j)
-      
-            call interp(1, dat%xs_data(i)%n_temps, T_temp, dat%xs_data(i)%xs_temps, &
-                        log10(abs(dat%xs_data(i)%xs(:,k))+smaller_real), val)
-                        
-            var%xs_x_qy(j,i,k) = 10.0_dp**val(1)
-          enddo
-        else
-          do j = 1,var%nz
-            var%xs_x_qy(j,i,k) = abs(dat%xs_data(i)%xs(1,k))+smaller_real
-          enddo
-        endif
+        var%xs_x_qy(:,i,k) = abs(dat%photolysis_xs(i,k))+smaller_real
       enddo
     enddo
 

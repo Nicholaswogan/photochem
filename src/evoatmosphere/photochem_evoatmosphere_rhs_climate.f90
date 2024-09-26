@@ -153,7 +153,7 @@ contains
     if (allocated(err)) return
 
     ! do raditative transfer
-    call self%rad%radiate(d%T_surf, d%T, d%P, d%densities, self%var%dz, d%pdensities, d%radii, err)
+    call self%rad%radiate(d%T_surf, d%T, d%P, d%densities, self%var%dz, d%pdensities, d%radii, err=err)
     if (allocated(err)) return
 
     ! compute the energy going into the atmosphere
