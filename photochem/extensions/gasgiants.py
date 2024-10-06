@@ -24,8 +24,8 @@ class GasGiantData():
         self.planet_mass = planet_mass
         self.P_ref = P_ref
 
-        # Metallicity calculator
-        self.m = Metallicity(thermo_file)
+        # Equilibrium solver
+        self.gas = equilibrate.ChemEquiAnalysis(thermo_file)
 
         # Parameters using during initialization
         # The factor of pressure the atmosphere extends
@@ -156,7 +156,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         gdat.CtoO = CtoO
 
         # Compute chemical equilibrium along the whole P-T profile
-        mix, mubar = gdat.m.composition(T_in, P_in, CtoO, metallicity, rainout_condensed_atoms)
+        mix, mubar = composition_at_metallicity(gdat.gas, T_in, P_in, CtoO, metallicity, rainout_condensed_atoms)
 
         if gdat.TOA_pressure_avg*3 > P_in[-1]:
             raise Exception('The photochemical grid needs to extend above the climate grid')
@@ -418,7 +418,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         out['Kzz'] = self.var.edd
         species_names = self.dat.species_names[:(-2-self.dat.nsl)]
         if equilibrium:
-            mix, mubar = gdat.m.composition(out['temperature'], out['pressure'], gdat.CtoO, gdat.metallicity, rainout_condensed_atoms)
+            mix, mubar = composition_at_metallicity(gdat.gas, out['temperature'], out['pressure'], gdat.CtoO, gdat.metallicity, rainout_condensed_atoms)
             for key in mix:
                 out[key] = mix[key]
             for key in species_names[:self.dat.np]:
@@ -437,7 +437,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         out1['pressure'] = gdat.P_desired[inds]
         out1['temperature'] = gdat.T_desired[inds]
         out1['Kzz'] = gdat.Kzz_desired[inds]
-        mix, mubar = gdat.m.composition(out1['temperature'], out1['pressure'], gdat.CtoO, gdat.metallicity, rainout_condensed_atoms)
+        mix, mubar = composition_at_metallicity(gdat.gas, out1['temperature'], out1['pressure'], gdat.CtoO, gdat.metallicity, rainout_condensed_atoms)
         
         out['pressure'] = np.append(out1['pressure'],out['pressure'])
         out['temperature'] = np.append(out1['temperature'],out['temperature'])
@@ -723,11 +723,6 @@ def determine_quench_levels(T, P, Kzz, mubar, grav):
             break
 
     return quench_levels
-
-@nb.njit()
-def deepest_quench_level(T, P, Kzz, mubar, grav):
-    quench_levels = determine_quench_levels(T, P, Kzz, mubar, grav)
-    return np.min(quench_levels)
     
 @nb.experimental.jitclass()
 class TempPressMubar:
@@ -805,93 +800,82 @@ def compute_altitude_of_PT(P, P_ref, T, mubar, planet_radius, planet_mass, P_top
 ### A simple metallicity calculator
 ###
 
-class Metallicity():
+def composition_at_metallicity(gas, T, P, CtoO, metal, rainout_condensed_atoms = True):
+    """Given a T-P profile, C/O ratio and metallicity, the code
+    computes chemical equilibrium composition.
 
-    def __init__(self, filename):
-        """A simple Metallicity calculator.
+    Parameters
+    ----------
+    gas : ChemEquiAnalysis
+    T : ndarray[dim=1,float64]
+        Temperature in K
+    P : ndarray[dim=1,float64]
+        Pressure in dynes/cm^2
+    CtoO : float
+        The C / O ratio relative to solar. CtoO = 1 would be the same
+        composition as solar.
+    metal : float
+        Metallicity relative to solar.
+    rainout_condensed_atoms : bool, optional
+        If True, then the code will rainout atoms that condense.
 
-        Parameters
-        ----------
-        filename : str
-            Path to a thermodynamic file
-        """
-        self.gas = equilibrate.ChemEquiAnalysis(filename)
+    Returns
+    -------
+    dict
+        Composition at chemical equilibrium.
+    """
 
-    def composition(self, T, P, CtoO, metal, rainout_condensed_atoms = True):
-        """Given a T-P profile, C/O ratio and metallicity, the code
-        computes chemical equilibrium composition.
+    # Check T and P
+    if isinstance(T, float) or isinstance(T, int):
+        T = np.array([T],np.float64)
+    if isinstance(P, float) or isinstance(P, int):
+        P = np.array([P],np.float64)
+    if not isinstance(P, np.ndarray):
+        raise ValueError('"P" must by an np.ndarray')
+    if not isinstance(T, np.ndarray):
+        raise ValueError('"P" must by an np.ndarray')
+    if T.ndim != 1:
+        raise ValueError('"T" must have one dimension')
+    if P.ndim != 1:
+        raise ValueError('"P" must have one dimension')
+    if T.shape[0] != P.shape[0]:
+        raise ValueError('"P" and "T" must be the same length')
+    # Check CtoO and metal
+    if CtoO <= 0:
+        raise ValueError('"CtoO" must be greater than 0')
+    if metal <= 0:
+        raise ValueError('"metal" must be greater than 0')
 
-        Parameters
-        ----------
-        T : ndarray[dim=1,float64]
-            Temperature in K
-        P : ndarray[dim=1,float64]
-            Pressure in dynes/cm^2
-        CtoO : float
-            The C / O ratio relative to solar. CtoO = 1 would be the same
-            composition as solar.
-        metal : float
-            Metallicity relative to solar.
-        rainout_condensed_atoms : bool, optional
-            If True, then the code will rainout atoms that condense.
+    # For output
+    out = {}
+    for sp in gas.gas_names:
+        out[sp] = np.empty(P.shape[0])
+    mubar = np.empty(P.shape[0])
+    
+    molfracs_atoms = gas.molfracs_atoms_sun
+    for i,sp in enumerate(gas.atoms_names):
+        if sp != 'H' and sp != 'He':
+            molfracs_atoms[i] = gas.molfracs_atoms_sun[i]*metal
+    molfracs_atoms = molfracs_atoms/np.sum(molfracs_atoms)
 
-        Returns
-        -------
-        dict
-            Composition at chemical equilibrium.
-        """
+    # Adjust C and O to get desired C/O ratio. CtoO is relative to solar
+    indC = gas.atoms_names.index('C')
+    indO = gas.atoms_names.index('O')
+    x = CtoO*(molfracs_atoms[indC]/molfracs_atoms[indO])
+    a = (x*molfracs_atoms[indO] - molfracs_atoms[indC])/(1+x)
+    molfracs_atoms[indC] = molfracs_atoms[indC] + a
+    molfracs_atoms[indO] = molfracs_atoms[indO] - a
 
-        # Check T and P
-        if isinstance(T, float) or isinstance(T, int):
-            T = np.array([T],np.float64)
-        if isinstance(P, float) or isinstance(P, int):
-            P = np.array([P],np.float64)
-        if not isinstance(P, np.ndarray):
-            raise ValueError('"P" must by an np.ndarray')
-        if not isinstance(T, np.ndarray):
-            raise ValueError('"P" must by an np.ndarray')
-        if T.ndim != 1:
-            raise ValueError('"T" must have one dimension')
-        if P.ndim != 1:
-            raise ValueError('"P" must have one dimension')
-        if T.shape[0] != P.shape[0]:
-            raise ValueError('"P" and "T" must be the same length')
-        # Check CtoO and metal
-        if CtoO <= 0:
-            raise ValueError('"CtoO" must be greater than 0')
-        if metal <= 0:
-            raise ValueError('"metal" must be greater than 0')
+    # Compute chemical equilibrium at all altitudes
+    for i in range(P.shape[0]):
+        gas.solve(P[i], T[i], molfracs_atoms=molfracs_atoms)
+        for j,sp in enumerate(gas.gas_names):
+            out[sp][i] = gas.molfracs_species_gas[j]
+        mubar[i] = gas.mubar
+        if rainout_condensed_atoms:
+            molfracs_atoms = gas.molfracs_atoms_gas
 
-        # For output
-        out = {}
-        for sp in self.gas.gas_names:
-            out[sp] = np.empty(P.shape[0])
-        mubar = np.empty(P.shape[0])
-        
-        molfracs_atoms = self.gas.molfracs_atoms_sun
-        for i,sp in enumerate(self.gas.atoms_names):
-            if sp != 'H' and sp != 'He':
-                molfracs_atoms[i] = self.gas.molfracs_atoms_sun[i]*metal
-        molfracs_atoms = molfracs_atoms/np.sum(molfracs_atoms)
-
-        # Adjust C and O to get desired C/O ratio. CtoO is relative to solar
-        indC = self.gas.atoms_names.index('C')
-        indO = self.gas.atoms_names.index('O')
-        x = CtoO*(molfracs_atoms[indC]/molfracs_atoms[indO])
-        a = (x*molfracs_atoms[indO] - molfracs_atoms[indC])/(1+x)
-        molfracs_atoms[indC] = molfracs_atoms[indC] + a
-        molfracs_atoms[indO] = molfracs_atoms[indO] - a
-
-        # Compute chemical equilibrium at all altitudes
-        for i in range(P.shape[0]):
-            self.gas.solve(P[i], T[i], molfracs_atoms=molfracs_atoms)
-            for j,sp in enumerate(self.gas.gas_names):
-                out[sp][i] = self.gas.molfracs_species_gas[j]
-            mubar[i] = self.gas.mubar
-            if rainout_condensed_atoms:
-                molfracs_atoms = self.gas.molfracs_atoms_gas
-
-        return out, mubar
+    return out, mubar
 
 ###
 ### Template input files for Photochem
