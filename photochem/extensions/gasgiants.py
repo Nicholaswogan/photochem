@@ -9,7 +9,7 @@ import copy
 from .._photochem import EvoAtmosphere, PhotoException
 from .. import zahnle_earth
 from .. import equilibrate
-from ..utils._format import yaml, FormatSettings_main, MyDumper, FormatReactions_main
+from ..utils._format import yaml, FormatSettings_main, MyDumper, FormatReactions_main, mechanism_dict_with_atoms
 
 ###
 ### Extension of EvoAtmosphere class for gas giants
@@ -914,128 +914,16 @@ boundary-conditions:
 """
 
 ###
-### A series of functions for generating reactions and thermo files.
+### Generates reactions and thermo files for gasgaints
 ###
 
-def mechanism_with_atoms(dat, atoms_names):
-
-    atoms = []
-    exclude_atoms = []
-    for i,at in enumerate(dat['atoms']):
-        if at['name'] in atoms_names:
-            atoms.append(at)
-        else:
-            exclude_atoms.append(at['name'])
-
-    species = []
-    comp = {}
-    comp['hv'] = []
-    comp['M'] = []
-    for i,sp in enumerate(dat['species']):
-        comp[sp['name']] = [key for key in sp['composition'] if sp['composition'][key] > 0]
-
-        exclude = False
-        for tmp in comp[sp['name']]:
-            if tmp in exclude_atoms:
-                exclude = True
-                break
-        if not exclude:
-            species.append(sp)
-
-    if "particles" in dat:
-        particles = []
-        for i,sp in enumerate(dat['particles']):
-            comp_tmp = [key for key in sp['composition'] if sp['composition'][key] > 0]
-
-            exclude = False
-            for tmp in comp_tmp:
-                if tmp in exclude_atoms:
-                    exclude = True
-                    break
-            if not exclude:
-                particles.append(sp)
-
-    if "reactions" in dat:
-        reactions = []
-        for i,rx in enumerate(dat['reactions']):
-            eq = rx['equation']
-            eq = eq.replace('(','').replace(')','')
-            if '<=>' in eq:
-                split_str = '<=>'
-            else:
-                split_str = '=>'
-    
-            a,b = eq.split(split_str)
-            a = a.split('+')
-            b = b.split('+')
-            a = [a1.strip() for a1 in a]
-            b = [b1.strip() for b1 in b]
-            sp = a + b
-    
-            exclude = False
-            for s in sp:
-                for tmp in comp[s]:
-                    if tmp in exclude_atoms:
-                        exclude = True
-                        break
-                if exclude:
-                    break
-            if not exclude:
-                reactions.append(rx)
-                
-    out = dat
-    out['atoms'] = atoms
-    out['species'] = species
-    if 'particles' in dat:
-        out['particles'] = particles
-    if 'reactions' in dat:
-        out['reactions'] = reactions
-
-    return out
-
-def remove_reaction_particles(dat):
-    if "particles" in dat:
-        particles = []
-        for i, particle in enumerate(dat['particles']):
-            if particle['formation'] != "reaction":
-                particles.append(particle)
-        dat['particles'] = particles
-
-    return dat
-
-def generate_zahnle_reaction_thermo_file(atoms_names):
-
-    if 'H' not in atoms_names or 'He' not in atoms_names:
-        raise Exception('H and He must be in atoms_names')
-
-    with open(zahnle_earth,'r') as f:
-        rxns = yaml.load(f,Loader=yaml.Loader)
-    # Make a deep copy for later
-    rxns_copy = copy.deepcopy(rxns)
-
-    out_rxns = mechanism_with_atoms(rxns, atoms_names)
-    out_rxns = remove_reaction_particles(out_rxns)
-
-    with open(zahnle_earth.replace('zahnle_earth.yaml','condensate_thermo.yaml'),'r') as f:
-        thermo = yaml.load(f, Loader=yaml.Loader)
-
-    # Delete information that is not needed
-    for i,atom in enumerate(rxns_copy['atoms']):
-        del rxns_copy['atoms'][i]['redox'] 
-    if 'particles' in rxns_copy:
-        del rxns_copy['particles']
-    del rxns_copy['reactions']
-
-    # Add condensates
-    for i,sp in enumerate(thermo['species']):
-        rxns_copy['species'].append(sp)
-
-    out_thermo = mechanism_with_atoms(rxns_copy, atoms_names)
-
-    return out_rxns, out_thermo
-
-def generate_photochem_rx_and_thermo_files(atoms_names=['H','He','N','O','C','S'], 
-                                           rxns_filename='photochem_rxns.yaml', thermo_filename='photochem_thermo.yaml'):
+def generate_photochem_rx_and_thermo_files(
+        atoms_names=['H','He','N','O','C','S'], 
+        rxns_filename='photochem_rxns.yaml', 
+        thermo_filename='photochem_thermo.yaml',
+        remove_particles=False, 
+        remove_reaction_particles=True
+    ):
     """Generates input reactions and thermodynamic files for photochem.
 
     Parameters
@@ -1046,11 +934,19 @@ def generate_photochem_rx_and_thermo_files(atoms_names=['H','He','N','O','C','S'
         Name of output reactions file, by default 'photochem_rxns.yaml'
     thermo_filename : str, optional
         Name of output thermodynamic file, by default 'photochem_thermo.yaml'
-    """    
-    rxns, thermo = generate_zahnle_reaction_thermo_file(atoms_names)
+    remove_particles : bool, optional
+        If True, then particles will be removed, by default False.
+    remove_reaction_particles : bool, optional
+        If True, then reactions particles are removed, by default True.
+    """
+    # Kinetics
+    with open(zahnle_earth,'r') as f:
+        rxns = yaml.load(f,Loader=yaml.Loader)
+    rxns = mechanism_dict_with_atoms(rxns, atoms_names, remove_particles, remove_reaction_particles)
     rxns = FormatReactions_main(rxns)
     with open(rxns_filename,'w') as f:
         yaml.dump(rxns,f,Dumper=MyDumper,sort_keys=False,width=70)
-    thermo = FormatReactions_main(thermo)
-    with open(thermo_filename,'w') as f:
-        yaml.dump(thermo,f,Dumper=MyDumper,sort_keys=False,width=70)
+
+    # Thermodynamics
+    equilibrate.generate_zahnle_earth_thermo(thermo_filename, atoms_names)
+    
