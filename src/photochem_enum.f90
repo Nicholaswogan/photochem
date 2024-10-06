@@ -7,7 +7,8 @@ module photochem_enum
   ! dtype
   enumerator :: &
     ShomatePolynomial = 1, &
-    Nasa9Polynomial = 2
+    Nasa9Polynomial = 2, &
+    Nasa7Polynomial = 3
   
   ! falloff_type
   enumerator :: &

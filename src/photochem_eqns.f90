@@ -79,9 +79,48 @@ contains
                
     gibbs = enthalpy - T*entropy
   end function
+
+  pure function gibbs_energy_nasa7(coeffs, T) result(gibbs)
+    use photochem_const, only: Rgas
+    real(dp), intent(in) :: coeffs(:)
+    real(dp), intent(in) :: T
+    real(dp) :: gibbs
+
+    real(dp) :: enthalpy, entropy
+    real(dp) :: a0, a1, a2, a3, a4, a5, a6
+
+    a0 = coeffs(1)
+    a1 = coeffs(2)
+    a2 = coeffs(3)
+    a3 = coeffs(4)
+    a4 = coeffs(5)
+    a5 = coeffs(6)
+    a6 = coeffs(7)
+
+    enthalpy = &
+      a0 + &
+      a1*T/2.0_dp + &
+      a2*T**2.0_dp/3.0_dp + &
+      a3*T**3.0_dp/4.0_dp + &
+      a4*T**4.0_dp/5.0_dp + &
+      a5/T
+    enthalpy = enthalpy*Rgas*T
+    
+    entropy = &
+      a0*log(T) + &
+      a1*T + &
+      a2*T**2.0_dp/2.0_dp + &
+      a3*T**3.0_dp/3.0_dp + &
+      a4*T**4.0_dp/4.0_dp + &
+      a6
+    entropy = entropy*Rgas
+
+    gibbs = enthalpy - T*entropy
+
+  end function
   
   pure subroutine gibbs_energy_eval(thermo, T, found, gibbs_energy)
-    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial
+    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial, Nasa7Polynomial
     use photochem_types, only: ThermodynamicData
     
     type(ThermodynamicData), intent(in) :: thermo
@@ -100,7 +139,9 @@ contains
         if (thermo%dtype == ShomatePolynomial) then
           gibbs_energy = gibbs_energy_shomate(thermo%data(1:7,k), T)
         elseif (thermo%dtype == Nasa9Polynomial) then
-          gibbs_energy = gibbs_energy_nasa9(thermo%data(1:9,k), T)          
+          gibbs_energy = gibbs_energy_nasa9(thermo%data(1:9,k), T)
+        elseif (thermo%dtype == Nasa7Polynomial) then
+          gibbs_energy = gibbs_energy_nasa7(thermo%data(1:7,k), T)          
         endif
         
         exit

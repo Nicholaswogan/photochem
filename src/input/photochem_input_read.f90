@@ -1245,7 +1245,7 @@ contains
   
   subroutine get_thermodata(molecule, molecule_name, infile, &
                             thermo, err)
-    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial
+    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial, Nasa7Polynomial
     use photochem_types, only: ThermodynamicData
     class(type_dictionary), intent(in) :: molecule
     character(len=*), intent(in) :: molecule_name
@@ -1274,6 +1274,8 @@ contains
       thermo%dtype = ShomatePolynomial
     elseif (model == "NASA9") then
       thermo%dtype = Nasa9Polynomial
+    elseif (model == "NASA7") then
+      thermo%dtype = Nasa7Polynomial
     else
       err = "IOError: Thermodynamic data must be in Shomate format for "//trim(molecule_name)
       return
@@ -1317,12 +1319,12 @@ contains
       return
     endif
     
-    if (thermo%dtype == 1) then
-      ! Shomate
+    if (thermo%dtype == ShomatePolynomial) then
       allocate(thermo%data(7,thermo%ntemps))
-    elseif (thermo%dtype == 2) then
-      ! NASA9
+    elseif (thermo%dtype == Nasa9Polynomial) then
       allocate(thermo%data(9,thermo%ntemps))
+    elseif (thermo%dtype == Nasa7Polynomial) then
+      allocate(thermo%data(7,thermo%ntemps))
     endif
     
     k = 1
