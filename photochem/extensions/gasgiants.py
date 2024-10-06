@@ -185,17 +185,26 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         if gdat.initial_cond_with_quenching:
 
             # Apply quenching to mixing ratios
-            mix1['CH4'][quench_levels[0]:] = mix1['CH4'][quench_levels[0]]
-            mix1['CO'][quench_levels[0]:] = mix1['CO'][quench_levels[0]]
-            mix1['CO2'][quench_levels[1]:] = mix1['CO2'][quench_levels[1]]
-            mix1['NH3'][quench_levels[2]:] = mix1['NH3'][quench_levels[2]]
-            mix1['HCN'][quench_levels[3]:] = mix1['HCN'][quench_levels[3]]
+            if "CH4" in mix1:
+                mix1['CH4'][quench_levels[0]:] = mix1['CH4'][quench_levels[0]]
+            if "CO" in mix1:
+                mix1['CO'][quench_levels[0]:] = mix1['CO'][quench_levels[0]]
+            if "NH3" in mix1:
+                mix1['NH3'][quench_levels[2]:] = mix1['NH3'][quench_levels[2]]
+            if "HCN" in mix1:
+                mix1['HCN'][quench_levels[3]:] = mix1['HCN'][quench_levels[3]]
+            if "H2" in mix1:
+                # Quenching out H2 at the CH4 level seems to work well
+                mix1['H2'][quench_levels[0]:] = mix1['H2'][quench_levels[0]]
 
-            # Quenching out H2 at the CH4 level seems to work well
-            mix1['H2'][quench_levels[0]:] = mix1['H2'][quench_levels[0]]
+            if "CO2" in mix1:
+                # First, I need to equilibrate CO2 against quenched CO, H2O and H2.
+                # mix1['CO2'] = equilibrate_CO2_to_CO(mix1['CO'], mix1['H2O'], mix1['H2'], T1)
+                # Next, I apply the quench.
+                mix1['CO2'][quench_levels[1]:] = mix1['CO2'][quench_levels[1]]
 
             # Normalize mixing ratios
-            mix_tot = np.zeros(mix1['CH4'].shape[0])
+            mix_tot = np.zeros(mix1['H2'].shape[0])
             for key in mix1:
                 mix_tot += mix1[key]
             for key in mix1:
@@ -678,6 +687,31 @@ def CO2_quench_timescale(T, P):
     P_bars = P/1.0e6
     tq = 1.0e-10*P_bars**-0.5*np.exp(38_000.0/T)
     return tq
+
+@nb.njit()
+def equilibrate_CO2_to_CO(fCO, fH2O, fH2, T):
+    """The mole fraction of CO2 in equilibrium with CO, H2O and H2.
+    From Equation 43 in Zahnle and Marley (2014).
+
+    Parameters
+    ----------
+    fCO : float
+        The CO mole fraction
+    fH2O : float
+        The H2O mole fraction
+    fH2 : float
+        The H2 mole fraction
+    T : float
+        Temperature in K
+
+    Returns
+    -------
+    float
+        The CO2 mole fraction
+    """    
+    K = 18.3*np.exp(-2376/T - (932/T)**2)
+    fCO2 = (fCO*fH2O)/(K*fH2)
+    return fCO2
 
 @nb.njit()
 def scale_height(T, mubar, grav):
