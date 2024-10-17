@@ -955,6 +955,7 @@ def generate_photochem_rx_and_thermo_files(
         atoms_names=['H','He','N','O','C','S'], 
         rxns_filename='photochem_rxns.yaml', 
         thermo_filename='photochem_thermo.yaml',
+        exclude_species=[],
         remove_particles=False, 
         remove_reaction_particles=True
     ):
@@ -968,6 +969,8 @@ def generate_photochem_rx_and_thermo_files(
         Name of output reactions file, by default 'photochem_rxns.yaml'
     thermo_filename : str, optional
         Name of output thermodynamic file, by default 'photochem_thermo.yaml'
+    exclude_species : list, optional
+        List of species to exclude.
     remove_particles : bool, optional
         If True, then particles will be removed, by default False.
     remove_reaction_particles : bool, optional
@@ -976,11 +979,11 @@ def generate_photochem_rx_and_thermo_files(
     # Kinetics
     with open(zahnle_earth,'r') as f:
         rxns = yaml.load(f,Loader=yaml.Loader)
-    rxns = mechanism_dict_with_atoms(rxns, atoms_names, remove_particles, remove_reaction_particles)
+    rxns = mechanism_dict_with_atoms(rxns, atoms_names, exclude_species, remove_particles, remove_reaction_particles)
     rxns = FormatReactions_main(rxns)
     with open(rxns_filename,'w') as f:
         yaml.dump(rxns,f,Dumper=MyDumper,sort_keys=False,width=70)
 
     # Thermodynamics
-    equilibrate.generate_zahnle_earth_thermo(thermo_filename, atoms_names)
+    equilibrate.generate_zahnle_earth_thermo(thermo_filename, atoms_names, exclude_species)
     

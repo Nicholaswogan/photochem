@@ -14,7 +14,7 @@ with open("CMakeLists.txt",'r') as fil:
             
 setup(
     name="photochem",
-    packages=['photochem','photochem.utils'],
+    packages=['photochem','photochem.utils','photochem.extensions'],
     python_requires='>=3.6',
     version=version,
     license="GNU General Public License v3.0",

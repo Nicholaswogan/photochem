@@ -177,7 +177,12 @@ def FormatSettings_main(data):
         
     return data
 
-def mechanism_dict_with_atoms(dat, atoms_names, remove_particles=False, remove_reaction_particles=False):
+def species_in_reaction(rx):
+    rx1 = rx.replace('<=>','=>').replace('(','').replace(')','')
+    react, prod = [a.replace(' ','').split('+') for a in rx1.split('=>')]
+    return react + prod
+
+def mechanism_dict_with_atoms(dat, atoms_names, exclude_species=[], remove_particles=False, remove_reaction_particles=False):
 
     atoms = []
     exclude_atoms = []
@@ -199,6 +204,10 @@ def mechanism_dict_with_atoms(dat, atoms_names, remove_particles=False, remove_r
             if tmp in exclude_atoms:
                 exclude = True
                 break
+
+        if sp['name'] in exclude_species:
+            exclude = True
+
         if not exclude:
             species.append(sp)
 
@@ -215,6 +224,16 @@ def mechanism_dict_with_atoms(dat, atoms_names, remove_particles=False, remove_r
 
             if remove_reaction_particles and sp['formation'] == "reaction":
                 exclude = True
+
+            if sp['name'] in exclude_species:
+                exclude = True
+            if sp['formation'] == "saturation":
+                if sp['gas-phase'] in exclude_species:
+                    exclude = True
+            elif not remove_reaction_particles and sp['formation'] == "reaction":
+                rx_sp = species_in_reaction(sp['equation'])
+                if any(a in exclude_species for a in rx_sp):
+                    exclude = True
             
             if not exclude:
                 particles.append(sp)
@@ -222,19 +241,7 @@ def mechanism_dict_with_atoms(dat, atoms_names, remove_particles=False, remove_r
     if "reactions" in dat:
         reactions = []
         for i,rx in enumerate(dat['reactions']):
-            eq = rx['equation']
-            eq = eq.replace('(','').replace(')','')
-            if '<=>' in eq:
-                split_str = '<=>'
-            else:
-                split_str = '=>'
-    
-            a,b = eq.split(split_str)
-            a = a.split('+')
-            b = b.split('+')
-            a = [a1.strip() for a1 in a]
-            b = [b1.strip() for b1 in b]
-            sp = a + b
+            sp = species_in_reaction(rx['equation'])
     
             exclude = False
             for s in sp:
@@ -244,6 +251,10 @@ def mechanism_dict_with_atoms(dat, atoms_names, remove_particles=False, remove_r
                         break
                 if exclude:
                     break
+
+            if any(a in exclude_species for a in sp):
+                exclude = True
+
             if not exclude:
                 reactions.append(rx)
                 
@@ -257,7 +268,7 @@ def mechanism_dict_with_atoms(dat, atoms_names, remove_particles=False, remove_r
 
     return out
 
-def resave_mechanism_with_atoms(infile, outfile, atoms_names, remove_particles=False, remove_reaction_particles=False):
+def resave_mechanism_with_atoms(infile, outfile, atoms_names, exclude_species=[], remove_particles=False, remove_reaction_particles=False):
     
     with open(infile,'r') as f:
         dat = yaml.load(f,Loader=Loader)
@@ -265,6 +276,7 @@ def resave_mechanism_with_atoms(infile, outfile, atoms_names, remove_particles=F
     out = mechanism_dict_with_atoms(
         dat, 
         atoms_names, 
+        exclude_species,
         remove_particles,
         remove_reaction_particles
     )
