@@ -68,7 +68,8 @@ class GasGiantData():
 class EvoAtmosphereGasGiant(EvoAtmosphere):
 
     def __init__(self, mechanism_file, stellar_flux_file, planet_mass, planet_radius, 
-                 nz=100, photon_scale_factor=1.0, P_ref=1.0e6, thermo_file=None):
+                 nz=100, photon_scale_factor=1.0, P_ref=1.0e6, thermo_file=None,
+                 data_dir=None):
         """Initializes the code
 
         Parameters
@@ -87,6 +88,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
             Pressure level corresponding to the planet_radius, by default 1e6 dynes/cm^2
         thermo_file : str, optional
             Optionally include a dedicated thermodynamic file.
+        data_dir : str, optional
+            Path to the data directory containing photolysis cross sections and other data
+            needed to run the model
         """        
         
         # First, initialize photochemical model with dummy inputs
@@ -105,7 +109,8 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
                     mechanism_file,
                     f.name,
                     stellar_flux_file,
-                    ff.name
+                    ff.name,
+                    data_dir
                 )
 
         if thermo_file is None:
