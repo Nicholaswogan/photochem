@@ -66,10 +66,11 @@ class GasGiantData():
         self.robust_stepper_initialized = None
 
 class EvoAtmosphereGasGiant(EvoAtmosphere):
+    "An extension to the EvoAtmosphere class for modeling gas-rich planets."
 
     def __init__(self, mechanism_file, stellar_flux_file, planet_mass, planet_radius, 
-                 nz=100, photon_scale_factor=1.0, P_ref=1.0e6, thermo_file=None,
-                 data_dir=None):
+                 nz=100, photon_scale_factor=1.0, solar_zenith_angle=60.0, P_ref=1.0e6, 
+                 thermo_file=None, data_dir=None):
         """Initializes the code
 
         Parameters
@@ -84,6 +85,10 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
             Planet radius in cm
         nz : int, optional
             The number of layers in the photochemical model, by default 100
+        photon_scale_factor : float, optional
+            description
+        solar_zenith_angle : float, optional
+            description
         P_ref : float, optional
             Pressure level corresponding to the planet_radius, by default 1e6 dynes/cm^2
         thermo_file : str, optional
@@ -99,6 +104,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         sol['planet']['planet-mass'] = float(planet_mass)
         sol['planet']['planet-radius'] = float(planet_radius)
         sol['planet']['photon-scale-factor'] = float(photon_scale_factor)
+        sol['planet']['solar-zenith-angle'] = float(solar_zenith_angle)
         sol = FormatSettings_main(sol)
         with NamedTemporaryFile('w',suffix='.txt') as ff:
             ff.write(ATMOSPHERE_INIT)
@@ -204,7 +210,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
 
             if "CO2" in mix1:
                 # First, I need to equilibrate CO2 against quenched CO, H2O and H2.
-                # mix1['CO2'] = equilibrate_CO2_to_CO(mix1['CO'], mix1['H2O'], mix1['H2'], T1)
+                mix1['CO2'] = equilibrate_CO2_to_CO(mix1['CO'], mix1['H2O'], mix1['H2'], T1)
                 # Next, I apply the quench.
                 mix1['CO2'][quench_levels[1]:] = mix1['CO2'][quench_levels[1]]
 
