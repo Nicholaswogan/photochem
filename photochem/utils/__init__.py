@@ -1,6 +1,6 @@
 # Formatting
 from ._format import FormatReactions, FormatSettings
-from ._format import resave_mechanism_with_atoms
+from ._format import resave_mechanism_with_atoms, generate_zahnle_earth_thermo, zahnle_rx_and_thermo_files
 
 # Converting tools
 from ._convert_atmos import atmos2yaml, atmosbc2yaml

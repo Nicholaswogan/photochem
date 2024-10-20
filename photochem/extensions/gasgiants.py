@@ -7,9 +7,8 @@ from tempfile import NamedTemporaryFile
 import copy
 
 from .._photochem import EvoAtmosphere, PhotoException
-from .. import zahnle_earth
 from .. import equilibrate
-from ..utils._format import yaml, FormatSettings_main, MyDumper, FormatReactions_main, mechanism_dict_with_atoms
+from ..utils._format import yaml, FormatSettings_main, MyDumper
 
 ###
 ### Extension of EvoAtmosphere class for gas giants
@@ -957,44 +956,3 @@ boundary-conditions:
   lower-boundary: {type: Moses}
   upper-boundary: {type: veff, veff: 0}
 """
-
-###
-### Generates reactions and thermo files for gasgaints
-###
-
-def generate_photochem_rx_and_thermo_files(
-        atoms_names=['H','He','N','O','C','S'], 
-        rxns_filename='photochem_rxns.yaml', 
-        thermo_filename='photochem_thermo.yaml',
-        exclude_species=[],
-        remove_particles=False, 
-        remove_reaction_particles=True
-    ):
-    """Generates input reactions and thermodynamic files for photochem.
-
-    Parameters
-    ----------
-    atoms_names : list, optional
-        Atoms to include in the thermodynamics, by default ['H','He','N','O','C','S']
-    rxns_filename : str, optional
-        Name of output reactions file, by default 'photochem_rxns.yaml'
-    thermo_filename : str, optional
-        Name of output thermodynamic file, by default 'photochem_thermo.yaml'
-    exclude_species : list, optional
-        List of species to exclude.
-    remove_particles : bool, optional
-        If True, then particles will be removed, by default False.
-    remove_reaction_particles : bool, optional
-        If True, then reactions particles are removed, by default True.
-    """
-    # Kinetics
-    with open(zahnle_earth,'r') as f:
-        rxns = yaml.load(f,Loader=yaml.Loader)
-    rxns = mechanism_dict_with_atoms(rxns, atoms_names, exclude_species, remove_particles, remove_reaction_particles)
-    rxns = FormatReactions_main(rxns)
-    with open(rxns_filename,'w') as f:
-        yaml.dump(rxns,f,Dumper=MyDumper,sort_keys=False,width=70)
-
-    # Thermodynamics
-    equilibrate.generate_zahnle_earth_thermo(thermo_filename, atoms_names, exclude_species)
-    

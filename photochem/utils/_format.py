@@ -1,4 +1,5 @@
 import yaml
+from photochem_clima_data import DATA_DIR
 
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
@@ -177,6 +178,10 @@ def FormatSettings_main(data):
         
     return data
 
+###
+### Several routines for altering reaction files.
+###
+
 def species_in_reaction(rx):
     rx1 = rx.replace('<=>','=>').replace('(','').replace(')','')
     react, prod = [a.replace(' ','').split('+') for a in rx1.split('=>')]
@@ -268,8 +273,32 @@ def mechanism_dict_with_atoms(dat, atoms_names, exclude_species=[], remove_parti
 
     return out
 
-def resave_mechanism_with_atoms(infile, outfile, atoms_names, exclude_species=[], remove_particles=False, remove_reaction_particles=False):
-    
+def resave_mechanism_with_atoms(
+        infile, 
+        outfile, 
+        atoms_names, 
+        exclude_species=[], 
+        remove_particles=False, 
+        remove_reaction_particles=False
+    ):
+    """Alters a reaction mechanism file with altered atoms.
+
+    Parameters
+    ----------
+    infile : str
+        Path to input yaml file
+    outfile : str
+        Path to output yaml file
+    atoms_names : list
+        List of atoms to include in the output file
+    exclude_species : list, optional
+        List of species to exclude, by default []
+    remove_particles : bool, optional
+        If True, then all particles are removed, by default False
+    remove_reaction_particles : bool, optional
+        If True, then partcles forming from reactions are removed, by default False
+    """    
+
     with open(infile,'r') as f:
         dat = yaml.load(f,Loader=Loader)
     
@@ -285,4 +314,79 @@ def resave_mechanism_with_atoms(infile, outfile, atoms_names, exclude_species=[]
     with open(outfile,'w') as f:
         yaml.dump(out,f,Dumper=MyDumper,sort_keys=False,width=70)
 
+def generate_zahnle_earth_thermo(outfile='zahnle_earth_thermo.yaml', atoms_names=None, exclude_species=[]):
+    """Generates a thermodynamic file for equilibrium solving that includes
+    condensible species (e.g., H2O condensate).
+
+    Parameters
+    ----------
+    outfile : str, optional
+        Name of the output file, by default 'zahnle_earth_thermo.yaml'
+    atoms_names : list, optional
+        List of atoms to keep. By default all atoms in the mechanism are kept
+    exclude_species : list, optional
+        List of species to exclude.
+    """    
+
+    rx_folder = DATA_DIR+'/reaction_mechanisms/'
+
+    with open(rx_folder+'zahnle_earth.yaml','r') as f:
+        dat = yaml.load(f, Loader=Loader)
+
+    with open(rx_folder+'condensate_thermo.yaml','r') as f:
+        dat1 = yaml.load(f, Loader=Loader)
+
+    # Delete information that is not needed
+    for i,atom in enumerate(dat['atoms']):
+        del dat['atoms'][i]['redox'] 
+    del dat['particles']
+    del dat['reactions']
+
+    for i,sp in enumerate(dat1['species']):
+        dat['species'].append(sp)
+
+    if atoms_names is None:
+        atoms_names = [a['name'] for a in dat['atoms']]
         
+    dat = mechanism_dict_with_atoms(dat, atoms_names, exclude_species)
+
+    dat = FormatReactions_main(dat)
+
+    with open(outfile, 'w') as f:
+        yaml.dump(dat,f,Dumper=MyDumper,sort_keys=False,width=70)
+
+def zahnle_rx_and_thermo_files(
+        atoms_names=['H','He','N','O','C','S'], 
+        rxns_filename='photochem_rxns.yaml', 
+        thermo_filename='photochem_thermo.yaml',
+        exclude_species=[],
+        remove_particles=False, 
+        remove_reaction_particles=False
+    ):
+    """Generates input reactions and thermodynamic files for photochem by altering the main
+    reaction network (zahnle_earth.yaml).
+
+    Parameters
+    ----------
+    atoms_names : list, optional
+        Atoms to include in the thermodynamics, by default ['H','He','N','O','C','S']
+    rxns_filename : str, optional
+        Name of output reactions file, by default 'photochem_rxns.yaml'
+    thermo_filename : str, optional
+        Name of output thermodynamic file, by default 'photochem_thermo.yaml'
+    exclude_species : list, optional
+        List of species to exclude.
+    remove_particles : bool, optional
+        If True, then particles will be removed, by default False.
+    remove_reaction_particles : bool, optional
+        If True, then reactions particles are removed, by default True.
+    """
+
+    zahnle_earth = DATA_DIR+'/reaction_mechanisms/zahnle_earth.yaml'
+    # Kinetics
+    if rxns_filename is not None:
+        resave_mechanism_with_atoms(zahnle_earth, rxns_filename, atoms_names, exclude_species, remove_particles, remove_reaction_particles)
+
+    # Thermodynamics
+    if thermo_filename is not None:
+        generate_zahnle_earth_thermo(thermo_filename, atoms_names, exclude_species)
