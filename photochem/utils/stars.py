@@ -4,10 +4,10 @@ import tempfile
 from astropy.io import fits
 import numba as nb
 from scipy import constants as const
+import yaml
 
 # Relative imports
 from .youngsun import youngsun
-from ..utils._format import yaml, flowmap
 
 ###
 ### Some utilities for dealing with spectra
@@ -345,7 +345,7 @@ def save_photochem_spectrum(wv, F, outputfile, Teq=None, stellar_flux=None, scal
 ### The Sun's spectrum through time.
 ###
 
-def solar_spectrum_at_earth(outputfile=None, age=0.0, append_blackbody=True, solar_const=None):
+def solar_spectrum(outputfile=None, age=0.0, append_blackbody=True, Teq=None, stellar_flux=None, scale_before_age=True):
     """The Sun's spectrum throughout all time. For the Modern Sun, we use the
     Thuillier et al. (2004) (https://doi.org/10.1029/141GM13), ATLAS 3 reference
     spectrum. Then we scale the spectrum into the past/future with the Claire et al. (2012)
@@ -359,9 +359,13 @@ def solar_spectrum_at_earth(outputfile=None, age=0.0, append_blackbody=True, sol
         Age of the sun in billions of years ago, by default 0.0
     append_blackbody : bool, optional
         If True, then a blackbody is appended, by default True
-    solar_const : float, optional
-        If supplied, this is the solar constant at Earth in W/m^2, 
-        which the spectrum will be rescaled to.
+    Teq : float, optional
+        Zero-albedo equilibrium temperature of the planet (K), by default None
+    stellar_flux : float, optional
+        Stellar flux at the planet (W/m^2), by default None
+    scale_before_age : bool, optional
+        If True, then the spectrum is scaled before the `youngsun` routine, 
+        is applied. If False, then scaling occurs afterword, by default True.
 
     Returns
     -------
@@ -389,17 +393,22 @@ def solar_spectrum_at_earth(outputfile=None, age=0.0, append_blackbody=True, sol
     if append_blackbody:
         wv, F = append_blackbody_to_stellar_spectrum(wv, F, 5778)
 
-    # Rescale so that the total energy is identical to the Solar constant (1370 W/m^2)
-    if solar_const is not None:
+    # Rescale to stellar_flux or Teq
+    if scale_before_age and (stellar_flux is not None or Teq is not None):
         if not append_blackbody:
             raise ValueError('You must append a blackbody to rescale the spectrum')
-        factor = solar_const/energy_in_spectrum(wv, F)
-        F *= factor
+        F = scale_spectrum_to_planet(wv, F, Teq, stellar_flux)
 
     # Change the age of the spectrum
     if age != 0.0:
         fluxmult = youngsun(age, wv*10)
         F *= fluxmult
+
+    # Rescale to stellar_flux or Teq
+    if not scale_before_age and (stellar_flux is not None or Teq is not None):
+        if not append_blackbody:
+            raise ValueError('You must append a blackbody to rescale the spectrum')
+        F = scale_spectrum_to_planet(wv, F, Teq, stellar_flux)
 
     # Save the file, if desired
     if outputfile is not None:
@@ -605,6 +614,7 @@ def get_muscles_stellar_data():
     properties were found.
     """
     from bs4 import BeautifulSoup
+    from ._format import flowmap
 
     # All the MUSCLES stars, with some alternative names
     ALL_MUSCLES_STARS = {
