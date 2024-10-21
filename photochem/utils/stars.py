@@ -385,7 +385,7 @@ def rebin_to_needed_resolution(wv, F):
 
     # Rebin the spectrum to the needed resolution
     wavl = make_bins(wv)
-    F_new = rebin(wavl, F, wavl_new)
+    F_new = rebin(wavl.copy(), F.copy(), wavl_new.copy())
 
     return wv_new, F_new
 
@@ -670,7 +670,7 @@ def muscles_spectrum(star_name, outputfile=None, Teq=None, stellar_flux=None, ne
 
     # Save the spectrum to a file, if desired
     if outputfile is not None:
-        save_photochem_spectrum(wv, F, scale_to_planet=False)
+        save_photochem_spectrum(wv, F, outputfile, scale_to_planet=False)
 
     return wv, F
 
