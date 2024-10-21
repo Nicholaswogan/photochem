@@ -478,9 +478,10 @@ def solar_spectrum(outputfile=None, age=0.0, append_blackbody=True, Teq=None, st
 ###
 
 def hazmat_spectrum(star_name, model='model', outputfile=None, Teq=None, stellar_flux=None, needed_resolution=True):
-    """Downloads a HAZMAT spectrum, then rescale the spectrum so that it has a 
-    total bolometric insolation at a planet consistent with `Teq` or `stellar_flux`. 
-    Finally, the spectrum can be saved to `outputfile` in photochem format.
+    """Downloads a HAZMAT spectrum (https://archive.stsci.edu/hlsp/hazmat), 
+    then rescale the spectrum so that it has a total bolometric insolation at 
+    a planet consistent with `Teq` or `stellar_flux`. Finally, the spectrum can 
+    be saved to `outputfile` in photochem format.
 
     Parameters
     ----------
@@ -534,6 +535,17 @@ def hazmat_spectrum(star_name, model='model', outputfile=None, Teq=None, stellar
         save_photochem_spectrum(wv, F, outputfile, scale_to_planet=False)
 
     return wv, F
+
+def print_hazmat_stars():
+    "Prints the stars avaliable in the HAZMAT catalogue"
+    print(HAZMAT_STARS_YAML)
+
+HAZMAT_STARS_YAML = \
+"""GJ176: {st_logg: 4.78, st_met: 0.147, st_rad: 0.48, st_teff: 3703.49}
+GJ436: {st_logg: 4.84, st_met: 0.099, st_rad: 0.42, st_teff: 3586.11}
+GJ832: {st_logg: 4.7, st_met: -0.7, st_rad: 0.48, st_teff: 3657.0}
+TRAPPIST-1: {st_logg: 5.24, st_met: 0.053, st_rad: 0.12, st_teff: 2566.0}
+"""
 
 ###
 ### MUSCLES spectra (https://archive.stsci.edu/prepds/muscles/)
@@ -624,10 +636,11 @@ def get_muscles_spectrum(star_name, nwb=1000):
     return wv, F
 
 def muscles_spectrum(star_name, outputfile=None, Teq=None, stellar_flux=None, needed_resolution=True):
-    """Downloads a MUSCLES spectrum, then adds on a blackbody extending
-    the star to 100 microns, and finally rescale the spectrum so that it has a 
-    total bolometric insolation at a planet consistent with `Teq` or `stellar_flux`. 
-    Finally, the spectrum can be saved to `outputfile` in photochem format.
+    """Downloads a MUSCLES spectrum (https://archive.stsci.edu/prepds/muscles/), 
+    then adds on a blackbody extending the star to 100 microns, and finally 
+    rescale the spectrum so that it has a total bolometric insolation at a planet 
+    consistent with `Teq` or `stellar_flux`. Finally, the spectrum can be saved to 
+    `outputfile` in photochem format.
 
     Parameters
     ----------
