@@ -10,7 +10,7 @@ from photochem_clima_data import DATA_DIR
 
 # Relative imports
 from .youngsun import youngsun
-from .._clima import rebin
+from .._clima import rebin, rebin_with_errors
 
 ###
 ### Some utilities for dealing with spectra
