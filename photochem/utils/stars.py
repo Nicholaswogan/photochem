@@ -5,9 +5,12 @@ from astropy.io import fits
 import numba as nb
 from scipy import constants as const
 import yaml
+import h5py
+from photochem_clima_data import DATA_DIR
 
 # Relative imports
 from .youngsun import youngsun
+from .._clima import rebin
 
 ###
 ### Some utilities for dealing with spectra
@@ -197,7 +200,6 @@ def energy_in_spectrum(wv, F):
     wavl = make_bins(wv)
     return 1e-3*np.sum(F[:]*(wavl[1:]-wavl[:-1])) # W/m^2
 
-@nb.njit()
 def scale_spectrum_to_planet(wv, F, Teq=None, stellar_flux=None):
     """Scales a stellar spectrum so that it has the correct incident
     flux at a planet. You must supply either a `Teq` or a `stellar_flux`
@@ -341,11 +343,58 @@ def save_photochem_spectrum(wv, F, outputfile, Teq=None, stellar_flux=None, scal
     with open(outputfile,'w') as f:
         f.write(outstr)
 
+def rebin_to_needed_resolution(wv, F):
+    """Rebins a stellar spectrum to 4x the resolution needed by the photochemical
+    and climate models.
+
+    Parameters
+    ----------
+    wv : ndarray[ndim=1,double]
+        Wavelengths of stellar spectrum (nm)
+    F : ndarray[ndim=1,double]
+        Flux of the stellar spectrum (mW/m^2/nm)
+
+    Returns
+    -------
+    wv_new : ndarray[ndim=1,double]
+        New wavelengths of stellar spectrum (nm)
+    F_new : ndarray[ndim=1,double]
+        New flux of the stellar spectrum (mW/m^2/nm)
+    """    
+
+    # Get UV bins, and solar radiative transfer bins
+    with h5py.File(DATA_DIR+'/xsections/bins.h5','r') as f:
+        wavl_uv = f['wavl'][:].astype(np.double)
+    with h5py.File(DATA_DIR+'/kdistributions/bins.h5','r') as f:
+        wavl_sol = f['sol_wavl'][:].astype(np.double)*1e3 # to nm
+    
+    # Combine UV and solar bins
+    wavl_new = np.sort(np.append(wavl_uv,wavl_sol))
+    wavl_new = np.unique(wavl_new)
+    # Double the resolution
+    wavl_new = np.sort(np.append(wavl_new, (wavl_new[1:] + wavl_new[:-1])/2))
+    # Double the resolution again
+    wavl_new = np.sort(np.append(wavl_new, (wavl_new[1:] + wavl_new[:-1])/2))
+
+    # Mid-points between bins
+    wv_new = (wavl_new[1:] + wavl_new[:-1])/2
+    # Add edges of grid to ensure we get that energy
+    wv_new = np.append(wavl_new[0], wv_new)
+    wv_new = np.append(wv_new, wavl_new[-1])
+    wavl_new = make_bins(wv_new)
+
+    # Rebin the spectrum to the needed resolution
+    wavl = make_bins(wv)
+    F_new = rebin(wavl, F, wavl_new)
+
+    return wv_new, F_new
+
 ###
 ### The Sun's spectrum through time.
 ###
 
-def solar_spectrum(outputfile=None, age=0.0, append_blackbody=True, Teq=None, stellar_flux=None, scale_before_age=True):
+def solar_spectrum(outputfile=None, age=0.0, append_blackbody=True, Teq=None, stellar_flux=None, scale_before_age=True,
+                   needed_resolution=True):
     """The Sun's spectrum throughout all time. For the Modern Sun, we use the
     Thuillier et al. (2004) (https://doi.org/10.1029/141GM13), ATLAS 3 reference
     spectrum. Then we scale the spectrum into the past/future with the Claire et al. (2012)
@@ -366,6 +415,10 @@ def solar_spectrum(outputfile=None, age=0.0, append_blackbody=True, Teq=None, st
     scale_before_age : bool, optional
         If True, then the spectrum is scaled before the `youngsun` routine, 
         is applied. If False, then scaling occurs afterword, by default True.
+    needed_resolution : bool, optional
+        If True, then the spectrum is rebinned to a resolution 4x higher than
+        What is used by the photochemical and climate models which should be
+        an adequately high resolution, by default True.
 
     Returns
     -------
@@ -410,10 +463,76 @@ def solar_spectrum(outputfile=None, age=0.0, append_blackbody=True, Teq=None, st
             raise ValueError('You must append a blackbody to rescale the spectrum')
         F = scale_spectrum_to_planet(wv, F, Teq, stellar_flux)
 
+    # Downbin to needed resolution
+    if needed_resolution:
+        wv, F = rebin_to_needed_resolution(wv, F)
+
     # Save the file, if desired
     if outputfile is not None:
         save_photochem_spectrum(wv, F, outputfile, scale_to_planet=False)
         
+    return wv, F
+
+###
+### HAZMAT spectra (https://archive.stsci.edu/hlsp/hazmat)
+###
+
+def hazmat_spectrum(star_name, model='model', outputfile=None, Teq=None, stellar_flux=None, needed_resolution=True):
+    """Downloads a HAZMAT spectrum, then rescale the spectrum so that it has a 
+    total bolometric insolation at a planet consistent with `Teq` or `stellar_flux`. 
+    Finally, the spectrum can be saved to `outputfile` in photochem format.
+
+    Parameters
+    ----------
+    star_name : str
+        Name of the HAZMAT star
+    model : str
+        Model group (for TRAPPIST-1), either "1a", "2a", or "2b", or "model" for GJ stars.
+    outputfile : str, optional
+        If not None, then this is the output filename, be default None.
+    Teq : float, optional
+        Zero-albedo equilibrium temperature of the planet (K), by default None
+    stellar_flux : float, optional
+        Stellar flux at the planet (W/m^2), by default None
+    needed_resolution : bool, optional
+        If True, then the spectrum is rebinned to a resolution 4x higher than
+        What is used by the photochemical and climate models which should be
+        an adequately high resolution, by default True.
+    """
+
+    if star_name.lower == 'trappist-1' and model not in ['1a','2a','2b']:
+        raise ValueError('TRAPPIST-1 is only compatible with model 1a, 2a, or 2b')
+
+    base_url = 'http://archive.stsci.edu/hlsps/hazmat/hlsp_hazmat_phoenix_synthspec_'
+    url = base_url+star_name.lower()+'_'+model+'_v1_fullres.fits'
+    response = requests.get(url)
+
+    if response.status_code != 200:
+        raise Exception('Failed to download '+star_name+' from HAZMAT')
+    
+    with tempfile.TemporaryFile() as f:
+        f.write(response.content)
+        data = fits.getdata(f)
+
+    wv = data['wavelength']/10 # convert from Angstroms to nm
+    # (erg/cm2/s/Ang)*(1 W/1e7 erg)*(1e3 mW/1 W)*(1e4 cm^2/1 m^2)*(10 Ang/1 nm) = mW/m^2/nm
+    F = data['flux_density']*(1/1e7)*(1e3/1)*(1e4/1)*(10/1) # convert from erg/cm2/s/Ang to mW/m^2/nm
+
+    # Remove duplicated wavelengths
+    wv, inds = np.unique(wv, return_index=True)
+    F = F[inds]
+
+    # Rescale to planet
+    F = scale_spectrum_to_planet(wv, F, Teq, stellar_flux)
+
+    # Only consider needed resolution
+    if needed_resolution:
+        wv, F = rebin_to_needed_resolution(wv, F)
+
+    # Save the spectrum to a file, if desired
+    if outputfile is not None:
+        save_photochem_spectrum(wv, F, outputfile, scale_to_planet=False)
+
     return wv, F
 
 ###
@@ -504,11 +623,11 @@ def get_muscles_spectrum(star_name, nwb=1000):
 
     return wv, F
 
-def muscles_spectrum(star_name, outputfile=None, Teq=None, stellar_flux=None, fmt='{:25}', nwb=1000):
+def muscles_spectrum(star_name, outputfile=None, Teq=None, stellar_flux=None, needed_resolution=True):
     """Downloads a MUSCLES spectrum, then adds on a blackbody extending
     the star to 100 microns, and finally rescale the spectrum so that it has a 
     total bolometric insolation at a planet consistent with `Teq` or `stellar_flux`. 
-    Finally, the spectrum is saved to `outputfile` in photochem format.
+    Finally, the spectrum can be saved to `outputfile` in photochem format.
 
     Parameters
     ----------
@@ -520,21 +639,25 @@ def muscles_spectrum(star_name, outputfile=None, Teq=None, stellar_flux=None, fm
         Zero-albedo equilibrium temperature of the planet (K), by default None
     stellar_flux : float, optional
         Stellar flux at the planet (W/m^2), by default None
-    fmt : str, optional
-        Format string, by default '{:25}'
-    nwb : int, optional
-        Number of blackbody points extending to 100 um, by default 1000
+    needed_resolution : bool, optional
+        If True, then the spectrum is rebinned to a resolution 4x higher than
+        What is used by the photochemical and climate models which should be
+        an adequately high resolution, by default True.
     """
     
     # Download the spectrum
-    wv, F = get_muscles_spectrum(star_name, nwb)
+    wv, F = get_muscles_spectrum(star_name, 1000)
 
     # Rescale to planet
     F = scale_spectrum_to_planet(wv, F, Teq, stellar_flux)
 
+    # Only consider needed resolution
+    if needed_resolution:
+        wv, F = rebin_to_needed_resolution(wv, F)
+
     # Save the spectrum to a file, if desired
     if outputfile is not None:
-        save_photochem_spectrum(wv, F, outputfile, Teq, stellar_flux, False, fmt)
+        save_photochem_spectrum(wv, F, scale_to_planet=False)
 
     return wv, F
 
