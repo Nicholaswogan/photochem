@@ -276,7 +276,7 @@ def append_blackbody_to_stellar_spectrum(wv, F, Teff, wv_end=100e3, nwb=1000):
     
     return wv_new, F_new
 
-def photochem_spectrum_string(wv, F, Teq=None, stellar_flux=None, scale_to_planet=True, fmt='{:25}'):
+def photochem_spectrum_string(wv, F, Teq=None, stellar_flux=None, scale_to_planet=True, fmt='{:20}'):
     """Rescales a stellar spectrum to a planet, then converts it a string
     representing a photochem stellar flux file.
 
@@ -293,7 +293,7 @@ def photochem_spectrum_string(wv, F, Teq=None, stellar_flux=None, scale_to_plane
     scale_to_planet : bool, optional
         If True, then the stellar flux will be rescaled to the planet, be default True.
     fmt : str, optional
-        Format string, by default '{:25}'
+        Format string, by default '{:20}'
 
     Returns
     -------
@@ -311,13 +311,13 @@ def photochem_spectrum_string(wv, F, Teq=None, stellar_flux=None, scale_to_plane
     flux_str += fmt.format('SolarFlux(mW/m^2/nm)')
     flux_str += '\n'
     for i in range(wv.shape[0]):
-        flux_str += fmt.format('%e'%wv[i])
-        flux_str += fmt.format('%e'%F_save[i])
+        flux_str += fmt.format('%.8e'%wv[i])
+        flux_str += fmt.format('%.8e'%F_save[i])
         flux_str += '\n'
 
     return flux_str
 
-def save_photochem_spectrum(wv, F, outputfile, Teq=None, stellar_flux=None, scale_to_planet=True, fmt='{:25}'):
+def save_photochem_spectrum(wv, F, outputfile, Teq=None, stellar_flux=None, scale_to_planet=True, fmt='{:20}'):
     """Rescales a stellar spectrum to a planet, if desired, then saves the spectrum in the photochem
     format.
 
@@ -336,7 +336,7 @@ def save_photochem_spectrum(wv, F, outputfile, Teq=None, stellar_flux=None, scal
     scale_to_planet : bool, optional
         If True, then the stellar flux will be rescaled to the planet, be default True.
     fmt : str, optional
-        Format string, by default '{:25}'
+        Format string, by default '{:20}'
     """    
 
     outstr = photochem_spectrum_string(wv, F, Teq, stellar_flux, scale_to_planet, fmt)
