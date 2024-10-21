@@ -500,7 +500,7 @@ def hazmat_spectrum(star_name, model='model', outputfile=None, Teq=None, stellar
         an adequately high resolution, by default True.
     """
 
-    if star_name.lower == 'trappist-1' and model not in ['1a','2a','2b']:
+    if star_name.lower() == 'trappist-1' and model not in ['1a','2a','2b']:
         raise ValueError('TRAPPIST-1 is only compatible with model 1a, 2a, or 2b')
 
     base_url = 'http://archive.stsci.edu/hlsps/hazmat/hlsp_hazmat_phoenix_synthspec_'
