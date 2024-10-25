@@ -158,7 +158,7 @@ def FormatSettings_main(data):
     if 'boundary-conditions' in data:
         for i in range(len(data['boundary-conditions'])):
             if "lower-boundary" in data['boundary-conditions'][i]:
-                order = ['type','vdep','mix','flux','height']
+                order = ['type','vdep','mix','press','den','flux','height']
                 copy = data['boundary-conditions'][i]['lower-boundary'].copy()
                 data['boundary-conditions'][i]['lower-boundary'].clear()
                 for key in order:
