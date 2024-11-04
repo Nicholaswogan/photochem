@@ -3,12 +3,20 @@
   !!! getters and setters !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+  subroutine photochemwrk_nsteps_total_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    val = wrk%nsteps_total
+  end subroutine
+
   subroutine photochemwrk_nsteps_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
-    type(PhotochemWrk), pointer :: var
-    call c_f_pointer(ptr, var)
-    val = var%nsteps
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    val = wrk%nsteps
   end subroutine
 
   subroutine photochemwrk_t_history_get_size(ptr, dim1) bind(c)

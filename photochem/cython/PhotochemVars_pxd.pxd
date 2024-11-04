@@ -102,3 +102,15 @@ cdef extern void photochemvars_fast_arbitrary_rate_set(PhotochemVars *ptr, doubl
 
 cdef extern void photochemvars_upwind_molec_diff_get(PhotochemVars *ptr, bool *val)
 cdef extern void photochemvars_upwind_molec_diff_set(PhotochemVars *ptr, bool *val)
+
+cdef extern void photochemvars_nerrors_before_giveup_get(PhotochemVars *ptr, int *val)
+cdef extern void photochemvars_nerrors_before_giveup_set(PhotochemVars *ptr, int *val)
+
+cdef extern void photochemvars_nsteps_before_conv_check_get(PhotochemVars *ptr, int *val)
+cdef extern void photochemvars_nsteps_before_conv_check_set(PhotochemVars *ptr, int *val)
+
+cdef extern void photochemvars_nsteps_before_reinit_get(PhotochemVars *ptr, int *val)
+cdef extern void photochemvars_nsteps_before_reinit_set(PhotochemVars *ptr, int *val)
+
+cdef extern void photochemvars_nsteps_before_giveup_get(PhotochemVars *ptr, int *val)
+cdef extern void photochemvars_nsteps_before_giveup_set(PhotochemVars *ptr, int *val)

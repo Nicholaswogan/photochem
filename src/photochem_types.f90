@@ -456,12 +456,13 @@ module photochem_types ! make a giant IO object
     ! other 
     !> number of times we initialize CVODE when it returns
     !> a potentially recoverable error. ONLY USED IN EVOATMOSPHERE (NOT ATMOSPHERE)
+    !> in the `evolve` method.
     integer :: max_error_reinit_attempts = 2 
     real(c_double) :: rtol = 1.0e-3_dp !! integration relative tolerance
     !> Integration absolute tolerance. If autodiff == .true., then the model
     !> works better when atol is smaller (e.g., atol = ~1.0e-18).
-    real(c_double) :: atol = 1.0e-25_dp 
-    integer :: mxsteps = 10000 !! max number of steps before integrator will give up.
+    real(c_double) :: atol = 1.0e-23_dp 
+    integer :: mxsteps = 100000 !! max number of steps before integrator will give up.
     !> seconds. atomsphere considered in equilibrium if integrations reaches this time.
     real(dp) :: equilibrium_time = 1.0e17_dp
     !> For convergence checking. Considers mixing ratio change between t_now and time 
@@ -490,6 +491,21 @@ module photochem_types ! make a giant IO object
     !> diffusion terms instead of a centered scheme. This permits stability (at the cost 
     !> of accuracy) for atmospheres with strong molcular advection in the upper atmosphere.
     logical :: upwind_molec_diff = .false.
+
+    ! Settings for the `robust_stepper` and `find_steady_state` methods
+    !> Number of integration errors before giving up completely
+    integer :: nerrors_before_giveup = 10
+    !> Number of steps to take before checking for convergence
+    integer :: nsteps_before_conv_check = 300
+    !> Number of steps before reinitializing the integration
+    integer :: nsteps_before_reinit = 1000
+    !> Number of total steps to take before giving up.
+    integer :: nsteps_before_giveup = 100000
+    !> When the integrator reinitializes, this is the minimum
+    !> density allowed (molecules/cm^3)
+    real(dp) :: reinit_min_density = 1.0e-40_dp
+    ! End settings for `robust_stepper` and `find_steady_state`
+
   end type
 
   type :: SundialsData
@@ -518,6 +534,12 @@ module photochem_types ! make a giant IO object
   type :: PhotochemWrk
     ! PhotochemWrk are work variables that change
     ! through the course of an integration
+
+    ! Total step counter for robust_step method
+    !> Total number of steps in a robust integration.
+    integer :: nsteps_total = -1
+    !> Total number of errors experienced in the robust integration.
+    integer :: nerrors_total = -1
     
     ! used in cvode
     integer(c_long) :: nsteps_previous = -10 !! For printing

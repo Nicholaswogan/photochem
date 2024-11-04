@@ -57,6 +57,10 @@ cdef extern double evoatmosphere_step_wrapper(EvoAtmosphere *ptr, char *err)
 
 cdef extern void evoatmosphere_destroy_stepper_wrapper(EvoAtmosphere *ptr, char *err)
 
+cdef extern void evoatmosphere_initialize_robust_stepper_wrapper(EvoAtmosphere *ptr, int *nq, int *nz, double *usol_start, char *err)
+
+cdef extern void evoatmosphere_robust_step_wrapper(EvoAtmosphere *ptr, bool *give_up, bool *converged, char *err)
+
 cdef extern void evoatmosphere_production_and_loss_wrapper(EvoAtmosphere *ptr, char *species, int *nq, 
                                                         int *nz, double *usol, pl_pxd.ProductionLoss **pl_ptr, char *err)
 

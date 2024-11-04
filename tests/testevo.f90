@@ -8,7 +8,6 @@ contains
     character(:), allocatable :: err
     type(EvoAtmosphere) :: pc
     integer :: ind
-    real(dp) :: tn
     logical :: converged
 
     ! Print version
@@ -27,30 +26,7 @@ contains
       stop 1
     endif
     
-    ! Initialize stepper
-    call pc%initialize_stepper(pc%var%usol_init, err)
-    if (allocated(err)) then
-      print*,trim(err)
-      stop 1
-    endif
-
-    ! Integrate to photochemical equilibrium
-    do
-      tn = pc%step(err)
-      if (allocated(err)) then
-        print*,trim(err)
-        stop 1
-      endif
-      converged = pc%check_for_convergence(err)
-      if (allocated(err)) then
-        print*,trim(err)
-        stop 1
-      endif
-      if (converged) exit
-    enddo
-
-    ! Destroy stepper
-    call pc%destroy_stepper(err)
+    converged = pc%find_steady_state(err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1

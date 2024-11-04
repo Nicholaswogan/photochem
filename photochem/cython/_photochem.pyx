@@ -3,6 +3,7 @@ from libcpp cimport bool
 from libc.stdlib cimport malloc, free
 from libc.stdint cimport uintptr_t
 from cpython.object cimport PyObject_GenericSetAttr
+from cpython.exc cimport PyErr_CheckSignals
 import numpy as np
 import ctypes as ct
 import os

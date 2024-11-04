@@ -1019,5 +1019,120 @@ contains
     if (allocated(err)) return
     
   end subroutine
+
+  module subroutine initialize_robust_stepper(self, usol_start, err)
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol_start(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    self%wrk%nsteps_total = 0
+    self%wrk%nerrors_total = 0
+    call self%initialize_stepper(usol_start, err)
+    if (allocated(err)) return
+
+  end subroutine
+
+  module subroutine robust_step(self, give_up, converged, err)
+    class(EvoAtmosphere), target, intent(inout) :: self
+    logical, intent(out) :: give_up
+    logical, intent(out) :: converged
+    character(:), allocatable, intent(out) :: err
+
+    real(dp) :: tn
+
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+    
+    var => self%var
+    wrk => self%wrk
+
+    converged = .false.
+    give_up = .false.
+
+    if (wrk%nsteps_total < 0) then
+      err = "You must first initialize a robust stepper with 'initialize_robust_stepper'"
+      return
+    endif
+    if (var%nsteps_before_conv_check >= var%nsteps_before_reinit) then
+      err = "`nsteps_before_conv_check` should be < `nsteps_before_reinit`"
+      return
+    endif
+
+    tn = self%step(err)
+    if (.not.allocated(err)) then
+      ! If step worked, then we add it to counter
+      wrk%nsteps_total = wrk%nsteps_total + 1
+    else
+      ! There was an error
+      deallocate(err)
+      wrk%nerrors_total = wrk%nerrors_total + 1
+
+      ! If there are too many errors, then give up
+      if (wrk%nerrors_total > var%nerrors_before_giveup) then
+        give_up = .true.
+        return
+      endif
+
+      ! Trim negative numbers, and reinitialize
+      wrk%usol = max(wrk%usol, var%reinit_min_density)
+      call self%initialize_stepper(wrk%usol, err)
+      if (allocated(err)) return
+
+    endif
+
+    ! If we have reached the equilibrium time, then we have converged
+    if (tn > var%equilibrium_time) then
+      converged = .true.
+      return
+    endif
+
+    ! We allow convergence via other criteria, but only after
+    ! a minimum number of steps has been performed
+    if (self%wrk%nsteps > var%nsteps_before_conv_check) then
+      converged = self%check_for_convergence(err)
+      if (allocated(err)) return
+      if (converged) return
+    endif
+
+    ! Reinitialize integrator after some number of steps
+    if (self%wrk%nsteps > var%nsteps_before_reinit) then
+      wrk%usol = max(wrk%usol, var%reinit_min_density)
+      call self%initialize_stepper(wrk%usol, err)
+      if (allocated(err)) return
+    endif
+
+    ! Give up after a large number of steps
+    if (wrk%nsteps_total > var%nsteps_before_giveup) then
+      give_up = .true.
+      return
+    endif
+
+  end subroutine
+
+  module function find_steady_state(self, err) result(converged)
+    class(EvoAtmosphere), target, intent(inout) :: self
+    character(:), allocatable, intent(out) :: err
+    logical :: converged
+
+    logical :: give_up
+
+    converged = .false.
+
+    call self%initialize_robust_stepper(self%wrk%usol, err)
+    if (allocated(err)) return
+
+    do
+      call self%robust_step(give_up, converged, err)
+      if (allocated(err)) return
+
+      if (give_up) then
+        converged = .false.
+        return
+      endif
+
+      if (converged) return
+    enddo
+
+  end function
   
 end submodule

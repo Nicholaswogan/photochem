@@ -357,5 +357,38 @@ cdef class PhotochemVars:
     def __set__(self, bool val):
       var_pxd.photochemvars_upwind_molec_diff_set(self._ptr, &val)
 
-    
-  
+  property nerrors_before_giveup:
+    "int. Number of integration errors before giving up completely"
+    def __get__(self):
+      cdef int val
+      var_pxd.photochemvars_nerrors_before_giveup_get(self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      var_pxd.photochemvars_nerrors_before_giveup_set(self._ptr, &val)
+
+  property nsteps_before_conv_check:
+    "int. Number of steps to take before checking for convergence"
+    def __get__(self):
+      cdef int val
+      var_pxd.photochemvars_nsteps_before_conv_check_get(self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      var_pxd.photochemvars_nsteps_before_conv_check_set(self._ptr, &val)
+
+  property nsteps_before_reinit:
+    "int. Number of steps before reinitializing the integration"
+    def __get__(self):
+      cdef int val
+      var_pxd.photochemvars_nsteps_before_reinit_get(self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      var_pxd.photochemvars_nsteps_before_reinit_set(self._ptr, &val)
+
+  property nsteps_before_giveup:
+    "int. Number of total steps to take before giving up."
+    def __get__(self):
+      cdef int val
+      var_pxd.photochemvars_nsteps_before_giveup_get(self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      var_pxd.photochemvars_nsteps_before_giveup_set(self._ptr, &val)

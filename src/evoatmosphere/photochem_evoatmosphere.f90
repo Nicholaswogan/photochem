@@ -54,6 +54,9 @@ module photochem_evoatmosphere
     procedure :: initialize_stepper
     procedure :: step
     procedure :: destroy_stepper
+    procedure :: initialize_robust_stepper
+    procedure :: robust_step
+    procedure :: find_steady_state
 
     !~~ photochem_evoatmosphere_utils.f90 ~~!
     procedure :: out2atmosphere_txt
@@ -202,6 +205,29 @@ module photochem_evoatmosphere
       class(EvoAtmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
     end subroutine
+
+    !> Initializes a robust integration starting at `usol_start`
+    module subroutine initialize_robust_stepper(self, usol_start, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+    
+    !> Takes one robust integration step. Function `initialize_robust_stepper`
+    !> must have been called before this.
+    module subroutine robust_step(self, give_up, converged, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      logical, intent(out) :: give_up !! If .true., then the algorithm thinks it is time to give up.
+      logical, intent(out) :: converged !! If .true., then the integration has converged to a steady state.
+      character(:), allocatable, intent(out) :: err  
+    end subroutine
+    
+    !> Integrates using a robust stepper until a steady state has been achieved.
+    module function find_steady_state(self, err) result(converged)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      character(:), allocatable, intent(out) :: err
+      logical :: converged !! If .true., then the integration has converged to a steady state.
+    end function
     
     module function RhsFn_evo(tn, sunvec_y, sunvec_f, user_data) &
                           result(ierr) bind(c, name='RhsFn_evo')

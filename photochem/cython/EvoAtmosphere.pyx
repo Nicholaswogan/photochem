@@ -527,6 +527,68 @@ cdef class EvoAtmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
+  def initialize_robust_stepper(self, ndarray[double, ndim=2] usol_start):
+    """Initializes a robust integration starting at `usol_start`.
+
+    Parameters
+    ----------
+    usol_start : ndarray[double,ndim=2]
+        Initial number densities (molecules/cm^3)
+    """   
+    cdef char err[ERR_LEN+1]
+    cdef int nq = self.dat.nq
+    cdef int nz = self.var.nz
+    cdef ndarray usol_start_ = np.asfortranarray(usol_start)
+    if usol_start_.shape[0] != nq or usol_start_.shape[1] != nz:
+      raise PhotoException("Input usol_start is the wrong size.")
+    ea_pxd.evoatmosphere_initialize_robust_stepper_wrapper(self._ptr, &nq, &nz,  <double *>usol_start_.data, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    
+  def robust_step(self):
+    """Takes one internal robust integration step. Function `initialize_robust_stepper`
+    must have been called before this.
+
+    Returns
+    -------
+    give_up : bool
+         If True, then the algorithm thinks it is time to give up.
+    converged : bool
+        If True, then the integration has converged to a steady state.
+    """
+    cdef bool give_up, converged
+    cdef char err[ERR_LEN+1]
+    ea_pxd.evoatmosphere_robust_step_wrapper(self._ptr, &give_up, &converged, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    return give_up, converged
+
+  def find_steady_state(self):
+    """Integrates using a robust stepper until a steady state has been achieved.
+
+    Returns
+    -------
+    converged : bool
+        If True, then the integration has converged to a steady state.
+    """
+
+    cdef bool converged, give_up
+    converged = False
+
+    self.initialize_robust_stepper(self.wrk.usol)
+
+    while True:
+      give_up, converged = self.robust_step()
+
+      if give_up:
+        converged = False
+        return converged
+      
+      if converged:
+        return converged
+
+      PyErr_CheckSignals()
+
   def production_and_loss(self, str species, ndarray[double, ndim=2] usol):
     """Computes the production and loss of input `species`.
     See ProductionLoss object in photochem_types.f90.

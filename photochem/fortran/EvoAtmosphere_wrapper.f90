@@ -478,6 +478,47 @@
     endif
   end subroutine
 
+  subroutine evoatmosphere_initialize_robust_stepper_wrapper(ptr, nq, nz, usol_start, err) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: nq, nz
+    real(c_double), intent(in) :: usol_start(nq, nz)
+    character(len=c_char), intent(out) :: err(err_len+1)
+    
+    character(:), allocatable :: err_f
+  
+    type(EvoAtmosphere), pointer :: pc
+    call c_f_pointer(ptr, pc)
+    
+    call pc%initialize_robust_stepper(usol_start, err_f)
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif
+  end subroutine
+
+  subroutine evoatmosphere_robust_step_wrapper(ptr, give_up, converged, err) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    logical(c_bool), intent(out) :: give_up, converged
+    character(len=c_char), intent(out) :: err(err_len+1)
+    
+    logical :: give_up_f, converged_f
+    character(:), allocatable :: err_f
+    type(EvoAtmosphere), pointer :: pc
+
+    call c_f_pointer(ptr, pc)
+  
+    call pc%robust_step(give_up_f, converged_f, err_f)
+
+    give_up = give_up_f
+    converged = converged_f
+
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif
+
+  end subroutine
+
   subroutine evoatmosphere_production_and_loss_wrapper(ptr, species, nq, nz, usol, pl_ptr, err) bind(c)
     use photochem, only: ProductionLoss
     type(c_ptr), value, intent(in) :: ptr

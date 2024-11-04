@@ -36,6 +36,7 @@ contains
     ! initialize_stepper : test_step
     call test_step(pcs)
     ! destroy_stepper : test_step
+    call test_robust_step(pcs)
     call test_out2atmosphere(pcs)
     call test_gas_fluxes(pcs) 
     call test_set_lower_bc(pcs)
@@ -351,6 +352,32 @@ contains
     endif
 
     call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    
+  end subroutine
+
+  subroutine test_robust_step(pc)
+    type(EvoAtmosphere), intent(inout) :: pc
+    
+    character(:), allocatable :: err
+    logical :: give_up, converged
+    
+    call pc%initialize_robust_stepper(pc%var%usol_init, err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    call pc%robust_step(give_up, converged, err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1

@@ -8,6 +8,8 @@ cdef extern from "PhotochemWrk.h":
   struct PhotochemWrkEvo:
     pass
 
+cdef extern void photochemwrk_nsteps_total_get(PhotochemWrk *ptr, int *val)
+
 cdef extern void photochemwrk_nsteps_get(PhotochemWrk *ptr, int *val)
 
 cdef extern void photochemwrk_t_history_get_size(PhotochemWrk *ptr, int *dim1)

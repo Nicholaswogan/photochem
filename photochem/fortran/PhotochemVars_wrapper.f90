@@ -503,4 +503,68 @@
     call c_f_pointer(ptr, var)
     var%upwind_molec_diff = val
   end subroutine
+
+  subroutine photochemvars_nerrors_before_giveup_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%nerrors_before_giveup
+  end subroutine
+  
+  subroutine photochemvars_nerrors_before_giveup_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%nerrors_before_giveup = val
+  end subroutine
+
+  subroutine photochemvars_nsteps_before_conv_check_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%nsteps_before_conv_check
+  end subroutine
+  
+  subroutine photochemvars_nsteps_before_conv_check_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%nsteps_before_conv_check = val
+  end subroutine
+
+  subroutine photochemvars_nsteps_before_reinit_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%nsteps_before_reinit
+  end subroutine
+  
+  subroutine photochemvars_nsteps_before_reinit_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%nsteps_before_reinit = val
+  end subroutine
+
+  subroutine photochemvars_nsteps_before_giveup_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%nsteps_before_giveup
+  end subroutine
+  
+  subroutine photochemvars_nsteps_before_giveup_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%nsteps_before_giveup = val
+  end subroutine
   

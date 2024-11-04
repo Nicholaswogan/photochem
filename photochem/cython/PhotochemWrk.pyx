@@ -23,6 +23,13 @@ cdef class PhotochemWrk:
   def __cinit__(self):
     self._ptr = NULL
 
+  property nsteps_total:
+    "int. Total number of steps in a robust integration."
+    def __get__(self):
+      cdef int val
+      wrk_pxd.photochemwrk_nsteps_total_get(self._ptr, &val)
+      return val
+
   property nsteps:
     "int. Number of integration steps excuted. Updated after every successful step."
     def __get__(self):
