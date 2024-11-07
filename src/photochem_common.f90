@@ -276,7 +276,7 @@ contains
       enddo
       
       ! sum of all contributions
-      tau = tausg + taua + taup + tausp
+      tau = tausg + taua + taup
       optical_depth(:,l) = tau
       do i = 1,var%nz
         w0(i) = min(0.99999e0_dp,(tausg(i) + tausp(i))/tau(i))
