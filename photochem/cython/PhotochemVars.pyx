@@ -216,6 +216,54 @@ cdef class PhotochemVars:
     def __set__(self, double val):
       var_pxd.photochemvars_surface_pressure_set(self._ptr, &val)
 
+  property tauc:
+    "ndarray[double,dim=2], shape (nz,nw). Custom optical depth in each layer."
+    def __get__(self):
+      cdef int dim1, dim2
+      var_pxd.photochemvars_tauc_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      var_pxd.photochemvars_tauc_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+    def __set__(self, ndarray[double, ndim=2] arr_):
+      cdef int dim1, dim2
+      var_pxd.photochemvars_tauc_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.asfortranarray(arr_)
+      if arr.shape[0] != dim1 or arr.shape[1] != dim2:
+        raise PhotoException("Input is the wrong size.")
+      var_pxd.photochemvars_tauc_set(self._ptr, &dim1, &dim2, <double *>arr.data)  
+
+  property w0c:
+    "ndarray[double,dim=2], shape (nz,nw). Custom single scattering albedo."
+    def __get__(self):
+      cdef int dim1, dim2
+      var_pxd.photochemvars_w0c_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      var_pxd.photochemvars_w0c_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+    def __set__(self, ndarray[double, ndim=2] arr_):
+      cdef int dim1, dim2
+      var_pxd.photochemvars_w0c_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.asfortranarray(arr_)
+      if arr.shape[0] != dim1 or arr.shape[1] != dim2:
+        raise PhotoException("Input is the wrong size.")
+      var_pxd.photochemvars_w0c_set(self._ptr, &dim1, &dim2, <double *>arr.data)  
+
+  property g0c:
+    "ndarray[double,dim=2], shape (nz,nw). Custom asymmetry parameter."
+    def __get__(self):
+      cdef int dim1, dim2
+      var_pxd.photochemvars_g0c_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      var_pxd.photochemvars_g0c_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+    def __set__(self, ndarray[double, ndim=2] arr_):
+      cdef int dim1, dim2
+      var_pxd.photochemvars_g0c_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.asfortranarray(arr_)
+      if arr.shape[0] != dim1 or arr.shape[1] != dim2:
+        raise PhotoException("Input is the wrong size.")
+      var_pxd.photochemvars_g0c_set(self._ptr, &dim1, &dim2, <double *>arr.data)  
+
   property max_error_reinit_attempts:
     """int. number of times to reinitialize CVODE when it returns
     a potentially recoverable error. Only used in `EvoAtmosphere` (not `Atmosphere`)

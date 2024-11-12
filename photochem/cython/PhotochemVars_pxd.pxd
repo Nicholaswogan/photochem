@@ -61,6 +61,18 @@ cdef extern void photochemvars_z_get(PhotochemVars *ptr, int *dim1, double *z)
 cdef extern void photochemvars_surface_pressure_get(PhotochemVars *ptr, double *val)
 cdef extern void photochemvars_surface_pressure_set(PhotochemVars *ptr, double *val)
 
+cdef extern void photochemvars_tauc_get_size(PhotochemVars *ptr, int *dim1, int *dim2)
+cdef extern void photochemvars_tauc_get(PhotochemVars *ptr, int *dim1, int *dim2, double *val)
+cdef extern void photochemvars_tauc_set(PhotochemVars *ptr, int *dim1, int *dim2, double *val)
+
+cdef extern void photochemvars_w0c_get_size(PhotochemVars *ptr, int *dim1, int *dim2)
+cdef extern void photochemvars_w0c_get(PhotochemVars *ptr, int *dim1, int *dim2, double *val)
+cdef extern void photochemvars_w0c_set(PhotochemVars *ptr, int *dim1, int *dim2, double *val)
+
+cdef extern void photochemvars_g0c_get_size(PhotochemVars *ptr, int *dim1, int *dim2)
+cdef extern void photochemvars_g0c_get(PhotochemVars *ptr, int *dim1, int *dim2, double *val)
+cdef extern void photochemvars_g0c_set(PhotochemVars *ptr, int *dim1, int *dim2, double *val)
+
 cdef extern void photochemvars_max_error_reinit_attempts_get(PhotochemVars *ptr, int *val)
 cdef extern void photochemvars_max_error_reinit_attempts_set(PhotochemVars *ptr, int *val)
 

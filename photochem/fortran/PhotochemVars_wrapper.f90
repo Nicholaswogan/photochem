@@ -280,6 +280,87 @@
     var%surface_pressure = val
   end subroutine
 
+  subroutine photochemvars_tauc_get_size(ptr, dim1, dim2) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1, dim2
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    dim1 = size(var%tauc,1)
+    dim2 = size(var%tauc,2)
+  end subroutine
+  
+  subroutine photochemvars_tauc_get(ptr, dim1, dim2, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(out) :: val(dim1, dim2)
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%tauc
+  end subroutine
+  
+  subroutine photochemvars_tauc_set(ptr, dim1, dim2, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(in) :: val(dim1, dim2)
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%tauc = val
+  end subroutine
+  
+  subroutine photochemvars_w0c_get_size(ptr, dim1, dim2) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1, dim2
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    dim1 = size(var%w0c,1)
+    dim2 = size(var%w0c,2)
+  end subroutine
+  
+  subroutine photochemvars_w0c_get(ptr, dim1, dim2, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(out) :: val(dim1, dim2)
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%w0c
+  end subroutine
+  
+  subroutine photochemvars_w0c_set(ptr, dim1, dim2, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(in) :: val(dim1, dim2)
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%w0c = val
+  end subroutine
+
+  subroutine photochemvars_g0c_get_size(ptr, dim1, dim2) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1, dim2
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    dim1 = size(var%g0c,1)
+    dim2 = size(var%g0c,2)
+  end subroutine
+  
+  subroutine photochemvars_g0c_get(ptr, dim1, dim2, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(out) :: val(dim1, dim2)
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%g0c
+  end subroutine
+  
+  subroutine photochemvars_g0c_set(ptr, dim1, dim2, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(in) :: val(dim1, dim2)
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%g0c = val
+  end subroutine
+
   subroutine photochemvars_max_error_reinit_attempts_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
