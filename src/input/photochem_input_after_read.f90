@@ -338,6 +338,13 @@ contains
       allocate(vars%gibbs_energy(vars%nz,dat%ng))
     endif
 
+    allocate(vars%tauc(vars%nz,dat%nw))
+    vars%tauc = 0.0_dp
+    allocate(vars%w0c(vars%nz,dat%nw))
+    vars%w0c = 0.0_dp
+    allocate(vars%g0c(vars%nz,dat%nw))
+    vars%g0c = 0.0_dp
+
   end subroutine
 
 end submodule

@@ -208,6 +208,7 @@ contains
     real(dp) :: partial_prates(var%nz,dat%kj)
     real(dp) :: tausg(var%nz), taua(var%nz), tau(var%nz), w0(var%nz), gt(var%nz)
     real(dp) :: taup(var%nz), tausp(var%nz)
+    real(dp) :: tauc(var%nz), tausc(var%nz)
     real(dp) :: amean(var%nz+1), surf_rad, flx
     real(dp) :: taup_1, gt_1, tausp_1(dat%np,var%nz)
     real(dp) :: u0
@@ -219,7 +220,7 @@ contains
     prates = 0.0_dp
     !$omp parallel private(l, i, j, k, n, ie, ierr, partial_prates, &
     !$omp& taup, taup_1, tausp, tausp_1, tausg, taua, tau, w0, gt, gt_1, &
-    !$omp& amean, surf_rad, &
+    !$omp& amean, surf_rad, tauc, tausc, &
     !$omp& flx)
     ierr = 0
     partial_prates = 0.0_dp
@@ -245,6 +246,13 @@ contains
           taua(n) = taua(n) + dat%absorp_xs(i)%xs(l)*densities(j,k)*var%dz(k)
         enddo
       enddo
+
+      ! Custom absorption
+      do k = 1,var%nz
+        n = var%nz+1-k
+        tauc(n) = var%tauc(k,l)
+        tausc(n) = var%w0c(k,l)*var%tauc(k,l)
+      enddo
       
       ! particles
       taup = 0.0_dp
@@ -269,17 +277,18 @@ contains
         do i = 1,dat%np    
           if (var%particle_xs(i)%ThereIsData) then
             gt_1 = gt_1 + var%particle_xs(i)%gt(k,l)*tausp_1(i,n) &
-                    /(tausp(n)+tausg(n))
+                    /(tausp(n) + tausg(n) + tausc(n))
           endif
         enddo
+        gt_1 = gt_1 + var%g0c(k,l)*tausc(n)/(tausp(n) + tausg(n) + tausc(n)) ! Custom opacity
         gt(n) = min(gt_1,0.999999e0_dp)
       enddo
       
       ! sum of all contributions
-      tau = tausg + taua + taup
+      tau = tausg + taua + taup + tauc
       optical_depth(:,l) = tau
       do i = 1,var%nz
-        w0(i) = min(0.99999e0_dp,(tausg(i) + tausp(i))/tau(i))
+        w0(i) = min(0.99999e0_dp,(tausg(i) + tausp(i) + tausc(i))/tau(i))
       enddo
       
       call two_stream(var%nz, tau, w0, gt, u0, var%surface_albedo, amean, surf_rad, ie)

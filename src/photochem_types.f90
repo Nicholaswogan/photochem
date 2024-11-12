@@ -448,6 +448,11 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: xs_x_qy(:,:,:) !! (nz,kj,nw) photolysis cross sections times quantum yields (cm2/molecule)
     type(ParticleXsections), allocatable :: particle_xs(:) !! (np)
     real(dp), allocatable :: gibbs_energy(:,:) !! (nz,ng) Joules/mol
+
+    ! Custom optical properties
+    real(dp), allocatable :: tauc(:,:) !! (nz,nw) Custom optical depth in each layer
+    real(dp), allocatable :: w0c(:,:) !! (nz,nw) Custom single scattering albedo
+    real(dp), allocatable :: g0c(:,:) !! (nz,nw) Custom asymetry parameter
     
     ! output
     logical :: at_photo_equilibrium = .false.
