@@ -80,6 +80,22 @@
     var%particle_radius = arr
   end subroutine
 
+  subroutine photochemvars_diurnal_fac_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%diurnal_fac
+  end subroutine
+  
+  subroutine photochemvars_diurnal_fac_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%diurnal_fac = val
+  end subroutine
+
   subroutine photochemvars_trop_alt_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val

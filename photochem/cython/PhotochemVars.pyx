@@ -59,6 +59,15 @@ cdef class PhotochemVars:
         raise PhotoException("Input array is the wrong size.")
       var_pxd.photochemvars_particle_radius_set(self._ptr, &dim1, &dim2, <double *>arr_.data)
 
+  property diurnal_fac:
+    "double. Default is 0.5, to account for half planet facing the sun."
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_diurnal_fac_get(self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.photochemvars_diurnal_fac_set(self._ptr, &val)
+
   property trop_alt:
     "double. Tropopause altitude."
     def __get__(self):

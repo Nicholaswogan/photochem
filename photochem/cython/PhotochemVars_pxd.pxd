@@ -26,6 +26,9 @@ cdef extern void photochemvars_particle_radius_get_size(PhotochemVars *ptr, int 
 cdef extern void photochemvars_particle_radius_get(PhotochemVars *ptr, int *dim1, int *dim2, double *arr)
 cdef extern void photochemvars_particle_radius_set(PhotochemVars *ptr, int *dim1, int *dim2, double *arr)
 
+cdef extern void photochemvars_diurnal_fac_get(PhotochemVars *ptr, double *val)
+cdef extern void photochemvars_diurnal_fac_set(PhotochemVars *ptr, double *val)
+
 cdef extern void photochemvars_trop_alt_get(PhotochemVars *ptr, double *val)
 
 cdef extern void photochemvars_trop_ind_get(PhotochemVars *ptr, int *val)
