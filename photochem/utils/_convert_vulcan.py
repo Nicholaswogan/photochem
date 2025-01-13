@@ -269,16 +269,17 @@ def vulcan2yaml(vulcan_rx_filename, thermo_folder):
                 
     # Condensation
     particles = []
-    for i, line in enumerate(lines[type_ind['condensation']:]):
-        if len(line.strip()) == 0:
-            continue
-        elif line[0] == '#':
-            break
-        sp = line.split(']')[0].split('[')[1].split('->')[0].strip()
-        if sp in zahnle_condensates:
-            particles.append(zahnle_condensates[sp])
-        else:
-            print('Skipping condensate '+sp+' because we do not have data for it.')
+    if 'condensation' in type_ind:
+        for i, line in enumerate(lines[type_ind['condensation']:]):
+            if len(line.strip()) == 0:
+                continue
+            elif line[0] == '#':
+                break
+            sp = line.split(']')[0].split('[')[1].split('->')[0].strip()
+            if sp in zahnle_condensates:
+                particles.append(zahnle_condensates[sp])
+            else:
+                print('Skipping condensate '+sp+' because we do not have data for it.')
         
     # photolysis
     photolysis = []
