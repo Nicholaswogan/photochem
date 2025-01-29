@@ -33,6 +33,7 @@ jobs:
           clang 
           gfortran
           valgrind
+          scikit-build
 
     - name: Install Valgrind
       run: |
