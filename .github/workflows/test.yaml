@@ -62,4 +62,13 @@ jobs:
 
     - name: build python
       shell: bash -el {0}
-      run: python -m pip install --no-deps --no-build-isolation . -v
+      run: |
+        export CC="$(which clang)"
+        export CXX="$(which clang)"
+        export FC="$(which gfortran)"
+        unset CMAKE_ARGS
+        export CMAKE_ARGS="-DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+        export CONDA_PREFIX_SAVE=$CONDA_PREFIX
+        unset CONDA_PREFIX
+        python -m pip install --no-deps --no-build-isolation . -v
+        export CONDA_PREFIX=$CONDA_PREFIX_SAVE
