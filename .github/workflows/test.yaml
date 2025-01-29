@@ -34,6 +34,7 @@ jobs:
           gfortran
           valgrind
           scikit-build
+          libgomp
 
     - name: Install Valgrind
       run: |
