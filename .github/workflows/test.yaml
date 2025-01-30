@@ -23,18 +23,24 @@ jobs:
       with:
         environment-name: test-env
         create-args: >-
-          python
-          numpy
-          scipy
-          numba
-          h5py
+          photochem_clima_data 
+          python 
+          numpy 
+          scipy 
+          pyyaml 
+          numba 
+          astropy 
+          h5py 
+          threadpoolctl
+          scikit-build 
           cmake 
+          ninja 
+          cython 
           fypp 
-          clang 
-          gfortran
-          valgrind
-          scikit-build
-          libgomp
+          pip 
+          c-compiler 
+          cxx-compiler 
+          fortran-compiler
 
     - name: Install Valgrind
       run: |
@@ -43,9 +49,6 @@ jobs:
     - name: configure cmake
       shell: bash -el {0}
       run: |
-        export CC="$(which clang)"
-        export CXX="$(which clang)"
-        export FC="$(which gfortran)"
         export CONDA_PREFIX_SAVE=$CONDA_PREFIX
         unset CONDA_PREFIX
         cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_PREFIX_PATH=$CONDA_PREFIX_SAVE
@@ -64,10 +67,6 @@ jobs:
     - name: build python
       shell: bash -el {0}
       run: |
-        export CC="$(which clang)"
-        export CXX="$(which clang)"
-        export FC="$(which gfortran)"
-        unset CMAKE_ARGS
         export CMAKE_ARGS="-DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
         export CONDA_PREFIX_SAVE=$CONDA_PREFIX
         unset CONDA_PREFIX
