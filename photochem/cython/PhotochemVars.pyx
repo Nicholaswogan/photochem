@@ -33,8 +33,7 @@ cdef class PhotochemVars:
       
   property usol_init:
     """ndarray[double,dim=2], shape (nq,nz). Contains the initial concentration
-    of atmospheric species. For the model `Atmosphere` then units are mixing ratios,
-    and if the model is `EvoAtmosphere` then the units are molecules/cm^3.
+    of atmospheric species (molecules/cm^3).
     """
     def __get__(self):
       cdef int dim1, dim2
@@ -275,7 +274,7 @@ cdef class PhotochemVars:
 
   property max_error_reinit_attempts:
     """int. number of times to reinitialize CVODE when it returns
-    a potentially recoverable error. Only used in `EvoAtmosphere` (not `Atmosphere`)
+    a potentially recoverable error.
     """
     def __get__(self):
       cdef int val

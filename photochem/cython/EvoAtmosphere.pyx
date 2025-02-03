@@ -77,7 +77,7 @@ cdef class EvoAtmosphere:
     
   property dat:
     """The PhotochemData class. Data in this class almost never changes after the
-    `Atmosphere` class is initialized.
+    class is initialized.
     """
     def __get__(self):
       dat = PhotochemData()

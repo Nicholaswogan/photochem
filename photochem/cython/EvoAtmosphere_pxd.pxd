@@ -1,4 +1,3 @@
-from Atmosphere_pxd cimport time_dependent_rate_fcn
 cimport ProductionLoss_pxd as pl_pxd
 cimport PhotochemData_pxd as dat_pxd
 cimport PhotochemVars_pxd as var_pxd
@@ -13,6 +12,7 @@ cdef extern from *:
 
 # callback signatures
 ctypedef double (*temp_dependent_albedo_fcn)(double T_surf)
+ctypedef void (*time_dependent_rate_fcn)(double tn, int nz, double *rate)
 
 # allocate and destroy
 cdef extern EvoAtmosphere *allocate_evoatmosphere();

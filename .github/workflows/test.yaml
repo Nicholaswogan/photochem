@@ -61,7 +61,6 @@ jobs:
     - name: test fortran
       working-directory: ${{github.workspace}}/build
       run: |
-        valgrind --error-exitcode=1 --leak-check=full ./tests/memtest
         valgrind --error-exitcode=1 --leak-check=full ./tests/memtest_evo
 
     - name: build python

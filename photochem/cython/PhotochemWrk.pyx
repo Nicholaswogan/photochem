@@ -85,8 +85,8 @@ cdef class PhotochemWrk:
       wrk_pxd.photochemwrk_tn_set(self._ptr, &val)
 
   property usol:
-    """ndarray[double,dim=2], shape (nq,nz). Current gas concentrations in the atmosphere.
-    Units are mixing ratios for `Atmosphere` and molecules/cm^3 for `EvoAtmosphere`.
+    """ndarray[double,dim=2], shape (nq,nz). Current gas concentrations in the atmosphere
+    in units and molecules/cm^3.
     """
     def __get__(self):
       cdef int dim1, dim2

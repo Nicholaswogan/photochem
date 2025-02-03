@@ -1,12 +1,11 @@
 module photochem_c_api
   use iso_c_binding
   use clima_saturationdata, only: SaturationData
-  use photochem, only: Atmosphere
   use photochem, only: EvoAtmosphere
   use photochem_types, only: PhotochemData
   use photochem_types, only: PhotochemVars
   use photochem_types, only: PhotochemWrk, PhotochemWrkEvo
-  use photochem_types, only: AtomConservation, ProductionLoss
+  use photochem_types, only: ProductionLoss
   use photochem_types, only: CondensationParameters
   use photochem, only: err_len
   use photochem_const, only: s_str_len, m_str_len
@@ -14,7 +13,6 @@ module photochem_c_api
 
 contains
 
-  include "Atmosphere_wrapper.f90"
   include "EvoAtmosphere_wrapper.f90"
 
   include "PhotochemData_wrapper.f90"
@@ -23,6 +21,12 @@ contains
 
   include "AtomConservation_wrapper.f90"
   include "ProductionLoss_wrapper.f90"
+
+  subroutine photochem_version_get(version_c) bind(c)
+    use photochem, only: version 
+    character(kind=c_char), intent(out) :: version_c(100+1)
+    call copy_string_ftoc(version, version_c)
+  end subroutine
 
   !!!!!!!!!!!!!!!!!!
   !!! Utilities  !!!

@@ -1,4 +1,4 @@
-from photochem import Atmosphere, EvoAtmosphere, zahnle_earth
+from photochem import EvoAtmosphere, zahnle_earth
 
 def test_wrapper(pc):
     print(pc.dat.nq)
@@ -99,13 +99,6 @@ def main():
                         "../examples/ModernEarth/atmosphere.txt",\
                         data_dir="../data")
     test_wrapper(pc1)
-
-    pc = Atmosphere(zahnle_earth,\
-                    "../examples/ModernEarth/settings_Atmosphere.yaml",\
-                    "../examples/ModernEarth/Sun_now.txt",\
-                    "../examples/ModernEarth/atmosphere.txt",\
-                    data_dir="../data")
-    test_wrapper(pc)
 
 if __name__ == "__main__":
     main()
