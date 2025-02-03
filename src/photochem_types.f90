@@ -55,8 +55,6 @@ module photochem_types ! make a giant IO object
     integer :: nz
   
     ! planet
-    character(:), allocatable :: back_gas_name
-    real(dp), allocatable :: P_surf
     real(dp) :: planet_mass
     real(dp) :: planet_radius
     real(dp) :: surface_albedo
@@ -266,12 +264,12 @@ module photochem_types ! make a giant IO object
     
     ! species
     ! Organization is as follows
-    ! [       nsp       ]
-    ! [   nq   + nsl + 1]
-    ! [np + ng + nsl + 1]
+    ! [     nsp     ]
+    ! [   nq   + nsl]
+    ! [np + ng + nsl]
     ! |_______|
     !     |
-    ! Only np + ng = nq evolve through time. nsl are assumed to be in equilibrium. +1 is background gas.
+    ! Only np + ng = nq evolve through time. nsl are assumed to be in equilibrium.
     integer :: nq !! number of gases + particles which evolve over time from integration
     integer :: ng_1 !! index of first gas
     integer :: nll !! number of long-lived gas molecules
@@ -346,10 +344,6 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: particle_radius_file(:,:) !! (np,nzf) cm
     
     ! settings
-    logical :: back_gas !! True if background gas is used
-    character(:), allocatable :: back_gas_name !! Normally N2, but can be most any gas.
-    real(dp), allocatable :: back_gas_mu !! g/mol
-    integer, allocatable :: back_gas_ind !! index of the background gas
     real(dp) :: planet_mass !! grams
     real(dp) :: planet_radius !! cm
     logical :: fix_water_in_trop !! True if fixing water in troposphere

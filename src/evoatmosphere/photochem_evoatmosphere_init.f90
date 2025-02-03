@@ -37,8 +37,7 @@ contains
     allocate(self%wrk)
     
     self%var%data_dir = data_dir
-    call setup(mechanism_file, s, flux_file, atmosphere_txt, .false., &
-               self%dat, self%var, err)
+    call setup(mechanism_file, s, flux_file, atmosphere_txt, self%dat, self%var, err)
     if (allocated(err)) return 
     
     call self%wrk%init(self%dat%nsp, self%dat%np, self%dat%nq, &

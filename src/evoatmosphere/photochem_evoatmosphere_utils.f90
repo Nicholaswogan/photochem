@@ -250,7 +250,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     ind = findloc(self%dat%species_names(1:self%dat%nq), species, 1)
     if (ind == 0) then
       err = 'Species "'//species//'" is not in the list of species, '// &
-            'or is a background or short-lived species.'
+            'or is a short-lived species.'
       return
     endif
 
@@ -607,7 +607,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
                               particle_radius_new, pressure_new, err)
     use photochem_enum, only: DensityBC, PressureBC
     use futils, only: interp
-    use photochem_eqns, only: vertical_grid, molar_weight, press_and_den, gravity
+    use photochem_eqns, only: vertical_grid, press_and_den, gravity
     use photochem_const, only: small_real, k_boltz
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol(:,:)
