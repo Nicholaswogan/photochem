@@ -86,13 +86,16 @@ def make_h5_from_dict(species, out, outdir):
                     dset = grp.create_dataset(ratio, out['ratios'][ratio].shape, 'f')
                     dset[:] = out['ratios'][ratio]  
 
-def create_supporting_data(xs_info, vulcan_xs_folder):
+def create_supporting_data(xs_info, vulcan_xs_folder, data_dir):
     """Creates a data folder with new VULCAN photolysis cross
     sections."""
 
+    if data_dir is None:
+        data_dir = DATA_DIR
+
     if os.path.isdir('vulcandata'):
         shutil.rmtree('vulcandata')
-    _ = shutil.copytree(DATA_DIR, 'vulcandata')
+    _ = shutil.copytree(data_dir, 'vulcandata')
     _ = shutil.move('vulcandata/xsections/bins.h5','vulcandata/')
     shutil.rmtree('vulcandata/xsections')
     os.mkdir('vulcandata/xsections')
@@ -145,7 +148,7 @@ def create_supporting_data(xs_info, vulcan_xs_folder):
         # print(sp)
         make_h5_from_dict(sp, out, 'vulcandata/xsections/')
 
-def vulcan2yaml(vulcan_rx_filename, thermo_folder):
+def vulcan2yaml(vulcan_rx_filename, thermo_folder, data_dir=None):
     """Converts Vulcan reactions and cross sections to a format that
     works with Photochem. Upon return, the routine will have saved a
     yaml file with a similar name to the input `vulcan_rx_filename`, and
@@ -158,6 +161,9 @@ def vulcan2yaml(vulcan_rx_filename, thermo_folder):
         Path to Vulcan input reactions file.
     thermo_folder : str
         Path to Vulcan "thermo" folder
+    data_dir : str
+        Path to the Photochem data folder. If `None`, then the data shipped
+        with Photochem is used.
     """
     
     # Path to the "thermo" folder
@@ -360,4 +366,4 @@ def vulcan2yaml(vulcan_rx_filename, thermo_folder):
         yaml.dump(out,f,Dumper=MyDumper,sort_keys=False,width=70)
 
     # Create the supporting data folder
-    create_supporting_data(xs_info, vulcan_xs_folder)
+    create_supporting_data(xs_info, vulcan_xs_folder, data_dir)
