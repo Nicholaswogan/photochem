@@ -205,73 +205,77 @@ def vulcan2yaml(vulcan_rx_filename, thermo_folder, data_dir=None):
     reactions = []
 
     # elementary
-    for i, line in enumerate(lines[type_ind['elementary']:]):
-        if len(line.strip()) == 0:
-            continue
-        elif line[0] == '#':
-            break
-        rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
-        A, b, Ea = [float(a) for a in line.split(']')[1].split()[:3]]
-        rx = {}
-        rx['equation'] = rx_str
-        rx['rate-constant'] = {"A": A, "b": b, "Ea": Ea}
-        reactions.append(rx)
+    if 'elementary' in type_ind:
+        for i, line in enumerate(lines[type_ind['elementary']:]):
+            if len(line.strip()) == 0:
+                continue
+            elif line[0] == '#':
+                break
+            rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
+            A, b, Ea = [float(a) for a in line.split(']')[1].split()[:3]]
+            rx = {}
+            rx['equation'] = rx_str
+            rx['rate-constant'] = {"A": A, "b": b, "Ea": Ea}
+            reactions.append(rx)
         
     # falloff
-    for i, line in enumerate(lines[type_ind['falloff']:]):
-        if len(line.strip()) == 0:
-            continue
-        elif line[0] == '#':
-            break
-        rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
-        if "M" not in rx_str.split(rx_arrow)[0]:
-            rx_str = rx_str.split(rx_arrow)[0] + "+ M "+rx_arrow+rx_str.split(rx_arrow)[1]
-        if "M" not in rx_str.split(rx_arrow)[1]:
-            rx_str = rx_str.split(rx_arrow)[0]+rx_arrow+rx_str.split(rx_arrow)[1]+ "+ M "
-            
-        A0, b0, Ea0, Ainf, binf, Eainf = [float(a) for a in line.split(']')[1].split()[:6]]
-        rx = {}
-        rx['equation'] = rx_str
-        rx['type'] = "falloff"
-        rx['low-P-rate-constant'] = {"A": A0, "b": b0, "Ea": Ea0}
-        rx['high-P-rate-constant'] = {"A": Ainf, "b": binf, "Ea": Eainf}
-        reactions.append(rx)
+    if 'falloff' in type_ind:
+        for i, line in enumerate(lines[type_ind['falloff']:]):
+            if len(line.strip()) == 0:
+                continue
+            elif line[0] == '#':
+                break
+            rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
+            if "M" not in rx_str.split(rx_arrow)[0]:
+                rx_str = rx_str.split(rx_arrow)[0] + "+ M "+rx_arrow+rx_str.split(rx_arrow)[1]
+            if "M" not in rx_str.split(rx_arrow)[1]:
+                rx_str = rx_str.split(rx_arrow)[0]+rx_arrow+rx_str.split(rx_arrow)[1]+ "+ M "
+                
+            A0, b0, Ea0, Ainf, binf, Eainf = [float(a) for a in line.split(']')[1].split()[:6]]
+            rx = {}
+            rx['equation'] = rx_str
+            rx['type'] = "falloff"
+            rx['low-P-rate-constant'] = {"A": A0, "b": b0, "Ea": Ea0}
+            rx['high-P-rate-constant'] = {"A": Ainf, "b": binf, "Ea": Eainf}
+            reactions.append(rx)
         
     # three-body
-    for i, line in enumerate(lines[type_ind['three-body']:]):
-        if len(line.strip()) == 0:
-            continue
-        elif line[0] == '#':
-            break
-        rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
-        if "M" not in rx_str.split(rx_arrow)[0]:
-            rx_str = rx_str.split(rx_arrow)[0] + "+ M "+rx_arrow+rx_str.split(rx_arrow)[1]
-        if "M" not in rx_str.split(rx_arrow)[1]:
-            rx_str = rx_str.split(rx_arrow)[0]+rx_arrow+rx_str.split(rx_arrow)[1]+ "+ M "
-        A, b, Ea = [float(a) for a in line.split(']')[1].split()[:3]]
-        rx = {}
-        rx['equation'] = rx_str
-        rx['type'] = "three-body"
-        rx['rate-constant'] = {"A": A, "b": b, "Ea": Ea}
-        reactions.append(rx)
+    if 'three-body' in type_ind:
+        for i, line in enumerate(lines[type_ind['three-body']:]):
+            if len(line.strip()) == 0:
+                continue
+            elif line[0] == '#':
+                break
+            rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
+            if "M" not in rx_str.split(rx_arrow)[0]:
+                rx_str = rx_str.split(rx_arrow)[0] + "+ M "+rx_arrow+rx_str.split(rx_arrow)[1]
+            if "M" not in rx_str.split(rx_arrow)[1]:
+                rx_str = rx_str.split(rx_arrow)[0]+rx_arrow+rx_str.split(rx_arrow)[1]+ "+ M "
+            A, b, Ea = [float(a) for a in line.split(']')[1].split()[:3]]
+            rx = {}
+            rx['equation'] = rx_str
+            rx['type'] = "three-body"
+            rx['rate-constant'] = {"A": A, "b": b, "Ea": Ea}
+            reactions.append(rx)
 
     # Special
-    for i, line in enumerate(lines[type_ind['special']:]):
-        if len(line.strip()) == 0:
-            continue
-        elif line[0] == '#':
-            break
-        rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
-        found = False
-        for key in zahnle_reactions:
-            if compare2reactions(rx_str, key):
-                reactions.append(zahnle_reactions[key])
-                found = True
+    if 'special' in type_ind:
+        for i, line in enumerate(lines[type_ind['special']:]):
+            if len(line.strip()) == 0:
+                continue
+            elif line[0] == '#':
                 break
-        if found:
-            print('Using zahnle_earth.yaml rate for special reaction '+rx_str)
-        else:
-            print('Ignoring special reaction '+rx_str)
+            rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
+            found = False
+            for key in zahnle_reactions:
+                if compare2reactions(rx_str, key):
+                    reactions.append(zahnle_reactions[key])
+                    found = True
+                    break
+            if found:
+                print('Using zahnle_earth.yaml rate for special reaction '+rx_str)
+            else:
+                print('Ignoring special reaction '+rx_str)
                 
     # Condensation
     particles = []
