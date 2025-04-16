@@ -332,7 +332,7 @@ contains
   #:for TYPE1, NAME in TYPES_NAMES
   pure function damp_condensation_rate_${NAME}$(A, rhc, rh0, rh) result(k)
     #:if NAME == 'dual'
-    use forwarddiff
+    use differentia
     #:endif
     use photochem_const, only: pi
     real(dp), intent(in) :: A

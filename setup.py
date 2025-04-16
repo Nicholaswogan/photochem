@@ -25,9 +25,12 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     url = "https://github.com/Nicholaswogan/Photochem",
-    cmake_args=['-DBUILD_PYTHON_PHOTOCHEM=ON',\
-                '-DBUILD_EXECUTABLES=OFF',\
-                '-DBUILD_WITH_OPENMP=ON']
+    cmake_args=[
+        '-DBUILD_PYTHON_PHOTOCHEM=ON',
+        '-DBUILD_EXECUTABLES=OFF',
+        '-DBUILD_WITH_OPENMP=ON',
+        '-DCMAKE_POSITION_INDEPENDENT_CODE=ON'
+    ]
 )
 
 

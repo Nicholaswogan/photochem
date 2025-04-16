@@ -34,7 +34,7 @@ contains
     use photochem_eqns, only: damp_condensation_rate
     use photochem_const, only: N_avo, pi, small_real, T_crit_H2O
     #:if NAME == 'dual'
-    use forwarddiff
+    use differentia
     #:endif
     class(EvoAtmosphere), target, intent(in) :: self
     ${TYPE1}$, intent(in) :: usol(:,:)
@@ -876,7 +876,7 @@ contains
   end subroutine
 
   subroutine autodiff_chemistry_jacobian(self, usol, rhs, djac, err)
-    use forwarddiff, only: jacobian, dual, BlockDiagonalJacobian, initialize_dual_array
+    use differentia, only: jacobian, dual, BlockDiagonalJacobian, initialize_dual_array
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), target, contiguous, intent(in) :: usol(:,:)
     real(dp), intent(out) :: rhs(:), djac(:,:)

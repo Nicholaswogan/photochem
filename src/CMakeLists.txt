@@ -52,7 +52,7 @@ target_link_libraries(photochem
   clima
   finterp 
   minpack
-  forwarddiff
+  differentia
 )
 target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules")
