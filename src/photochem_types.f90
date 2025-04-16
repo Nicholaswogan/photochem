@@ -463,11 +463,13 @@ module photochem_types ! make a giant IO object
     !> convergence checking.
     real(dp) :: conv_longdydt = 1.0e-6_dp
     real(c_double) :: initial_dt = 1.0e-6_dp !! intial timestep size (seconds)
+    !> Maximum time step size (seconds).
+    real(c_double) :: max_dt = sqrt(huge(1.0_dp))
     integer(c_int) :: max_err_test_failures = 15 !! CVODE max error test failures
     integer(c_int) :: max_order = 5 !! CVODE max order for BDF method.
     !> If .true., then the chemistry terms of the Jacobian are computed uses 
     !> foward mode automatic differentiation.
-    logical :: autodiff = .false.
+    logical :: autodiff = .true.
     !> Perturbation for finite difference Jacobian calculation, when autodiff == .false.
     real(dp) :: epsj = 1.0e-4_dp 
     integer :: verbose = 1 !! 0 == no printing. 1 == some printing. 2 == bunch of printing.

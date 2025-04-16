@@ -521,6 +521,22 @@
     var%conv_longdydt = val
   end subroutine
 
+  subroutine photochemvars_max_dt_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%max_dt
+  end subroutine
+  
+  subroutine photochemvars_max_dt_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%max_dt = val
+  end subroutine
+
   subroutine photochemvars_autodiff_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     logical(c_bool), intent(out) :: val

@@ -363,6 +363,16 @@ cdef class PhotochemVars:
     def __set__(self, double val):
       var_pxd.photochemvars_conv_longdydt_set(self._ptr, &val)
 
+  property max_dt:
+    """double. Maximum time step size (seconds).
+    """
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_max_dt_get(self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.photochemvars_max_dt_set(self._ptr, &val)
+
   property autodiff:
     """bool. If True, then the chemistry terms of the Jacobian are computed uses 
     foward mode automatic differentiation.
