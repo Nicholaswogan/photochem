@@ -41,7 +41,7 @@ In the 1980s Kevin Zahnle and Jim Kasting wrote the `Atmos` photochemical model 
 
 ## Contact
 
-If you have questions email me: wogan@uw.edu
+If you have questions email me: nicholaswogan at gmail
 
 ## Funding and Acknowledgements
 
