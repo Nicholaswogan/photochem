@@ -4,15 +4,12 @@ add_subdirectory(dependencies)
 # version
 configure_file(photochem_version.f90.in ${CMAKE_CURRENT_BINARY_DIR}/photochem_version.f90)
 
-# Adding subdirectories just to create this folder in
-# the build dir
-add_subdirectory(atmosphere)
+# Adding subdirectories just to create this folder in the build dir
 add_subdirectory(evoatmosphere)
 
 set(fppFiles 
   photochem_eqns.f90
   photochem_common.f90
-  atmosphere/photochem_atmosphere_rhs.f90
   evoatmosphere/photochem_evoatmosphere_rhs.f90)
 
 fypp_f90("" "${fppFiles}" outFiles)
@@ -29,12 +26,6 @@ set(PHOTOCHEM_INPUT
     input/photochem_input_after_read.f90
     input/photochem_input_read.f90)
 
-set(PHOTOCHEM_ATMOSPHERE
-    atmosphere/photochem_atmosphere.f90
-    atmosphere/photochem_atmosphere_init.f90
-    atmosphere/photochem_atmosphere_integrate.f90
-    atmosphere/photochem_atmosphere_utils.f90)
-
 set(PHOTOCHEM_EVOATMOSPHERE
     evoatmosphere/photochem_evoatmosphere.f90
     evoatmosphere/photochem_evoatmosphere_init.f90
@@ -45,7 +36,6 @@ set(PHOTOCHEM_EVOATMOSPHERE
 set(PHOTOCHEM_SOURCES 
   ${PHOTOCHEM_MODULES}
   ${PHOTOCHEM_INPUT}
-  ${PHOTOCHEM_ATMOSPHERE}
   ${PHOTOCHEM_EVOATMOSPHERE}
   ${outFiles}
   photochem.f90)
@@ -62,7 +52,7 @@ target_link_libraries(photochem
   clima
   finterp 
   minpack
-  forwarddiff
+  differentia
 )
 target_include_directories(photochem PUBLIC
                           "${CMAKE_BINARY_DIR}/modules")

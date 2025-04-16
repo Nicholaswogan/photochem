@@ -32,7 +32,6 @@ module photochem_enum
   enumerator :: &
     MosesBC = -1, &
     VelocityBC = 0, &
-    MixingRatioBC = 1, &
     FluxBC = 2, &
     VelocityDistributedFluxBC = 3, &
     DensityBC = 4, &

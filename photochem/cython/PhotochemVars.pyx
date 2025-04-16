@@ -33,8 +33,7 @@ cdef class PhotochemVars:
       
   property usol_init:
     """ndarray[double,dim=2], shape (nq,nz). Contains the initial concentration
-    of atmospheric species. For the model `Atmosphere` then units are mixing ratios,
-    and if the model is `EvoAtmosphere` then the units are molecules/cm^3.
+    of atmospheric species (molecules/cm^3).
     """
     def __get__(self):
       cdef int dim1, dim2
@@ -275,7 +274,7 @@ cdef class PhotochemVars:
 
   property max_error_reinit_attempts:
     """int. number of times to reinitialize CVODE when it returns
-    a potentially recoverable error. Only used in `EvoAtmosphere` (not `Atmosphere`)
+    a potentially recoverable error.
     """
     def __get__(self):
       cdef int val
@@ -363,6 +362,16 @@ cdef class PhotochemVars:
       return val
     def __set__(self, double val):
       var_pxd.photochemvars_conv_longdydt_set(self._ptr, &val)
+
+  property max_dt:
+    """double. Maximum time step size (seconds).
+    """
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_max_dt_get(self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.photochemvars_max_dt_set(self._ptr, &val)
 
   property autodiff:
     """bool. If True, then the chemistry terms of the Jacobian are computed uses 

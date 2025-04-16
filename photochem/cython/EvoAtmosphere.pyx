@@ -77,7 +77,7 @@ cdef class EvoAtmosphere:
     
   property dat:
     """The PhotochemData class. Data in this class almost never changes after the
-    `Atmosphere` class is initialized.
+    class is initialized.
     """
     def __get__(self):
       dat = PhotochemData()
@@ -657,7 +657,9 @@ cdef class EvoAtmosphere:
     return out
 
   property T_surf:
-    "double. The surface temperature (K)"
+    """double. The surface temperature (K). Only relevent when doing time-dependent
+    photochemical-climate simulation.
+    """
     def __get__(self):
       cdef double val
       ea_pxd.evoatmosphere_t_surf_get(self._ptr, &val)
@@ -666,7 +668,7 @@ cdef class EvoAtmosphere:
       ea_pxd.evoatmosphere_t_surf_set(self._ptr, &val)
 
   property T_trop:
-    "double. The tropopause temperature."
+    "double. Assumed tropopause temperature for climate calculations (K)."
     def __get__(self):
       cdef double val
       ea_pxd.evoatmosphere_t_trop_get(self._ptr, &val)

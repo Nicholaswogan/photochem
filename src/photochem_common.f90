@@ -416,7 +416,7 @@ contains
   #:for TYPE1, NAME in TYPES_NAMES
   subroutine chempl_${NAME}$(dat, var, densities, rx_rates, k, xp, xl)
     #:if NAME == 'dual'
-    use forwarddiff
+    use differentia
     #:endif
     
     ! input
@@ -475,7 +475,7 @@ contains
   #:for TYPE1, NAME in TYPES_NAMES
   subroutine chempl_sl_${NAME}$(dat, var, densities, rx_rates, k, xp, xl)
     #:if NAME == 'dual'
-    use forwarddiff
+    use differentia
     #:endif
     ! input
     type(PhotochemData), intent(in) :: dat

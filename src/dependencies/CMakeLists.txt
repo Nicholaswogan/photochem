@@ -49,7 +49,7 @@ CPMAddPackage(
 
 CPMAddPackage(
   NAME clima 
-  VERSION 0.5.6
+  VERSION 0.5.8
   OPTIONS 
     "BUILD_EXECUTABLE OFF"
     "BUILD_WITH_OPENMP ${BUILD_WITH_OPENMP}"
@@ -57,29 +57,29 @@ CPMAddPackage(
     "BUILD_PYTHON_CLIMA ${BUILD_PYTHON_PHOTOCHEM}"
     "PYTHON_CLIMA_DESTINATION photochem"
   GITHUB_REPOSITORY "Nicholaswogan/clima"
-  GIT_TAG "v0.5.6"
+  GIT_TAG "v0.5.8"
   EXCLUDE_FROM_ALL OFF
 )
 
 CPMAddPackage(
-  NAME forwarddiff
-  VERSION 0.1.3
+  NAME differentia
+  VERSION 0.1.4
   OPTIONS 
     "BUILD_EXECUTABLE OFF"
-  GITHUB_REPOSITORY "Nicholaswogan/forwarddiff"
-  GIT_TAG "v0.1.3"
+  GITHUB_REPOSITORY "Nicholaswogan/Differentia"
+  GIT_TAG "v0.1.4"
   EXCLUDE_FROM_ALL ON
 )
 
 CPMAddPackage(
   NAME equilibrate
-  VERSION 0.1.9
+  VERSION 0.2.0
   OPTIONS 
     "BUILD_EXECUTABLE OFF"
     "SKBUILD ${SKBUILD}"
     "BUILD_PYTHON_EQUILIBRATE ${BUILD_PYTHON_PHOTOCHEM}"
     "PYTHON_EQUILIBRATE_DESTINATION photochem"
   GITHUB_REPOSITORY "Nicholaswogan/Equilibrate"
-  GIT_TAG "v0.1.9"
+  GIT_TAG "v0.2.0"
   EXCLUDE_FROM_ALL OFF
 )

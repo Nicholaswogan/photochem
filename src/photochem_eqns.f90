@@ -221,26 +221,6 @@ contains
   
   end subroutine
   
-  pure subroutine molar_weight(nll, usol_layer, sum_usol_layer, masses, background_mu, mubar_layer)
-    implicit none
-    integer, intent(in) :: nll
-    real(dp), intent(in) :: usol_layer(nll)
-    real(dp), intent(in) :: sum_usol_layer
-    real(dp), intent(in) :: masses(nll)
-    real(dp), intent(in) :: background_mu
-    real(dp), intent(out) :: mubar_layer
-    integer :: j
-    real(dp) :: f_background
-  
-    mubar_layer = 0.0_dp
-    do j = 1, nll
-      mubar_layer = mubar_layer + usol_layer(j) * masses(j)
-    enddo
-    f_background = 1.0_dp - sum_usol_layer
-    mubar_layer = mubar_layer + f_background * background_mu
-  
-  end subroutine
-  
   pure function dynamic_viscosity_air(T) result(eta)
       real(dp), intent(in) :: T
       real(dp) :: eta ! dynamic viscosity [dynes s/cm^2]
@@ -352,7 +332,7 @@ contains
   #:for TYPE1, NAME in TYPES_NAMES
   pure function damp_condensation_rate_${NAME}$(A, rhc, rh0, rh) result(k)
     #:if NAME == 'dual'
-    use forwarddiff
+    use differentia
     #:endif
     use photochem_const, only: pi
     real(dp), intent(in) :: A

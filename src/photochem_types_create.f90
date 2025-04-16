@@ -42,10 +42,8 @@ contains
     type(type_dictionary), pointer :: dict, tmp2
     type(type_list), pointer :: list, bcs
     type(type_list_item), pointer :: item
-    type(type_scalar), pointer :: scalar
     type(type_error), allocatable :: io_err
     character(:), allocatable :: temp_char
-    logical :: success
     integer :: i, j
     real(dp) :: tmp_real
 
@@ -79,25 +77,6 @@ contains
     !!!!!!!!!!!!!!
     dict => root%get_dictionary('planet',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    
-    scalar => dict%get_scalar('background-gas',required=.false.,error = io_err)
-    if (associated(scalar)) then
-      s%back_gas_name = trim(scalar%string)
-    endif
-
-    scalar => dict%get_scalar('surface-pressure',required=.false.,error = io_err)
-    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    if (associated(scalar)) then
-      s%P_surf = scalar%to_real(-1.0_dp, success=success)
-      if (.not. success) then
-        err = trim(filename)//trim(scalar%path)//' can not be converted to a real number.'
-        return
-      endif
-      if (s%P_surf <= 0.0_dp) then
-        err = 'IOError: Planet surface pressure must be greater than zero.'
-        return
-      endif
-    endif
 
     s%planet_mass = dict%get_real('planet-mass',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
@@ -363,7 +342,7 @@ contains
   
   subroutine unpack_SettingsBC(bc, bc_kind, sp_name, filename, sbc, err)
     use photochem_types, only: SettingsBC
-    use photochem_enum, only: MosesBC, VelocityBC, MixingRatioBC, FluxBC
+    use photochem_enum, only: MosesBC, VelocityBC, FluxBC
     use photochem_enum, only: VelocityDistributedFluxBC, DensityBC, PressureBC
     type(type_dictionary), intent(in) :: bc
     character(*), intent(in) :: bc_kind
@@ -400,21 +379,6 @@ contains
       if (sbc%vel < 0.0_dp) then
         err = 'Velocity '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
               ' must be positive.'
-        return
-      endif
-    elseif (bctype == "mix") then
-      if (bc_kind == "upper") then
-        err = 'Upper boundary conditions can not be "mix" for '//trim(sp_name)
-        return
-      endif
-      
-      sbc%bc_type = MixingRatioBC
-      sbc%mix = bc%get_real("mix",error = io_err)
-      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-      
-      if (sbc%mix < 0.0_dp .or. sbc%mix > 1.0_dp) then
-        err = 'Fixed '//trim(bc_kind)//' boundary condition for '//trim(sp_name)// &
-              ' must be between 0 and 1.'
         return
       endif
     elseif (bctype == "flux") then

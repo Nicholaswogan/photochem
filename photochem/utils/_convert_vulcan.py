@@ -86,13 +86,16 @@ def make_h5_from_dict(species, out, outdir):
                     dset = grp.create_dataset(ratio, out['ratios'][ratio].shape, 'f')
                     dset[:] = out['ratios'][ratio]  
 
-def create_supporting_data(xs_info, vulcan_xs_folder):
+def create_supporting_data(xs_info, vulcan_xs_folder, data_dir):
     """Creates a data folder with new VULCAN photolysis cross
     sections."""
 
+    if data_dir is None:
+        data_dir = DATA_DIR
+
     if os.path.isdir('vulcandata'):
         shutil.rmtree('vulcandata')
-    _ = shutil.copytree(DATA_DIR, 'vulcandata')
+    _ = shutil.copytree(data_dir, 'vulcandata')
     _ = shutil.move('vulcandata/xsections/bins.h5','vulcandata/')
     shutil.rmtree('vulcandata/xsections')
     os.mkdir('vulcandata/xsections')
@@ -145,7 +148,7 @@ def create_supporting_data(xs_info, vulcan_xs_folder):
         # print(sp)
         make_h5_from_dict(sp, out, 'vulcandata/xsections/')
 
-def vulcan2yaml(vulcan_rx_filename, thermo_folder):
+def vulcan2yaml(vulcan_rx_filename, thermo_folder, data_dir=None):
     """Converts Vulcan reactions and cross sections to a format that
     works with Photochem. Upon return, the routine will have saved a
     yaml file with a similar name to the input `vulcan_rx_filename`, and
@@ -158,6 +161,9 @@ def vulcan2yaml(vulcan_rx_filename, thermo_folder):
         Path to Vulcan input reactions file.
     thermo_folder : str
         Path to Vulcan "thermo" folder
+    data_dir : str
+        Path to the Photochem data folder. If `None`, then the data shipped
+        with Photochem is used.
     """
     
     # Path to the "thermo" folder
@@ -199,73 +205,77 @@ def vulcan2yaml(vulcan_rx_filename, thermo_folder):
     reactions = []
 
     # elementary
-    for i, line in enumerate(lines[type_ind['elementary']:]):
-        if len(line.strip()) == 0:
-            continue
-        elif line[0] == '#':
-            break
-        rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
-        A, b, Ea = [float(a) for a in line.split(']')[1].split()[:3]]
-        rx = {}
-        rx['equation'] = rx_str
-        rx['rate-constant'] = {"A": A, "b": b, "Ea": Ea}
-        reactions.append(rx)
+    if 'elementary' in type_ind:
+        for i, line in enumerate(lines[type_ind['elementary']:]):
+            if len(line.strip()) == 0:
+                continue
+            elif line[0] == '#':
+                break
+            rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
+            A, b, Ea = [float(a) for a in line.split(']')[1].split()[:3]]
+            rx = {}
+            rx['equation'] = rx_str
+            rx['rate-constant'] = {"A": A, "b": b, "Ea": Ea}
+            reactions.append(rx)
         
     # falloff
-    for i, line in enumerate(lines[type_ind['falloff']:]):
-        if len(line.strip()) == 0:
-            continue
-        elif line[0] == '#':
-            break
-        rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
-        if "M" not in rx_str.split(rx_arrow)[0]:
-            rx_str = rx_str.split(rx_arrow)[0] + "+ M "+rx_arrow+rx_str.split(rx_arrow)[1]
-        if "M" not in rx_str.split(rx_arrow)[1]:
-            rx_str = rx_str.split(rx_arrow)[0]+rx_arrow+rx_str.split(rx_arrow)[1]+ "+ M "
-            
-        A0, b0, Ea0, Ainf, binf, Eainf = [float(a) for a in line.split(']')[1].split()[:6]]
-        rx = {}
-        rx['equation'] = rx_str
-        rx['type'] = "falloff"
-        rx['low-P-rate-constant'] = {"A": A0, "b": b0, "Ea": Ea0}
-        rx['high-P-rate-constant'] = {"A": Ainf, "b": binf, "Ea": Eainf}
-        reactions.append(rx)
+    if 'falloff' in type_ind:
+        for i, line in enumerate(lines[type_ind['falloff']:]):
+            if len(line.strip()) == 0:
+                continue
+            elif line[0] == '#':
+                break
+            rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
+            if "M" not in rx_str.split(rx_arrow)[0]:
+                rx_str = rx_str.split(rx_arrow)[0] + "+ M "+rx_arrow+rx_str.split(rx_arrow)[1]
+            if "M" not in rx_str.split(rx_arrow)[1]:
+                rx_str = rx_str.split(rx_arrow)[0]+rx_arrow+rx_str.split(rx_arrow)[1]+ "+ M "
+                
+            A0, b0, Ea0, Ainf, binf, Eainf = [float(a) for a in line.split(']')[1].split()[:6]]
+            rx = {}
+            rx['equation'] = rx_str
+            rx['type'] = "falloff"
+            rx['low-P-rate-constant'] = {"A": A0, "b": b0, "Ea": Ea0}
+            rx['high-P-rate-constant'] = {"A": Ainf, "b": binf, "Ea": Eainf}
+            reactions.append(rx)
         
     # three-body
-    for i, line in enumerate(lines[type_ind['three-body']:]):
-        if len(line.strip()) == 0:
-            continue
-        elif line[0] == '#':
-            break
-        rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
-        if "M" not in rx_str.split(rx_arrow)[0]:
-            rx_str = rx_str.split(rx_arrow)[0] + "+ M "+rx_arrow+rx_str.split(rx_arrow)[1]
-        if "M" not in rx_str.split(rx_arrow)[1]:
-            rx_str = rx_str.split(rx_arrow)[0]+rx_arrow+rx_str.split(rx_arrow)[1]+ "+ M "
-        A, b, Ea = [float(a) for a in line.split(']')[1].split()[:3]]
-        rx = {}
-        rx['equation'] = rx_str
-        rx['type'] = "three-body"
-        rx['rate-constant'] = {"A": A, "b": b, "Ea": Ea}
-        reactions.append(rx)
+    if 'three-body' in type_ind:
+        for i, line in enumerate(lines[type_ind['three-body']:]):
+            if len(line.strip()) == 0:
+                continue
+            elif line[0] == '#':
+                break
+            rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
+            if "M" not in rx_str.split(rx_arrow)[0]:
+                rx_str = rx_str.split(rx_arrow)[0] + "+ M "+rx_arrow+rx_str.split(rx_arrow)[1]
+            if "M" not in rx_str.split(rx_arrow)[1]:
+                rx_str = rx_str.split(rx_arrow)[0]+rx_arrow+rx_str.split(rx_arrow)[1]+ "+ M "
+            A, b, Ea = [float(a) for a in line.split(']')[1].split()[:3]]
+            rx = {}
+            rx['equation'] = rx_str
+            rx['type'] = "three-body"
+            rx['rate-constant'] = {"A": A, "b": b, "Ea": Ea}
+            reactions.append(rx)
 
     # Special
-    for i, line in enumerate(lines[type_ind['special']:]):
-        if len(line.strip()) == 0:
-            continue
-        elif line[0] == '#':
-            break
-        rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
-        found = False
-        for key in zahnle_reactions:
-            if compare2reactions(rx_str, key):
-                reactions.append(zahnle_reactions[key])
-                found = True
+    if 'special' in type_ind:
+        for i, line in enumerate(lines[type_ind['special']:]):
+            if len(line.strip()) == 0:
+                continue
+            elif line[0] == '#':
                 break
-        if found:
-            print('Using zahnle_earth.yaml rate for special reaction '+rx_str)
-        else:
-            print('Ignoring special reaction '+rx_str)
+            rx_str = line.split(']')[0].split('[')[1].strip().replace('->',rx_arrow)
+            found = False
+            for key in zahnle_reactions:
+                if compare2reactions(rx_str, key):
+                    reactions.append(zahnle_reactions[key])
+                    found = True
+                    break
+            if found:
+                print('Using zahnle_earth.yaml rate for special reaction '+rx_str)
+            else:
+                print('Ignoring special reaction '+rx_str)
                 
     # Condensation
     particles = []
@@ -360,4 +370,4 @@ def vulcan2yaml(vulcan_rx_filename, thermo_folder):
         yaml.dump(out,f,Dumper=MyDumper,sort_keys=False,width=70)
 
     # Create the supporting data folder
-    create_supporting_data(xs_info, vulcan_xs_folder)
+    create_supporting_data(xs_info, vulcan_xs_folder, data_dir)

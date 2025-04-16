@@ -24,18 +24,31 @@ module photochem_evoatmosphere
 
     logical :: evolve_climate
     ! Below are only relevant for evolve_climate = .true.
+    !> The surface temperature (K). Only relevent when doing time-dependent
+    !> photochemical-climate simulation.
     real(dp) :: T_surf
+    !> Assumed tropopause temperature for climate calculations (K).
     real(dp) :: T_trop = 200.0_dp
     !> Callback function to set a temperature dependent albedo (e.g. ice-albedo feedback).
     procedure(temp_dependent_albedo_fcn), nopass, pointer :: albedo_fcn => null()
     type(Radtran), allocatable :: rad
     ! Above are only relevant for evolve_climate = .true.
 
-    ! Modern Earth has a pressure of 4e-7 at 100 km
-    ! so it makes sense to try to keep pressure between these values
-    real(dp) :: P_top_min = 1.0e-7_dp ! bars
-    real(dp) :: P_top_max = 1.0e-6_dp ! bars
-    real(dp) :: top_atmos_adjust_frac = 0.02 ! fraction
+    !> When running the `evolve` routine, this determines
+    !> the minimum pressure of the top of the model domain (bars). 
+    !> If the pressure gets smaller than this value, then the integration will stop
+    !> and re-grid the model domain before continuing integration, so that the 
+    !> top of the atmosphere has a bigger pressure than `P_top_min`.
+    real(dp) :: P_top_min = 1.0e-50_dp
+    !> When running the `evolve` routine, this determines
+    !> the maximum pressure of the top of the model domain (bars). 
+    !> If the pressure gets larger than this value, then the integration will stop
+    !> and re-grid the model domain before continuing integration, so that the 
+    !> top of the atmosphere has a smaller pressure than `P_top_max`.
+    real(dp) :: P_top_max = 1.0e50_dp
+    !> Sets the fractional amount that the top of the model domain changes
+    !> when integration is haulted by `P_top_min` or `P_top_max`
+    real(dp) :: top_atmos_adjust_frac = 0.02
 
   contains
 

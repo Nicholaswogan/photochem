@@ -8,7 +8,6 @@ endif()
 add_library(_photochem MODULE ${_photochem})
 set(_photochem_deps
   EvoAtmosphere.pyx
-  Atmosphere.pyx 
   PhotochemData.pyx 
   PhotochemVars.pyx
   ProductionLoss.pyx 

@@ -24,13 +24,11 @@ module photochem_input
       character(:), allocatable, intent(out) :: err
     end subroutine
     
-    module subroutine read_all_files(mechanism_file, s, flux_file, atmosphere_txt, back_gas, &
-                              dat, var, err)
+    module subroutine read_all_files(mechanism_file, s, flux_file, atmosphere_txt, dat, var, err)
       character(len=*), intent(in) :: mechanism_file
       type(PhotoSettings), intent(in) :: s
       character(len=*), intent(in) :: flux_file
       character(len=*), intent(in) :: atmosphere_txt
-      logical, intent(in) :: back_gas
       type(PhotochemData), intent(inout) :: dat
       type(PhotochemVars), intent(inout) :: var
       character(:), allocatable, intent(out) :: err
@@ -59,20 +57,17 @@ module photochem_input
     
 contains
   
-  subroutine setup(mechanism_file, s, flux_file, atmosphere_txt, back_gas, &
-                   dat, var, err)
+  subroutine setup(mechanism_file, s, flux_file, atmosphere_txt, dat, var, err)
     
     character(len=*), intent(in) :: mechanism_file
     type(PhotoSettings), intent(in) :: s
     character(len=*), intent(in) :: flux_file
     character(len=*), intent(in) :: atmosphere_txt
-    logical, intent(in) :: back_gas
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
-    call read_all_files(mechanism_file, s, flux_file, atmosphere_txt, back_gas, &
-                        dat, var, err)
+    call read_all_files(mechanism_file, s, flux_file, atmosphere_txt, dat, var, err)
     if (allocated(err)) return     
                  
     call after_read_setup(dat, var, err)

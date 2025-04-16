@@ -18,16 +18,19 @@ setup(
     python_requires='>=3.6',
     version=version,
     license="GNU General Public License v3.0",
-    install_requires=['numpy','scipy','pyyaml', 'numba', 'h5py', 'astropy', 'threadpoolctl'], 
+    install_requires=['numpy','scipy','pyyaml', 'numba', 'h5py', 'astropy', 'threadpoolctl', 'requests'], 
     author='Nicholas Wogan',
     author_email = 'nicholaswogan@gmail.com',
     description = "Photochemical model of planet's atmospheres.",
     long_description=long_description,
     long_description_content_type='text/markdown',
     url = "https://github.com/Nicholaswogan/Photochem",
-    cmake_args=['-DBUILD_PYTHON_PHOTOCHEM=ON',\
-                '-DBUILD_EXECUTABLES=OFF',\
-                '-DBUILD_WITH_OPENMP=ON']
+    cmake_args=[
+        '-DBUILD_PYTHON_PHOTOCHEM=ON',
+        '-DBUILD_EXECUTABLES=OFF',
+        '-DBUILD_WITH_OPENMP=ON',
+        '-DCMAKE_POSITION_INDEPENDENT_CODE=ON'
+    ]
 )
 
 

@@ -193,7 +193,8 @@ contains
                           FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
                           FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
                           FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
-                          FCVodeSetUserData, FCVodeRootInit, FCVodeReInit, FCVodeGetRootInfo, FCVodeSetErrHandlerFn
+                          FCVodeSetUserData, FCVodeRootInit, FCVodeReInit, FCVodeGetRootInfo, FCVodeSetErrHandlerFn, &
+                          FCVodeSetMaxStep
     use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
     use fnvector_serial_mod, only: FN_VMake_Serial   
     use fsunmatrix_band_mod, only: FSUNBandMatrix
@@ -417,6 +418,12 @@ contains
       err = "CVODE setup error."
       return
     end if
+
+    ierr = FCVodeSetMaxStep(wrk%sun%cvode_mem, var%max_dt)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
     
     ierr = FCVodeSetMaxErrTestFails(wrk%sun%cvode_mem, var%max_err_test_failures)
     if (ierr /= 0) then
@@ -554,6 +561,13 @@ contains
             err = "CVODE setup error."
             return
           end if
+
+          ierr = FCVodeSetMaxStep(wrk%sun%cvode_mem, var%max_dt)
+          if (ierr /= 0) then
+            err = "CVODE setup error."
+            return
+          end if
+
         endif
         
       enddo
@@ -763,7 +777,7 @@ contains
                           FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
                           FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
                           FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
-                          FCVodeSetUserData, FCVodeSetErrHandlerFn
+                          FCVodeSetUserData, FCVodeSetErrHandlerFn, FCVodeSetMaxStep
     use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
     use fnvector_serial_mod, only: FN_VMake_Serial   
     use fsunmatrix_band_mod, only: FSUNBandMatrix
@@ -925,7 +939,13 @@ contains
       err = "CVODE setup error."
       return
     end if
-    
+
+    ierr = FCVodeSetMaxStep(wrk%sun%cvode_mem, var%max_dt)
+    if (ierr /= 0) then
+      err = "CVODE setup error."
+      return
+    end if
+
     ierr = FCVodeSetMaxErrTestFails(wrk%sun%cvode_mem, var%max_err_test_failures)
     if (ierr /= 0) then
       err = "CVODE setup error."

@@ -12,7 +12,7 @@ module photochem_types ! make a giant IO object
   public :: PhotoSettings, SettingsBC
   public :: XsectionData
   public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
-  public :: ProductionLoss, AtomConservation, ThermodynamicData, CondensationParameters
+  public :: ProductionLoss, ThermodynamicData, CondensationParameters
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate, PressDependentRate, MultiArrheniusRate
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
   public :: SundialsDataFinalizer
@@ -55,8 +55,6 @@ module photochem_types ! make a giant IO object
     integer :: nz
   
     ! planet
-    character(:), allocatable :: back_gas_name
-    real(dp), allocatable :: P_surf
     real(dp) :: planet_mass
     real(dp) :: planet_radius
     real(dp) :: surface_albedo
@@ -139,19 +137,6 @@ module photochem_types ! make a giant IO object
   !> Container to make an array of functions for time-dependent production rates.
   type :: time_dependent_rate_fcns
     procedure(time_dependent_rate_fcn), nopass, pointer :: fcn => null()
-  end type
-  
-  type :: AtomConservation
-    real(dp) :: in_surf
-    real(dp) :: in_top
-    real(dp) :: in_dist
-    real(dp) :: in_other
-    real(dp) :: out_surf
-    real(dp) :: out_top
-    real(dp) :: out_rain
-    real(dp) :: out_other
-    real(dp) :: net
-    real(dp) :: factor
   end type
   
   type :: ProductionLoss
@@ -279,12 +264,12 @@ module photochem_types ! make a giant IO object
     
     ! species
     ! Organization is as follows
-    ! [       nsp       ]
-    ! [   nq   + nsl + 1]
-    ! [np + ng + nsl + 1]
+    ! [     nsp     ]
+    ! [   nq   + nsl]
+    ! [np + ng + nsl]
     ! |_______|
     !     |
-    ! Only np + ng = nq evolve through time. nsl are assumed to be in equilibrium. +1 is background gas.
+    ! Only np + ng = nq evolve through time. nsl are assumed to be in equilibrium.
     integer :: nq !! number of gases + particles which evolve over time from integration
     integer :: ng_1 !! index of first gas
     integer :: nll !! number of long-lived gas molecules
@@ -359,10 +344,6 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: particle_radius_file(:,:) !! (np,nzf) cm
     
     ! settings
-    logical :: back_gas !! True if background gas is used
-    character(:), allocatable :: back_gas_name !! Normally N2, but can be most any gas.
-    real(dp), allocatable :: back_gas_mu !! g/mol
-    integer, allocatable :: back_gas_ind !! index of the background gas
     real(dp) :: planet_mass !! grams
     real(dp) :: planet_radius !! cm
     logical :: fix_water_in_trop !! True if fixing water in troposphere
@@ -443,7 +424,7 @@ module photochem_types ! make a giant IO object
     !> A function for specifying a custom binary diffusion parameter (b_ij)
     procedure(binary_diffusion_fcn), nopass, pointer :: custom_binary_diffusion_fcn => null()
     real(dp), allocatable :: grav(:) !! (nz) cm/s2
-    real(dp), allocatable :: usol_init(:,:) !! (nq,nz) mixing ratio (Atmosphere) or densities (EvoAtmosphere).
+    real(dp), allocatable :: usol_init(:,:) !! (nq,nz) molecules/cm^3.
     real(dp), allocatable :: particle_radius(:,:) !! (np,nz) cm
     real(dp), allocatable :: xs_x_qy(:,:,:) !! (nz,kj,nw) photolysis cross sections times quantum yields (cm2/molecule)
     type(ParticleXsections), allocatable :: particle_xs(:) !! (np)
@@ -482,11 +463,13 @@ module photochem_types ! make a giant IO object
     !> convergence checking.
     real(dp) :: conv_longdydt = 1.0e-6_dp
     real(c_double) :: initial_dt = 1.0e-6_dp !! intial timestep size (seconds)
+    !> Maximum time step size (seconds).
+    real(c_double) :: max_dt = sqrt(huge(1.0_dp))
     integer(c_int) :: max_err_test_failures = 15 !! CVODE max error test failures
     integer(c_int) :: max_order = 5 !! CVODE max order for BDF method.
     !> If .true., then the chemistry terms of the Jacobian are computed uses 
     !> foward mode automatic differentiation.
-    logical :: autodiff = .false.
+    logical :: autodiff = .true.
     !> Perturbation for finite difference Jacobian calculation, when autodiff == .false.
     real(dp) :: epsj = 1.0e-4_dp 
     integer :: verbose = 1 !! 0 == no printing. 1 == some printing. 2 == bunch of printing.
