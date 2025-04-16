@@ -5,7 +5,7 @@ Building Photochem from source can be challenging, which is why `conda` is the [
 First, lets create a new conda environment called `test` with all the photochem dependencies
 
 ```sh
-conda create -n test -c conda-forge photochem_clima_data python numpy scipy pyyaml numba astropy h5py threadpoolctl scikit-build cmake ninja cython fypp pip c-compiler cxx-compiler fortran-compiler git jupyter matplotlib
+conda create -n test -c conda-forge photochem_clima_data python numpy scipy pyyaml numba astropy h5py threadpoolctl scikit-build cmake=3 ninja cython fypp pip c-compiler cxx-compiler fortran-compiler git jupyter matplotlib
 
 conda activate test
 ```
@@ -28,33 +28,26 @@ cd photochem
 We need to set some environment variables to help the build find libraries.
 
 ```sh
-export CMAKE_ARGS="-DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
-export CONDA_PREFIX_SAVE=$CONDA_PREFIX
-unset CONDA_PREFIX
+export CMAKE_ARGS="-DCMAKE_PREFIX_PATH=$CONDA_PREFIX"
 ```
 
 Finally, we can install the code, then reset your conda prefix.
 
 ```sh
 python -m pip install --no-deps --no-build-isolation . -v
-export CONDA_PREFIX=$CONDA_PREFIX_SAVE
 ```
 
 ## Building in place without `pip`
 
 It is also useful to build the code without installing it. Run the following commands from the root directory of the Photochem repository.
 
+
 ```sh
 mkdir build
 cd build
 
-export CONDA_PREFIX_SAVE=$CONDA_PREFIX
-unset CONDA_PREFIX
+cmake .. -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DBUILD_PYTHON_PHOTOCHEM=ON -DBUILD_WITH_OPENMP=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release -DSKBUILD_CMAKE_MODULE_DIR=$(python -c "from skbuild import __file__; print(__file__.strip('__init__.py')+'resources/cmake')")
 
-# Configure
-cmake .. -DCMAKE_PREFIX_PATH=$CONDA_PREFIX_SAVE -DBUILD_PYTHON_PHOTOCHEM=ON -DBUILD_WITH_OPENMP=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release -DSKBUILD_CMAKE_MODULE_DIR=$(python -c "from skbuild import __file__; print(__file__.strip('__init__.py')+'resources/cmake')")
-
-# Build and install
 cmake --build . -j && cmake --install .
 ```
 
