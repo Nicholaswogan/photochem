@@ -14,6 +14,9 @@ module photochem_eqns
   
 contains
 
+  ! twosum, vecsum, and kfold are based on Al-Rafaie et al. (2024) (10.3847/1538-4357/ad3dee).
+  ! They are for doing summations that have less floating point error.
+
   #:for TYPE1, NAME in TYPES_NAMES
   subroutine twosum_${NAME}$(a, b, x, y)
     #:if NAME == 'dual'
