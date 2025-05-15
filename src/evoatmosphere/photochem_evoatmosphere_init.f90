@@ -42,7 +42,7 @@ contains
     
     call self%wrk%init(self%dat%nsp, self%dat%np, self%dat%nq, &
                        self%var%nz, self%dat%nrT, self%dat%kj, &
-                       self%dat%nw)
+                       self%dat%nw, self%dat%max_num_prod_loss)
     
     if (s%evolve_climate) then
       self%evolve_climate = .true.

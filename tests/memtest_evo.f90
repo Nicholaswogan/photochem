@@ -306,6 +306,33 @@ contains
 
     pc%var%autodiff = .true.
     pc%var%atol = 1.0e-20_dp
+    pc%var%k_for_sum = 0
+    
+    call pc%initialize_stepper(pc%var%usol_init, err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    
+    tn = pc%step(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    converged = pc%check_for_convergence(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    pc%var%k_for_sum = 4
     
     call pc%initialize_stepper(pc%var%usol_init, err)
     if (allocated(err)) then

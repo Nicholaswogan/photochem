@@ -493,9 +493,11 @@ contains
         endif
       enddo
     enddo
+    dat%max_num_prod_loss = 0
     do i = 1,dat%nsp
       allocate(dat%pl(i)%iprod(dat%pl(i)%nump))
       allocate(dat%pl(i)%iloss(dat%pl(i)%numl))
+      dat%max_num_prod_loss = max(dat%max_num_prod_loss, dat%pl(i)%nump + dat%pl(i)%numl)
       dat%pl(i)%nump = 0
       dat%pl(i)%numl = 0
     enddo

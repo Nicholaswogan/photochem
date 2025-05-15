@@ -28,10 +28,10 @@ contains
   subroutine dochem_${NAME}$(self, usol, rx_rates, &
                     gas_sat_den, molecules_per_particle, &
                     H2O_sat_mix, H2O_rh, rainout_rates, scale_height, wfall, &
-                    density, mix, densities, xp, xl, rhs)                 
+                    density, mix, densities, xp, xl, xp_xl, rhs)                 
     use photochem_enum, only: CondensingParticle
     use photochem_common, only: chempl, chempl_sl
-    use photochem_eqns, only: damp_condensation_rate
+    use photochem_eqns, only: damp_condensation_rate, kfold
     use photochem_const, only: N_avo, pi, small_real, T_crit_H2O
     #:if NAME == 'dual'
     use differentia
@@ -45,7 +45,7 @@ contains
     real(dp), intent(in) :: rainout_rates(:,:), scale_height(:), wfall(:,:)
     real(dp), intent(in) :: density(:)
     ${TYPE1}$, intent(inout) :: mix(:,:)
-    ${TYPE1}$, intent(inout) :: densities(:,:), xp(:), xl(:)
+    ${TYPE1}$, intent(inout) :: densities(:,:), xp(:), xl(:), xp_xl(:,:)
     ${TYPE1}$, intent(inout) :: rhs(:) ! neqs
 
     real(dp) :: cond_rate0
@@ -86,13 +86,16 @@ contains
 
     rhs = 0.0_dp
 
-    ! long lived              
+    ! long lived            
     do i = dat%ng_1,dat%nq
-      call chempl(self%dat, self%var, densities, rx_rates, i, xp, xl)
-      do j = 1,var%nz
-        k = i + (j - 1) * dat%nq
-        rhs(k) = xp(j) - xl(j)
-      enddo
+      call chempl(self%dat, self%var, densities, rx_rates, i, xp_xl)
+      ii = dat%pl(i)%nump + dat%pl(i)%numl
+      if (ii > 0) then
+        do j = 1,var%nz
+          k = i + (j - 1) * dat%nq
+          rhs(k) = kfold(xp_xl(1:ii,j), var%k_for_sum)
+        enddo
+      endif
     enddo
 
     if (dat%gas_rainout) then
@@ -146,11 +149,14 @@ contains
     if (dat%there_are_particles) then
       ! formation from reaction
       do i = 1,dat%np
-        call chempl(self%dat, self%var, densities, rx_rates, i, xp, xl)
-        do j = 1,var%nz
-          k = i + (j - 1) * dat%nq
-          rhs(k) = rhs(k) + (xp(j) - xl(j))
-        enddo
+        call chempl(self%dat, self%var, densities, rx_rates, i, xp_xl)
+        ii = dat%pl(i)%nump + dat%pl(i)%numl
+        if (ii > 0) then
+          do j = 1,var%nz
+            k = i + (j - 1) * dat%nq
+            rhs(k) = rhs(k) + kfold(xp_xl(1:ii,j), var%k_for_sum)
+          enddo
+        endif
       enddo
 
       ! 4 numbers for each condensing species.
@@ -778,7 +784,7 @@ contains
     call dochem(self, wrk%usol, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
                 wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
-                wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs)  
+                wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, wrk%xp_xl, rhs)  
 
     ! Extra functions specifying production or destruction
     do i = 1,dat%nq
@@ -883,7 +889,7 @@ contains
     character(:), allocatable, intent(out) :: err
 
     real(dp), pointer :: usol_flat(:)
-    type(dual), allocatable :: mix(:,:), densities(:,:), xp(:), xl(:)
+    type(dual), allocatable :: mix(:,:), densities(:,:), xp(:), xl(:), xp_xl(:,:)
     integer :: blocksize
 
     type(PhotochemData), pointer :: dat
@@ -905,6 +911,8 @@ contains
     call initialize_dual_array(xp, blocksize)
     allocate(xl(size(wrk%xl)))
     call initialize_dual_array(xl, blocksize)
+    allocate(xp_xl(dat%max_num_prod_loss,size(wrk%xl)))
+    call initialize_dual_array(xp_xl, blocksize)
 
     call jacobian(fcn, usol_flat, rhs, djac, jt=BlockDiagonalJacobian, blocksize=blocksize, err=err)
     if (allocated(err)) return
@@ -919,7 +927,7 @@ contains
       call dochem(self, usol_, wrk%rx_rates, &
                   wrk%gas_sat_den, wrk%molecules_per_particle, &
                   wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
-                  wrk%density, mix, densities, xp, xl, f_) 
+                  wrk%density, mix, densities, xp, xl, xp_xl, f_) 
     end subroutine
   end subroutine
 
@@ -969,6 +977,9 @@ contains
     real(dp) :: rhs_perturb(var%neqs)
     real(dp) :: mix(dat%nq,var%nz)
     real(dp) :: densities(dat%nsp+1,self%var%nz), xl(var%nz), xp(var%nz)
+    real(dp), allocatable :: xp_xl(:,:)
+
+    allocate(xp_xl(dat%max_num_prod_loss,var%nz))
   
     ! Finite differenced Jacobian
 
@@ -976,7 +987,7 @@ contains
     call dochem(self, wrk%usol, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
                 wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
-                wrk%density, mix, densities, xp, xl, rhs) 
+                wrk%density, mix, densities, xp, xl, xp_xl, rhs) 
 
     !$omp parallel private(i, j, k, m, mm, usol_perturb, R, mix, densities, xl, xp, rhs_perturb)
     usol_perturb = wrk%usol
@@ -990,7 +1001,7 @@ contains
       call dochem(self, usol_perturb, wrk%rx_rates, &
                   wrk%gas_sat_den, wrk%molecules_per_particle, &
                   wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
-                  wrk%density, mix, densities, xp, xl, rhs_perturb) 
+                  wrk%density, mix, densities, xp, xl, xp_xl, rhs_perturb) 
   
       do m = 1,dat%nq
         mm = m - i + dat%kd
@@ -1120,7 +1131,7 @@ contains
     call dochem(self, wrk%usol, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
                 wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
-                wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs) 
+                wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, wrk%xp_xl, rhs) 
                               
   end subroutine
 

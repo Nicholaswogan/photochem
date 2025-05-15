@@ -310,6 +310,7 @@ module photochem_types ! make a giant IO object
     type(Reaction), allocatable :: rx(:) !! (nrT) array of reaction objects
     character(len=m_str_len), allocatable :: reaction_equations(:) !! (nrT)
     type(ProdLoss), allocatable :: pl(:) !! (nsp) reactions producing and destroying each species
+    integer :: max_num_prod_loss !! The maximum number of production + loss mechanisms for all species.
     integer :: kj !! number of photolysis reactions
     integer, allocatable :: photonums(:) !! (kj) the reaction number of each photolysis reaction
 
@@ -472,6 +473,7 @@ module photochem_types ! make a giant IO object
     logical :: autodiff = .true.
     !> Perturbation for finite difference Jacobian calculation, when autodiff == .false.
     real(dp) :: epsj = 1.0e-4_dp 
+    integer :: k_for_sum = 0
     integer :: verbose = 1 !! 0 == no printing. 1 == some printing. 2 == bunch of printing.
     !> Arbitrary rate that is fast (1/s). Used for keeping H2O at saturation in troposphere
     real(dp) :: fast_arbitrary_rate = 1.0e-2_dp 
@@ -576,6 +578,7 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: lower_vdep_copy(:) !! (nq)
     real(dp), allocatable :: xp(:) !! (nz)
     real(dp), allocatable :: xl(:) !! (nz)
+    real(dp), allocatable :: xp_xl(:,:) !! (max_num_prod_loss,nz)
     ! diffusion and H escape
     real(dp), allocatable :: DU(:,:) !! (nq,nz)
     real(dp), allocatable :: DD(:,:) !! (nq,nz)
@@ -616,11 +619,11 @@ module photochem_types ! make a giant IO object
   
 contains
 
-  subroutine init_PhotochemWrkEvo(self, nsp, np, nq, nz, nrT, kj, nw)
+  subroutine init_PhotochemWrkEvo(self, nsp, np, nq, nz, nrT, kj, nw, max_num_prod_loss)
     class(PhotochemWrkEvo), intent(inout) :: self
-    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw
+    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw, max_num_prod_loss
 
-    call init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw)
+    call init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw, max_num_prod_loss)
 
     if (allocated(self%mix)) then
       deallocate(self%mix)
@@ -634,10 +637,10 @@ contains
 
   end subroutine
  
-  subroutine init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw)
+  subroutine init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw, max_num_prod_loss)
     use photochem_const, only: nsteps_save
     class(PhotochemWrk), intent(inout) :: self
-    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw
+    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw, max_num_prod_loss
     
     if (allocated(self%usol)) then
       deallocate(self%t_history)
@@ -657,6 +660,7 @@ contains
       deallocate(self%optical_depth)
       deallocate(self%xp)
       deallocate(self%xl)
+      deallocate(self%xp_xl)
       deallocate(self%DU)
       deallocate(self%DD)
       deallocate(self%DL)
@@ -691,6 +695,7 @@ contains
     allocate(self%optical_depth(nz,nw))
     allocate(self%xp(nz))
     allocate(self%xl(nz))
+    allocate(self%xp_xl(max_num_prod_loss, nz))
     allocate(self%DU(nq,nz))
     allocate(self%DD(nq,nz))
     allocate(self%DL(nq,nz))

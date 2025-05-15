@@ -414,7 +414,7 @@ contains
   end subroutine
   
   #:for TYPE1, NAME in TYPES_NAMES
-  subroutine chempl_${NAME}$(dat, var, densities, rx_rates, k, xp, xl)
+  subroutine chempl_${NAME}$(dat, var, densities, rx_rates, k, xp_xl)
     #:if NAME == 'dual'
     use differentia
     #:endif
@@ -427,17 +427,15 @@ contains
     integer, intent(in) :: k ! species number
     
     ! output
-    ${TYPE1}$, intent(inout) :: xp(:), xl(:) ! (nz) molecules/cm3/s. if loss_start_ind = 2, then xl is in units of 1/s
-    
+    ${TYPE1}$, intent(inout) :: xp_xl(:,:)
+
     ! local
     ${TYPE1}$ :: DD
-    integer :: i, ii, iii, m, l, j
+    integer :: i, ii, iii, m, l, j, i1
 
     #:if NAME == 'dual'
     DD = dual(size(densities(1,1)%der))
     #:endif
-    xp = 0.0_dp
-    xl = 0.0_dp
     
     ! k is a species
     ! nump is number of reactions that produce species k
@@ -450,13 +448,14 @@ contains
           iii = dat%rx(m)%react_sp_inds(ii)
           DD = DD * densities(iii,j)
         enddo
-        xp(j) = xp(j) + rx_rates(j,m) * DD
+        xp_xl(i,j) = rx_rates(j,m) * DD
       enddo
     enddo
     
     ! k is a species
     ! numl is number of reactions that destroy species k
-    do i=1,dat%pl(k)%numl
+    do i = 1,dat%pl(k)%numl
+      i1 = dat%pl(k)%nump + i
       m = dat%pl(k)%iloss(i) ! This will JUST be reaction number
       l = dat%rx(m)%nreact ! number of reactants
       do j = 1,var%nz
@@ -465,7 +464,7 @@ contains
           iii = dat%rx(m)%react_sp_inds(ii)
           DD = DD * densities(iii,j)
         enddo
-        xl(j) = xl(j) + rx_rates(j,m) * DD
+        xp_xl(i1,j) = -rx_rates(j,m) * DD
       enddo
     enddo
     

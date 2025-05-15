@@ -6,11 +6,63 @@ module photochem_eqns
   use photochem_const, only: dp
   implicit none
 
-  interface damp_condensation_rate
-    module procedure :: damp_condensation_rate_real, damp_condensation_rate_dual 
+  #:for NAME in ['damp_condensation_rate','twosum','vecsum','kfold']
+  interface ${NAME}$
+    module procedure :: ${NAME}$_real, ${NAME}$_dual
   end interface
+  #:endfor
   
 contains
+
+  #:for TYPE1, NAME in TYPES_NAMES
+  subroutine twosum_${NAME}$(a, b, x, y)
+    #:if NAME == 'dual'
+    use differentia
+    #:endif
+    ${TYPE1}$, intent(in) :: a, b
+    ${TYPE1}$, intent(out) :: x, y
+    ${TYPE1}$ :: z
+    
+    x = a + b
+    z = x - a
+    y = (a - (x - z)) + (b - z)
+
+  end subroutine
+
+  subroutine vecsum_${NAME}$(x)
+    #:if NAME == 'dual'
+    use differentia
+    #:endif
+    ${TYPE1}$, intent(inout) :: x(:)
+    ${TYPE1}$ :: a, b
+    integer :: i
+    do i = 2,size(x)
+      call twosum(x(i), x(i-1), a, b)
+      x(i) = a
+      x(i-1) = b
+    enddo
+  end subroutine
+
+  function kfold_${NAME}$(x, k) result(res)
+    #:if NAME == 'dual'
+    use differentia
+    #:endif
+    ${TYPE1}$, intent(inout) :: x(:)
+    integer, intent(in) :: k
+    ${TYPE1}$ :: res
+    integer :: i
+
+    if (size(x) < 2) then
+      res = sum(x)
+      return
+    endif
+
+    do i = 1,k-1
+      call vecsum(x)
+    enddo
+    res = sum(x(1:size(x)-1)) + x(size(x))
+  end function
+  #:endfor
   
   pure subroutine gravity(radius, mass, nz, z, grav)
     use photochem_const, only: G_grav
