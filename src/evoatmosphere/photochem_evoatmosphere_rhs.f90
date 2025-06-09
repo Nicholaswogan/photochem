@@ -798,8 +798,24 @@ contains
         rhs(k) = rhs(k) + wrk%DU(i,j)*wrk%usol(i,j+1) + wrk%ADU(i,j)*wrk%usol(i,j+1) &
                         + wrk%DD(i,j)*wrk%usol(i,j) + wrk%ADD(i,j)*wrk%usol(i,j) &
                         + wrk%DL(i,j)*wrk%usol(i,j-1) + wrk%ADL(i,j)*wrk%usol(i,j-1)
+
+        wrk%transport_rates(i, j) = wrk%DU(i,j)*wrk%usol(i,j+1) + wrk%ADU(i,j)*wrk%usol(i,j+1) &
+        + wrk%DD(i,j)*wrk%usol(i,j) + wrk%ADD(i,j)*wrk%usol(i,j) &
+        + wrk%DL(i,j)*wrk%usol(i,j-1) + wrk%ADL(i,j)*wrk%usol(i,j-1)
+
+        wrk%advection_rates(i, j) =  wrk%ADU(i,j)*wrk%usol(i,j+1) &
+        + wrk%ADD(i,j)*wrk%usol(i,j) &
+        + wrk%ADL(i,j)*wrk%usol(i,j-1)
+
+        wrk%diffusion_rates(i, j) = wrk%DU(i,j)*wrk%usol(i,j+1) &
+        + wrk%DD(i,j)*wrk%usol(i,j) &
+        + wrk%DL(i,j)*wrk%usol(i,j-1) 
+
+
       enddo
     enddo
+
+    
     
     ! Lower boundary
     do i = 1,dat%nq
@@ -857,6 +873,8 @@ contains
         do j = 2,jdisth
           k = i + (j-1)*dat%nq
           rhs(k) = rhs(k) + 2.0_dp*var%lower_flux(i)*(ztop1-var%z(j))/(ztop**2.0_dp)
+
+          wrk%distributed_fluxes(i, j) = 2.0_dp*var%lower_flux(i)*(ztop1-var%z(j))/(ztop**2.0_dp)
         enddo
         endif
       endif
@@ -1234,5 +1252,6 @@ contains
   end subroutine
 
 end submodule
+
 
 

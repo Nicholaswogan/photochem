@@ -564,6 +564,10 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: densities(:,:) !! (nsp+1,nz)
     real(dp), allocatable :: density(:) !! (nz)
     real(dp), allocatable :: rx_rates(:,:) !! (nz,nrT)
+    real(dp), allocatable :: transport_rates(:,:) !! (nz,nrT)
+    real(dp), allocatable :: advection_rates(:,:) !! (nz,nrT)
+    real(dp), allocatable :: diffusion_rates(:,:) !! (nz,nrT)
+    real(dp), allocatable :: distributed_fluxes(:,:) !! (nz,nrT)
     real(dp), allocatable :: mubar(:) !! (nz)
     real(dp), allocatable :: pressure(:) !! (nz)
     real(dp), allocatable :: H2O_rh(:) !! (nz)
@@ -651,6 +655,10 @@ contains
       deallocate(self%H2O_sat_mix)
       deallocate(self%densities)
       deallocate(self%rx_rates)
+      deallocate(self%transport_rates)
+      deallocate(self%advection_rates)
+      deallocate(self%diffusion_rates)
+      deallocate(self%distributed_fluxes)
       deallocate(self%prates)
       deallocate(self%surf_radiance)
       deallocate(self%amean_grd)
@@ -685,6 +693,10 @@ contains
     allocate(self%H2O_sat_mix(nz))
     allocate(self%densities(nsp+1,nz))
     allocate(self%rx_rates(nz,nrT))
+    allocate(self%transport_rates(nq, nz))
+    allocate(self%diffusion_rates(nq, nz))
+    allocate(self%advection_rates(nq, nz))
+    allocate(self%distributed_fluxes(nq, nz))
     allocate(self%prates(nz,kj))
     allocate(self%surf_radiance(nw))
     allocate(self%amean_grd(nz,nw))
@@ -770,5 +782,6 @@ contains
   end subroutine
   
 end module
+
 
 
