@@ -65,7 +65,7 @@ def FormatReactions_main(data):
             if data['species'][i]['name'] == False:
                 data['species'][i]['name'] = "NO"
             
-            order = ['name', 'composition', 'condensate', 'thermo','note']
+            order = ['name', 'composition', 'condensate', 'thermo', 'saturation','note']
             copy = data['species'][i].copy()
             data['species'][i].clear()
             for key in order:
@@ -86,10 +86,17 @@ def FormatReactions_main(data):
                 
                 data['species'][i]['thermo']['data'] = [blockseqtrue(a) for a in blockseqtrue(data['species'][i]['thermo']['data'])]
 
+            if 'saturation' in data['species'][i].keys():
+                flowstyle = ['parameters','vaporization','sublimation','super-critical']
+                for key in flowstyle:
+                    data['species'][i]['saturation'][key] = flowmap(data['species'][i]['saturation'][key])
+
     # Particles
     if 'particles' in data:
         for i in range(len(data['particles'])):
             data['particles'][i]['composition'] = flowmap(data['particles'][i]['composition'])
+            if 'formation' not in data['particles'][i]:
+                continue
             if data['particles'][i]['formation'] == 'reaction':
                 flowstyle = ['rate-constant','low-P-rate-constant','high-P-rate-constant','efficiencies']
                 for key in flowstyle:
