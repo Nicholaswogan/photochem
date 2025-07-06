@@ -14,8 +14,8 @@ For more installation instruction see the "Documentation" section below.
 
 ## Documentation
 
-`Photochem` does not have a formal documentation website. A website will soon be built and linked here. In the mean time, the best available documentation is the following tutorials from a `Photochem` workshop at the University of Arizona: https://github.com/Nicholaswogan/UofA_Photochem_Workshop. Furthermore, there are a few tutorials in the `examples` directory of this repository.
+A `Photochem` documentation website will soon be built and linked here. In the mean time, the best available documentation is the following tutorials from a `Photochem` workshop at the University of Arizona: https://github.com/Nicholaswogan/UofA_Photochem_Workshop. Furthermore, there are a few tutorials in the `examples` directory of this repository.
 
-## History
+## Citation
 
-In the 1980s Kevin Zahnle and Jim Kasting wrote the `Atmos` photochemical model in Fortran 77. An updated version of this code is maintained at [this link](https://github.com/VirtualPlanetaryLaboratory/atmos) by some excellent people at NASA Goddard. In December 2020, I reworked the `Atmos` photochemical model in Fortran 90, and made a Python wrapper to it using `numpy.f2py`. This resulted in [PhotochemPy](https://github.com/Nicholaswogan/PhotochemPy). PhotochemPy has several fundamental limitations that makes it challenging to build upon. So, starting Spring 2021, I began re-writing the model in Modern Fortran (2008) which resulted in this package.
+If you use `Photochem` in a peer-reviewed publication, please cite either [Wogan et al. (2023)](https://doi.org/10.3847/PSJ/aced83) or [Wogan et al. (2024)](https://doi.org/10.3847/2041-8213/ad2616).
