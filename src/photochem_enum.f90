@@ -9,7 +9,16 @@ module photochem_enum
     ShomatePolynomial = 1, &
     Nasa9Polynomial = 2, &
     Nasa7Polynomial = 3
-  
+
+  ! rxtype
+  enumerator :: &
+    ReverseRateType = -1, &
+    PhotolysisRateType = 0, &
+    ElementaryRateType = 1, &
+    ThreeBodyRateType = 2, &
+    FalloffRateType = 3, &
+    PressDependentRateType = 4
+
   ! falloff_type
   enumerator :: &
     NoFalloff = 0, &

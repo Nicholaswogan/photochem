@@ -14,7 +14,7 @@ module photochem_types ! make a giant IO object
   public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
   public :: ProductionLoss, ThermodynamicData, CondensationParameters
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate, PressDependentRate, MultiArrheniusRate
-  public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss
+  public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss, ReverseRate
   public :: SundialsDataFinalizer
   public :: time_dependent_flux_fcn, time_dependent_rate_fcn, binary_diffusion_fcn
   
@@ -184,6 +184,10 @@ module photochem_types ! make a giant IO object
   
   type, abstract :: BaseRate
     integer :: rxtype !! Specifies the types of rate (see enums)
+  end type
+
+  type, extends(BaseRate) :: ReverseRate
+    ! no rate parameters.
   end type
   
   type, extends(BaseRate) :: PhotolysisRate 

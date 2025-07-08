@@ -66,8 +66,10 @@ contains
   end subroutine
   
   subroutine get_rxmechanism(mapping, infile, dat, var, err)
+    use photochem_types, only: ReverseRate
     use photochem_enum, only: CondensingParticle, ReactionParticle
     use photochem_enum, only: MieParticle, FractalParticle 
+    use photochem_enum, only: PhotolysisRateType, ReverseRateType
     use clima_saturationdata, only: SaturationData
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
@@ -462,6 +464,9 @@ contains
           allocate(dat%rx(i)%prod_sp_inds(dat%rx(i)%nprod))
           dat%rx(i)%react_sp_inds = dat%rx(j)%prod_sp_inds
           dat%rx(i)%prod_sp_inds = dat%rx(j)%react_sp_inds
+          
+          allocate(ReverseRate::dat%rx(i)%rp)
+          dat%rx(i)%rp%rxtype = ReverseRateType
 
           k = k + 1
         endif
@@ -522,14 +527,14 @@ contains
     ! photolysis
     dat%kj = 0
     do i = 1, dat%nrF
-      if (dat%rx(i)%rp%rxtype == 0) then
+      if (dat%rx(i)%rp%rxtype == PhotolysisRateType) then
         dat%kj = dat%kj + 1
       endif
     enddo
     allocate(dat%photonums(dat%kj))
     j = 1
     do i = 1, dat%nrF
-      if (dat%rx(i)%rp%rxtype == 0) then
+      if (dat%rx(i)%rp%rxtype == PhotolysisRateType) then
         dat%photonums(j) = i
         j = j + 1
       endif
@@ -996,6 +1001,7 @@ contains
   end subroutine
   
   subroutine reaction_string(dat,rxn,rxstring)
+    use photochem_enum, only: ThreeBodyRateType, FalloffRateType
     type(PhotochemData), intent(in) :: dat
     integer, intent(in) :: rxn
     character(len=:), allocatable, intent(out) :: rxstring
@@ -1014,7 +1020,7 @@ contains
     k = dat%rx(rxn)%react_sp_inds(dat%rx(rxn)%nreact)
     rxstring = rxstring // trim(dat%species_names(k))//' => '
     
-    if (dat%rx(i)%rp%rxtype == 2 .or. dat%rx(i)%rp%rxtype == 3) then
+    if (dat%rx(i)%rp%rxtype == ThreeBodyRateType .or. dat%rx(i)%rp%rxtype == FalloffRateType) then
       rxstring = rxstring(1:len(rxstring)-4) //(' + M'//' => ')
     endif
     
@@ -1025,12 +1031,13 @@ contains
     k = dat%rx(rxn)%prod_sp_inds(dat%rx(rxn)%nprod)
     rxstring = rxstring // trim(dat%species_names(k))
     
-    if (dat%rx(i)%rp%rxtype == 2 .or. dat%rx(i)%rp%rxtype == 3) then
+    if (dat%rx(i)%rp%rxtype == ThreeBodyRateType .or. dat%rx(i)%rp%rxtype == FalloffRateType) then
       rxstring = rxstring //' + M'
     endif
   end subroutine
   
   subroutine compare_rxtype_string(tmp, eqr, eqp, reverse, rxtype_int, err)
+    use photochem_enum, only: PhotolysisRateType, ElementaryRateType, ThreeBodyRateType, FalloffRateType, PressDependentRateType
     character(len=*), intent(in) :: tmp
     character(len=s_str_len), allocatable, intent(in) :: eqr(:), eqp(:)
     logical, intent(in) :: reverse
@@ -1045,15 +1052,15 @@ contains
     kk = .false.
     j = .false.
     jj = .false.
-    if (rxtype_int == 0) then
+    if (rxtype_int == PhotolysisRateType) then
       rxtype = 'photolysis'
-    elseif (rxtype_int == 1) then
+    elseif (rxtype_int == ElementaryRateType) then
       rxtype = 'elementary'
-    elseif (rxtype_int == 2) then
+    elseif (rxtype_int == ThreeBodyRateType) then
       rxtype = 'three-body'
-    elseif (rxtype_int == 3) then
+    elseif (rxtype_int == FalloffRateType) then
       rxtype = 'falloff'
-    elseif (rxtype_int == 4) then
+    elseif (rxtype_int == PressDependentRateType) then
       rxtype = 'pressure-dependent-Arrhenius'
     else
       err = 'Internal error in Photochem involving "compare_rxtype_string". Report this bug!'
@@ -1276,6 +1283,7 @@ contains
   
   subroutine get_reaction_sp_nums(dat, rx_str, rx, reverse, err)
     use photochem_types, only: Reaction
+    use photochem_enum, only: ThreeBodyRateType, FalloffRateType
     type(PhotochemData), intent(in) :: dat
     character(len=*), intent(in) :: rx_str
     type(Reaction), intent(inout) :: rx ! already has rate parameters
@@ -1292,7 +1300,7 @@ contains
     call compare_rxtype_string(rx_str, eqr1, eqp1, reverse, rx%rp%rxtype, err)
     if (allocated(err)) return
     
-    if (rx%rp%rxtype == 2 .or. rx%rp%rxtype == 3) then
+    if (rx%rp%rxtype == ThreeBodyRateType .or. rx%rp%rxtype == FalloffRateType) then
       ! remove the M
       eqr = eqr1(1:size(eqr1)-1)
       eqp = eqp1(1:size(eqp1)-1)
@@ -1365,6 +1373,7 @@ contains
   
   subroutine get_rateparams(dat, reaction_d, infile, rx, err)
     use photochem_enum, only: NoFalloff, TroeWithoutT2Falloff, TroeWithT2Falloff, JPLFalloff
+    use photochem_enum, only: PhotolysisRateType, ElementaryRateType, ThreeBodyRateType, FalloffRateType, PressDependentRateType
     use photochem_types, only: Reaction, BaseRate, ElementaryRate, ThreeBodyRate, FalloffRate, PhotolysisRate, PressDependentRate
     type(PhotochemData), intent(in) :: dat
     class(type_dictionary), intent(in) :: reaction_d
@@ -1385,19 +1394,19 @@ contains
     
     if (rxtype_str == 'photolysis') then
       allocate(PhotolysisRate::rx%rp)
-      rx%rp%rxtype = 0
+      rx%rp%rxtype = PhotolysisRateType
     elseif (rxtype_str == 'elementary') then
       allocate(ElementaryRate::rx%rp)
-      rx%rp%rxtype = 1
+      rx%rp%rxtype = ElementaryRateType
     elseif (rxtype_str == 'three-body') then
       allocate(ThreeBodyRate::rx%rp)
-      rx%rp%rxtype = 2
+      rx%rp%rxtype = ThreeBodyRateType
     elseif (rxtype_str == 'falloff') then
       allocate(FalloffRate::rx%rp)
-      rx%rp%rxtype = 3
+      rx%rp%rxtype = FalloffRateType
     elseif (rxtype_str == 'pressure-dependent-Arrhenius') then
       allocate(PressDependentRate::rx%rp)
-      rx%rp%rxtype = 4
+      rx%rp%rxtype = PressDependentRateType
     else
       err = 'IOError: reaction type '//trim(rxtype_str)//' is not a valid reaction type.'
       return
