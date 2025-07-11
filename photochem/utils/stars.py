@@ -7,6 +7,8 @@ from scipy import constants as const
 import yaml
 import h5py
 from photochem_clima_data import DATA_DIR
+from astroquery.mast import Observations
+from urllib.parse import quote
 
 # Relative imports
 from .youngsun import youngsun
@@ -567,22 +569,40 @@ def download_muscles_spectrum(star_name):
     F : ndarray[ndim=1,double]
         Flux of the stellar spectrum (mW/m^2/nm)
     """    
-    # Download the file
-    for i in [22,23,24,25,26]:
-        url = 'https://archive.stsci.edu/missions/hlsp/muscles/'+star_name.lower()+ \
-        '/hlsp_muscles_multi_multi_'+star_name.lower()+'_broadband_v'+str(i)+'_adapt-const-res-sed.fits'
-        response = requests.get(url)
-        if response.status_code == 200:
+    # Look for the spectrum of interest
+    all_obs = Observations.query_criteria(
+        provenance_name="muscles",
+        objectname=star_name,
+    )
+    data_products = Observations.get_product_list(all_obs)
+
+    # Look through the results for the spectrum we want.
+    tmp = None
+    for i,a in enumerate(data_products['productFilename']):
+        if 'adapt-const-res-sed' in a and '_'+star_name.lower()+'_' in a:
+            tmp = data_products[i]
             break
-            
-    # Error if download didn't work.
+
+    # If we didn't find it, then we report a problem
+    if tmp is None:
+        raise Exception('Failed to download '+star_name+' from MUSCLES')
+
+    # Build the URL
+    uri = tmp['dataURI']
+    base_url = Observations._portal_api_connection.MAST_DOWNLOAD_URL
+    url = base_url + "?uri=" + quote(uri, safe=":/")
+
+    # Download
+    response = requests.get(url)
     if response.status_code != 200:
         raise Exception('Failed to download '+star_name+' from MUSCLES')
-    
+
+    # Read the download  
     with tempfile.TemporaryFile() as f:
         f.write(response.content)
         data = fits.getdata(f)
 
+    # Get the spectrum
     wv = data['WAVELENGTH']/10 # convert from Angstroms to nm
     # (erg/cm2/s/Ang)*(1 W/1e7 erg)*(1e3 mW/1 W)*(1e4 cm^2/1 m^2)*(10 Ang/1 nm) = mW/m^2/nm
     F = data['FLUX']*(1/1e7)*(1e3/1)*(1e4/1)*(10/1) # convert from erg/cm2/s/Ang to mW/m^2/nm
