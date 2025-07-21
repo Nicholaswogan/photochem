@@ -1911,7 +1911,7 @@ contains
       return
     endif
 
-    call h%open(filename)
+    call h%open(filename,'r')
 
     call check_h5_dataset(h, 'wavl', 1, H5T_FLOAT_F, filename, err)
     if (allocated(err)) then
