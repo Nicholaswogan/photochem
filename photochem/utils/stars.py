@@ -7,6 +7,8 @@ from scipy import constants as const
 import yaml
 import h5py
 from photochem_clima_data import DATA_DIR
+from astroquery.mast import Observations
+from urllib.parse import quote
 
 # Relative imports
 from .youngsun import youngsun
@@ -551,7 +553,7 @@ TRAPPIST-1: {st_logg: 5.24, st_met: 0.053, st_rad: 0.12, st_teff: 2566.0}
 ### MUSCLES spectra (https://archive.stsci.edu/prepds/muscles/)
 ###
 
-def download_muscles_spectrum(star_name):
+def download_muscles_spectrum(star_name, verbose):
     """Downloads a MUSCLES spectrum, then returns the wavelength
     and flux values in photochem units.
 
@@ -567,22 +569,43 @@ def download_muscles_spectrum(star_name):
     F : ndarray[ndim=1,double]
         Flux of the stellar spectrum (mW/m^2/nm)
     """    
-    # Download the file
-    for i in [22,23,24,25,26]:
-        url = 'https://archive.stsci.edu/missions/hlsp/muscles/'+star_name.lower()+ \
-        '/hlsp_muscles_multi_multi_'+star_name.lower()+'_broadband_v'+str(i)+'_adapt-const-res-sed.fits'
-        response = requests.get(url)
-        if response.status_code == 200:
+    # Look for the spectrum of interest
+    all_obs = Observations.query_criteria(
+        provenance_name="muscles",
+        objectname=star_name,
+    )
+    data_products = Observations.get_product_list(all_obs)
+
+    # Look through the results for the spectrum we want.
+    tmp = None
+    for i,a in enumerate(data_products['productFilename']):
+        if 'adapt-const-res-sed' in a and '_'+star_name.lower()+'_' in a:
+            tmp = data_products[i]
             break
-            
-    # Error if download didn't work.
+
+    # If we didn't find it, then we report a problem
+    if tmp is None:
+        raise Exception('Failed to download '+star_name+' from MUSCLES')
+
+    # Build the URL
+    uri = tmp['dataURI']
+    base_url = Observations._portal_api_connection.MAST_DOWNLOAD_URL
+    url = base_url + "?uri=" + quote(uri, safe=":/")
+
+    if verbose:
+        print('Downloading the spectrum at the following URL: '+url)
+
+    # Download
+    response = requests.get(url)
     if response.status_code != 200:
         raise Exception('Failed to download '+star_name+' from MUSCLES')
-    
+
+    # Read the download  
     with tempfile.TemporaryFile() as f:
         f.write(response.content)
         data = fits.getdata(f)
 
+    # Get the spectrum
     wv = data['WAVELENGTH']/10 # convert from Angstroms to nm
     # (erg/cm2/s/Ang)*(1 W/1e7 erg)*(1e3 mW/1 W)*(1e4 cm^2/1 m^2)*(10 Ang/1 nm) = mW/m^2/nm
     F = data['FLUX']*(1/1e7)*(1e3/1)*(1e4/1)*(10/1) # convert from erg/cm2/s/Ang to mW/m^2/nm
@@ -593,7 +616,7 @@ def download_muscles_spectrum(star_name):
 
     return wv, F
 
-def get_muscles_spectrum(star_name, nwb=1000):
+def get_muscles_spectrum(star_name, verbose, nwb=1000):
     """Downloads a MUSCLES spectrum, then adds on a blackbody extending
     the star to 100 microns, and finally rescale the spectrum so that it has
     a total energy consistent with the effective temperature. Returns the 
@@ -624,7 +647,7 @@ def get_muscles_spectrum(star_name, nwb=1000):
     Teff = MUSCLES_STARS[star_name]['st_teff']
 
     # Download
-    wv, F = download_muscles_spectrum(star_name)
+    wv, F = download_muscles_spectrum(star_name, verbose)
         
     # Tack on a blackbody to extend the spectrum to 100 um
     wv, F = append_blackbody_to_stellar_spectrum(wv, F, Teff, wv_end=100e3, nwb=nwb)
@@ -635,7 +658,7 @@ def get_muscles_spectrum(star_name, nwb=1000):
 
     return wv, F
 
-def muscles_spectrum(star_name, outputfile=None, Teq=None, stellar_flux=None, needed_resolution=True):
+def muscles_spectrum(star_name, outputfile=None, Teq=None, stellar_flux=None, needed_resolution=True, verbose=True):
     """Downloads a MUSCLES spectrum (https://archive.stsci.edu/prepds/muscles/), 
     then adds on a blackbody extending the star to 100 microns, and finally 
     rescale the spectrum so that it has a total bolometric insolation at a planet 
@@ -656,10 +679,12 @@ def muscles_spectrum(star_name, outputfile=None, Teq=None, stellar_flux=None, ne
         If True, then the spectrum is rebinned to a resolution 4x higher than
         What is used by the photochemical and climate models which should be
         an adequately high resolution, by default True.
+    verbose: bool, optional
+        If True, then some information will be printed.
     """
     
     # Download the spectrum
-    wv, F = get_muscles_spectrum(star_name, 1000)
+    wv, F = get_muscles_spectrum(star_name, verbose, 1000)
 
     # Rescale to planet
     F = scale_spectrum_to_planet(wv, F, Teq, stellar_flux)
