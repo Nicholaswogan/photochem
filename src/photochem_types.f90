@@ -10,7 +10,7 @@ module photochem_types ! make a giant IO object
   private
   
   public :: PhotoSettings, SettingsBC
-  public :: XsectionData
+  public :: XsectionData, ConservationFluxes
   public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
   public :: ProductionLoss, ThermodynamicData, CondensationParameters
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate, PressDependentRate, MultiArrheniusRate
@@ -146,6 +146,21 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: integrated_loss(:)
     character(len=m_str_len), allocatable :: production_rx(:)
     character(len=m_str_len), allocatable :: loss_rx(:)
+  end type
+
+  type :: ConservationFluxes
+    real(dp), allocatable :: chemical_production(:) ! nq
+    real(dp), allocatable :: chemical_loss(:) 
+    real(dp), allocatable :: rainout(:)
+    real(dp), allocatable :: special_H2O(:)
+    real(dp), allocatable :: condensation(:)
+    real(dp), allocatable :: evaporation(:)
+    real(dp), allocatable :: custom_rates(:)
+    real(dp), allocatable :: lower_boundary(:)
+    real(dp), allocatable :: upper_boundary(:)
+    real(dp), allocatable :: net_flux(:)
+    real(dp), allocatable :: columns(:)
+    real(dp), allocatable :: timescale_of_change(:)
   end type
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

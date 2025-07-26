@@ -1233,6 +1233,329 @@ contains
     
   end subroutine
 
+  module subroutine conservation_fluxes(self, fluxes, col_mix_tol, err)
+    use photochem_types, only: ConservationFluxes
+    use photochem_enum, only: CondensingParticle
+    use photochem_const, only: N_avo, pi, small_real, T_crit_H2O
+    use photochem_common, only: chempl_sl, chempl
+    use photochem_eqns, only: damp_condensation_rate
+
+    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
+    use photochem_enum, only: ZahnleHydrogenEscape
+    use iso_c_binding, only: c_ptr, c_f_pointer
+    use, intrinsic :: ieee_arithmetic, only: ieee_positive_inf, ieee_value
+    ! use photochem_const, only: pi, small_real  
+
+    class(EvoAtmosphere), target, intent(inout) :: self
+    type(ConservationFluxes), intent(out) :: fluxes
+    real(dp), intent(in) :: col_mix_tol
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: surf_fluxes(:), top_fluxes(:)
+    real(dp) :: cond_rate0, rh, dn_gas_dt, dn_particle_dt, cond_rate
+    real(dp) :: disth, ztop, ztop1    
+    integer :: i, j, k, ii, jdisth
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+    
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+
+    allocate(fluxes%chemical_production(dat%nq))
+    fluxes%chemical_production = 0.0_dp
+    allocate(fluxes%chemical_loss(dat%nq))
+    fluxes%chemical_loss = 0.0_dp
+    allocate(fluxes%rainout(dat%nq))
+    fluxes%rainout = 0.0_dp
+    allocate(fluxes%special_H2O(dat%nq))
+    fluxes%special_H2O = 0.0_dp
+    allocate(fluxes%condensation(dat%nq))
+    fluxes%condensation = 0.0_dp
+    allocate(fluxes%evaporation(dat%nq))
+    fluxes%evaporation = 0.0_dp
+    allocate(fluxes%custom_rates(dat%nq))
+    fluxes%custom_rates = 0.0_dp
+    allocate(fluxes%lower_boundary(dat%nq))
+    fluxes%lower_boundary = 0.0_dp
+    allocate(fluxes%upper_boundary(dat%nq))
+    fluxes%upper_boundary = 0.0_dp
+    allocate(fluxes%net_flux(dat%nq))
+    fluxes%net_flux = 0.0_dp
+    allocate(fluxes%columns(dat%nq))
+    fluxes%columns = 0.0_dp
+    allocate(fluxes%timescale_of_change(dat%nq))
+    fluxes%timescale_of_change = 0.0_dp
+
+    ! call prep_all_evo_gas(self, wrk%usol, err)
+    ! if (allocated(err)) return
+    allocate(surf_fluxes(dat%nq))
+    allocate(top_fluxes(dat%nq))
+    call self%gas_fluxes(surf_fluxes, top_fluxes, err)
+    if (allocated(err)) return
+
+    !!! START OF DOCHEM
+
+    do j = 1,var%nz
+      wrk%mix(:,j) = wrk%usol(:,j)/wrk%density(j)
+    enddo
+
+    do j = 1,var%nz
+      do i = 1,dat%npq
+        wrk%densities(i,j) = max(wrk%usol(i,j)*(1.0_dp/wrk%molecules_per_particle(i,j)), small_real)
+      enddo
+      do i = dat%ng_1,dat%nq
+        wrk%densities(i,j) = wrk%usol(i,j)
+      enddo
+      wrk%densities(dat%nsp+1,j) = 1.0_dp ! for hv
+    enddo
+
+    ! short lived
+    do k = dat%nq+1,dat%nq+dat%nsl
+      call chempl_sl(self%dat, self%var, wrk%densities, wrk%rx_rates, k, wrk%xp, wrk%xl) 
+      wrk%densities(k,:) = wrk%xp/wrk%xl
+    enddo
+
+    ! long lived              
+    do i = dat%ng_1,dat%nq
+      call chempl(self%dat, self%var, wrk%densities, wrk%rx_rates, i, wrk%xp, wrk%xl)
+      fluxes%chemical_production(i) = sum(wrk%xp*var%dz)
+      fluxes%chemical_loss(i) = - sum(wrk%xl*var%dz)
+    enddo
+
+    if (dat%gas_rainout) then
+      ! rainout rates
+      do j = 1,var%trop_ind
+        do i = 1,dat%nq
+          fluxes%rainout(i) = fluxes%rainout(i) - wrk%rainout_rates(i,j)*wrk%usol(i,j)*var%dz(j)
+        enddo
+      enddo
+    endif
+
+    if (dat%fix_water_in_trop) then
+      do j = 1,var%trop_ind
+        fluxes%special_H2O(dat%LH2O) = fluxes%special_H2O(dat%LH2O) + &
+          var%fast_arbitrary_rate*(wrk%density(j)*wrk%H2O_sat_mix(j)*wrk%H2O_rh(j) - wrk%usol(dat%LH2O,j))*var%dz(j)
+      enddo
+    endif
+    if (dat%water_cond) then
+      if (dat%fix_water_in_trop) then
+        i = var%trop_ind+1
+      else
+        i = 1
+      endif
+      do j = i,var%nz
+        if (var%temperature(j) < T_crit_H2O) then
+          ! water will condense if it is below the critical point.
+
+          ! compute the relative humidity
+          rh = max(wrk%mix(dat%LH2O,j)/wrk%H2O_sat_mix(j),small_real)
+
+          if (rh > var%H2O_cond_params%RHc) then
+            
+            cond_rate0 = var%H2O_cond_params%k_cond*(var%edd(j)/wrk%scale_height(j)**2.0_dp)
+            cond_rate = damp_condensation_rate(cond_rate0, &
+                                               var%H2O_cond_params%RHc, &
+                                               (1.0_dp + var%H2O_cond_params%smooth_factor)*var%H2O_cond_params%RHc, &
+                                               rh)
+            
+            ! Rate H2O gas is destroyed (molecules/cm^3/s)
+            dn_gas_dt = - cond_rate*wrk%usol(dat%LH2O,j)
+            fluxes%special_H2O = fluxes%special_H2O + dn_gas_dt*var%dz(j)
+            
+          endif
+        endif
+      enddo
+    endif
+
+    if (dat%there_are_particles) then
+      ! formation from reaction
+      do i = 1,dat%np
+        call chempl(self%dat, self%var, wrk%densities, wrk%rx_rates, i, wrk%xp, wrk%xl)
+        fluxes%chemical_production(i) = sum(wrk%xp*var%dz)
+        fluxes%chemical_loss(i) = - sum(wrk%xl*var%dz)
+      enddo
+
+      ! 4 numbers for each condensing species.
+      ! condensation rate coefficient ~ 100.0
+      ! evaporation rate coefficient ~ 10.0
+      ! RH of condensation ~ 1.0
+      ! RH smoothing factor ~ 0.1
+    
+      ! particle condensation
+      do j = 1,var%nz
+        do i = 1,dat%np
+          ! if this particle forms from condensation
+          if (dat%particle_formation_method(i) == CondensingParticle) then
+            ii = dat%particle_gas_phase_ind(i) ! index of gas phase
+            ! kk = ii + (j - 1) * dat%nq ! gas phase rhs index
+            ! k = i + (j - 1) * dat%nq ! particle rhs index
+
+            ! compute the relative humidity
+            rh = max(wrk%usol(ii,j)/wrk%gas_sat_den(i,j),small_real)
+
+            if (rh > var%cond_params(i)%RHc) then
+              ! Condensation occurs
+
+              ! Condensation rate is based on how rapidly gases are mixing
+              ! in the atmosphere. We also smooth the rate to prevent stiffness.
+              cond_rate0 = var%cond_params(i)%k_cond*(var%edd(j)/wrk%scale_height(j)**2.0_dp)
+              cond_rate = damp_condensation_rate(cond_rate0, &
+                                                 var%cond_params(i)%RHc, &
+                                                 (1.0_dp + var%cond_params(i)%smooth_factor)*var%cond_params(i)%RHc, &
+                                                 rh)
+            
+              ! Rate gases are being destroyed (molecules/cm^3/s)
+              dn_gas_dt = - cond_rate*wrk%usol(ii,j)
+              ! rhs(kk) = rhs(kk) + dn_gas_dt   
+              fluxes%condensation(ii) = fluxes%condensation(ii) + dn_gas_dt*var%dz(j)
+            
+              ! Rate particles are being produced (molecules/cm^3/s)
+              dn_particle_dt = - dn_gas_dt
+              ! rhs(k) = rhs(k) + dn_particle_dt
+              fluxes%condensation(i) = fluxes%condensation(i) + dn_particle_dt*var%dz(j)
+
+            elseif (rh <= var%cond_params(i)%RHc .and. var%evaporation) then
+              ! Evaporation occurs
+
+              ! Evaporation rate is based on how rapidly particles are falling
+              ! in the atmosphere. We also smooth the rate to prevent stiffness.
+              cond_rate0 = var%cond_params(i)%k_evap*(wrk%wfall(i,j)/wrk%scale_height(j))
+              cond_rate = damp_condensation_rate(cond_rate0, &
+                                                 1.0_dp/var%cond_params(i)%RHc, &
+                                                 (1.0_dp + var%cond_params(i)%smooth_factor)/var%cond_params(i)%RHc, &
+                                                 1.0_dp/rh)
+
+              ! Rate gases are being produced (molecules/cm^3/s)                   
+              dn_gas_dt = cond_rate*wrk%usol(i,j)
+              ! rhs(kk) = rhs(kk) + dn_gas_dt
+              fluxes%evaporation(ii) = fluxes%evaporation(ii) + dn_gas_dt*var%dz(j)
+
+              ! Rate particles are being destroyed (molecules/cm^3/s)
+              dn_particle_dt = - dn_gas_dt
+              ! rhs(k) = rhs(k) + dn_particle_dt
+              fluxes%evaporation(i) = fluxes%evaporation(i) + dn_particle_dt*var%dz(j)
+
+            endif
+          endif          
+        enddo
+      enddo
+      
+    endif
+
+    !!! END OF DOCHEM
+
+    ! Extra functions specifying production or destruction
+    do i = 1,dat%nq
+      if (associated(var%rate_fcns(i)%fcn)) then
+        call var%rate_fcns(i)%fcn(wrk%tn, var%nz, wrk%xp) ! using wrk%xp space.
+        fluxes%custom_rates(i) = sum(wrk%xp*var%dz)
+      endif
+    enddo
+
+    ! ! diffusion (interior grid points)
+    ! do j = 2,var%nz-1
+    !   do i = 1,dat%nq
+    !     k = i + (j-1)*dat%nq
+    !     rhs(k) = rhs(k) + wrk%DU(i,j)*wrk%usol(i,j+1) + wrk%ADU(i,j)*wrk%usol(i,j+1) &
+    !                     + wrk%DD(i,j)*wrk%usol(i,j) + wrk%ADD(i,j)*wrk%usol(i,j) &
+    !                     + wrk%DL(i,j)*wrk%usol(i,j-1) + wrk%ADL(i,j)*wrk%usol(i,j-1)
+    !   enddo
+    ! enddo
+    
+    ! Lower boundary
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == VelocityBC .or. &
+          var%lowerboundcond(i) == VelocityDistributedFluxBC) then
+        fluxes%lower_boundary(i) = - wrk%lower_vdep_copy(i)*wrk%usol(i,1)
+      elseif (var%lowerboundcond(i) == DensityBC .or. &
+              var%lowerboundcond(i) == PressureBC) then
+        fluxes%lower_boundary(i) = surf_fluxes(i)
+      elseif (var%lowerboundcond(i) == FluxBC) then
+        fluxes%lower_boundary(i) = var%lower_flux(i)
+      ! Moses (2001) boundary condition for gas giants
+      ! A deposition velocity controled by how quickly gases
+      ! turbulantly mix vertically
+      elseif (var%lowerboundcond(i) == MosesBC) then
+        fluxes%lower_boundary(i) = - (var%edd(1)/wrk%scale_height(1))*wrk%usol(i,1)
+      endif
+    enddo
+
+    ! Upper boundary
+    do i = 1,dat%nq
+      if (var%upperboundcond(i) == VelocityBC) then
+        fluxes%upper_boundary(i) = - wrk%upper_veff_copy(i)*wrk%usol(i,var%nz)
+      elseif (var%upperboundcond(i) == FluxBC) then
+        fluxes%upper_boundary(i) = - var%upper_flux(i)
+      endif
+    enddo
+
+    ! Distributed (volcanic) sources
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == VelocityDistributedFluxBC) then
+        disth = var%lower_dist_height(i)*1.e5_dp        
+        if (disth < var%z(1) - 0.5_dp*var%dz(1)) then
+        ! If the height is below the model domain, then we will put all flux into
+        ! lowest layer.
+        ! rhs(i) = rhs(i) + var%lower_flux(i)/var%dz(1)
+        fluxes%lower_boundary(i) = fluxes%lower_boundary(i) + var%lower_flux(i)
+        else
+        ! If the height is within the model domain, then we will distribute the flux
+        ! throught the model.
+        jdisth = minloc(var%Z,1, var%Z >= disth) - 1
+        jdisth = max(jdisth,2)
+        ztop = var%z(jdisth)-var%z(1)
+        ztop1 = var%z(jdisth) + 0.5e0_dp*var%dz(jdisth)
+        do j = 2,jdisth
+          k = i + (j-1)*dat%nq
+          ! rhs(k) = rhs(k) + 2.0_dp*var%lower_flux(i)*(ztop1-var%z(j))/(ztop**2.0_dp)
+          fluxes%lower_boundary(i) = fluxes%lower_boundary(i) &
+            + (2.0_dp*var%lower_flux(i)*(ztop1-var%z(j))/(ztop**2.0_dp))*var%dz(j)
+        enddo
+        endif
+      endif
+    enddo 
+
+    ! zahnle hydrogen escape
+    if (dat%H_escape_type == ZahnleHydrogenEscape) then
+
+      ! for Zahnle hydrogen escape, we pull H2 out of 
+      ! the bottom grid cell of the model.
+
+      ! rhs(dat%LH2) = rhs(dat%LH2) &
+      ! - dat%H_escape_coeff*wrk%mix(dat%LH2,1)/var%dz(1)
+      fluxes%lower_boundary(dat%LH2) = fluxes%lower_boundary(dat%LH2) + (- dat%H_escape_coeff*wrk%mix(dat%LH2,1))
+      
+    endif
+
+
+    ! add up all fluxes
+    fluxes%net_flux = &
+      fluxes%chemical_production + &
+      fluxes%chemical_loss + &
+      fluxes%rainout + &
+      fluxes%special_H2O + &
+      fluxes%condensation + &
+      fluxes%evaporation + &
+      fluxes%custom_rates + &
+      fluxes%lower_boundary + &
+      fluxes%upper_boundary
+
+    do i = 1,dat%nq
+      fluxes%columns(i) = sum(wrk%usol(i,:)*var%dz)
+    enddo
+    do i = 1,dat%nq
+      if (fluxes%columns(i)/sum(fluxes%columns) > col_mix_tol) then
+        fluxes%timescale_of_change(i) = abs(fluxes%columns(i)/fluxes%net_flux(i)) ! (molecules/cm^2) / (molecules/cm^2/s) = s
+      else
+        fluxes%timescale_of_change(i) = 1.0e100_dp ! effectively infinity
+      endif
+    enddo
+
+  end subroutine
+
 end submodule
 
 

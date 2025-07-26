@@ -623,6 +623,18 @@ cdef class EvoAtmosphere:
     pl._ptr = pl_ptr
     return pl
 
+  def conservation_fluxes(self, double col_mix_tol = 1.0e-10):
+
+    cdef char err[ERR_LEN+1]
+    
+    cdef pl_pxd.ConservationFluxes *f_ptr
+    ea_pxd.evoatmosphere_conservation_fluxes_wrapper(self._ptr, &f_ptr, &col_mix_tol, err)
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+    f = ConservationFluxes()
+    f._ptr = f_ptr
+    return f
+
   def mole_fraction_dict(self):
     """Makes a dictionary describing the atmospheric composition and structure
     using the densities in `self.wrk.usol`

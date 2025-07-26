@@ -551,6 +551,32 @@
     endif
   end subroutine
 
+  subroutine evoatmosphere_conservation_fluxes_wrapper(ptr, f_ptr, col_mix_tol, err) bind(c)
+    use photochem_types, only: ConservationFluxes
+    type(c_ptr), value, intent(in) :: ptr
+    type(c_ptr), intent(out) :: f_ptr
+    real(c_double), intent(in) :: col_mix_tol
+    character(kind=c_char), intent(out) :: err(err_len+1)
+    
+    character(:), allocatable :: err_f
+    type(EvoAtmosphere), pointer :: pc
+    type(ConservationFluxes), pointer :: f
+    
+    call c_f_pointer(ptr, pc)
+    allocate(f)
+    
+    call pc%conservation_fluxes(f, col_mix_tol, err_f)
+    if (allocated(err_f)) then
+      deallocate(f)
+    else
+      f_ptr = c_loc(f)
+    endif
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif
+  end subroutine
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! getters and setters !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!

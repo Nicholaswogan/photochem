@@ -82,6 +82,7 @@ module photochem_evoatmosphere
     procedure :: update_vertical_grid
     procedure :: rebin_update_vertical_grid
     procedure :: regrid_prep_atmosphere
+    procedure :: conservation_fluxes
 
   end type
   interface EvoAtmosphere
@@ -173,6 +174,15 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: usol(:,:)
       type(ProductionLoss), intent(out) :: pl
       character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    module subroutine conservation_fluxes(self, fluxes, col_mix_tol, err)
+      use photochem_types, only: ConservationFluxes
+      class(EvoAtmosphere), target, intent(inout) :: self
+      type(ConservationFluxes), intent(out) :: fluxes
+      real(dp), intent(in) :: col_mix_tol
+      character(:), allocatable, intent(out) :: err
+
     end subroutine
 
     !~~ photochem_evoatmosphere_integrate.f90 ~~!

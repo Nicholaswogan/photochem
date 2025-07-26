@@ -243,12 +243,20 @@ contains
 
   subroutine test_production_and_loss(pc)
     use photochem, only: ProductionLoss
+    use photochem_types, only: ConservationFluxes
     type(EvoAtmosphere), intent(inout) :: pc
     character(:), allocatable :: err
     
     type(ProductionLoss) :: pl
+    type(ConservationFluxes) :: fluxes
     
     call pc%production_and_loss("HCN", pc%wrk%usol, pl, err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    call pc%conservation_fluxes(fluxes, 1.0e-10_dp, err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1

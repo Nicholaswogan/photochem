@@ -78,3 +78,109 @@ cdef class ProductionLoss:
       pl_pxd.productionloss_loss_rx_get(self._ptr, &dim1, <char *>names_c.data)
       return c2stringarr(names_c, M_STR_LEN, dim1)
   
+cdef class ConservationFluxes:
+
+  cdef pl_pxd.ConservationFluxes *_ptr
+
+  def __cinit__(self):
+    self._ptr = NULL
+
+  def __dealloc__(self):
+    pl_pxd.deallocate_conservationfluxes(self._ptr)
+    self._ptr = NULL 
+
+  property chemical_production:
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.conservationfluxes_chemical_production_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty((dim1), np.double)
+      pl_pxd.conservationfluxes_chemical_production_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+  
+  property chemical_loss:
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.conservationfluxes_chemical_loss_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty((dim1), np.double)
+      pl_pxd.conservationfluxes_chemical_loss_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property rainout:
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.conservationfluxes_rainout_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty((dim1), np.double)
+      pl_pxd.conservationfluxes_rainout_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property special_H2O:
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.conservationfluxes_special_h2o_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty((dim1), np.double)
+      pl_pxd.conservationfluxes_special_h2o_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property condensation:
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.conservationfluxes_condensation_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty((dim1), np.double)
+      pl_pxd.conservationfluxes_condensation_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property evaporation:
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.conservationfluxes_evaporation_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty((dim1), np.double)
+      pl_pxd.conservationfluxes_evaporation_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property custom_rates:
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.conservationfluxes_custom_rates_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty((dim1), np.double)
+      pl_pxd.conservationfluxes_custom_rates_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property lower_boundary:
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.conservationfluxes_lower_boundary_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty((dim1), np.double)
+      pl_pxd.conservationfluxes_lower_boundary_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property upper_boundary:
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.conservationfluxes_upper_boundary_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty((dim1), np.double)
+      pl_pxd.conservationfluxes_upper_boundary_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property net_flux:
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.conservationfluxes_net_flux_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty((dim1), np.double)
+      pl_pxd.conservationfluxes_net_flux_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property columns:
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.conservationfluxes_columns_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty((dim1), np.double)
+      pl_pxd.conservationfluxes_columns_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property timescale_of_change:
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.conservationfluxes_timescale_of_change_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty((dim1), np.double)
+      pl_pxd.conservationfluxes_timescale_of_change_get(self._ptr, &dim1, <double *>arr.data)
+      return arr

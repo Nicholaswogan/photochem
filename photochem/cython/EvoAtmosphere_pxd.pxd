@@ -64,6 +64,9 @@ cdef extern void evoatmosphere_robust_step_wrapper(EvoAtmosphere *ptr, bool *giv
 cdef extern void evoatmosphere_production_and_loss_wrapper(EvoAtmosphere *ptr, char *species, int *nq, 
                                                         int *nz, double *usol, pl_pxd.ProductionLoss **pl_ptr, char *err)
 
+cdef extern void evoatmosphere_conservation_fluxes_wrapper(EvoAtmosphere *ptr, pl_pxd.ConservationFluxes **f_ptr, double *col_mix_tol, char *err)
+
+
 # getters and setters
 cdef extern void evoatmosphere_t_surf_get(EvoAtmosphere *ptr, double *val)
 cdef extern void evoatmosphere_t_surf_set(EvoAtmosphere *ptr, double *val)
