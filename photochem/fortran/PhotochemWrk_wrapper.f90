@@ -202,42 +202,6 @@
     arr = wrk%transport_rates
   end subroutine
 
-  subroutine photochemwrk_advection_rates_get_size(ptr, dim1, dim2) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    integer(c_int), intent(out) :: dim1, dim2
-    type(PhotochemWrk), pointer :: wrk
-    call c_f_pointer(ptr, wrk)
-    dim1 = size(wrk%advection_rates,1)
-    dim2 = size(wrk%advection_rates,2)
-  end subroutine
-  
-  subroutine photochemwrk_advection_rates_get(ptr, dim1, dim2, arr) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    integer(c_int), intent(in) :: dim1, dim2
-    real(c_double), intent(out) :: arr(dim1, dim2)
-    type(PhotochemWrk), pointer :: wrk
-    call c_f_pointer(ptr, wrk)
-    arr = wrk%advection_rates
-  end subroutine
-
-  subroutine photochemwrk_diffusion_rates_get_size(ptr, dim1, dim2) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    integer(c_int), intent(out) :: dim1, dim2
-    type(PhotochemWrk), pointer :: wrk
-    call c_f_pointer(ptr, wrk)
-    dim1 = size(wrk%diffusion_rates,1)
-    dim2 = size(wrk%diffusion_rates,2)
-  end subroutine
-  
-  subroutine photochemwrk_diffusion_rates_get(ptr, dim1, dim2, arr) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    integer(c_int), intent(in) :: dim1, dim2
-    real(c_double), intent(out) :: arr(dim1, dim2)
-    type(PhotochemWrk), pointer :: wrk
-    call c_f_pointer(ptr, wrk)
-    arr = wrk%diffusion_rates
-  end subroutine
-
   subroutine photochemwrk_rainout_rates_get_size(ptr, dim1, dim2) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1, dim2

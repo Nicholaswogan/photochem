@@ -795,22 +795,12 @@ contains
     do j = 2,var%nz-1
       do i = 1,dat%nq
         k = i + (j-1)*dat%nq
-        rhs(k) = rhs(k) + wrk%DU(i,j)*wrk%usol(i,j+1) + wrk%ADU(i,j)*wrk%usol(i,j+1) &
-                        + wrk%DD(i,j)*wrk%usol(i,j) + wrk%ADD(i,j)*wrk%usol(i,j) &
-                        + wrk%DL(i,j)*wrk%usol(i,j-1) + wrk%ADL(i,j)*wrk%usol(i,j-1)
-
+  
         wrk%transport_rates(i, j) = wrk%DU(i,j)*wrk%usol(i,j+1) + wrk%ADU(i,j)*wrk%usol(i,j+1) &
         + wrk%DD(i,j)*wrk%usol(i,j) + wrk%ADD(i,j)*wrk%usol(i,j) &
         + wrk%DL(i,j)*wrk%usol(i,j-1) + wrk%ADL(i,j)*wrk%usol(i,j-1)
 
-        wrk%advection_rates(i, j) =  wrk%ADU(i,j)*wrk%usol(i,j+1) &
-        + wrk%ADD(i,j)*wrk%usol(i,j) &
-        + wrk%ADL(i,j)*wrk%usol(i,j-1)
-
-        wrk%diffusion_rates(i, j) = wrk%DU(i,j)*wrk%usol(i,j+1) &
-        + wrk%DD(i,j)*wrk%usol(i,j) &
-        + wrk%DL(i,j)*wrk%usol(i,j-1) 
-
+        rhs(k) = rhs(k) + wrk%transport_rates(i, j)
 
       enddo
     enddo
@@ -821,23 +811,47 @@ contains
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == VelocityBC .or. &
           var%lowerboundcond(i) == VelocityDistributedFluxBC) then
-        rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
-                        + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
-                        - wrk%lower_vdep_copy(i)*wrk%usol(i,1)/var%dz(1)
+
+        wrk%transport_rates(i, 1) = &
+            wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
+          + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
+          - wrk%lower_vdep_copy(i)*wrk%usol(i,1)/var%dz(1)
+
+        rhs(i) = rhs(i) + wrk%transport_rates(i, 1) 
       elseif (var%lowerboundcond(i) == DensityBC .or. &
               var%lowerboundcond(i) == PressureBC) then
+
+        ! surface flux is molecules required to sustain the lower boundary
+    ! chemical production + diffusion production = total change in lower cell    
+
+      wrk%transport_rates(i, 1)  = &
+          !diffusion production
+          wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
+        + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
+        ! chemical production 
+        + rhs(i)
+                            
         rhs(i) = 0.0_dp
       elseif (var%lowerboundcond(i) == FluxBC) then
-        rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
-                        + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
-                        + var%lower_flux(i)/var%dz(1)
+
+        wrk%transport_rates(i, 1) = &
+            wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
+          + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
+          + var%lower_flux(i)/var%dz(1)
+
+        rhs(i) = rhs(i) + wrk%transport_rates(i, 1)
+
       ! Moses (2001) boundary condition for gas giants
       ! A deposition velocity controled by how quickly gases
       ! turbulantly mix vertically
       elseif (var%lowerboundcond(i) == MosesBC) then
-        rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
-                        + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
-                        - (var%edd(1)/wrk%scale_height(1))*wrk%usol(i,1)/var%dz(1)
+        
+        wrk%transport_rates(i, 1) = &
+            wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
+          + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
+          - (var%edd(1)/wrk%scale_height(1))*wrk%usol(i,1)/var%dz(1)
+
+        rhs(i) = rhs(i) + wrk%transport_rates(i, 1)
       endif
     enddo
 
@@ -845,13 +859,21 @@ contains
     do i = 1,dat%nq
       k = i + (var%nz-1)*dat%nq
       if (var%upperboundcond(i) == VelocityBC) then
-        rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
-                        + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
-                        - wrk%upper_veff_copy(i)*wrk%usol(i,var%nz)/var%dz(var%nz)    
+
+        wrk%transport_rates(i, var%nz) = &
+            wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
+          + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
+          - wrk%upper_veff_copy(i)*wrk%usol(i,var%nz)/var%dz(var%nz)  
+
+        rhs(k) = rhs(k) + wrk%transport_rates(i, var%nz) 
+
       elseif (var%upperboundcond(i) == FluxBC) then
-        rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
-                        + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
-                        - var%upper_flux(i)/var%dz(var%nz)
+
+        wrk%transport_rates(i, var%nz)  = & 
+            wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
+          + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
+          - var%upper_flux(i)/var%dz(var%nz)
+        rhs(k) = rhs(k) + wrk%transport_rates(i, var%nz)
       endif
     enddo
 
@@ -872,9 +894,8 @@ contains
         ztop1 = var%z(jdisth) + 0.5e0_dp*var%dz(jdisth)
         do j = 2,jdisth
           k = i + (j-1)*dat%nq
-          rhs(k) = rhs(k) + 2.0_dp*var%lower_flux(i)*(ztop1-var%z(j))/(ztop**2.0_dp)
-
           wrk%distributed_fluxes(i, j) = 2.0_dp*var%lower_flux(i)*(ztop1-var%z(j))/(ztop**2.0_dp)
+          rhs(k) = rhs(k) + wrk%distributed_fluxes(i, j)
         enddo
         endif
       endif

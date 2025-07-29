@@ -44,12 +44,6 @@ cdef extern void photochemwrk_rx_rates_get(PhotochemWrk *ptr, int *dim1, int *di
 cdef extern void photochemwrk_transport_rates_get_size(PhotochemWrk *ptr, int *dim1, int *dim2)
 cdef extern void photochemwrk_transport_rates_get(PhotochemWrk *ptr, int *dim1, int *dim2, double *arr)
 
-cdef extern void photochemwrk_advection_rates_get_size(PhotochemWrk *ptr, int *dim1, int *dim2)
-cdef extern void photochemwrk_advection_rates_get(PhotochemWrk *ptr, int *dim1, int *dim2, double *arr)
-
-cdef extern void photochemwrk_diffusion_rates_get_size(PhotochemWrk *ptr, int *dim1, int *dim2)
-cdef extern void photochemwrk_diffusion_rates_get(PhotochemWrk *ptr, int *dim1, int *dim2, double *arr)
-
 cdef extern void photochemwrk_rainout_rates_get_size(PhotochemWrk *ptr, int *dim1, int *dim2)
 cdef extern void photochemwrk_rainout_rates_get(PhotochemWrk *ptr, int *dim1, int *dim2, double *arr)
 
