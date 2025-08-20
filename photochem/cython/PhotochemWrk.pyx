@@ -147,6 +147,39 @@ cdef class PhotochemWrk:
       wrk_pxd.photochemwrk_rx_rates_get(self._ptr, &dim1, &dim2, <double *>arr.data)
       return arr
       
+  property transport_rates:
+    """ndarray[double,dim=2], shape (nz,nrT). Reaction rate constants in various units
+    involving molecules cm^3 and s. These rates include 3rd body contributions.
+    """
+    def __get__(self):
+      cdef int dim1, dim2
+      wrk_pxd.photochemwrk_transport_rates_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      wrk_pxd.photochemwrk_transport_rates_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+
+  property rainout_rates:
+    """ndarray[double,dim=2], shape (nz,nrT). Reaction rate constants in various units
+    involving molecules cm^3 and s. These rates include 3rd body contributions.
+    """
+    def __get__(self):
+      cdef int dim1, dim2
+      wrk_pxd.photochemwrk_rainout_rates_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      wrk_pxd.photochemwrk_rainout_rates_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+
+  property distributed_fluxes:
+    """ndarray[double,dim=2], shape (nz,nrT). Reaction rate constants in various units
+    involving molecules cm^3 and s. These rates include 3rd body contributions.
+    """
+    def __get__(self):
+      cdef int dim1, dim2
+      wrk_pxd.photochemwrk_distributed_fluxes_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      wrk_pxd.photochemwrk_distributed_fluxes_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+
   property mubar:
     """ndarray[double,dim=1], shape (nz). The mean molar mass of each atmospheric layer
     (g/mol)
@@ -201,3 +234,4 @@ cdef class PhotochemWrk:
       wrk_pxd.photochemwrk_surf_radiance_get(self._ptr, &dim1, <double *>arr.data)
       return arr
   
+

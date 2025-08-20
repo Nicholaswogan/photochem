@@ -184,6 +184,60 @@
     arr = wrk%rx_rates
   end subroutine
 
+  subroutine photochemwrk_transport_rates_get_size(ptr, dim1, dim2) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1, dim2
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    dim1 = size(wrk%transport_rates,1)
+    dim2 = size(wrk%transport_rates,2)
+  end subroutine
+  
+  subroutine photochemwrk_transport_rates_get(ptr, dim1, dim2, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(out) :: arr(dim1, dim2)
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    arr = wrk%transport_rates
+  end subroutine
+
+  subroutine photochemwrk_rainout_rates_get_size(ptr, dim1, dim2) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1, dim2
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    dim1 = size(wrk%rainout_rates,1)
+    dim2 = size(wrk%rainout_rates,2)
+  end subroutine
+  
+  subroutine photochemwrk_rainout_rates_get(ptr, dim1, dim2, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(out) :: arr(dim1, dim2)
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    arr = wrk%rainout_rates
+  end subroutine
+
+  subroutine photochemwrk_distributed_fluxes_get_size(ptr, dim1, dim2) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1, dim2
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    dim1 = size(wrk%distributed_fluxes,1)
+    dim2 = size(wrk%distributed_fluxes,2)
+  end subroutine
+  
+  subroutine photochemwrk_distributed_fluxes_get(ptr, dim1, dim2, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(out) :: arr(dim1, dim2)
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    arr = wrk%distributed_fluxes
+  end subroutine
+
   subroutine photochemwrk_mubar_get_size(ptr, dim1) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
