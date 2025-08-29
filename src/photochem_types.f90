@@ -355,7 +355,7 @@ module photochem_types ! make a giant IO object
     logical :: water_cond !! True if water should condense out of the atmosphere
     logical :: gas_rainout !! True if gas rains out
     integer :: H_escape_type !! Diffusion-limited, Zahnle, or None
-    real(dp), allocatable :: H_escape_coeff ! Coefficient for zahnle hydrogen escape
+    real(dp) :: H_escape_coeff ! Coefficient for zahnle hydrogen escape
     integer :: LH2 !! H2 index
     integer :: LH !! H index
     

@@ -790,6 +790,13 @@ contains
         enddo
       endif
     enddo
+    ! zahnle hydrogen escape
+    if (dat%H_escape_type == ZahnleHydrogenEscape) then
+      ! for Zahnle hydrogen escape, we pull H2 out of 
+      ! the bottom grid cell of the model.
+      rhs(dat%LH2) = rhs(dat%LH2) &
+      - dat%H_escape_coeff*wrk%mix(dat%LH2,1)/var%dz(1)
+    endif
 
     ! diffusion (interior grid points)
     do j = 2,var%nz-1
@@ -861,17 +868,6 @@ contains
         endif
       endif
     enddo 
-
-    ! zahnle hydrogen escape
-    if (dat%H_escape_type == ZahnleHydrogenEscape) then
-
-      ! for Zahnle hydrogen escape, we pull H2 out of 
-      ! the bottom grid cell of the model.
-
-      rhs(dat%LH2) = rhs(dat%LH2) &
-      - dat%H_escape_coeff*wrk%mix(dat%LH2,1)/var%dz(1)
-      
-    endif
 
   end subroutine
 
@@ -1023,6 +1019,22 @@ contains
 
     endif
 
+    ! zahnle hydrogen escape
+    if (dat%H_escape_type == ZahnleHydrogenEscape) then
+
+      djac(dat%kd,dat%LH2) = djac(dat%kd,dat%LH2) &
+      - (dat%H_escape_coeff/var%dz(1)) &
+        *((wrk%density(1) - wrk%usol(dat%LH2,1))/wrk%density(1)**2.0_dp)
+
+      do m = dat%ng_1,dat%nq 
+        if (m /= dat%LH2) then
+          mm = dat%kd + dat%LH2 - m
+          djac(mm,m) = djac(mm,m) &
+          - (dat%H_escape_coeff/var%dz(1)) &
+            *(-wrk%usol(dat%LH2,1)/wrk%density(1)**2.0_dp)
+        endif
+      enddo
+    endif
   
     ! diffusion (interior grid points)
     do j = 2,var%nz-1
@@ -1075,31 +1087,17 @@ contains
         djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
       endif
     enddo
-
-    ! zahnle hydrogen escape
-    if (dat%H_escape_type == ZahnleHydrogenEscape) then
-
-      djac(dat%kd,dat%LH2) = djac(dat%kd,dat%LH2) &
-      - (dat%H_escape_coeff/var%dz(1)) &
-        *((wrk%density(1) - wrk%usol(dat%LH2,1))/wrk%density(1)**2.0_dp)
-
-      do m = dat%ng_1,dat%nq 
-        if (m /= dat%LH2) then
-          mm = dat%kd + dat%LH2 - m
-          djac(mm,m) = djac(mm,m) &
-          - (dat%H_escape_coeff/var%dz(1)) &
-            *(-wrk%usol(dat%LH2,1)/wrk%density(1)**2.0_dp)
-        endif
-      enddo
-    endif
   
   end subroutine
 
   module subroutine right_hand_side_chem(self, usol, rhs, err)
+    use photochem_enum, only: ZahnleHydrogenEscape
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol(:,:)
     real(dp), intent(out) :: rhs(:)
     character(:), allocatable, intent(out) :: err
+    
+    integer :: i, j, k
     
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -1121,6 +1119,26 @@ contains
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
                 wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
                 wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs) 
+
+    ! We additionally have to add the below. I treat them as "chemistry"
+  
+    ! Extra functions specifying production or destruction
+    do i = 1,dat%nq
+      if (associated(var%rate_fcns(i)%fcn)) then
+        call var%rate_fcns(i)%fcn(wrk%tn, var%nz, wrk%xp) ! using wrk%xp space.
+        do j = 1,var%nz
+          k = i + (j-1)*dat%nq
+          rhs(k) = rhs(k) + wrk%xp(j) ! (molecules/cm^3/s)
+        enddo
+      endif
+    enddo
+    ! Zahnle hydrogen escape
+    if (dat%H_escape_type == ZahnleHydrogenEscape) then
+      ! for Zahnle hydrogen escape, we pull H2 out of 
+      ! the bottom grid cell of the model.
+      rhs(dat%LH2) = rhs(dat%LH2) &
+      - dat%H_escape_coeff*wrk%mix(dat%LH2,1)/var%dz(1)
+    endif
                               
   end subroutine
 

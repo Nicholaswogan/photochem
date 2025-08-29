@@ -44,3 +44,4 @@ cdef extern void photochemdata_species_redox_get(PhotochemData *ptr, int *dim1, 
 cdef extern void photochemdata_particle_sat_get_size(PhotochemData *ptr, int *dim1)
 cdef extern void photochemdata_particle_sat_get(PhotochemData *ptr, int *dim1, atom_pxd.SaturationData **ptr1)
 
+cdef extern void photochemdata_h_escape_coeff_get(PhotochemData *ptr, double *val)
