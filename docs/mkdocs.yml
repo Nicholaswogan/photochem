@@ -4,12 +4,29 @@ nav:
 - photochem:
   - installation.md
   - build_from_source.md
-  # - Tutorials:
-  #   - Tutorial: Tutorial.ipynb
+  - Tutorials:
+    - Photochemistry:
+      - Getting Started with Rocky Planets: Tutorials/Tutorial.ipynb
+    #   - Gas Giants: 
+    #   - Brown Dwarfs: 
+    # - Climate:
+    #   - Getting Started with Rocky Planets: tmp.ipynb
+    #   - The Habitable Zone: tmp.ipynb
+  # - Input Files:
+  #   - Photochemistry: 
+  #     - photochemistry_input.md
+  #     - photochemistry_input_mechanism.md
+  #   # - What
 
 theme:
   name: readthedocs
   navigation_depth: 4
+#   # name: mkdocs
+#   # color_mode: auto
+# theme:
+#   name: material
+#   palette:
+#     scheme: slate
 
 markdown_extensions:
   - admonition

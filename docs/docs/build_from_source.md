@@ -5,7 +5,7 @@ Building Photochem from source can be challenging, which is why `conda` is the [
 First, lets create a new conda environment called `test` with all the photochem dependencies
 
 ```sh
-conda create -n test -c conda-forge photochem_clima_data python numpy scipy pyyaml numba astropy h5py threadpoolctl scikit-build cmake=3 ninja cython fypp pip c-compiler cxx-compiler fortran-compiler git jupyter matplotlib
+conda create -n test -c conda-forge photochem_clima_data python numpy scipy pyyaml numba astropy astroquery requests h5py threadpoolctl scikit-build cmake=3 ninja cython fypp pip c-compiler cxx-compiler fortran-compiler git jupyter matplotlib
 
 conda activate test
 ```
@@ -13,10 +13,10 @@ conda activate test
 Here is a breakdown of the dependencies:
 
 - `photochem_clima_data` - All model data (e.g., photolysis cross sections etc.) 
-- `python numpy scipy pyyaml numba astropy h5py threadpoolctl` - Packages needed to run Photochem
+- `python numpy scipy pyyaml numba astropy astroquery requests h5py threadpoolctl` - Packages needed to run Photochem
 - `scikit-build cmake ninja cython fypp pip c-compiler cxx-compiler fortran-compiler` - Packages needed to build Photochem. Critically, this includes C and Fortran compilers.
 - `git` - Needed to download the Photochem source from the internet
-- `jupyter matplotlib` - Only needed to run notebooks/plotting
+- `jupyter matplotlib` - Needed to run tutorial notebooks and to plot results.
 
 Next, we need to download Photochem from the internet with `git`.
 
@@ -39,8 +39,7 @@ python -m pip install --no-deps --no-build-isolation . -v
 
 ## Building in place without `pip`
 
-It is also useful to build the code without installing it. Run the following commands from the root directory of the Photochem repository.
-
+It is also useful to build the code without installing it. After activating the relevant conda environment, run the following commands from the root directory of the Photochem repository.
 
 ```sh
 mkdir build
