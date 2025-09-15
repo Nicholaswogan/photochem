@@ -10,6 +10,8 @@ from astropy import constants
 import pysynphot as psyn
 
 from .._clima import AdiabatClimate, ClimaException, rebin, rebin_with_errors
+from .. import utils
+from ..utils import stars
 
 # Two optional imports
 try:
@@ -39,9 +41,9 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
     "An extension of the AdiabatClimate class to interpret thermal emission observations."
 
     def __init__(self, Teq, M_planet, R_planet, R_star, Teff=None, metal=None, logg=None, 
-                 stellar_surface_file=None, catdir='phoenix', nw=5000, stellar_surface_scaling=1.0,
-                 species_file=None, opacities_file=None, data_dir=None, nz=50, number_of_zeniths=1,
-                 ozone_model=False):
+                 stellar_surface_file=None, catdir='phoenix', stellar_surface_scaling=1.0,
+                 species=None, condensates=None, species_file=None, 
+                 opacities_file=None, data_dir=None, nz=50, number_of_zeniths=4):
         """Initializes the code. 
 
         Parameters
@@ -67,8 +69,6 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
             The first line of the file is always skipped, with the assumption they are column labels.
         catdir : str, optional
             The stellar database, by default 'phoenix'
-        nw : int, optional
-            Number of wavelength to regrid the stellar flux to before input into the model, by default 5000
         stellar_surface_scaling : float, optional
             Optional scaling to apply to the stellar surface flux, by default 1.0
         species_file : str, optional
@@ -83,50 +83,55 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
             Number of zenith angles in the radiative transfer calculation, by default 1
         """ 
         
-        # Species file
+        # Settings file
+        if species is None:
+            species = ['H2O', 'CO2', 'O2', 'SO2']
+        if condensates is None:
+            condensates = ['H2O', 'CO2']
         if species_file is None:
-            species_dict = yaml.safe_load(DEFAULT_SPECIES_FILE)
+            species_dict = utils.species_dict_for_climate(species, condensates)
         else:
             with open(species_file,'r') as f:
                 species_dict = yaml.load(f, Loader=yaml.Loader)
 
         # Settings file
-        if opacities_file is None:
-            settings_dict = yaml.safe_load(DEFAULT_OPACITIES)
-        else:
+        opacities = {
+            'k-distributions': True, 
+            'CIA': True, 
+            'rayleigh': True, 
+            'photolysis-xs': True
+        }
+        settings_dict = utils.settings_dict_for_climate(
+            planet_mass=float(M_planet*constants.M_earth.to('g').value), 
+            planet_radius=float(R_planet*constants.R_earth.to('cm').value), 
+            surface_albedo=0.0, 
+            number_of_layers=int(nz), 
+            number_of_zenith_angles=int(number_of_zeniths), 
+            photon_scale_factor=1.0, 
+            opacities=opacities
+        )
+        if opacities_file is not None:
+            # If custom optical properties are specified, then we use them
             with open(opacities_file,'r') as f:
-                settings_dict = yaml.load(f, Loader=yaml.Loader)
-        settings_dict['atmosphere-grid'] = {}
-        settings_dict['atmosphere-grid']['number-of-layers'] = int(nz)
-        settings_dict['planet'] = {}
-        settings_dict['planet']['planet-mass'] = float(M_planet*constants.M_earth.to('g').value) # grams
-        settings_dict['planet']['planet-radius'] = float(R_planet*constants.R_earth.to('cm').value) # cm
-        settings_dict['planet']['number-of-zenith-angles'] = int(number_of_zeniths)
-        settings_dict['planet']['photon-scale-factor'] = 1
-        settings_dict['planet']['surface-albedo'] = 0.0
+                optical_properties = yaml.load(f, Loader=yaml.Loader)
+            settings_dict['optical-properties'] = optical_properties['optical-properties']
 
+        # Stellar flux
         if stellar_surface_file is None:
             if Teff is None or metal is None or logg is None:
                 raise ClimaException('If `stellar_surface_file` is None, then `Teff`, `metal` and `logg` '+
                                      'must all be supplied')
             # Get stellar flux from pysynphot
-            wv_star, F_star, wv_planet, F_planet = make_pysynphot_stellar_spectrum(Teq, Teff, metal, logg, catdir, nw)
+            wv_star, F_star, wv_planet, F_planet = make_pysynphot_stellar_spectrum(Teq, Teff, metal, logg, catdir)
         else:
             # Get stellar flux from a file
-            wv_star, F_star, wv_planet, F_planet = make_file_stellar_spectrum(Teq, stellar_surface_file, nw)
+            wv_star, F_star, wv_planet, F_planet = make_file_stellar_spectrum(Teq, stellar_surface_file)
 
         F_star = F_star*stellar_surface_scaling # Scale stellar surface, if necessary
         # Load the flux at the planet to a string
-        flux_str = ""
-        fmt = '{:25}'
-        flux_str += fmt.format('Wavelength (nm)')
-        flux_str += fmt.format('Solar flux (mW/m^2/nm)')
-        flux_str += '\n'
-        for i in range(wv_planet.shape[0]):
-            flux_str += fmt.format('%e'%wv_planet[i])
-            flux_str += fmt.format('%e'%F_planet[i])
-            flux_str += '\n'
+        flux_str = stars.photochem_spectrum_string(wv_planet, F_planet, scale_to_planet=False)
 
+        # Initialize
         with NamedTemporaryFile('w') as f_species:
             # Write species file
             yaml.safe_dump(species_dict, f_species)
@@ -333,14 +338,14 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
         thermdat = self.thermdat
 
         wv_av = (wavl[1:] + wavl[:-1])/2
-        F_planet = (1 - albedo)*blackbody(T, wv_av/1e4)*np.pi
+        F_planet = (1 - albedo)*stars.blackbody_cgs(T, wv_av/1e4)*np.pi
         F_star = rebin(thermdat.wavl_star, thermdat.flux_star, wavl)
         fpfs = F_planet/F_star * (thermdat.R_planet**2/thermdat.R_star**2)
 
         return F_planet, F_star, fpfs
     
     def fpfs_instant_reradiation(self, wavl, albedo):
-        flux = bolometric_flux(self.thermdat.Teq, albedo)
+        flux = stars.equilibrium_temperature_inverse(self.thermdat.Teq, albedo)
         T = bare_rock_dayside_temperature(flux, albedo, 2/3)
         return self.fpfs_blackbody(wavl, T, albedo)
 
@@ -494,13 +499,13 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
         exo_dict['planet']['r_unit'] = 'cm'
         if calculation == 'thermal':
             exo_dict['planet']['f_unit'] = 'fp/f*'
-            stellar_flux = bolometric_flux(self.thermdat.Teq, 0.0)
+            stellar_flux = stars.equilibrium_temperature_inverse(self.thermdat.Teq, 0.0)
             T_day = bare_rock_dayside_temperature(stellar_flux, 0.0, 2/3)
             exo_dict['planet']['temp'] = T_day
         elif calculation == 'transmission':
             exo_dict['planet']['f_unit'] = 'rp^2/r*^2'
         else:
-            raise Exception('calculation must e thermal or transmission')
+            raise Exception('`calculation` must be "thermal" or "transmission"')
 
         return exo_dict
     
@@ -548,25 +553,25 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
         result = self._run_pandexo(total_observing_time, eclipse_duration, kmag, [inst], calculation, verbose, **kwargs)
 
         spec = result['FinalSpectrum']
-        wavl = make_bins(spec['wave'])
+        wavl = stars.make_bins(spec['wave'])
         F = spec['spectrum']
         err = spec['error_w_floor']
         err = err/np.sqrt(ntrans)
 
         if R is not None:
-            wavl_n = grid_at_resolution(np.min(wavl), np.max(wavl), R)
+            wavl_n = stars.grid_at_resolution(np.min(wavl), np.max(wavl), R)
             F_n, err_n = rebin_with_errors(wavl, F, err, wavl_n)
             wavl = wavl_n
             F = F_n
             err = err_n
 
-        return wavl, F, err
+        return wavl, F, err, result
 
 ###
 ### Making stellar fluxes
 ###
 
-def get_planet_flux(Teq, wv_star, F_star, nw):
+def get_planet_flux(Teq, wv_star, F_star):
 
     # Convert to units in climate model
     wv_0 = wv_star*1e3 # to nm
@@ -574,20 +579,14 @@ def get_planet_flux(Teq, wv_star, F_star, nw):
     F_0 = F_star*(1/1e7)*(1e3/1)*(1e4/1)*(1e2/1)*(1/1e9) 
 
     # Interpolate to smaller resolution appropriate for climate modeling
-    wv_planet = np.logspace(np.log10(np.min(wv_0)),np.log10(np.max(wv_0)),nw)
-    F_planet = np.interp(wv_planet, wv_0, F_0)
+    wv_planet, F_planet = stars.rebin_to_needed_resolution(wv_0, F_0)
 
-    # Compute stellar flux implied by equilibrium temperature (W/m^2)
-    stellar_flux = bolometric_flux(Teq, 0.0)
-
-    # Rescale so that it has the proper stellar flux for the planet
-    tmp = 1e-3*np.sum(F_planet[:-1]*(wv_planet[1:]-wv_planet[:-1])) # W/m^2
-    factor = stellar_flux/tmp
-    F_planet *= factor
-
+    # Rescale
+    F_planet = stars.scale_spectrum_to_planet(wv_planet, F_planet, Teq=Teq)
+    
     return wv_planet, F_planet
 
-def make_pysynphot_stellar_spectrum(Teq, Teff, metal, logg, catdir='phoenix', nw=5000):
+def make_pysynphot_stellar_spectrum(Teq, Teff, metal, logg, catdir='phoenix'):
     """Create stellar spectrum for AdiabatClimate and thermal emission predictions
     using the pysynphot package
 
@@ -603,8 +602,6 @@ def make_pysynphot_stellar_spectrum(Teq, Teff, metal, logg, catdir='phoenix', nw
         Stellar gravity in log space.
     catdir : str, optional
         Stellar database, by default 'phoenix'
-    nw : int, optional
-        Number of intervals to regrid spectra for climate model, by default 5000
 
     Returns
     -------
@@ -621,11 +618,11 @@ def make_pysynphot_stellar_spectrum(Teq, Teff, metal, logg, catdir='phoenix', nw
     wv_star = sp.wave.copy() # um
     F_star = sp.flux.copy()*1e8 # Convert to ergs/cm2/s/cm
 
-    wv_planet, F_planet = get_planet_flux(Teq, wv_star, F_star, nw)
+    wv_planet, F_planet = get_planet_flux(Teq, wv_star, F_star)
 
     return wv_star, F_star, wv_planet, F_planet
 
-def make_file_stellar_spectrum(Teq, stellar_surface_file, nw):
+def make_file_stellar_spectrum(Teq, stellar_surface_file):
 
     # Get the spectrum. wv_star is nm and F_star is mW/m^2/nm. 
     # Must convert to microns and ergs/cm2/s/cm
@@ -638,32 +635,9 @@ def make_file_stellar_spectrum(Teq, stellar_surface_file, nw):
     # = ergs/cm^2/s/cm
     F_star = F_star*(1e9/1)*(1/1e2)*(1/1e3)*(1e7/1)*(1/1e4)
 
-    wv_planet, F_planet = get_planet_flux(Teq, wv_star, F_star, nw)
+    wv_planet, F_planet = get_planet_flux(Teq, wv_star, F_star)
 
     return wv_star, F_star, wv_planet, F_planet
-
-@nb.njit(types.double[:](types.double,types.double[:]))
-def blackbody(T, lam):
-    """
-    Blackbody flux in cgs units in per unit wavelength (erg/cm^2/s/cm/sr)
-
-    Parameters
-    ----------
-    T : float
-        Temperature (K)
-    lam : ndarray[ndim=1,double]
-        Wavelength (cm)
-    
-    Returns
-    -------
-    ndarray[ndim=1,double]
-        The blackbody flux at the input wavelengths in erg/cm^2/s/cm/sr.
-    """
-    h = 6.62607004e-27 # erg s 
-    c = 2.99792458e+10 # cm/s
-    k = 1.38064852e-16 # erg / K
-    B = ((2.0*h*c**2.0)/(lam**5.0))*(1.0/(np.exp((h*c)/(lam*k*T)) - 1.0))
-    return B
 
 @nb.njit(types.double[:](types.double,types.double[:]))
 def inverse_blackbody(B, lam):
@@ -682,46 +656,16 @@ def inverse_blackbody(B, lam):
     ndarray[ndim=1,double]
         The temperature at the input wavelengths in K.
     """
-    h = 6.62607004e-27 # erg s 
-    c = 2.99792458e+10 # cm/s
-    k = 1.38064852e-16 # erg / K
+    h = const.h*1e7 # erg s 
+    c = const.c*1e2 # cm/s
+    k = const.k*1e7 # erg / K
     T = ((c*h)/(k*lam))*(1/np.log(1 + (2*c**2*h)/(B*lam**5)))
     return T
 
 @nb.njit()
-def equilibrium_temperature(stellar_radiation, bond_albedo):
-    T_eq = ((stellar_radiation*(1.0 - bond_albedo))/(4.0*const.sigma))**(0.25)
-    return T_eq 
-
-@nb.njit()
-def bolometric_flux(Teq, bond_albedo):
-    stellar_radiation = 4.0*const.sigma*Teq**4/(1.0 - bond_albedo)
-    return stellar_radiation
-
-@nb.njit()
 def bare_rock_dayside_temperature(stellar_radiation, bond_albedo, f_term):
-    T_eq = equilibrium_temperature(stellar_radiation, bond_albedo)
+    T_eq = stars.equilibrium_temperature(stellar_radiation, bond_albedo)
     return T_eq*(4*f_term)**(1/4) 
-
-@nb.njit()
-def make_bins(wavs):
-    """Given a series of wavelength points, find the edges
-    of corresponding wavelength bins.
-    """
-    edges = np.zeros(wavs.shape[0]+1)
-    edges[0] = wavs[0] - (wavs[1] - wavs[0])/2
-    edges[-1] = wavs[-1] + (wavs[-1] - wavs[-2])/2
-    edges[1:-1] = (wavs[1:] + wavs[:-1])/2
-    return edges
-
-@nb.njit()
-def grid_at_resolution(min_wv, max_wv, R):
-    wavl = [min_wv]
-    while wavl[-1] < max_wv:
-        dlam = wavl[-1]/R
-        wavl.append(wavl[-1]+dlam)
-    wavl[-1] = max_wv
-    return np.array(wavl)
 
 class PicasoThermalEmission():
 
@@ -754,7 +698,7 @@ class PicasoThermalEmission():
         fp_h = (fp_h[1:] + fp_h[:-1])/2
 
         if wavl is None:
-            wavl = grid_at_resolution(np.min(wavl_h), np.max(wavl_h), R)
+            wavl = stars.grid_at_resolution(np.min(wavl_h), np.max(wavl_h), R)
 
         fp = rebin(wavl_h, fp_h, wavl)
         fpfs = rebin(wavl_h, fpfs_h, wavl)
@@ -777,99 +721,8 @@ class PicasoThermalEmission():
         rprs2_h = (rprs2_h[1:] + rprs2_h[:-1])/2
 
         if wavl is None:
-            wavl = grid_at_resolution(np.min(wavl_h), np.max(wavl_h), R)
+            wavl = stars.grid_at_resolution(np.min(wavl_h), np.max(wavl_h), R)
 
         rprs2 = rebin(wavl_h, rprs2_h, wavl)
 
         return wavl, rprs2
-
-DEFAULT_OPACITIES = """
-optical-properties:
-  ir:
-    k-method: RandomOverlapResortRebin
-    opacities:
-      k-distributions: [H2O, CO2, O2, O3, SO2]
-      CIA: [CO2-CO2, O2-O2]
-      rayleigh: [CO2, O2, H2O]
-      water-continuum: MT_CKD
-  solar:
-    k-method: RandomOverlapResortRebin
-    opacities:
-      k-distributions: [H2O, CO2, O2, O3, SO2]
-      CIA: [CO2-CO2, O2-O2]
-      rayleigh: [CO2, O2, H2O]
-      photolysis-xs: [H2O, CO2, O2, SO2]
-      water-continuum: MT_CKD
-"""
-
-DEFAULT_SPECIES_FILE = """
-atoms:
-- {name: H, mass: 1.00797}
-- {name: O, mass: 15.9994}
-- {name: C, mass: 12.011}
-- {name: S, mass: 32.06}
-
-# List of species that are in the model
-species:
-- name: H2O
-  composition: {H: 2, O: 1}
-  # thermodynamic data (required)
-  thermo:
-    model: Shomate
-    temperature-ranges: [0.0, 1700.0, 6000.0]
-    data:
-    - [30.092, 6.832514, 6.793435, -2.53448, 0.082139, -250.881, 223.3967]
-    - [41.96426, 8.622053, -1.49978, 0.098119, -11.15764, -272.1797, 219.7809]
-  # The `saturation` key is optional. If you omit it, then the model assumes that the species
-  # never condenses
-  saturation:
-    model: LinearLatentHeat
-    parameters: {mu: 18.01534, T-ref: 373.15, P-ref: 1.0142e6, T-triple: 273.15, 
-      T-critical: 647.0}
-    vaporization: {a: 2.841421e+10, b: -1.399732e+07}
-    sublimation: {a: 2.746884e+10, b: 4.181527e+06}
-    super-critical: {a: 1.793161e+12, b: 0.0}
-  note: From the NIST database
-- name: CO2
-  composition: {C: 1, O: 2}
-  thermo:
-    model: Shomate
-    temperature-ranges: [0.0, 1200.0, 6000.0]
-    data:
-    - [24.99735, 55.18696, -33.69137, 7.948387, -0.136638, -403.6075, 228.2431]
-    - [58.16639, 2.720074, -0.492289, 0.038844, -6.447293, -425.9186, 263.6125]
-  saturation:
-    model: LinearLatentHeat
-    parameters: {mu: 44.01, T-ref: 250.0, P-ref: 17843676.678142548, T-triple: 216.58, 
-      T-critical: 304.13}
-    vaporization: {a: 4.656475e+09, b: -3.393595e+06}
-    sublimation: {a: 6.564668e+09, b: -3.892217e+06}
-    super-critical: {a: 1.635908e+11, b: 0.0}
-  note: From the NIST database
-- name: O2
-  composition: {O: 2}
-  thermo:
-    model: Shomate
-    temperature-ranges: [0.0, 6000.0]
-    data:
-    - [29.659, 6.137261, -1.186521, 0.09578, -0.219663, -9.861391, 237.948]
-  note: From the NIST database
-- name: O3
-  composition: {O: 3}
-  thermo:
-    model: Shomate
-    temperature-ranges: [0.0, 1200.0, 6000.0]
-    data:
-    - [21.66157, 79.86001, -66.02603, 19.58363, -0.079251, 132.9407, 243.6406]
-    - [57.81409, 0.730941, -0.039253, 0.00261, -3.560367, 115.7717, 294.5607]
-  note: From the NIST database
-- name: SO2
-  composition: {S: 1, O: 2}
-  thermo:
-    model: Shomate
-    temperature-ranges: [0.0, 1200.0, 6000.0]
-    data:
-    - [21.43049, 74.35094, -57.75217, 16.35534, 0.086731, -305.7688, 254.8872]
-    - [57.48188, 1.009328, -0.07629, 0.005174, -4.045401, -324.414, 302.7798]
-  note: From the NIST database
-"""
