@@ -7,13 +7,15 @@ import sys
 
 from scipy import constants as const
 from astropy import constants
-import pysynphot as psyn
+import astropy.units as u
+from stsynphot import grid_to_spec
+from synphot import units
 
 from .._clima import AdiabatClimate, ClimaException, rebin, rebin_with_errors
 from .. import utils
 from ..utils import stars
 
-# Two optional imports
+# Optional imports
 try:
     from picaso import justdoit as jdi
     import pandas as pd
@@ -612,12 +614,10 @@ def make_pysynphot_stellar_spectrum(Teq, Teff, metal, logg, catdir='phoenix'):
         F_planet is the stellar flux at the planet in mW/m^2/nm.
     """    
     # Get spectrum
-    sp = psyn.Icat(catdir, Teff, metal, logg)
-    sp.convert("um")
-    sp.convert('flam')
-    wv_star = sp.wave.copy() # um
-    F_star = sp.flux.copy()*1e8 # Convert to ergs/cm2/s/cm
-
+    sp = grid_to_spec(catdir, Teff, metal, logg)
+    wv_star = sp.waveset.to(u.um).value # um
+    F_star = units.convert_flux(sp.waveset, sp(sp.waveset), units.FLAM).value*1e8 # Convert to ergs/cm2/s/cm
+    
     wv_planet, F_planet = get_planet_flux(Teq, wv_star, F_star)
 
     return wv_star, F_star, wv_planet, F_planet
