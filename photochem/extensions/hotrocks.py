@@ -169,8 +169,8 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
         self.thermdat.R_star = float(R_star*constants.R_sun.to('cm').value) # Star Radius in cm
 
         # Rebin stellar flux to Clima IR grid
-        self.thermdat.wavl_star = wv_star # Stellar wavelength grid (microns)
-        self.thermdat.flux_star = (F_star[1:] + F_star[:-1])/2 # Stellar flux in each bin (ergs/cm^2/s/cm)
+        self.thermdat.wavl_star = stars.make_bins(wv_star) # Stellar wavelength grid (microns)
+        self.thermdat.flux_star = F_star # Stellar flux in each bin (ergs/cm^2/s/cm)
         self.thermdat.flux_star_c = rebin(self.thermdat.wavl_star, self.thermdat.flux_star, self.rad.ir.wavl/1e3)
 
         # Placeholder for picaso object
