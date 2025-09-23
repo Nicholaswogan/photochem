@@ -691,11 +691,9 @@ class PicasoThermalEmission():
     def fpfs(self, atm, R=100, wavl=None, atmosphere_kwargs={}, **kwargs):
         df = self._spectrum(atm, atmosphere_kwargs=atmosphere_kwargs, **kwargs)
 
-        wavl_h = 1e4/df['wavenumber'][::-1].copy()
+        wavl_h = stars.make_bins(1e4/df['wavenumber'][::-1].copy())
         fpfs_h = df['fpfs_thermal'][::-1].copy()
         fp_h = df['thermal'][::-1].copy()
-        fpfs_h = (fpfs_h[1:] + fpfs_h[:-1])/2
-        fp_h = (fp_h[1:] + fp_h[:-1])/2
 
         if wavl is None:
             wavl = stars.grid_at_resolution(np.min(wavl_h), np.max(wavl_h), R)
@@ -716,9 +714,8 @@ class PicasoThermalEmission():
     def rprs2(self, atm, R=100, wavl=None, atmosphere_kwargs={}, **kwargs):
         df = self._spectrum(atm, 'transmission', atmosphere_kwargs=atmosphere_kwargs, **kwargs)
 
-        wavl_h = 1e4/df['wavenumber'][::-1].copy()
+        wavl_h = stars.make_bins(1e4/df['wavenumber'][::-1].copy())
         rprs2_h = df['transit_depth'][::-1].copy()
-        rprs2_h = (rprs2_h[1:] + rprs2_h[:-1])/2
 
         if wavl is None:
             wavl = stars.grid_at_resolution(np.min(wavl_h), np.max(wavl_h), R)
