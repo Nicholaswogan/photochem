@@ -440,7 +440,7 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
             star_kwargs = {
                 'filename': f.name,
                 'w_unit': 'um',
-                'f_unit': 'FLAM'
+                'f_unit': 'flam'
             }
             self.ptherm = PicasoThermalEmission(
                 filename_db, 
