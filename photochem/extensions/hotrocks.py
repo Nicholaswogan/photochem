@@ -4,6 +4,12 @@ from numba import types
 import yaml
 from tempfile import NamedTemporaryFile
 import sys
+import os
+import requests
+import shutil
+import h5py
+import tarfile
+from scipy import interpolate
 
 from scipy import constants as const
 from astropy import constants
@@ -43,7 +49,8 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
     "An extension of the AdiabatClimate class to interpret thermal emission observations."
 
     def __init__(self, Teq, M_planet, R_planet, R_star, Teff=None, metal=None, logg=None, 
-                 stellar_surface_file=None, catdir='phoenix', stellar_surface_scaling=1.0,
+                 stellar_surface_file=None, catdir='phoenix', sphinx_filename=None,
+                 rescale_to_Teff=False, stellar_surface_scaling=1.0,
                  species=None, condensates=None, species_file=None, 
                  opacities_file=None, data_dir=None, nz=50, number_of_zeniths=4):
         """Initializes the code. 
@@ -71,6 +78,12 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
             The first line of the file is always skipped, with the assumption they are column labels.
         catdir : str, optional
             The stellar database, by default 'phoenix'
+        sphinx_filename: str, optional
+            If `catdir == "sphinx"`, then this argument must direct to the SPHINX HDF5 file.
+            Download the SPHINX HDF5 file with `download_sphinx_spectra`.
+        rescale_to_Teff: bool, optional
+            If True, then, when making a stellar spectrum, it will be rescaled to ensure it has the
+            input `Teff`. This argument does not apply to `stellar_surface_file`.
         stellar_surface_scaling : float, optional
             Optional scaling to apply to the stellar surface flux, by default 1.0
         species_file : str, optional
@@ -123,8 +136,14 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
             if Teff is None or metal is None or logg is None:
                 raise ClimaException('If `stellar_surface_file` is None, then `Teff`, `metal` and `logg` '+
                                      'must all be supplied')
-            # Get stellar flux from pysynphot
-            wv_star, F_star, wv_planet, F_planet = make_pysynphot_stellar_spectrum(Teq, Teff, metal, logg, catdir)
+            if catdir == 'sphinx':
+                wv_star, F_star, wv_planet, F_planet = make_sphinx_stellar_spectrum(
+                    Teq, Teff, metal, logg, sphinx_filename, rescale_to_Teff
+                )
+            else:
+                wv_star, F_star, wv_planet, F_planet = make_pysynphot_stellar_spectrum(
+                    Teq, Teff, metal, logg, catdir, rescale_to_Teff
+                )
         else:
             # Get stellar flux from a file
             wv_star, F_star, wv_planet, F_planet = make_file_stellar_spectrum(Teq, stellar_surface_file)
@@ -573,6 +592,161 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
 ### Making stellar fluxes
 ###
 
+def get_and_extract_tarball(url: str, cache_dir: str = './') -> str:
+
+    os.makedirs(cache_dir, exist_ok=True)
+    filename = os.path.basename(url)
+    tar_path = os.path.join(cache_dir, filename)
+
+    # Extracted folder will have same name as tarball without extension
+    extract_path = os.path.join(cache_dir, filename.replace(".tar.gz", ""))
+
+    # Step 1: Download tar.gz if not already present
+    if not os.path.exists(tar_path):
+        print(f"Downloading {url} ...")
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        with open(tar_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+    else:
+        print(f"Using cached tarball: {tar_path}")
+
+    # Step 2: Extract only if not already extracted
+    if not os.path.exists(extract_path):
+        print(f"Extracting {tar_path} ...")
+        with tarfile.open(tar_path, "r:gz") as tar:
+            tar.extractall(path=extract_path)
+    else:
+        print(f"Using cached extraction: {extract_path}")
+
+    return tar_path, extract_path
+
+def download_sphinx_spectra(filename='sphinx.h5'):
+    """Downloads the SPHINX stellar spectra: https://zenodo.org/records/11392341
+
+    Parameters
+    ----------
+    filename : str, optional
+        The name of the hdf5 file to save the sphinx spectra.
+    """    
+    if os.path.exists(filename):
+        print(f'You have already downloaded the sphinx spectra at: {filename}')
+        return
+
+    # URL of tarbar
+    sphinx_url = 'https://zenodo.org/records/11392341/files/SPHINX_MAY2024_CLOUDFREE_UPDATED.tar.gz'
+
+    # Download the spectra
+    tar_path, extract_path = get_and_extract_tarball(sphinx_url, './')
+    data_path = os.path.join(extract_path,'NEWCORRECTED_CLOUDFREE')
+
+    # Get the wavelengths
+    name = os.path.join(data_path,[a for a in os.listdir(data_path) if 'Teff' in a][0])
+    wv_star, _ = np.loadtxt(name, skiprows=1).T
+
+    # Grid of parameters
+    Teff = np.arange(2000, 4001.0, 100)
+    logz = np.arange(-1,1.01,.25)
+    logg = np.arange(4, 5.51, 0.25)
+    gridvals = (Teff,logz,logg)
+    gridshape = list(len(v) for v in gridvals)
+    datashape = tuple(gridshape + [len(wv_star)])
+    spectra = np.empty(datashape)
+
+    # Load files
+    for i,Teff1, in enumerate(Teff):
+        for k,logz1, in enumerate(logz):
+            for j,logg1, in enumerate(logg):
+                name = f"Teff_{Teff1}_logg_{logg1}_logZ_{logz1:+}_CtoO_0.5.txt"
+                wv, F = np.loadtxt(os.path.join(data_path,name), skiprows=1).T
+                # W/m^2/m * (1e7 erg/W) * (1 m^2/1e4 cm^2) * (1 m/ 1e2 cm) = ergs/cm2/s/cm
+                spectra[i,k,j,:] = F*10
+
+    # Save HDF5 file
+    with h5py.File(filename, 'w') as f:
+        key = 'Teff'
+        val = Teff
+        dset = f.create_dataset(key, shape=val.shape, dtype=np.float32)
+        f[key][:] = val
+        dset.attrs['description'] = 'Stellar effective temperature (K)'
+
+        key = 'logz'
+        val = logz
+        dset = f.create_dataset(key, shape=val.shape, dtype=np.float32)
+        f[key][:] = val
+        dset.attrs['description'] = 'Stellar metallicity relative to solar (log10)'
+
+        key = 'logg'
+        val = logg
+        dset = f.create_dataset(key, shape=val.shape, dtype=np.float32)
+        f[key][:] = val
+        dset.attrs['description'] = 'Stellar surface gravity (log10 cm/s^2)'
+
+        key = 'wavelengths'
+        val = wv_star
+        dset = f.create_dataset(key, shape=val.shape, dtype=np.float32)
+        f[key][:] = val
+        dset.attrs['description'] = 'Wavelengths of stellar spectra (um)'
+
+        key = 'spectra'
+        val = spectra
+        dset = f.create_dataset(key, shape=val.shape, dtype=np.float32)
+        f[key][:] = val
+        dset.attrs['description'] = 'Flux at the stellar surface (ergs/cm^2/s/cm)'
+
+    # Delete files
+    os.remove(tar_path)
+    shutil.rmtree(extract_path)
+
+def sphinx_interpolator(filename):
+    "Creates a SPHINX interpolator."
+
+    with h5py.File(filename, 'r') as f:
+        Teff = f['Teff'][:]
+        logz = f['logz'][:]
+        logg = f['logg'][:]
+        wv_star1 = f['wavelengths'][:]
+        spectra = f['spectra'][:]
+    gridvals = (Teff,logz,logg)
+    rgi = interpolate.RegularGridInterpolator(gridvals, spectra)
+    
+    def interp(Teff, metal, logg, rescale_to_Teff=False):
+        """Interpolate the SPHINX stellar spectra
+
+        Parameters
+        ----------
+        Teff : float
+            Stellar effective Temperature in K
+        metal : float
+            Stellar metallicity in log10 relative to solar
+        logg : float
+            Stellar surface gravity in log10 cgs units.
+        rescale_to_Teff : bool, optional
+            If True, then the code will rescale the spectrum so that the total
+            energy in the spectra is equal to `Teff`, by default False
+
+        Returns
+        -------
+        wv_star: ndarray
+            Wavelengths in microns
+        F_star: ndarray
+            Flux at stellar surface in ergs/cm2/s/cm
+        """        
+
+        wv_star = wv_star1.copy() # um
+        F_star = rgi((Teff, metal, logg)) # ergs/cm2/s/cm
+
+        if rescale_to_Teff:
+            wv_0 = wv_star*1e3
+            F_0 = F_star*(1/1e7)*(1e3/1)*(1e4/1)*(1e2/1)*(1/1e9)
+            factor = stars.energy_in_spectrum(wv_0, F_0)/stars.stefan_boltzmann(Teff)
+            F_star /= factor
+            
+        return wv_star, F_star 
+
+    return interp
+
 def get_planet_flux(Teq, wv_star, F_star):
 
     # Convert to units in climate model
@@ -588,7 +762,17 @@ def get_planet_flux(Teq, wv_star, F_star):
     
     return wv_planet, F_planet
 
-def make_pysynphot_stellar_spectrum(Teq, Teff, metal, logg, catdir='phoenix'):
+def make_sphinx_stellar_spectrum(Teq, Teff, metal, logg, sphinx_filename, rescale_to_Teff):
+    "Similar to `make_pysynphot_stellar_spectrum`, but makes a SPHINX stellar spectrum."
+
+    sphinx = sphinx_interpolator(sphinx_filename)
+    wv_star, F_star = sphinx(Teff, metal, logg, rescale_to_Teff)
+
+    wv_planet, F_planet = get_planet_flux(Teq, wv_star, F_star)
+
+    return wv_star, F_star, wv_planet, F_planet
+
+def make_pysynphot_stellar_spectrum(Teq, Teff, metal, logg, catdir='phoenix', rescale_to_Teff=False):
     """Create stellar spectrum for AdiabatClimate and thermal emission predictions
     using the pysynphot package
 
@@ -604,6 +788,8 @@ def make_pysynphot_stellar_spectrum(Teq, Teff, metal, logg, catdir='phoenix'):
         Stellar gravity in log space.
     catdir : str, optional
         Stellar database, by default 'phoenix'
+    rescale_to_Teff: bool, optional
+        If True, then rescale the stellar spectrum so that it has the correct amount of energy.
 
     Returns
     -------
@@ -617,6 +803,11 @@ def make_pysynphot_stellar_spectrum(Teq, Teff, metal, logg, catdir='phoenix'):
     sp = grid_to_spec(catdir, Teff, metal, logg)
     wv_star = sp.waveset.to(u.um).value # um
     F_star = units.convert_flux(sp.waveset, sp(sp.waveset), units.FLAM).value*1e8 # Convert to ergs/cm2/s/cm
+    if rescale_to_Teff:
+        wv_0 = wv_star*1e3
+        F_0 = F_star*(1/1e7)*(1e3/1)*(1e4/1)*(1e2/1)*(1/1e9)
+        factor = stars.energy_in_spectrum(wv_0, F_0)/stars.stefan_boltzmann(Teff)
+        F_star /= factor
     
     wv_planet, F_planet = get_planet_flux(Teq, wv_star, F_star)
 
