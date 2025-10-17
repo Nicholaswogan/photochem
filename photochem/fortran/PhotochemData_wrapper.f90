@@ -255,3 +255,11 @@
       ptr1(i) = c_loc(dat%particle_sat(i))
     enddo
   end subroutine
+
+  subroutine photochemdata_h_escape_coeff_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    val = dat%H_escape_coeff
+  end subroutine

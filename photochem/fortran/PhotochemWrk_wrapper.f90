@@ -272,6 +272,22 @@
     arr = wrk%surf_radiance
   end subroutine
 
+  subroutine photochemwrk_vh2_esc_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    val = wrk%VH2_esc
+  end subroutine
+
+  subroutine photochemwrk_vh_esc_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    val = wrk%VH_esc
+  end subroutine
+
 ! PhotochemWrkEvo
 
   subroutine photochemwrkevo_pressure_hydro_get_size(ptr, dim1) bind(c)

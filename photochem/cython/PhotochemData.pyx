@@ -155,3 +155,9 @@ cdef class PhotochemData:
       free(arrp)
       return arr1
     
+  property H_escape_coeff:
+    "double. Zahnle hydrogen escape coefficient."
+    def __get__(self):
+      cdef double val
+      dat_pxd.photochemdata_h_escape_coeff_get(self._ptr, &val)
+      return val

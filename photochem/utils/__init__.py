@@ -8,4 +8,5 @@ from ._convert_vulcan import vulcan2yaml
 from ._convert_cantera import photochem2cantera
 
 # Building climate input files
+from .climate import species_dict_for_climate, settings_dict_for_climate
 from .climate import species_file_for_climate, settings_file_for_climate

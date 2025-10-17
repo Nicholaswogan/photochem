@@ -200,4 +200,17 @@ cdef class PhotochemWrk:
       cdef ndarray arr = np.empty(dim1, np.double)
       wrk_pxd.photochemwrk_surf_radiance_get(self._ptr, &dim1, <double *>arr.data)
       return arr
-  
+
+  property VH2_esc:
+    "double. H2 escape velocity."
+    def __get__(self):
+      cdef double val
+      wrk_pxd.photochemwrk_vh2_esc_get(self._ptr, &val)
+      return val
+
+  property VH_esc:
+    "double. H escape velocity."
+    def __get__(self):
+      cdef double val
+      wrk_pxd.photochemwrk_vh_esc_get(self._ptr, &val)
+      return val

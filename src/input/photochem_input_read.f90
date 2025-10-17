@@ -638,7 +638,6 @@ contains
       if (dat%H_escape_type == ZahnleHydrogenEscape) then; block
         use photochem_eqns, only: zahnle_Hescape_coeff
 
-        allocate(dat%H_escape_coeff)
         dat%H_escape_coeff = zahnle_Hescape_coeff(s%H_escape_S1)
 
       endblock; endif

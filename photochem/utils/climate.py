@@ -1,13 +1,12 @@
 from photochem_clima_data import DATA_DIR
+import os
 from ._format import yaml, Loader, MyDumper, FormatReactions_main, flowmap
 
-def species_file_for_climate(filename, species, condensates, particles=None):
-    """Generates a species file for climate simulations with AdiabatClimate.
+def species_dict_for_climate(species, condensates, particles=None):
+    """Generates a species dictionary for climate simulations with AdiabatClimate.
 
     Parameters
     ----------
-    filename : str
-        Path of the output yaml file.
     species : list
         List of species to include in the file.
     condensates : list
@@ -16,12 +15,17 @@ def species_file_for_climate(filename, species, condensates, particles=None):
         List of particles with their composition. For example, 
         `particles = [{'name': 'HCaer', 'composition': {'C': 6, 'H': 2}}`, 
         by default {}.
+    
+    Returns
+    -------
+    species_file : dict
+        Dictionary of the species file.
     """
 
     if not set(condensates).issubset(species):
         raise ValueError("`condensates` must be a subset of `species`.")
 
-    zahnle_earth = DATA_DIR+'/reaction_mechanisms/zahnle_earth.yaml'
+    zahnle_earth = os.path.join(DATA_DIR,'reaction_mechanisms/zahnle_earth.yaml')
 
     with open(zahnle_earth,'r') as f:
         dat = yaml.load(f, Loader=Loader)
@@ -60,12 +64,102 @@ def species_file_for_climate(filename, species, condensates, particles=None):
     if particles is not None:
         species_file['particles'] = particles
 
+    return species_file
+    
+def species_file_for_climate(filename, species, condensates, particles=None):
+    """Generates a species dict for climate simulations with AdiabatClimate.
+
+    Parameters
+    ----------
+    filename : str
+        Path of the output yaml file.
+    species : list
+        List of species to include in the file.
+    condensates : list
+        List of species that should be condensates.
+    particles : dict, optional
+        List of particles with their composition. For example, 
+        `particles = [{'name': 'HCaer', 'composition': {'C': 6, 'H': 2}}`, 
+        by default {}.
+    
+    Returns
+    -------
+    species_file : dict
+        Dictionary of the species file.
+    """
+
+    species_file = species_dict_for_climate(species, condensates, particles)
+
     species_file = FormatReactions_main(species_file)
     with open(filename, 'w') as f:
         yaml.dump(species_file,f,Dumper=MyDumper,sort_keys=False,width=70)
 
+def settings_dict_for_climate(planet_mass, planet_radius, surface_albedo, 
+                              number_of_layers=50, number_of_zenith_angles=4, 
+                              photon_scale_factor=1.0, opacities=None):
+    """Generates a settings dictionary for the AdiabatClimate model.
+
+    Parameters
+    ----------
+    planet_mass : float
+        Planet mass in grams.
+    planet_radius : float
+        Planet radius in cm.
+    surface_albedo : float
+        Surface albedo of the planet.
+    number_of_layers : int, optional
+        Number of atmospheric layers, by default 50.
+    number_of_zenith_angles : int, optional
+        Number of solar zenith angles to do solar radiative transfer at, 
+        by default 4.
+    photon_scale_factor : float, optional
+        A value to multiply the stellar flux by, by default 1.0.
+    opacities: dict, optional
+        A dictionary describing the opacities, by default None.
+    
+    Returns
+    -------
+    settings : dict
+        Dictionary of the settings file.
+    """    
+    
+    if opacities is None:
+        opacities = {
+            'k-distributions': True, 
+            'CIA': True, 
+            'rayleigh': True, 
+            'photolysis-xs': True, 
+            'water-continuum': 'MT_CKD'
+        }
+
+    settings = {
+        'atmosphere-grid': {
+            'number-of-layers': number_of_layers
+        },
+        'planet': {
+            'planet-mass': planet_mass, 
+            'planet-radius': planet_radius, 
+            'surface-albedo': surface_albedo,
+            'number-of-zenith-angles': number_of_zenith_angles,
+            'photon-scale-factor': photon_scale_factor
+        },
+        'optical-properties': {
+            'ir': {
+                'k-method': 'RandomOverlapResortRebin',
+                'opacities': opacities
+            },
+            'solar': {
+                'k-method': 'RandomOverlapResortRebin',
+                'opacities': opacities
+            }
+        }
+    }
+    
+    return settings
+
 def settings_file_for_climate(filename, planet_mass, planet_radius, surface_albedo, 
-                              number_of_layers=50, number_of_zenith_angles=4, photon_scale_factor=1.0):
+                              number_of_layers=50, number_of_zenith_angles=4, 
+                              photon_scale_factor=1.0, opacities=None):
     """Generates a settings file for the AdiabatClimate model.
 
     Parameters
@@ -85,37 +179,20 @@ def settings_file_for_climate(filename, planet_mass, planet_radius, surface_albe
         by default 4.
     photon_scale_factor : float, optional
         A value to multiply the stellar flux by, by default 1.0.
-    """    
-    default_opa = {
-        'k-distributions': True, 
-        'CIA': True, 
-        'rayleigh': True, 
-        'photolysis-xs': True, 
-        'water-continuum': 'MT_CKD'
-    }
-
-    settings = {
-        'atmosphere-grid': {
-            'number-of-layers': number_of_layers
-        },
-        'planet': {
-            'planet-mass': planet_mass, 
-            'planet-radius': planet_radius, 
-            'surface-albedo': surface_albedo,
-            'number-of-zenith-angles': number_of_zenith_angles,
-            'photon-scale-factor': photon_scale_factor
-        },
-        'optical-properties': {
-            'ir': {
-                'k-method': 'RandomOverlapResortRebin',
-                'opacities': flowmap(default_opa)
-            },
-            'solar': {
-                'k-method': 'RandomOverlapResortRebin',
-                'opacities': flowmap(default_opa)
-            }
-        }
-    }
-
+    opacities: dict, optional
+        A dictionary describing the opacities, by default None.
+    """
+    settings = settings_dict_for_climate(
+        planet_mass, 
+        planet_radius, 
+        surface_albedo, 
+        number_of_layers, 
+        number_of_zenith_angles, 
+        photon_scale_factor,
+        opacities
+    )
+    
+    settings['optical-properties']['ir']['opacities'] = flowmap(settings['optical-properties']['ir']['opacities'])
+    settings['optical-properties']['solar']['opacities'] = flowmap(settings['optical-properties']['solar']['opacities'])
     with open(filename, 'w') as f:
         yaml.dump(settings,f,Dumper=MyDumper,sort_keys=False,width=70)
