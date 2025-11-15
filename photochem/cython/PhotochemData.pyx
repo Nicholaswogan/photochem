@@ -86,6 +86,15 @@ cdef class PhotochemData:
       dat_pxd.photochemdata_species_names_get(self._ptr, &dim1, <char *>species_names_c.data)
       return c2stringarr(species_names_c, S_STR_LEN, dim1)
       
+  property species_composition:
+    "ndarray[int,dim=2], shape (natoms,nsp+2)."
+    def __get__(self):
+      cdef int dim1, dim2
+      dat_pxd.photochemdata_species_composition_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.intc, order="F")
+      dat_pxd.photochemdata_species_composition_get(self._ptr, &dim1, &dim2, <int *>arr.data)
+      return arr
+
   property atoms_names:
     "List, shape (natoms). The atoms in the model"
     def __get__(self):

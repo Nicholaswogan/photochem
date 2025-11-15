@@ -23,6 +23,9 @@ cdef extern void photochemdata_planet_radius_set(PhotochemData *ptr, double *val
 cdef extern void photochemdata_species_names_get_size(PhotochemData *ptr, int *dim1)
 cdef extern void photochemdata_species_names_get(PhotochemData *ptr, int *dim1, char* species_names)
 
+cdef extern void photochemdata_species_composition_get_size(PhotochemData *ptr, int *dim1, int *dim2)
+cdef extern void photochemdata_species_composition_get(PhotochemData *ptr, int *dim1, int *dim2, int *arr)
+
 cdef extern void photochemdata_atoms_names_get_size(PhotochemData *ptr, int *dim1)
 cdef extern void photochemdata_atoms_names_get(PhotochemData *ptr, int *dim1, char* names)
 

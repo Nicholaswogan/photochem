@@ -110,6 +110,24 @@
     species_names(dim1*s_str_len+1) = c_null_char
     
   end subroutine
+
+  subroutine photochemdata_species_composition_get_size(ptr, dim1, dim2) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1, dim2
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    dim1 = size(dat%species_composition,1)
+    dim2 = size(dat%species_composition,2)
+  end subroutine
+  
+  subroutine photochemdata_species_composition_get(ptr, dim1, dim2, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    integer(c_int), intent(out) :: arr(dim1, dim2)
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    arr = dat%species_composition
+  end subroutine
   
   subroutine photochemdata_atoms_names_get_size(ptr, dim1) bind(c)
     type(c_ptr), value, intent(in) :: ptr
