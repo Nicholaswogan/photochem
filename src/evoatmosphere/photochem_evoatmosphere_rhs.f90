@@ -1042,7 +1042,11 @@ contains
         k = i + (j-1)*dat%nq      
         djac(dat%ku,k+dat%nq) = wrk%DU(i,j) + wrk%ADU(i,j)
         djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,j) + wrk%ADD(i,j)     
-        djac(dat%kl,k-dat%nq) = wrk%DL(i,j) + wrk%ADL(i,j)
+        ! For fixed lower BCs, do not couple layer 2 back to the fixed surface value.
+        if (.not.(j == 2 .and. (var%lowerboundcond(i) == DensityBC .or. &
+                                var%lowerboundcond(i) == PressureBC))) then
+          djac(dat%kl,k-dat%nq) = wrk%DL(i,j) + wrk%ADL(i,j)
+        endif
       enddo
     enddo
   
@@ -1060,9 +1064,7 @@ contains
           djac(mm,m) = 0.0_dp
         enddo
         djac(dat%ku,i+dat%nq) = 0.0_dp
-        ! For some reason this term makes the integration
-        ! much happier. I will keep it. Jacobians don't need to be perfect.
-        djac(dat%kd,i) = - wrk%DU(i,1)
+        djac(:,i) = 0.0_dp
   
       elseif (var%lowerboundcond(i) == FluxBC) then
         djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
@@ -1252,5 +1254,3 @@ contains
   end subroutine
 
 end submodule
-
-
