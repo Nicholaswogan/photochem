@@ -65,15 +65,15 @@ module pseudo_transient
       real(dp), intent(inout) :: ab(ldab,*)
     end subroutine dgbtrf
 
-  subroutine dgbtrs(trans, n, kl, ku, nrhs, ab, ldab, ipiv, b, ldb, info)
-    import :: dp, int32
-    character(len=*), intent(in) :: trans
-    integer(int32), intent(in) :: n, kl, ku, nrhs, ldab, ldb
-    integer(int32), intent(in) :: ipiv(*)
-    integer(int32), intent(out) :: info
-    real(dp), intent(inout) :: ab(ldab,*), b(ldb,*)
-  end subroutine dgbtrs
-end interface
+    subroutine dgbtrs(trans, n, kl, ku, nrhs, ab, ldab, ipiv, b, ldb, info)
+      import :: dp, int32
+      character(len=*), intent(in) :: trans
+      integer(int32), intent(in) :: n, kl, ku, nrhs, ldab, ldb
+      integer(int32), intent(in) :: ipiv(*)
+      integer(int32), intent(out) :: info
+      real(dp), intent(inout) :: ab(ldab,*), b(ldb,*)
+    end subroutine dgbtrs
+  end interface
 
   type :: PTCSolver
     type(PTCOptions) :: opt
@@ -81,6 +81,7 @@ end interface
     procedure(ptc_jac), pointer :: jac => null()
     type(c_ptr) :: udata = c_null_ptr
     logical :: use_band = .false.
+    logical :: use_atol_vec = .false.
     integer :: n = 0
     integer :: ldab = 0
     integer(int32) :: n_i32 = 0, ldab_i32 = 0
@@ -88,6 +89,7 @@ end interface
     real(dp) :: res_norm = huge(1.0_dp)
     logical :: initialized = .false.
     real(dp), allocatable :: y(:), f(:), f_trial(:), y_trial(:), delta(:)
+    real(dp), allocatable :: atol_vec(:), wt(:)
     real(dp), allocatable :: Jd(:,:), Ab(:,:)
     integer(int32), allocatable :: ipiv(:)
   contains
@@ -98,13 +100,14 @@ end interface
 
 contains
 
-  subroutine initialize(self, y0, rhs, jac, opts, udata, err_code)
+  subroutine initialize(self, y0, rhs, jac, opts, udata, atol_vec, err_code)
     class(PTCSolver), intent(inout) :: self
     real(dp), intent(in) :: y0(:)
     procedure(ptc_rhs) :: rhs
     procedure(ptc_jac) :: jac
     type(PTCOptions), intent(in), optional :: opts
     type(c_ptr), value, intent(in), optional :: udata
+    real(dp), intent(in), optional :: atol_vec(:)
     integer, intent(out) :: err_code
 
     err_code = 0
@@ -122,17 +125,34 @@ contains
 
     allocate(self%y(self%n), self%f(self%n), self%f_trial(self%n), &
              self%y_trial(self%n), self%delta(self%n))
+    allocate(self%wt(self%n))
     if (self%use_band) then
       allocate(self%Ab(self%ldab, self%n), self%ipiv(self%n))
     else
       allocate(self%Jd(self%n, self%n), self%ipiv(self%n))
     endif
 
+    self%use_atol_vec = .false.
+    if (present(atol_vec)) then
+      if (size(atol_vec) /= self%n) then
+        err_code = -12
+        return
+      endif
+      allocate(self%atol_vec(self%n))
+      self%atol_vec = atol_vec
+      self%use_atol_vec = .true.
+    endif
+
     self%y = y0
     self%dt = self%opt%dt_init
     call self%rhs(self%y, self%f, self%udata, err_code)
     if (err_code /= 0) return
-    self%res_norm = residual_norm(self%f, self%y, self%opt%rtol, self%opt%atol)
+    if (self%use_atol_vec) then
+      call build_weights(self%y, self%opt%rtol, self%opt%atol, self%use_atol_vec, atol_vec=self%atol_vec, w=self%wt)
+    else
+      call build_weights(self%y, self%opt%rtol, self%opt%atol, self%use_atol_vec, w=self%wt)
+    endif
+    self%res_norm = residual_norm(self%f, self%wt)
     self%initialized = .true.
   end subroutine initialize
 
@@ -226,7 +246,12 @@ contains
           elseif (err_code /= 0) then
             return
           endif
-          res_new = residual_norm(self%f_trial, self%y_trial, self%opt%rtol, self%opt%atol)
+          if (self%use_atol_vec) then
+            call build_weights(self%y_trial, self%opt%rtol, self%opt%atol, self%use_atol_vec, atol_vec=self%atol_vec, w=self%wt)
+          else
+            call build_weights(self%y_trial, self%opt%rtol, self%opt%atol, self%use_atol_vec, w=self%wt)
+          endif
+          res_new = residual_norm(self%f_trial, self%wt)
           if (res_new <= (1.0_dp - self%opt%ls_c)*self%res_norm) exit
           self%delta = 0.5_dp*self%delta
         enddo
@@ -280,17 +305,31 @@ contains
     if (.not. converged .and. err_code == 0) err_code = -2
   end subroutine integrate
 
-  function residual_norm(r, yv, rtol, atol) result(val)
-    real(dp), intent(in) :: r(:), yv(:)
+  subroutine build_weights(y, rtol, atol, use_atol_vec, atol_vec, w)
+    real(dp), intent(in) :: y(:)
     real(dp), intent(in) :: rtol, atol
+    logical, intent(in) :: use_atol_vec
+    real(dp), intent(in), optional :: atol_vec(:)
+    real(dp), intent(out) :: w(:)
+    if (use_atol_vec) then
+      if (present(atol_vec)) then
+        w = atol_vec + rtol*abs(y)
+      else
+        w = atol + rtol*abs(y)
+      endif
+    else
+      w = atol + rtol*abs(y)
+    endif
+  end subroutine build_weights
+
+  function residual_norm(r, w) result(val)
+    real(dp), intent(in) :: r(:), w(:)
     real(dp) :: val
     integer :: ii, nr
-    real(dp) :: w
     nr = size(r)
     val = 0.0_dp
     do ii = 1, nr
-      w = atol + rtol*abs(yv(ii))
-      val = val + (r(ii)/w)**2
+      val = val + (r(ii)/w(ii))**2
     enddo
     val = sqrt(val/real(nr,dp))
   end function residual_norm
