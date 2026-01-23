@@ -912,12 +912,19 @@ def composition_at_metallicity(gas, T, P, CtoO, metal, rainout_condensed_atoms =
 
     # Compute chemical equilibrium at all altitudes
     for i in range(P.shape[0]):
-        gas.solve(P[i], T[i], molfracs_atoms=molfracs_atoms)
+        if i > 0:
+            gas.use_prev_guess = True
+        for eps in [0.0, 1.0e-12, -1.0e-12, 1.0e-8, -1.0e-8]:
+            converged = gas.solve(P[i], T[i] + T[i]*eps, molfracs_atoms=molfracs_atoms)
+            if converged:
+                break
+        # Do not enforce convergence.
         for j,sp in enumerate(gas.gas_names):
             out[sp][i] = gas.molfracs_species_gas[j]
         mubar[i] = gas.mubar
         if rainout_condensed_atoms:
             molfracs_atoms = gas.molfracs_atoms_gas
+    gas.use_prev_guess = False
 
     return out, mubar
 
