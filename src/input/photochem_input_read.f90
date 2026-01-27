@@ -2180,7 +2180,7 @@ contains
     integer(HSIZE_T), allocatable :: dims(:)
     real(dp), allocatable :: wv_tmp(:), xs_tmp(:), wv1(:), qy1(:), qy2(:), wv_av(:)
     integer :: ierr
-    character(:), allocatable :: err_base
+    character(:), allocatable :: err_base, photo_type
 
     err_base = 'Failed to retrieve photolysis cross section data for the reaction "'//reaction//'". '
 
@@ -2196,6 +2196,22 @@ contains
     call h%open(filename,'r')
     h_closer%h => h
 
+    ! Find if reaction is photolysis or ionization
+    if (h%exists("photodissociation-qy")) then
+      call h%open_group("photodissociation-qy")
+      if (h%exists(reaction)) photo_type = 'photodissociation'
+      call h%close_group()
+    endif
+    if (.not.allocated(photo_type) .and. h%exists("photoionization-qy")) then
+      call h%open_group("photoionization-qy")
+      if (h%exists(reaction)) photo_type = 'photoionization'
+      call h%close_group()
+    endif
+    if (.not.allocated(photo_type)) then
+      err = err_base//filename//': could not find quantum yield information.'
+      return
+    endif
+
     ! Wavelengths
     call check_h5_dataset(h, 'wavelengths', 1, H5T_FLOAT_F, filename, err)
     if (allocated(err)) return
@@ -2204,23 +2220,23 @@ contains
     call h%read("wavelengths", wv_tmp)
 
     ! Photodissociation
-    call check_h5_dataset(h, 'photodissociation', 1, H5T_FLOAT_F, filename, err)
+    call check_h5_dataset(h, photo_type, 1, H5T_FLOAT_F, filename, err)
     if (allocated(err)) return
-    call h%shape("photodissociation", dims)
+    call h%shape(photo_type, dims)
     allocate(xs_tmp(dims(1)))
-    call h%read("photodissociation", xs_tmp)
+    call h%read(photo_type, xs_tmp)
 
     ! Interpolate
     call interp_discrete_to_bins(wavl, wv_tmp, xs_tmp, xs, 'FillValue', tiny(1.0_dp), err)
     if (allocated(err)) return
 
     ! Now do the quantum yields
-    if (.not. h%exists("photodissociation-qy")) then
-      err = err_base//filename//': dataset "photodissociation-qy" does not exist'
+    if (.not. h%exists(photo_type//"-qy")) then
+      err = err_base//filename//': dataset "'//photo_type//'-qy" does not exist'
       return
     endif
 
-    call h%open_group("photodissociation-qy")
+    call h%open_group(photo_type//"-qy")
     
     ! Wavelengths
     call check_h5_dataset(h, 'wavelengths', 1, H5T_FLOAT_F, filename, err)
