@@ -22,26 +22,13 @@ planet:
     water-condensation: true
 
 optical-properties:
-  ir:
-    k-method: AdaptiveEquivalentExtinction
-    opacities:
-      k-distributions: [H2O, CO2, CH4, O3]
-      CIA: [N2-N2, O2-O2, N2-O2, CH4-CH4, CO2-CO2, H2-CH4, H2-H2]
-      rayleigh: true
-      photolysis-xs: true
-      water-continuum: MT_CKD
-  solar:
-    k-method: AdaptiveEquivalentExtinction
-    opacities:
-      k-distributions: [H2O, CO2, CH4, O3]
-      CIA: [N2-N2, O2-O2, N2-O2, CH4-CH4, CO2-CO2, H2-CH4, H2-H2]
-      rayleigh: true
-      photolysis-xs: true
-      water-continuum: MT_CKD
-      particle-xs:
-        - {name: HCaer1, data: khare1984}
-        - {name: HCaer2, data: khare1984}
-        - {name: HCaer3, data: khare1984}
+  k-method: RandomOverlapResortRebin
+  opacities:
+    k-distributions: true
+    CIA: true
+    rayleigh: true
+    photolysis-xs: true
+    water-continuum: MT_CKD
 
 boundary-conditions:
 - name: N2
