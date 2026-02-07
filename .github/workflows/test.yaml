@@ -12,13 +12,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Setup Fortran
-      uses: awvwgk/setup-fortran@main
-      id: setup-fortran
-      with:
-        compiler: gcc
-        version: 11
-
     - uses: mamba-org/setup-micromamba@v2
       with:
         environment-name: test-env
@@ -41,24 +34,24 @@ jobs:
           c-compiler 
           cxx-compiler 
           fortran-compiler
+          valgrind
 
-    - name: Install Valgrind
+    - name: Install glibc debug symbols for valgrind
       run: |
-        sudo apt install valgrind
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends libc6-dbg
 
     - name: configure cmake
       shell: bash -el {0}
       run: |
-        export CONDA_PREFIX_SAVE=$CONDA_PREFIX
-        unset CONDA_PREFIX
-        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_PREFIX_PATH=$CONDA_PREFIX_SAVE
-        export CONDA_PREFIX=$CONDA_PREFIX_SAVE
+        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
 
     - name: build fortran
       shell: bash -el {0}
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
     - name: test fortran
+      shell: bash -el {0}
       working-directory: ${{github.workspace}}/build
       run: |
         valgrind --error-exitcode=1 --leak-check=full ./tests/memtest_evo
@@ -66,8 +59,5 @@ jobs:
     - name: build python
       shell: bash -el {0}
       run: |
-        export CMAKE_ARGS="-DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
-        export CONDA_PREFIX_SAVE=$CONDA_PREFIX
-        unset CONDA_PREFIX
+        export CMAKE_ARGS="-DCMAKE_PREFIX_PATH=$CONDA_PREFIX"
         python -m pip install --no-deps --no-build-isolation . -v
-        export CONDA_PREFIX=$CONDA_PREFIX_SAVE
