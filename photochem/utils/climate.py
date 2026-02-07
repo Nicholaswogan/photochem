@@ -144,14 +144,8 @@ def settings_dict_for_climate(planet_mass, planet_radius, surface_albedo,
             'photon-scale-factor': photon_scale_factor
         },
         'optical-properties': {
-            'ir': {
-                'k-method': 'RandomOverlapResortRebin',
-                'opacities': opacities
-            },
-            'solar': {
-                'k-method': 'RandomOverlapResortRebin',
-                'opacities': opacities
-            }
+            'k-method': 'RandomOverlapResortRebin',
+            'opacities': opacities
         }
     }
     
@@ -192,7 +186,6 @@ def settings_file_for_climate(filename, planet_mass, planet_radius, surface_albe
         opacities
     )
     
-    settings['optical-properties']['ir']['opacities'] = flowmap(settings['optical-properties']['ir']['opacities'])
-    settings['optical-properties']['solar']['opacities'] = flowmap(settings['optical-properties']['solar']['opacities'])
+    settings['optical-properties']['opacities'] = flowmap(settings['optical-properties']['opacities'])
     with open(filename, 'w') as f:
         yaml.dump(settings,f,Dumper=MyDumper,sort_keys=False,width=70)
