@@ -459,7 +459,7 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
         atm['temperature'] = np.append(self.T_surf,self.T)
         for i,sp in enumerate(self.species_names):
             atm[sp] = self.f_i[:,i]
-            atm[sp] = np.append(self.f_i[0,i],atm[sp])
+            atm[sp] = np.append(self.f_i_surf[i],atm[sp])
         for key in atm:
             atm[key] = atm[key][::-1].copy()
         atm = pd.DataFrame(atm)

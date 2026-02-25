@@ -2202,9 +2202,9 @@ contains
       if (h%exists(reaction)) photo_type = 'photodissociation'
       call h%close_group()
     endif
-    if (.not.allocated(photo_type) .and. h%exists("photoionization-qy")) then
-      call h%open_group("photoionization-qy")
-      if (h%exists(reaction)) photo_type = 'photoionization'
+    if (.not.allocated(photo_type) .and. h%exists("photoionisation-qy")) then
+      call h%open_group("photoionisation-qy")
+      if (h%exists(reaction)) photo_type = 'photoionisation'
       call h%close_group()
     endif
     if (.not.allocated(photo_type)) then
