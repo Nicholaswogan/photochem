@@ -62,6 +62,11 @@ jobs:
         export CMAKE_ARGS="-DCMAKE_PREFIX_PATH=$CONDA_PREFIX"
         python -m pip install --no-deps --no-build-isolation . -v
 
+    - name: test python runtime
+      shell: bash -el {0}
+      working-directory: ${{github.workspace}}/tests
+      run: python test.py
+
     - name: check shared libs for executable stack
       shell: bash -el {0}
       run: |
