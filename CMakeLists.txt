@@ -1,18 +1,26 @@
 cmake_minimum_required(VERSION "3.14")
 cmake_policy(SET CMP0148 OLD)
 
-project(Photochem LANGUAGES Fortran C VERSION "0.8.2")
+project(Photochem LANGUAGES Fortran C VERSION "0.8.3")
 set(PHOTOCHEM_CLIMA_DATA_VERSION "0.3.1")
 
 include(FortranCInterface)
 FortranCInterface_VERIFY()
 
-if ("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU" AND 
-    "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "arm64" AND
-    "${CMAKE_SYSTEM_NAME}" MATCHES "Darwin")
-  if (${CMAKE_Fortran_COMPILER_VERSION} LESS "11.3.0")
-    message (FATAL_ERROR "Photochem will only work with gfortran >= 11.3.0 for MacOS M1")
+# Ensure the compiler will work, and add some necessary global compiler and linker flags
+if ("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "GNU")
+  if (${CMAKE_Fortran_COMPILER_VERSION} LESS "14.0.0")
+    message(FATAL_ERROR "Photochem will only work with gfortran >= 14.0.0.")
   endif()
+  # Avoid executable-stack trampolines from internal procedure callbacks.
+  add_compile_options($<$<COMPILE_LANGUAGE:Fortran>:-ftrampoline-impl=heap>)
+endif()
+if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
+  # Linux/ELF link-time hardening: mark outputs as not requiring an executable stack.
+  add_link_options(
+    $<$<AND:$<LINK_LANGUAGE:Fortran>,$<Fortran_COMPILER_ID:GNU>>:-Wl,-z,noexecstack>
+    $<$<AND:$<LINK_LANGUAGE:C>,$<C_COMPILER_ID:GNU>>:-Wl,-z,noexecstack>
+  )
 endif()
 
 # includes
@@ -71,4 +79,3 @@ if (BUILD_PYTHON_PHOTOCHEM)
   endif()
                 
 endif()
-

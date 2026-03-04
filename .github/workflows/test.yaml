@@ -39,7 +39,7 @@ jobs:
     - name: Install glibc debug symbols for valgrind
       run: |
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends libc6-dbg
+        sudo apt-get install -y --no-install-recommends libc6-dbg binutils
 
     - name: configure cmake
       shell: bash -el {0}
@@ -61,3 +61,29 @@ jobs:
       run: |
         export CMAKE_ARGS="-DCMAKE_PREFIX_PATH=$CONDA_PREFIX"
         python -m pip install --no-deps --no-build-isolation . -v
+
+    - name: check shared libs for executable stack
+      shell: bash -el {0}
+      run: |
+        set -euo pipefail
+        shopt -s nullglob
+        libs=("$CONDA_PREFIX"/lib/python*/site-packages/photochem/*.so)
+        if [ ${#libs[@]} -eq 0 ]; then
+          echo "No photochem shared libraries found under site-packages."
+          exit 1
+        fi
+        bad=0
+        for lib in "${libs[@]}"; do
+          if readelf -W -l "$lib" | awk '
+            /GNU_STACK/ && $0 ~ /E/ { found=1 }
+            END { exit(found ? 0 : 1) }'
+          then
+            echo "ERROR: executable stack detected: $lib"
+            bad=1
+          else
+            echo "OK: non-executable stack: $lib"
+          fi
+        done
+        if [ "$bad" -ne 0 ]; then
+          exit 1
+        fi
