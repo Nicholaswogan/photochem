@@ -299,7 +299,7 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
         return converged
 
     def set_custom_albedo(self, wv, albedo):
-        """Sets a cutsom surface albedo/emissivity. The input is 
+        """Sets a custom surface albedo/emissivity. The input is 
         constantly extrapolated.
 
         Parameters

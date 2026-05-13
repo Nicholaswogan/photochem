@@ -59,7 +59,7 @@ def photochem2cantera_main(data):
     # delete reverse-reactions
     if "reverse-reactions" in data:
         if data['reverse-reactions'] == False:
-            raise Exception("Can only convert to Cantera if reactions are reversable")
+            raise Exception("Can only convert to Cantera if reactions are reversible")
         del data['reverse-reactions']  
 
     # Cantera can't handle > 2 temperature ranges for thermodynamic data

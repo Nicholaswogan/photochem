@@ -418,7 +418,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         ----------
         include_deep_atmosphere : bool, optional
             If True, then results will include portions of the deep
-            atomsphere that are not part of the photochemical grid, by default True
+            atmosphere that are not part of the photochemical grid, by default True
 
         Returns
         -------

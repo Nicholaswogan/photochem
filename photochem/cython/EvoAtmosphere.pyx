@@ -321,7 +321,7 @@ cdef class EvoAtmosphere:
     Parameters
     ----------
     temperature : ndarray[double,ndim=1]
-        new temperature at each atomspheric layer
+        new temperature at each atmospheric layer
     trop_alt : float, optional
         Tropopause altitude (cm). Only necessary if rainout == True, 
         or fix_water_in_trop == True.
@@ -657,7 +657,7 @@ cdef class EvoAtmosphere:
     return out
 
   property T_surf:
-    """double. The surface temperature (K). Only relevent when doing time-dependent
+    """double. The surface temperature (K). Only relevant when doing time-dependent
     photochemical-climate simulation.
     """
     def __get__(self):
@@ -730,7 +730,7 @@ cdef class EvoAtmosphere:
 
   property top_atmos_adjust_frac:
     """Sets the fractional amount that the top of the model domain changes
-    when integration is haulted by `P_top_min` or `P_top_max`
+    when integration is halted by `P_top_min` or `P_top_max`
     """
     def __get__(self):
       cdef double val

@@ -539,7 +539,7 @@ def hazmat_spectrum(star_name, model='model', outputfile=None, Teq=None, stellar
     return wv, F
 
 def print_hazmat_stars():
-    "Prints the stars avaliable in the HAZMAT catalogue"
+    "Prints the stars available in the HAZMAT catalogue"
     print(HAZMAT_STARS_YAML)
 
 HAZMAT_STARS_YAML = \
@@ -724,7 +724,7 @@ def closest_muscles_to_Teff(Teff):
     return out
 
 def print_muscles_stars():
-    "Prints the stars avaliable in the MUSCLES catalogue"
+    "Prints the stars available in the MUSCLES catalogue"
     print(MUSCLES_STARS_YAML)
 
 # All the MUSCLES stars for which we could easily get stellar properties.

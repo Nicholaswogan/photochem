@@ -33,7 +33,7 @@ def FormatReactions(filename, outfile):
     filename : str
         Path of input reaction network file.
     outfile : str
-        Path of output formated reaction network file.
+        Path of output formatted reaction network file.
 
     """
     fil = open(filename,'r')
@@ -308,7 +308,7 @@ def resave_mechanism_with_atoms(
     remove_particles : bool, optional
         If True, then all particles are removed, by default False
     remove_reaction_particles : bool, optional
-        If True, then partcles forming from reactions are removed, by default False
+        If True, then particles forming from reactions are removed, by default False
     """    
 
     with open(infile,'r') as f:

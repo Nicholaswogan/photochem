@@ -2,7 +2,7 @@ from ._format import FormatReactions_main, FormatSettings_main, MyDumper, yaml
 from ._convert_utils import generate_photo_yaml_entries, sort_photos
     
 def atmos2yaml(rx_file, species_file, outfile, photo_database = "Photochem", with_citations = False):
-    """Converts Atmos reactions to .yaml format compatable with Photochem
+    """Converts Atmos reactions to .yaml format compatible with Photochem
 
     Parameters
     ----------

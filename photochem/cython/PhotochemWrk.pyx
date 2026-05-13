@@ -31,7 +31,7 @@ cdef class PhotochemWrk:
       return val
 
   property nsteps:
-    "int. Number of integration steps excuted. Updated after every successful step."
+    "int. Number of integration steps executed. Updated after every successful step."
     def __get__(self):
       cdef int val
       wrk_pxd.photochemwrk_nsteps_get(self._ptr, &val)

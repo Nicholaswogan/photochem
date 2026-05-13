@@ -187,7 +187,7 @@ contains
 
     ! check inputs
     if (T_surf < T_trop) then
-      err = "Surface temperature is lower then the tropopause temperture"
+      err = "Surface temperature is lower then the tropopause temperature"
       return
     endif
 

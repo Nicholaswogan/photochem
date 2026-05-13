@@ -437,7 +437,7 @@ module photochem_types ! make a giant IO object
     ! Custom optical properties
     real(dp), allocatable :: tauc(:,:) !! (nz,nw) Custom optical depth in each layer
     real(dp), allocatable :: w0c(:,:) !! (nz,nw) Custom single scattering albedo
-    real(dp), allocatable :: g0c(:,:) !! (nz,nw) Custom asymetry parameter
+    real(dp), allocatable :: g0c(:,:) !! (nz,nw) Custom asymmetry parameter
     
     ! output
     logical :: at_photo_equilibrium = .false.
@@ -453,7 +453,7 @@ module photochem_types ! make a giant IO object
     !> works better when atol is smaller (e.g., atol = ~1.0e-18).
     real(c_double) :: atol = 1.0e-23_dp 
     integer :: mxsteps = 100000 !! max number of steps before integrator will give up.
-    !> seconds. atomsphere considered in equilibrium if integrations reaches this time.
+    !> seconds. atmosphere considered in equilibrium if integrations reaches this time.
     real(dp) :: equilibrium_time = 1.0e17_dp
     !> For convergence checking. Considers mixing ratio change between t_now and time 
     !> t = t_now*conv_hist_factor to see if atmosphere is changing.
@@ -466,13 +466,13 @@ module photochem_types ! make a giant IO object
     !> Threshold normalized change in mixing ratios per time change for
     !> convergence checking.
     real(dp) :: conv_longdydt = 1.0e-6_dp
-    real(c_double) :: initial_dt = 1.0e-6_dp !! intial timestep size (seconds)
+    real(c_double) :: initial_dt = 1.0e-6_dp !! initial timestep size (seconds)
     !> Maximum time step size (seconds).
     real(c_double) :: max_dt = sqrt(huge(1.0_dp))
     integer(c_int) :: max_err_test_failures = 15 !! CVODE max error test failures
     integer(c_int) :: max_order = 5 !! CVODE max order for BDF method.
     !> If .true., then the chemistry terms of the Jacobian are computed uses 
-    !> foward mode automatic differentiation.
+    !> forward mode automatic differentiation.
     logical :: autodiff = .true.
     !> Perturbation for finite difference Jacobian calculation, when autodiff == .false.
     real(dp) :: epsj = 1.0e-4_dp 
@@ -538,7 +538,7 @@ module photochem_types ! make a giant IO object
     type(SundialsData) :: sun !! CVODE data
 
     ! All for determining convergence
-    integer :: nsteps = 0 !! Number of integration steps excuted. Updated
+    integer :: nsteps = 0 !! Number of integration steps executed. Updated
                           !! after every successful step.
     !> History of times at previous integration steps. Index 1 is current, 
     !> while index 2, 3, 4 are previous steps. Updated after every successful step.

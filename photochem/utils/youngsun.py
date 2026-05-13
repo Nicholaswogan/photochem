@@ -136,7 +136,7 @@ def youngsun(timega, grid):
     relphotokuruczgrid = np.zeros(len(wave))
     relphotokuruczgrid[99:] = photothen[99:]/photonow[99:]
     # wave[100]=69.5 nm, and photonow is 0 below this. In the final code,
-    # we only consider the photospheric contribution above 150nm anway...
+    # we only consider the photospheric contribution above 150nm anyway...
 
     # 8) interpolate kurucz grid to Thuillier wavelength grid
     wave = wave*10.0 # convert kurucz wavelength grid to Angstroms

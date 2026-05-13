@@ -24,7 +24,7 @@ module photochem_evoatmosphere
 
     logical :: evolve_climate
     ! Below are only relevant for evolve_climate = .true.
-    !> The surface temperature (K). Only relevent when doing time-dependent
+    !> The surface temperature (K). Only relevant when doing time-dependent
     !> photochemical-climate simulation.
     real(dp) :: T_surf
     !> Assumed tropopause temperature for climate calculations (K).
@@ -47,7 +47,7 @@ module photochem_evoatmosphere
     !> top of the atmosphere has a smaller pressure than `P_top_max`.
     real(dp) :: P_top_max = 1.0e50_dp
     !> Sets the fractional amount that the top of the model domain changes
-    !> when integration is haulted by `P_top_min` or `P_top_max`
+    !> when integration is halted by `P_top_min` or `P_top_max`
     real(dp) :: top_atmos_adjust_frac = 0.02
 
   contains
@@ -333,7 +333,7 @@ module photochem_evoatmosphere
     !> Changes the temperature profile.
     module subroutine set_temperature(self, temperature, trop_alt, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: temperature(:) !! new temperature at each atomspheric layer
+      real(dp), intent(in) :: temperature(:) !! new temperature at each atmospheric layer
       real(dp), optional, intent(in) :: trop_alt !! Tropopause altitude (cm). Only necessary if
                                                  !! rainout == True, or fix_water_in_trop == True.
       character(:), allocatable, intent(out) :: err

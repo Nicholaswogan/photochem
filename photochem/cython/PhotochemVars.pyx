@@ -100,7 +100,7 @@ cdef class PhotochemVars:
       return val
   
   property z:
-    "ndarray[double,dim=1], shape (nz). The altitude of the center of each atmopsheric layer (cm)"
+    "ndarray[double,dim=1], shape (nz). The altitude of the center of each atmospheric layer (cm)"
     def __get__(self):
       cdef int dim1
       var_pxd.photochemvars_z_get_size(self._ptr, &dim1)
@@ -313,7 +313,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_mxsteps_set(self._ptr, &val)
       
   property equilibrium_time:
-    "double. Atomsphere considered in equilibrium if integrations reaches this time (seconds)"
+    "double. Atmosphere considered in equilibrium if integrations reaches this time (seconds)"
     def __get__(self):
       cdef double val
       var_pxd.photochemvars_equilibrium_time_get(self._ptr, &val)
@@ -375,7 +375,7 @@ cdef class PhotochemVars:
 
   property autodiff:
     """bool. If True, then the chemistry terms of the Jacobian are computed uses 
-    foward mode automatic differentiation.
+    forward mode automatic differentiation.
     """
     def __get__(self):
       cdef bool val

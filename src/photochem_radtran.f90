@@ -87,7 +87,7 @@ contains
     Ssfc = Rsfc*direct(nz+1)
       
     ! Coefficients of tridiagonal linear system (Equations 39 - 43)
-    ! Odd coeficients (Equation 41)
+    ! Odd coefficients (Equation 41)
     A(1) = 0.0_dp
     B(1) = e1(1)
     D(1) = -e2(1)
