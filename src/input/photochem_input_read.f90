@@ -265,7 +265,7 @@ contains
     ! now we now nq, the number of PDEs
     dat%nq = dat%npq + dat%nll
     
-    ! we also now nsp, the index of the backgorund gas 
+    ! we also now nsp, the index of the background gas 
     dat%nsp = dat%npq + dat%ng
     
     ! species_mass, species_composition, and species_names
@@ -744,7 +744,7 @@ contains
     allocate(var%only_eddy(dat%nq))
     allocate(var%rate_fcns(dat%nq))
     ! default boundary conditions
-    var%lowerboundcond(:dat%np) = VelocityBC ! default particle BC is alway velocity
+    var%lowerboundcond(:dat%np) = VelocityBC ! default particle BC is always velocity
     var%lowerboundcond(dat%ng_1:) = s%default_lowerboundcond ! can be -1 (Moses) or 0 (velocity)
     var%lower_vdep = 0.0_dp
     var%upperboundcond = VelocityBC
@@ -2637,7 +2637,7 @@ contains
     ! reads in alt
     ind = findloc(labels,'alt')
     if (ind(1) /= 0) then
-      dat%z_file(:) = temp(ind(1),:)*1.e5_dp ! conver to cm
+      dat%z_file(:) = temp(ind(1),:)*1.e5_dp ! convert to cm
     else
       err = '"alt" was not found in input file '//trim(atmosphere_txt)
       return

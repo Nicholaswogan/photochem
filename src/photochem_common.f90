@@ -50,7 +50,7 @@ contains
         n = rp%eff%n_eff
         do j = 1,var%nz
           eff_den(j) = density(j)*rp%eff%def_eff
-          ! subtract the default efficiency, then add the perscribed one
+          ! subtract the default efficiency, then add the prescribed one
           do k = 1,n ! if n is 0 then it will be skipped
             l = rp%eff%eff_sp_inds(k)
             eff_den(j) = eff_den(j) - rp%eff%def_eff*densities(l,j) &
@@ -66,7 +66,7 @@ contains
         n = rp%eff%n_eff
         do j = 1,var%nz
           eff_den(j) = density(j)*rp%eff%def_eff
-          ! subtract the default efficiency, then add the perscribed one
+          ! subtract the default efficiency, then add the prescribed one
           do k = 1,n ! if n is 0 then it will be skipped
             l = rp%eff%eff_sp_inds(k)
             eff_den(j) = eff_den(j) - rp%eff%def_eff*densities(l,j) &
@@ -390,7 +390,7 @@ contains
       wH2O(var%trop_ind) = 1.d-20
     endif
     ! Here we re-scale the rainfall rate so that is the the same as what
-    ! is perscribed in the settings file. This means that distribution of
+    ! is prescribed in the settings file. This means that distribution of
     ! raining is controlled by H2O vs z, but magnitude is fixed.
     total_rainfall = var%rainfall_rate*earth_rainfall_rate
     scale_factor = total_rainfall/sum(wH2O*var%dz(1))

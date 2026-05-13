@@ -823,7 +823,7 @@ contains
                         + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
                         + var%lower_flux(i)/var%dz(1)
       ! Moses (2001) boundary condition for gas giants
-      ! A deposition velocity controled by how quickly gases
+      ! A deposition velocity controlled by how quickly gases
       ! turbulantly mix vertically
       elseif (var%lowerboundcond(i) == MosesBC) then
         rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
@@ -856,7 +856,7 @@ contains
         rhs(i) = rhs(i) + var%lower_flux(i)/var%dz(1)
         else
         ! If the height is within the model domain, then we will distribute the flux
-        ! throught the model.
+        ! throughout the model.
         jdisth = minloc(var%Z,1, var%Z >= disth) - 1
         jdisth = max(jdisth,2)
         ztop = var%z(jdisth)-var%z(1)
