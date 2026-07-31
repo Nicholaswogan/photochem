@@ -1,0 +1,731 @@
+\documentclass[twocolumn]{aastex631}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bm}
+
+\begin{document}
+
+\title{Re-derivation of \texttt{Photochem}}
+\author{Nicholas F. Wogan}
+\affiliation{NASA Ames Research Center, Moffett Field, CA 94035}
+
+
+\section{Coordinate transformation of the continuity equation}
+
+We begin our derivation of the governing photochemical equations with a
+statement of the conservation of molecules. Such statements of conservation
+are often called continuity equations. In an altitude coordinate, the
+one-dimensional continuity equation for species $i$ is
+\begin{equation} \label{eq:continuity}
+  \left.\frac{\partial n_i}{\partial t}\right|_z
+  + \frac{\partial \Phi_i}{\partial z}
+  = \sigma_i .
+\end{equation}
+Here, $n_i$ is the number density in molecules cm$^{-3}$, $\Phi_i$ is
+the physical vertical flux in molecules cm$^{-2}$ s$^{-1}$, and $\sigma_i$ is the local source or sink in molecules cm$^{-3}$ s$^{-1}$. The derivative notation $\left.\partial n_i/\partial t\right|_z$ means that the time derivative is evaluated while holding the physical altitude $z$ fixed. Thus, Equation \eqref{eq:continuity} is written in a coordinate system whose locations are fixed in altitude.
+
+A limitation of a fixed-altitude grid is that atmospheres can expand or
+contract over time. For example, if the mean molecular weight increases, the
+atmospheric scale height decreases, and the pressure at a fixed
+top-of-atmosphere altitude may become undesirably small. We therefore seek a
+coordinate system in which the model domain naturally expands or contracts
+while maintaining a useful top-of-atmosphere pressure. To reformulate
+Equation \eqref{eq:continuity} for an atmosphere that may
+expand or contract, we must accomplish two connected goals. First, we must transform from the fixed altitude coordinate $z$ to a computational coordinate whose grid points may move in altitude. Second, we must rewrite the equation in terms of the column abundance in each moving grid cell, rather than local number density. A column is unchanged when a cell merely expands or contracts without exchanging molecules, making it the more natural conserved and evolved quantity on a moving grid. The coordinate transformation below will naturally lead to this column-based variable.
+
+Let $\eta$ be a dimensionless computational coordinate that increases upward,
+and let the physical altitude corresponding to a particular value of $\eta$
+be
+\begin{equation}
+  z = z(\eta,t).
+\end{equation}
+We define the coordinate Jacobian $J$ and grid velocity $w_g$ by
+\begin{equation}
+  J \equiv \frac{\partial z}{\partial\eta},
+  \qquad
+  w_g \equiv \left.\frac{\partial z}{\partial t}\right|_\eta .
+  \label{eq:grid_definitions}
+\end{equation}
+With $\eta$ increasing upward, $J>0$. The notation
+$\left.\partial/\partial t\right|_\eta$ means that the time derivative is
+evaluated while holding the computational coordinate $\eta$ fixed. It
+therefore follows a particular computational grid point as its physical
+altitude changes with time. Applying the chain rule at fixed $\eta$ gives
+\begin{equation}
+  \left.\frac{\partial n_i}{\partial t}\right|_\eta
+  =
+  \left.\frac{\partial n_i}{\partial t}\right|_z
+  + w_g\frac{\partial n_i}{\partial z},
+\end{equation}
+or, equivalently,
+\begin{equation}
+  \left.\frac{\partial n_i}{\partial t}\right|_z
+  =
+  \left.\frac{\partial n_i}{\partial t}\right|_\eta
+  - w_g\frac{\partial n_i}{\partial z}.
+  \label{eq:time_derivative_transform}
+\end{equation}
+This chain-rule relation has a simple physical interpretation. The change in
+$n_i$ observed while following a computational grid point equals the change
+at a fixed physical altitude plus the change caused by that grid point moving
+through the vertical density profile. Thus,
+$w_g\,\partial n_i/\partial z$ is an advection-like rate of change, rather
+than a flux. The corresponding grid-motion flux, $w_g n_i$, will appear when
+the continuity equation is placed in conservative form below.
+At fixed time, the spatial derivatives obey
+\begin{equation}
+  \frac{\partial}{\partial\eta}
+  = J\frac{\partial}{\partial z},
+  \qquad
+  \frac{\partial}{\partial z}
+  = \frac{1}{J}\frac{\partial}{\partial\eta}.
+  \label{eq:spatial_derivative_transform}
+\end{equation}
+Substitution of Equations \eqref{eq:time_derivative_transform} and
+\eqref{eq:spatial_derivative_transform} into Equation
+\eqref{eq:continuity}, followed by multiplication by $J$, gives
+\begin{equation}
+  J\left.\frac{\partial n_i}{\partial t}\right|_\eta
+  - w_g\frac{\partial n_i}{\partial\eta}
+  + \frac{\partial\Phi_i}{\partial\eta}
+  = J\sigma_i .
+  \label{eq:continuity_eta_nonconservative}
+\end{equation}
+
+To place this equation in conservative form, we use the product rules
+\begin{align}
+  J\left.\frac{\partial n_i}{\partial t}\right|_\eta
+  &=
+  \left.\frac{\partial(Jn_i)}{\partial t}\right|_\eta
+  - n_i\left.\frac{\partial J}{\partial t}\right|_\eta, \\
+  -w_g\frac{\partial n_i}{\partial\eta}
+  &=
+  -\frac{\partial(w_gn_i)}{\partial\eta}
+  +n_i\frac{\partial w_g}{\partial\eta}.
+  \label{eq:product_rules}
+\end{align}
+The definition $J=\partial z/\partial\eta$ implies
+\begin{equation}
+  \left.\frac{\partial J}{\partial t}\right|_\eta
+  =
+  \frac{\partial}{\partial\eta}
+  \left(\left.\frac{\partial z}{\partial t}\right|_\eta\right)
+  = \frac{\partial w_g}{\partial\eta}.
+  \label{eq:geometric_conservation}
+\end{equation}
+Consequently, the last terms in the two product rules cancel when they
+are substituted into Equation \eqref{eq:continuity_eta_nonconservative}.
+The transformed continuity equation is therefore
+\begin{equation}
+  \left.\frac{\partial(Jn_i)}{\partial t}\right|_\eta
+  + \frac{\partial}{\partial\eta}\left(\Phi_i-w_gn_i\right)
+  = J\sigma_i .
+  \label{eq:continuity_eta}
+\end{equation}
+
+We now define the transformed number density
+\begin{equation}
+  \mathcal{N}_i \equiv Jn_i .
+  \label{eq:transformed_number_density}
+\end{equation}
+Because $\eta$ is dimensionless, $\mathcal{N}_i$ has units of molecules
+cm$^{-2}$ and represents the column abundance per unit $\eta$. Substituting
+$n_i=\mathcal{N}_i/J$ into Equation \eqref{eq:continuity_eta} yields
+\begin{equation}
+  \boxed{
+  \left.\frac{\partial\mathcal{N}_i}{\partial t}\right|_\eta
+  + \frac{\partial}{\partial\eta}
+  \left(
+    \Phi_i-\frac{w_g}{J}\mathcal{N}_i
+  \right)
+  = J\sigma_i
+  }.
+  \label{eq:continuity_eta_conservative}
+\end{equation}
+Equation \eqref{eq:continuity_eta_conservative} is an exact coordinate
+transformation of Equation \eqref{eq:continuity}; no assumptions about
+pressure, hydrostatic equilibrium, or the equation of state have yet been
+introduced.
+
+\section{Finite-Volume Discretization} \label{sec:finite_volume}
+
+We now convert the continuous conservation law in Equation
+\eqref{eq:continuity_eta_conservative} into a system of ordinary differential
+equations that can be integrated numerically. We use a finite-volume method
+because it follows directly from the integral statement of molecule
+conservation. The computational domain is divided into cells, and the number
+of molecules in a cell changes only through fluxes across its boundaries or
+through sources and sinks within the cell.
+
+For brevity, define the flux relative to the moving computational grid as
+\begin{equation}
+  \mathcal{F}_i
+  \equiv
+  \Phi_i-\frac{w_g}{J}\mathcal{N}_i
+  = \Phi_i-w_g n_i .
+  \label{eq:relative_flux}
+\end{equation}
+Both $\Phi_i$ and $w_g n_i$ have units of molecules cm$^{-2}$ s$^{-1}$.
+The transformed continuity equation can then be written compactly as
+\begin{equation}
+  \left.\frac{\partial\mathcal{N}_i}{\partial t}\right|_\eta
+  + \frac{\partial\mathcal{F}_i}{\partial\eta}
+  = J\sigma_i .
+  \label{eq:continuity_eta_compact}
+\end{equation}
+
+Consider computational cell $j$, bounded below by the fixed computational
+coordinate $\eta_{j-1/2}$ and above by $\eta_{j+1/2}$. Although these
+boundaries are fixed in $\eta$, their physical altitudes,
+$z_{j-1/2}(t)=z(\eta_{j-1/2},t)$ and
+$z_{j+1/2}(t)=z(\eta_{j+1/2},t)$, may change with time. We define the column
+abundance of species $i$ in cell $j$ as
+\begin{align}
+  \overline{C_i}^{\,j}(t)
+  &\equiv
+  \int_{\eta_{j-1/2}}^{\eta_{j+1/2}}
+  \mathcal{N}_i(\eta,t)\,d\eta \\
+  &=
+  \int_{z_{j-1/2}(t)}^{z_{j+1/2}(t)}
+  n_i(z,t)\,dz .
+  \label{eq:cell_column}
+\end{align}
+The second equality follows from $\mathcal{N}_i=Jn_i$ and
+$dz=J\,d\eta$. Thus, $\overline{C_i}^{\,j}$ is the actual number of molecules of species
+$i$ above a unit horizontal area in cell $j$, and has units of molecules
+cm$^{-2}$. The numerical model will evolve approximations to these exact cell
+columns.
+
+Integrating Equation \eqref{eq:continuity_eta_compact} between the two fixed
+cell boundaries gives
+\begin{equation}
+  \int_{\eta_{j-1/2}}^{\eta_{j+1/2}}
+  \left.\frac{\partial\mathcal{N}_i}{\partial t}\right|_\eta d\eta
+  +
+  \int_{\eta_{j-1/2}}^{\eta_{j+1/2}}
+  \frac{\partial\mathcal{F}_i}{\partial\eta}d\eta
+  =
+  \int_{\eta_{j-1/2}}^{\eta_{j+1/2}}J\sigma_i\,d\eta .
+  \label{eq:cell_integrated_continuity}
+\end{equation}
+Because the integration boundaries are fixed in $\eta$, the time derivative
+may be moved outside the first integral. The fundamental theorem of calculus
+reduces the second integral to the difference between the fluxes at the upper
+and lower cell boundaries. Defining the integrated source term
+\begin{equation}
+  \overline{S_i}^{\,j}
+  \equiv
+  \int_{\eta_{j-1/2}}^{\eta_{j+1/2}}J\sigma_i\,d\eta
+  =
+  \int_{z_{j-1/2}(t)}^{z_{j+1/2}(t)}\sigma_i\,dz,
+  \label{eq:integrated_source}
+\end{equation}
+we obtain the exact cell balance
+\begin{equation}
+  \boxed{
+  \frac{d\overline{C_i}^{\,j}}{dt}
+  =
+  \mathcal{F}_i(\eta_{j-1/2},t)
+  -\mathcal{F}_i(\eta_{j+1/2},t)
+  +\overline{S_i}^{\,j}
+  }.
+  \label{eq:finite_volume_exact}
+\end{equation}
+Here, $\mathcal{F}_i(\eta_{j-1/2},t)$ is the exact upward relative flux
+through the lower boundary and $\mathcal{F}_i(\eta_{j+1/2},t)$ is the exact
+upward relative flux through the upper boundary. A positive lower-boundary
+flux adds molecules to the cell, whereas a positive upper-boundary flux
+removes molecules from it.
+
+Equation \eqref{eq:finite_volume_exact} also demonstrates why the method is
+conservative. Summing it over all cells causes every internal interface flux
+to appear once with a positive sign and once with a negative sign. The
+internal fluxes therefore cancel exactly, leaving only the fluxes through the
+bottom and top of the model and the sources within the atmosphere:
+\begin{equation}
+  \frac{d}{dt}\sum_j \overline{C_i}^{\,j}
+  =
+  \mathcal{F}_i(\eta_{1/2},t)
+  -\mathcal{F}_i(\eta_{m+1/2},t)
+  +\sum_j \overline{S_i}^{\,j},
+  \label{eq:global_column_balance}
+\end{equation}
+where the atmosphere contains $m$ cells. Consequently, in a closed atmosphere
+with no sources or sinks, the total column of species $i$ is conserved.
+
+No spatial approximation has yet been made in Equation
+\eqref{eq:finite_volume_exact}. To obtain a numerical method, we must later
+approximate the two interface fluxes and the integrated source using the
+finite set of cell columns. For example, if
+\begin{equation}
+  \Delta z^j(t)
+  \equiv z_{j+1/2}(t)-z_{j-1/2}(t),
+\end{equation}
+then the cell-averaged physical number density is exactly
+\begin{equation}
+  \overline{n_i}^{\,j}
+  \equiv \frac{\overline{C_i}^{\,j}}{\Delta z^j}.
+  \label{eq:cell_average_number_density}
+\end{equation}
+We now introduce the finite set of approximate quantities that will be used
+by the numerical model. Quantities with an overbar or an explicit function argument are
+exact, while quantities identified only by cell or interface superscripts are
+their numerical approximations:
+\begin{equation}
+  \begin{aligned}
+    C_i^j &\approx \overline{C_i}^{\,j}, \\
+    n_i^j &\approx \overline{n_i}^{\,j}, \\
+    S_i^j &\approx \overline{S_i}^{\,j}
+  \end{aligned}
+  \qquad
+  \begin{aligned}
+    \mathcal{F}_i^{j+1/2}
+    &\approx \mathcal{F}_i(\eta_{j+1/2},t), \\
+    \mathcal{F}_i^{j-1/2}
+    &\approx \mathcal{F}_i(\eta_{j-1/2},t).
+  \end{aligned}
+  \label{eq:finite_volume_approximations}
+\end{equation}
+The quantities $C_i^j$ are the species columns evolved by the model. During
+each right-hand-side evaluation, the corresponding cell-averaged number
+densities are reconstructed using
+\begin{equation}
+  n_i^j = \frac{C_i^j}{\Delta z^j}.
+  \label{eq:number_density_approximation}
+\end{equation}
+Local chemistry and other volumetric processes are evaluated using these
+reconstructed number densities. For example, a simple approximation to the
+integrated source is
+\begin{equation}
+  S_i^j
+  =
+  \sigma_i\!\left(\bm{n}^{j},\ldots\right)\Delta z^j .
+  \label{eq:source_approximation}
+\end{equation}
+Transport laws will similarly be used to approximate $\mathcal{F}_i$ at the
+cell interfaces. Substituting the approximate quantities into Equation
+\eqref{eq:finite_volume_exact} gives the semi-discrete finite-volume system
+\begin{equation}
+  \boxed{
+  \frac{dC_i^j}{dt}
+  =
+  \mathcal{F}_i^{j-1/2}
+  -\mathcal{F}_i^{j+1/2}
+  +S_i^j
+  }.
+  \label{eq:finite_volume_approximate}
+\end{equation}
+This is a system of ordinary differential equations that is continuous in
+time. The spatial approximations determine its right-hand side, while the
+time integration will be performed separately by a stiff ODE solver.
+
+\section{Pressure Coordinate and Atmospheric Reconstruction}
+\label{sec:atmospheric_reconstruction}
+
+The finite-volume equations evolve the column $C_i^j$ of every species in
+every computational cell. They do not directly evolve pressure, altitude, or
+number density. Nevertheless, these quantities are required to evaluate
+chemical reaction rates, photolysis, condensation, and transport. They must
+therefore be reconstructed from the column state at each right-hand-side
+evaluation. In this section, we derive that reconstruction without assuming
+constant gravity or constant atmospheric composition.
+
+\subsection{Pressure and temperature}
+
+We prescribe a fixed pressure at the top of the model, $P_{\rm top}$, while
+allowing the surface pressure, $P_{\rm surf}(t)$, to change as atmospheric mass
+enters or leaves the model. The desired computational grid is approximately
+uniform in log-pressure so that it can resolve an atmosphere spanning many
+orders of magnitude in pressure. A log-pressure mapping with $\eta=0$ at the
+surface and $\eta=1$ at the top is
+\begin{equation}
+  \ln P(\eta,t)
+  =
+  (1-\eta)\ln P_{\rm surf}(t)
+  +\eta\ln P_{\rm top},
+  \label{eq:log_pressure_mapping}
+\end{equation}
+or, equivalently,
+\begin{equation}
+  P(\eta,t)
+  =
+  P_{\rm surf}(t)
+  \left(\frac{P_{\rm top}}{P_{\rm surf}(t)}\right)^\eta .
+  \label{eq:log_pressure_mapping_exponential}
+\end{equation}
+This mapping fixes both endpoints while distributing the interior grid points
+uniformly in $\ln P$.
+
+Temperature is prescribed as a function of pressure rather than altitude. If
+the input atmosphere supplies tabulated pressures $P_k$ and temperatures
+$T_k$, we define a continuous function $T_\star(P)$ by interpolating $T_k$
+against $\ln P_k$. Thus,
+\begin{equation}
+  T(\eta,t)=T_\star\!\left(P(\eta,t)\right).
+  \label{eq:temperature_pressure_mapping}
+\end{equation}
+The temperature assigned to a particular computational cell may therefore
+change with time as that cell moves in pressure. This is intentional: the
+prescribed physical relation is $T(P)$, not $T(\eta)$. The input profile must
+either span the complete range of pressures encountered by the model or be
+supplemented by a specified extrapolation rule.
+
+Equations \eqref{eq:log_pressure_mapping} and
+\eqref{eq:log_pressure_mapping_exponential} describe the desired placement of
+the moving grid. Before explaining how that placement is maintained, we first
+derive how pressure and altitude follow from an arbitrary column state.
+
+\subsection{Total number and mass columns}
+
+At the continuous level, $\mathcal{N}_i(\eta,t)$ is the column abundance of
+gas $i$ per unit $\eta$. Define the total gas number column per unit $\eta$ as
+\begin{equation}
+  \mathcal{N}
+  \equiv
+  \sum_{i\in\mathcal{G}}\mathcal{N}_i,
+  \label{eq:total_number_column_eta}
+\end{equation}
+where $\mathcal{G}$ denotes the set of gas species. If $\mu_i$ is the molar
+mass of gas $i$ in g mol$^{-1}$, the mean molar mass is
+\begin{equation}
+  \overline{\mu}
+  \equiv
+  \frac{\displaystyle\sum_{i\in\mathcal{G}}
+  \mu_i\mathcal{N}_i}
+  {\mathcal{N}}.
+  \label{eq:mean_molar_mass_eta}
+\end{equation}
+The factors of $J$ cancel from this expression, so the mean molar mass can be
+computed directly from the species columns without first knowing the physical
+cell thickness. The corresponding gas mass column per unit $\eta$ is
+\begin{equation}
+  \mathcal{M}
+  \equiv
+  \frac{1}{N_A}\sum_{i\in\mathcal{G}}\mu_i\mathcal{N}_i
+  =\frac{\overline{\mu}}{N_A}\mathcal{N},
+  \label{eq:mass_column_eta}
+\end{equation}
+where $N_A$ is Avogadro's number. The units of $\mathcal{M}$ are g cm$^{-2}$
+per unit $\eta$.
+
+The present derivation neglects the contribution of suspended particles to
+hydrostatic loading, consistent with the assumption that their mass density
+is small compared with the gas density. If particle loading must be included,
+their mass columns can be added to $\mathcal{M}$, while the ideal-gas relation
+below must continue to use only the gas number density.
+
+\subsection{Hydrostatic and ideal-gas reconstruction}
+
+The total gas number density is related to its transformed counterpart by
+\begin{equation}
+  n=\frac{\mathcal{N}}{J}.
+  \label{eq:number_density_from_metric}
+\end{equation}
+Using the ideal-gas law, $P=nkT$, gives the coordinate Jacobian
+\begin{equation}
+  J
+  =\frac{\mathcal{N}kT_\star(P)}{P}.
+  \label{eq:metric_from_ideal_gas}
+\end{equation}
+Because $J=\partial z/\partial\eta$, Equation
+\eqref{eq:metric_from_ideal_gas} determines how physical altitude changes
+across the computational coordinate once pressure is known.
+
+Hydrostatic equilibrium is
+\begin{equation}
+  \frac{\partial P}{\partial z}=-\rho g,
+  \label{eq:hydrostatic_equilibrium}
+\end{equation}
+where the gas mass density is
+\begin{equation}
+  \rho
+  =\frac{n\overline{\mu}}{N_A}
+  =\frac{\mathcal{M}}{J}.
+  \label{eq:mass_density_reconstruction}
+\end{equation}
+Multiplying Equation \eqref{eq:hydrostatic_equilibrium} by
+$J=\partial z/\partial\eta$ gives a particularly simple pressure equation in
+the computational coordinate:
+\begin{equation}
+  \frac{\partial P}{\partial\eta}
+  =-g(z)\mathcal{M}
+  =-\frac{g(z)\overline{\mu}}{N_A}\mathcal{N}.
+  \label{eq:hydrostatic_eta}
+\end{equation}
+This equation shows directly that the pressure difference across a layer is
+the weight of the material in that layer.
+
+Gravity is allowed to change with altitude according to
+\begin{equation}
+  g(z)=\frac{G M_p}{(R_p+z)^2},
+  \label{eq:variable_gravity}
+\end{equation}
+where $M_p$ and $R_p$ are the mass and surface radius of the planet. Combining
+Equations \eqref{eq:metric_from_ideal_gas}, \eqref{eq:hydrostatic_eta}, and
+\eqref{eq:variable_gravity} gives the coupled reconstruction equations
+\begin{align}
+  \frac{\partial z}{\partial\eta}
+  &=\frac{\mathcal{N}kT_\star(P)}{P},
+  \label{eq:altitude_reconstruction}\\
+  \frac{\partial P}{\partial\eta}
+  &=-\frac{g(z)\overline{\mu}}{N_A}\mathcal{N}.
+  \label{eq:pressure_reconstruction}
+\end{align}
+These equations include the full dependence on the evolving composition
+through both $\mathcal{N}$ and $\overline{\mu}$.
+
+The surface defines zero altitude, while the top pressure is prescribed:
+\begin{equation}
+  z(0,t)=0,
+  \qquad
+  P(1,t)=P_{\rm top}.
+  \label{eq:reconstruction_boundary_conditions}
+\end{equation}
+The surface pressure $P_{\rm surf}=P(0,t)$ is not independently prescribed.
+For a given column state, it is the value that allows Equations
+\eqref{eq:altitude_reconstruction} and \eqref{eq:pressure_reconstruction} to
+satisfy both boundary conditions. One possible numerical procedure is to
+guess $P_{\rm surf}$, integrate the two equations upward from
+$z(0)=0$ and $P(0)=P_{\rm surf}$, and adjust the guess until the computed top
+pressure equals $P_{\rm top}$. Thus, even with variable gravity and variable
+composition, the atmospheric reconstruction can be expressed as a scalar
+shooting problem.
+
+The planetary radius need not be identified with the lower boundary of the
+model. A more general and often more useful convention specifies that a
+reference pressure occurs at a reference radius:
+\begin{equation}
+  r(P_{\rm ref})=R_{\rm ref},
+  \label{eq:reference_pressure_radius}
+\end{equation}
+where $r$ is distance from the center of the planet and
+$g(r)=GM_p/r^2$. In this formulation, one may begin at the fixed top pressure
+with a trial top radius, integrate the hydrostatic reconstruction downward,
+and adjust the trial radius until Equation
+\eqref{eq:reference_pressure_radius} is satisfied. The pressure at the lower
+model boundary is then a diagnostic output. This is also a scalar shooting
+problem and is particularly appropriate for giant planets, whose reported
+radii are commonly associated with a specified reference pressure. The
+reference pressure should lie within the modeled pressure range; otherwise an
+assumed atmospheric extension is required between the reference level and the
+model domain.
+
+Integrating Equation \eqref{eq:hydrostatic_eta} over the entire atmosphere
+also gives
+\begin{equation}
+  P_{\rm surf}-P_{\rm top}
+  =\int_0^1 g[z(\eta,t)]\mathcal{M}(\eta,t)\,d\eta .
+  \label{eq:surface_pressure_from_mass}
+\end{equation}
+For constant gravity this reduces to the familiar statement that surface
+pressure equals the top pressure plus gravity times the atmospheric mass
+column. Equation \eqref{eq:surface_pressure_from_mass} is implicit when
+gravity varies because the altitude profile, and therefore gravity, depends
+on the reconstructed pressure profile.
+
+\subsection{Log-pressure grid placement and hydrostatic consistency}
+
+The evolved columns determine pressure through hydrostatic balance, whereas
+Equation \eqref{eq:log_pressure_mapping} specifies the desired placement of
+the computational grid. These are not two independent definitions of
+pressure. Differentiating the log-pressure mapping gives
+\begin{equation}
+  \frac{\partial P}{\partial\eta}
+  =P\ln\!\left(\frac{P_{\rm top}}{P_{\rm surf}}\right).
+  \label{eq:log_pressure_derivative}
+\end{equation}
+Comparison with Equation \eqref{eq:hydrostatic_eta} shows that an exactly
+log-spaced hydrostatic state must satisfy
+\begin{equation}
+  \mathcal{M}
+  =\frac{P}{g(z)}
+  \ln\!\left(\frac{P_{\rm surf}}{P_{\rm top}}\right).
+  \label{eq:log_pressure_mass_constraint}
+\end{equation}
+In other words, fixing the pressure interfaces also fixes the mass contained
+between those interfaces. The species columns and the log-pressure layer
+masses cannot be chosen independently.
+
+This compatibility condition does not prevent the use of species columns as
+the evolved variables. Instead, it explains why the grid-motion term derived
+in Section 1 is necessary. As the desired log-pressure interfaces move, mass
+is transferred between computational cells by the relative flux
+$\mathcal{F}_i=\Phi_i-w_g n_i$. A consistent arbitrary-Lagrangian--Eulerian
+reconstruction chooses the interface motion so that the pressure grid remains
+logarithmically distributed while the finite-volume fluxes preserve every
+species column globally. Equivalently, one may view this as conservatively
+rezoning the species columns onto the desired log-pressure grid. The detailed
+geometric determination of $w_g$ is derived next. Its coupling to the physical
+bulk mass flux will be completed when the transport equations are introduced.
+
+\subsection{Grid velocity and pressure tendency}
+\label{sec:grid_velocity}
+
+The reconstruction described above determines the pressure and altitude of
+every grid point for a given instantaneous column state. As the columns change
+with time, the reconstructed pressure and altitude profiles also change. We
+define their rates of change at fixed computational coordinate by
+\begin{equation}
+  \pi(\eta,t)
+  \equiv
+  \left.\frac{\partial P}{\partial t}\right|_\eta,
+  \qquad
+  w_g(\eta,t)
+  \equiv
+  \left.\frac{\partial z}{\partial t}\right|_\eta .
+  \label{eq:pressure_and_grid_velocity}
+\end{equation}
+Thus, $\pi$ is the pressure tendency of a fixed computational grid point and
+$w_g$ is its physical vertical velocity. Neither quantity represents an
+additional physical transport process; both describe how the reconstructed
+coordinate system responds to the evolving atmospheric columns.
+
+The relationship to the shooting reconstruction can be seen by considering
+two nearby times. If the column state changes from $\bm{C}(t)$ to
+$\bm{C}(t+\Delta t)$, reconstructing the atmosphere at both times would give
+\begin{equation}
+  w_g(\eta,t)
+  =
+  \lim_{\Delta t\rightarrow 0}
+  \frac{z[\bm{C}(t+\Delta t)]-z[\bm{C}(t)]}{\Delta t}.
+  \label{eq:grid_velocity_limit}
+\end{equation}
+This expression is useful conceptually, but it cannot be evaluated directly
+inside a right-hand-side calculation because the column tendencies are the
+unknowns being sought. Instead, we differentiate the reconstruction equations
+themselves.
+
+We use an overdot below to denote a time derivative at fixed $\eta$. Taking
+the time derivative of Equation \eqref{eq:altitude_reconstruction} gives
+\begin{equation}
+  \frac{\partial w_g}{\partial\eta}
+  =
+  \frac{kT_\star(P)}{P}\dot{\mathcal{N}}
+  +\mathcal{N}k
+  \left[
+    \frac{1}{P}\frac{dT_\star}{dP}
+    -\frac{T_\star(P)}{P^2}
+  \right]\pi .
+  \label{eq:grid_velocity_reconstruction}
+\end{equation}
+The first term describes the change in cell thickness caused by a change in
+the total number column. The second describes expansion or contraction caused
+by a grid point moving along the prescribed $T(P)$ profile.
+
+Similarly, differentiating the hydrostatic reconstruction in Equation
+\eqref{eq:hydrostatic_eta} gives
+\begin{equation}
+  \frac{\partial\pi}{\partial\eta}
+  =
+  -g(z)\dot{\mathcal{M}}
+  -\mathcal{M}\frac{dg}{dz}w_g .
+  \label{eq:pressure_tendency_reconstruction}
+\end{equation}
+The first term is the pressure response to changing mass in a layer. The
+second accounts for the change in the weight of that mass as the layer moves
+to a location with different gravity. For Equation
+\eqref{eq:variable_gravity},
+\begin{equation}
+  \frac{dg}{dz}=-\frac{2g(z)}{R_p+z}.
+  \label{eq:gravity_altitude_derivative}
+\end{equation}
+
+For the surface-radius convention adopted above, differentiating the boundary
+conditions in Equation \eqref{eq:reconstruction_boundary_conditions} gives
+\begin{equation}
+  w_g(0,t)=0,
+  \qquad
+  \pi(1,t)=0.
+  \label{eq:grid_velocity_boundary_conditions}
+\end{equation}
+The first condition states that the grid point at the planetary surface has a
+fixed altitude. The second states that the prescribed top pressure does not
+change with time. If the planetary radius is instead defined at a reference
+pressure within the atmosphere, the first condition is replaced by the time
+derivative of $r(P_{\rm ref})=R_{\rm ref}$; the remainder of the derivation is
+unchanged.
+
+For an exactly logarithmic pressure grid, differentiating Equation
+\eqref{eq:log_pressure_mapping} also gives
+\begin{equation}
+  \frac{\pi}{P}
+  =
+  (1-\eta)\frac{\dot{P}_{\rm surf}}{P_{\rm surf}}.
+  \label{eq:log_pressure_tendency}
+\end{equation}
+Thus, once the surface-pressure tendency is known, the pressure tendency of
+every fixed $\eta$ point is known. Differentiating Equation
+\eqref{eq:surface_pressure_from_mass} gives the corresponding global mass
+budget
+\begin{equation}
+  \dot{P}_{\rm surf}
+  =
+  \int_0^1
+  \left[
+    g(z)\dot{\mathcal{M}}
+    +\mathcal{M}\frac{dg}{dz}w_g
+  \right]d\eta .
+  \label{eq:surface_pressure_tendency}
+\end{equation}
+Equations \eqref{eq:grid_velocity_reconstruction}--
+\eqref{eq:surface_pressure_tendency} are the time-differentiated, or tangent,
+version of the atmospheric shooting problem.
+
+These equations reveal an important coupling. The column tendencies determine
+$\dot{\mathcal{N}}$ and $\dot{\mathcal{M}}$, which determine $\pi$ and $w_g$.
+However, the column tendencies also contain the grid-relative flux
+$\mathcal{F}_i=\Phi_i-w_g n_i$, and therefore depend on $w_g$:
+\begin{equation}
+  \dot{\bm{C}}
+  \longrightarrow
+  \dot{\mathcal{N}},\dot{\mathcal{M}}
+  \longrightarrow
+  \pi,w_g
+  \longrightarrow
+  \bm{\mathcal{F}}
+  \longrightarrow
+  \dot{\bm{C}}.
+  \label{eq:grid_velocity_coupling}
+\end{equation}
+This circular dependence is not an additional physical ambiguity. After
+spatial discretization it becomes a coupled algebraic system for the column
+tendencies, pressure tendencies, and grid velocities. The geometric part of
+that system has now been specified. It will be closed after the physical
+species fluxes $\Phi_i$ are defined in the transport section.
+
+The intended numerical procedure does not require repeatedly evaluating
+photochemistry inside a nonlinear grid iteration. For a given column state,
+the instantaneous pressure and altitude profiles are first obtained from the
+scalar shooting reconstruction, which uses only the columns, hydrostatics,
+the equation of state, gravity, and $T(P)$. Chemistry, photolysis, and the
+physical transport coefficients are then evaluated once on that reconstructed
+atmosphere. With those instantaneous quantities fixed, the grid-relative flux
+is linear in $w_g$, and Equations \eqref{eq:grid_velocity_reconstruction} and
+\eqref{eq:pressure_tendency_reconstruction} are linear in the column
+tendencies, $w_g$, and $\pi$. After spatial discretization, these quantities
+can therefore be obtained from a single linear solve whose dimension scales
+with the number of atmospheric layers rather than the number of chemical
+species. The resulting grid velocity is then substituted into the tendency
+of every species column. The exact form of this linear system will be given
+after the physical transport fluxes, including the bulk atmospheric velocity,
+have been defined.
+
+\subsection{Summary of the discrete reconstruction}
+\label{sec:discrete_reconstruction_summary}
+
+At the discrete level, the reconstruction begins with the evolved columns and
+the fixed computational cell widths $\Delta\eta^j$:
+\begin{equation}
+  \mathcal{N}_i^j\approx\frac{C_i^j}{\Delta\eta^j}.
+  \label{eq:discrete_transformed_density}
+\end{equation}
+These quantities determine the total number column and mean molar mass in
+each cell. The coupled hydrostatic and ideal-gas equations then determine
+$P$, $z$, $g$, $J$, and $\Delta z$; temperature follows from $T_\star(P)$;
+and the physical number densities needed by the chemistry are reconstructed
+from $n_i^j=C_i^j/\Delta z^j$. This completes the diagnostic mapping from the
+evolved column state to the local atmospheric state required by the
+right-hand side.
+
+
+\end{document}
