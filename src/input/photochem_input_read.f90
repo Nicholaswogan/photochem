@@ -2100,6 +2100,13 @@ contains
       return
     endif
 
+    call validate_mie_dataset(w0_tmp, 'w0', filename, 0.0_dp, 1.0_dp, err)
+    if (allocated(err)) return
+    call validate_mie_dataset(qext_tmp, 'qext', filename, 0.0_dp, err=err)
+    if (allocated(err)) return
+    call validate_mie_dataset(g0_tmp, 'g0', filename, -1.0_dp, 1.0_dp, err)
+    if (allocated(err)) return
+
     end block
 
     ! Now lets interpolate a bunch
@@ -2418,6 +2425,37 @@ contains
     end block
 
   end function
+
+  subroutine validate_mie_dataset(values, dataset, filename, lower_bound, &
+                                  upper_bound, err)
+    use ieee_arithmetic, only: ieee_is_finite
+
+    real(dp), intent(in) :: values(:,:)
+    character(*), intent(in) :: dataset, filename
+    real(dp), intent(in) :: lower_bound
+    real(dp), intent(in), optional :: upper_bound
+    character(:), allocatable, intent(out) :: err
+
+    if (.not. all(ieee_is_finite(values))) then
+      err = '"'//trim(dataset)//'" contains a non-finite value in "'// &
+            trim(filename)//'"'
+      return
+    endif
+
+    if (any(values < lower_bound)) then
+      err = '"'//trim(dataset)//'" contains a value below the allowed '// &
+            'range in "'//trim(filename)//'"'
+      return
+    endif
+
+    if (present(upper_bound)) then
+      if (any(values > upper_bound)) then
+        err = '"'//trim(dataset)//'" contains a value above the allowed '// &
+              'range in "'//trim(filename)//'"'
+        return
+      endif
+    endif
+  end subroutine
 
   subroutine check_h5_dataset(h, dataset, ndims, dtype, prefix, err)
     use h5fortran, only: hdf5_file
