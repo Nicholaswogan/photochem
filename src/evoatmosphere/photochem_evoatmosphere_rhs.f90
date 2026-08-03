@@ -14,12 +14,12 @@ contains
   #:for TYPE1, NAME in TYPES_NAMES
   subroutine dochem_${NAME}$(self, usol, rx_rates, &
                     gas_sat_den, molecules_per_particle, &
-                    H2O_sat_mix, H2O_rh, rainout_rates, scale_height, wfall, &
+                    rainout_rates, scale_height, wfall, &
                     density, mix, densities, xp, xl, rhs)                 
     use photochem_enum, only: CondensingParticle
     use photochem_common, only: chempl, chempl_sl
     use photochem_eqns, only: damp_condensation_rate
-    use photochem_const, only: N_avo, pi, small_real, T_crit_H2O
+    use photochem_const, only: N_avo, pi, small_real
     #:if NAME == 'dual'
     use differentia
     #:endif
@@ -28,7 +28,6 @@ contains
     real(dp), intent(in) :: rx_rates(:,:)
     real(dp), intent(in) :: gas_sat_den(:,:)
     real(dp), intent(in) :: molecules_per_particle(:,:)
-    real(dp), intent(in) :: H2O_sat_mix(:), H2O_rh(:)
     real(dp), intent(in) :: rainout_rates(:,:), scale_height(:), wfall(:,:)
     real(dp), intent(in) :: density(:)
     ${TYPE1}$, intent(inout) :: mix(:,:)
@@ -89,44 +88,6 @@ contains
           k = i + (j - 1) * dat%nq
           rhs(k) = rhs(k) - rainout_rates(i,j)*usol(i,j)
         enddo
-      enddo
-    endif
-
-    if (dat%fix_water_in_trop) then
-      do j = 1,var%trop_ind
-        k = dat%LH2O + (j - 1) * dat%nq
-        rhs(k) = rhs(k) + var%fast_arbitrary_rate*(density(j)*H2O_sat_mix(j)*H2O_rh(j) - usol(dat%LH2O,j))
-      enddo
-    endif
-    if (dat%water_cond) then
-      if (dat%fix_water_in_trop) then
-        i = var%trop_ind+1
-      else
-        i = 1
-      endif
-      do j = i,var%nz
-        if (var%temperature(j) < T_crit_H2O) then
-          ! water will condense if it is below the critical point.
-
-          k = dat%LH2O + (j - 1) * dat%nq ! gas phase rhs index
-
-          ! compute the relative humidity
-          rh = max(mix(dat%LH2O,j)/H2O_sat_mix(j),small_real)
-
-          if (rh > var%H2O_cond_params%RHc) then
-            
-            cond_rate0 = var%H2O_cond_params%k_cond*(var%edd(j)/scale_height(j)**2.0_dp)
-            cond_rate = damp_condensation_rate(cond_rate0, &
-                                               var%H2O_cond_params%RHc, &
-                                               (1.0_dp + var%H2O_cond_params%smooth_factor)*var%H2O_cond_params%RHc, &
-                                               rh)
-            
-            ! Rate H2O gas is destroyed (molecules/cm^3/s)
-            dn_gas_dt = - cond_rate*usol(dat%LH2O,j)
-            rhs(k) = rhs(k) + dn_gas_dt
-            
-          endif
-        endif
       enddo
     endif
 
@@ -571,7 +532,7 @@ contains
                           wrk%pressure_hydro, wrk%density_hydro, err)
     if (allocated(err)) return
 
-    if (self%dat%fix_water_in_trop .or. self%dat%gas_rainout) then
+    if (self%dat%gas_rainout) then
       self%var%trop_ind = max(minloc(abs(self%var%z - self%var%trop_alt), 1) - 1, 1)
       
       if (self%var%trop_ind < 3) then
@@ -591,7 +552,6 @@ contains
 
     use photochem_common, only: reaction_rates, rainout, photorates
     use photochem_common, only: gas_saturation_density
-    use clima_eqns_water, only: sat_pressure_H2O
     use photochem_const, only: pi, N_avo, small_real, k_boltz
     use photochem_enum, only: DiffusionLimHydrogenEscape
 
@@ -612,24 +572,6 @@ contains
                           wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
                           wrk%pressure_hydro, wrk%density_hydro, err)
     if (allocated(err)) return
-
-    !!! H2O saturation
-    if (dat%fix_water_in_trop) then
-      do i = 1,var%trop_ind
-        if (var%use_manabe) then
-          ! manabe formula
-          wrk%H2O_rh(i) = 0.77e0_dp*(wrk%pressure(i)/wrk%pressure(1)-0.02e0_dp)/0.98e0_dp
-        else
-          wrk%H2O_rh(i) = var%relative_humidity 
-        endif
-      enddo
-    endif
-    
-    if (dat%water_cond .or. dat%fix_water_in_trop) then
-      do i = 1,var%nz
-        wrk%H2O_sat_mix(i) = sat_pressure_H2O(var%temperature(i))/wrk%pressure(i)
-      enddo
-    endif
 
     !!! diffusion and advection coefficients
     call diffusion_coefficients_evo(dat, var, wrk%density, wrk%mubar, &
@@ -734,7 +676,7 @@ contains
 
     call dochem(self, wrk%usol, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
-                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
+                wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
                 wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs)  
 
     ! Extra functions specifying production or destruction
@@ -871,7 +813,7 @@ contains
       call initialize_dual_array(f_, blocksize)
       call dochem(self, usol_, wrk%rx_rates, &
                   wrk%gas_sat_den, wrk%molecules_per_particle, &
-                  wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
+                  wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
                   wrk%density, mix, densities, xp, xl, f_) 
     end subroutine
   end subroutine
@@ -928,7 +870,7 @@ contains
     ! compute chemistry contribution to jacobian using forward differences
     call dochem(self, wrk%usol, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
-                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
+                wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
                 wrk%density, mix, densities, xp, xl, rhs) 
 
     !$omp parallel private(i, j, k, m, mm, usol_perturb, R, mix, densities, xl, xp, rhs_perturb)
@@ -942,7 +884,7 @@ contains
       
       call dochem(self, usol_perturb, wrk%rx_rates, &
                   wrk%gas_sat_den, wrk%molecules_per_particle, &
-                  wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
+                  wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
                   wrk%density, mix, densities, xp, xl, rhs_perturb) 
   
       do m = 1,dat%nq
@@ -1074,7 +1016,7 @@ contains
     
     call dochem(self, wrk%usol, wrk%rx_rates, &
                 wrk%gas_sat_den, wrk%molecules_per_particle, &
-                wrk%H2O_sat_mix, wrk%H2O_rh, wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
+                wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
                 wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs) 
 
     ! We additionally have to add the below. I treat them as "chemistry"
@@ -1209,4 +1151,3 @@ contains
   end subroutine
 
 end submodule
-

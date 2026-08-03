@@ -47,6 +47,7 @@ contains
     character(:), allocatable :: temp_char
     integer :: i, j
     real(dp) :: tmp_real
+    logical :: obsolete_fix_water, obsolete_water_cond
 
     ! filename
     s%filename = filename
@@ -151,18 +152,22 @@ contains
 
     tmp2 => dict%get_dictionary('water',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    s%fix_water_in_trop = tmp2%get_logical('fix-water-in-troposphere',error = io_err)
+    obsolete_fix_water = tmp2%get_logical('fix-water-in-troposphere', default=.false., error=io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    s%water_cond = tmp2%get_logical('water-condensation',error = io_err)
+    if (obsolete_fix_water) then
+      err = trim(filename)//': "fix-water-in-troposphere: true" is no longer supported; '// &
+            'remove it and model H2O with ordinary boundary conditions and particle condensation.'
+      return
+    endif
+    obsolete_water_cond = tmp2%get_logical('water-condensation', default=.false., error=io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    if (obsolete_water_cond) then
+      err = trim(filename)//': "water-condensation: true" is no longer supported; '// &
+            'remove it and model H2O condensation with an H2O particle in the reaction mechanism.'
+      return
+    endif
     s%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    if (s%fix_water_in_trop) then  
-    
-      s%relative_humidity = trim(tmp2%get_string('relative-humidity',error = io_err))
-      if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-
-    endif
     
     if (s%gas_rainout) then
       s%rainfall_rate = tmp2%get_real('rainfall-rate',error = io_err)
@@ -184,11 +189,11 @@ contains
       endif
     endif
     
-    if (s%fix_water_in_trop .or. s%gas_rainout) then
+    if (s%gas_rainout) then
       ! we need a tropopause altitude
       s%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
       if (allocated(io_err)) then
-        err = "tropopause-altitude must be specified if fix-water-in-troposphere = true, or gas-rainout = true"
+        err = "tropopause-altitude must be specified if gas-rainout = true"
         return
       endif
       if (s%trop_alt < s%bottom) then

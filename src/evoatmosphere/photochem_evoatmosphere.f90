@@ -312,7 +312,7 @@ module photochem_evoatmosphere
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: temperature(:) !! new temperature at each atomspheric layer
       real(dp), optional, intent(in) :: trop_alt !! Tropopause altitude (cm). Only necessary if
-                                                 !! rainout == True, or fix_water_in_trop == True.
+                                                 !! gas rainout is enabled.
       character(:), allocatable, intent(out) :: err
     end subroutine
 

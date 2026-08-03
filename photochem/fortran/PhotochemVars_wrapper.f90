@@ -10,7 +10,7 @@
     call c_f_pointer(ptr, var)
     nz = var%nz
   end subroutine
-  
+
   subroutine photochemvars_top_atmos_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
@@ -110,30 +110,6 @@
     type(PhotochemVars), pointer :: var
     call c_f_pointer(ptr, var)
     val = var%trop_ind
-  end subroutine
-
-  subroutine photochemvars_relative_humidity_get(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(out) :: val
-    type(PhotochemVars), pointer :: var
-    call c_f_pointer(ptr, var)
-    val = var%relative_humidity
-  end subroutine
-  
-  subroutine photochemvars_relative_humidity_set(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(in) :: val
-    type(PhotochemVars), pointer :: var
-    call c_f_pointer(ptr, var)
-    var%relative_humidity = val
-  end subroutine
-
-  subroutine photochemvars_h2o_cond_params_get(ptr, ptr1) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    type(c_ptr), intent(out) :: ptr1
-    type(PhotochemVars), pointer :: var
-    call c_f_pointer(ptr, var)
-    ptr1 = c_loc(var%H2O_cond_params)
   end subroutine
 
   subroutine photochemvars_photon_flux_fcn_set(ptr, photon_flux_fcn_c) bind(c)
@@ -585,22 +561,6 @@
     var%verbose = val
   end subroutine
 
-  subroutine photochemvars_fast_arbitrary_rate_get(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(out) :: val
-    type(PhotochemVars), pointer :: var
-    call c_f_pointer(ptr, var)
-    val = var%fast_arbitrary_rate
-  end subroutine
-  
-  subroutine photochemvars_fast_arbitrary_rate_set(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(in) :: val
-    type(PhotochemVars), pointer :: var
-    call c_f_pointer(ptr, var)
-    var%fast_arbitrary_rate = val
-  end subroutine
-
   subroutine photochemvars_upwind_molec_diff_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     logical(c_bool), intent(out) :: val
@@ -680,4 +640,3 @@
     call c_f_pointer(ptr, var)
     var%nsteps_before_giveup = val
   end subroutine
-  

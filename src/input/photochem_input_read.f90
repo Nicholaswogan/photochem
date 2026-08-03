@@ -564,7 +564,6 @@ contains
   end subroutine
   
   subroutine unpack_settings(infile, s, dat, var, err)
-    use photochem_enum, only: CondensingParticle
     use photochem_enum, only: VelocityBC, DensityBC, PressureBC
     use photochem_enum, only: DiffusionLimHydrogenEscape, ZahnleHydrogenEscape, NoHydrogenEscape
     use photochem_types, only: PhotoSettings
@@ -649,60 +648,20 @@ contains
     ! conserving initialization?
     dat%conserving_init = s%conserving_init
     
-    ! water
-    dat%fix_water_in_trop = s%fix_water_in_trop
-    dat%water_cond = s%water_cond
+    ! rainout
     dat%gas_rainout = s%gas_rainout
     ind = findloc(dat%species_names,'H2O')
     dat%LH2O = ind(1)
-    if (ind(1) == 0 .and. dat%fix_water_in_trop) then
-      err = 'IOError: H2O must be a species if fix-water-in-troposphere = True.'
-      return
-    elseif (ind(1) == 0 .and. dat%water_cond) then
-      err = 'IOError: H2O must be a species if water-condensation = True.'
-      return
-    elseif (ind(1) == 0 .and. dat%gas_rainout) then
+    if (ind(1) == 0 .and. dat%gas_rainout) then
       err = 'IOError: H2O must be a species if gas-rainout = True.'
       return
-    endif
-    if ((dat%fix_water_in_trop .or. dat%water_cond) .and. dat%there_are_particles) then
-      ! Make sure there isn't already H2O condensation implemented by a particle.
-      do i = 1,dat%np
-        if (dat%particle_formation_method(i) == CondensingParticle) then
-          if (dat%particle_gas_phase(i) == 'H2O') then
-            err = 'IOError: Either "fix-water-in-troposphere" or "water-condensation" is turned on'// &
-            ' in the settings file, but the reaction mechanism already implements H2O condensation'// &
-            ' via a particle.'
-            return
-          endif
-        endif
-      enddo
-    endif
-    
-    if (dat%fix_water_in_trop) then  
-      
-      read(s%relative_humidity,*,iostat = io) var%relative_humidity
-      
-      if (io /= 0) then
-        ! it isn't a float
-        if (trim(s%relative_humidity) == "manabe") then
-          var%use_manabe = .true.
-          var%relative_humidity = -1.0
-        else
-          err = '"relative-humidity" can only be a number between 0 and 1, or "manabe". See '//trim(infile)
-          return 
-        endif
-      else
-        var%use_manabe = .false.
-      endif
-      
     endif
     
     if (dat%gas_rainout) then
       var%rainfall_rate = s%rainfall_rate
     endif
     
-    if (dat%fix_water_in_trop .or. dat%gas_rainout) then
+    if (dat%gas_rainout) then
       ! we need a tropopause altitude
       var%trop_alt = s%trop_alt
       if (var%trop_alt > var%top_atmos) then
@@ -752,12 +711,6 @@ contains
     var%only_eddy = .false.
     
     do j = 1,size(s%ubcs)
-      ! make sure it isn't water
-      if (dat%fix_water_in_trop .and. s%sp_names(j) == "H2O") then
-        err = "IOError: H2O can not have a specified boundary condition"// &
-              " if water-saturated-troposphere = true in the settings file."
-        return
-      endif
       ! check if in rxmech
       ind = findloc(dat%species_names,s%sp_names(j))
       if (ind(1) == 0) then

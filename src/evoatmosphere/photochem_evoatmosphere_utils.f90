@@ -110,14 +110,6 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       endif
     endif
     
-    if (self%dat%fix_water_in_trop) then
-      if (species == "H2O") then
-        err = "You can not change the boundary condition for H2O because"// &
-              " you have water fixed in the troposphere."
-        return
-      endif
-    endif
-    
     if (bc_type == 'vdep') then
       if (.not. present(vdep)) then
         err = "To change boundary condition to deposition"// &
@@ -291,10 +283,10 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       endif
     endif
     
-    ! if water is fixed in troposhere or gas rainout, and trop_alt present
-    ! then we need to change trop_ind, reallocate some stuff
+    ! If gas rainout is enabled and trop_alt is present, then we need to
+    ! change trop_ind, reallocate some stuff
     ! in wrk, then we will re-prep the atmosphere
-    if ((dat%fix_water_in_trop .or. dat%gas_rainout) .and. present(trop_alt)) then
+    if (dat%gas_rainout .and. present(trop_alt)) then
       if (trop_alt < var%bottom_atmos .or. trop_alt > var%top_atmos) then
         var = var_save
         err = "trop_alt is above or bellow the atmosphere!"
@@ -369,7 +361,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       return
     endif
 
-    if ((dat%fix_water_in_trop .or. dat%gas_rainout) .and. .not.present(trop_p)) then
+    if (dat%gas_rainout .and. .not.present(trop_p)) then
       err = '"trop_p" is a required input.'
       return
     endif
@@ -781,7 +773,11 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     if (allocated(err)) return
 
     ! Update variables that depend on temperature
-    call self%set_temperature(var%temperature, var%trop_alt, err)
+    if (dat%gas_rainout) then
+      call self%set_temperature(var%temperature, var%trop_alt, err)
+    else
+      call self%set_temperature(var%temperature, err=err)
+    endif
     if (allocated(err)) return
 
   end subroutine
@@ -918,7 +914,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       if (allocated(err)) return
     endif
     
-    if (dat%fix_water_in_trop .or. dat%gas_rainout) then
+    if (dat%gas_rainout) then
       call self%set_trop_ind(usol_new, err)
     else
       var%trop_ind = 1

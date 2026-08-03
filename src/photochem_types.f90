@@ -65,11 +65,8 @@ module photochem_types ! make a giant IO object
     integer :: default_lowerboundcond
     ! initialization
     logical :: conserving_init
-    ! water
-    logical :: fix_water_in_trop
-    logical :: water_cond
+    ! rainout
     logical :: gas_rainout
-    character(:), allocatable :: relative_humidity
     real(dp) :: rainfall_rate
     character(s_str_len), allocatable :: rainout_species(:)
     real(dp) :: trop_alt
@@ -348,9 +345,7 @@ module photochem_types ! make a giant IO object
     ! settings
     real(dp) :: planet_mass !! grams
     real(dp) :: planet_radius !! cm
-    logical :: fix_water_in_trop !! True if fixing water in troposphere
-    integer :: LH2O !! index of H2O
-    logical :: water_cond !! True if water should condense out of the atmosphere
+    integer :: LH2O !! index of H2O; used by gas rainout
     logical :: gas_rainout !! True if gas rains out
     integer :: H_escape_type !! Diffusion-limited, Zahnle, or None
     real(dp) :: H_escape_coeff ! Coefficient for zahnle hydrogen escape
@@ -395,12 +390,9 @@ module photochem_types ! make a giant IO object
     real(dp) :: surface_albedo
     real(dp) :: diurnal_fac = 0.5_dp !! Default is 0.5, to account for half planet facing the sun.
     real(dp) :: solar_zenith !! degrees
-    real(dp) :: trop_alt !! cm (only for fix_water_in_trop == true or gas_rainout == true)
+    real(dp) :: trop_alt !! cm (only for gas_rainout == true)
     real(dp) :: rainfall_rate !! relative to modern Earth's average rainfall rate of 1.1e17 molecules/cm2/s
-    integer :: trop_ind !! index of troposphere (only for fix_water_in_trop == true or gas_rainout == true)
-    logical :: use_manabe !! use manabe formula
-    real(dp) :: relative_humidity !! relative humidity if no manabe
-    type(CondensationParameters) :: H2O_cond_params !! H2O condensation rate parameters
+    integer :: trop_ind !! index of troposphere (only for gas_rainout == true)
     
     ! radiative transfer
     real(dp), allocatable :: photon_flux(:) !! (nw) photon/cm^2/s in each wavelength bin hitting planet.
@@ -475,8 +467,6 @@ module photochem_types ! make a giant IO object
     !> Perturbation for finite difference Jacobian calculation, when autodiff == .false.
     real(dp) :: epsj = 1.0e-4_dp 
     integer :: verbose = 1 !! 0 == no printing. 1 == some printing. 2 == bunch of printing.
-    !> Arbitrary rate that is fast (1/s). Used for keeping H2O at saturation in troposphere
-    real(dp) :: fast_arbitrary_rate = 1.0e-2_dp 
     !> If True, then the code uses a 1st order upwind method for the advective molecular
     !> diffusion terms instead of a centered scheme. This permits stability (at the cost 
     !> of accuracy) for atmospheres with strong molcular advection in the upper atmosphere.
@@ -568,8 +558,6 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: rx_rates(:,:) !! (nz,nrT)
     real(dp), allocatable :: mubar(:) !! (nz)
     real(dp), allocatable :: pressure(:) !! (nz)
-    real(dp), allocatable :: H2O_rh(:) !! (nz)
-    real(dp), allocatable :: H2O_sat_mix(:) !! (nz)
     real(dp), allocatable :: prates(:,:) !! (nz,kj)
     real(dp), allocatable :: surf_radiance(:) !! (nw)
     real(dp), allocatable :: amean_grd(:,:) !! (nz,nw)
@@ -649,8 +637,6 @@ contains
       deallocate(self%mubar)
       deallocate(self%pressure)
       deallocate(self%density)
-      deallocate(self%H2O_rh)
-      deallocate(self%H2O_sat_mix)
       deallocate(self%densities)
       deallocate(self%rx_rates)
       deallocate(self%prates)
@@ -683,8 +669,6 @@ contains
     allocate(self%mubar(nz))
     allocate(self%pressure(nz))
     allocate(self%density(nz))
-    allocate(self%H2O_rh(nz))
-    allocate(self%H2O_sat_mix(nz))
     allocate(self%densities(nsp+1,nz))
     allocate(self%rx_rates(nz,nrT))
     allocate(self%prates(nz,kj))
@@ -772,4 +756,3 @@ contains
   end subroutine
   
 end module
-

@@ -81,24 +81,6 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_trop_ind_get(self._ptr, &val)
       return val
 
-  property relative_humidity:
-    "double. Relative humidity of H2O in the troposphere."
-    def __get__(self):
-      cdef double val
-      var_pxd.photochemvars_relative_humidity_get(self._ptr, &val)
-      return val
-    def __set__(self, double val):
-      var_pxd.photochemvars_relative_humidity_set(self._ptr, &val)
-
-  property H2O_cond_params:
-    "CondensationParameters. H2O condensation rate parameters."
-    def __get__(self):
-      cdef atom_pxd.CondensationParameters *ptr1
-      var_pxd.photochemvars_h2o_cond_params_get(self._ptr, &ptr1)
-      val = CondensationParameters()
-      val._ptr = ptr1
-      return val
-  
   property z:
     "ndarray[double,dim=1], shape (nz). The altitude of the center of each atmopsheric layer (cm)"
     def __get__(self):
@@ -401,15 +383,6 @@ cdef class PhotochemVars:
       return val
     def __set__(self, int val):
       var_pxd.photochemvars_verbose_set(self._ptr, &val)
-
-  property fast_arbitrary_rate:
-    "double. arbitrary rate that is fast (1/s). Used for keeping H2O at saturation in troposphere"
-    def __get__(self):
-      cdef double val
-      var_pxd.photochemvars_fast_arbitrary_rate_get(self._ptr, &val)
-      return val
-    def __set__(self, double val):
-      var_pxd.photochemvars_fast_arbitrary_rate_set(self._ptr, &val)
 
   property upwind_molec_diff:
     """bool. If True, then the code uses a 1st order upwind method for the advective molecular

@@ -33,11 +33,6 @@ cdef extern void photochemvars_trop_alt_get(PhotochemVars *ptr, double *val)
 
 cdef extern void photochemvars_trop_ind_get(PhotochemVars *ptr, int *val)
 
-cdef extern void photochemvars_relative_humidity_get(PhotochemVars *ptr, double *val)
-cdef extern void photochemvars_relative_humidity_set(PhotochemVars *ptr, double *val)
-
-cdef extern void photochemvars_h2o_cond_params_get(PhotochemVars *ptr, atom_pxd.CondensationParameters **ptr1)
-
 cdef extern void photochemvars_photon_flux_fcn_set(PhotochemVars *ptr, time_dependent_flux_fcn fcn)
 
 cdef extern void photochemvars_cond_params_get_size(PhotochemVars *ptr, int *dim1)
@@ -114,9 +109,6 @@ cdef extern void photochemvars_epsj_set(PhotochemVars *ptr, double *val)
 
 cdef extern void photochemvars_verbose_get(PhotochemVars *ptr, int *val)
 cdef extern void photochemvars_verbose_set(PhotochemVars *ptr, int *val)
-
-cdef extern void photochemvars_fast_arbitrary_rate_get(PhotochemVars *ptr, double *val)
-cdef extern void photochemvars_fast_arbitrary_rate_set(PhotochemVars *ptr, double *val)
 
 cdef extern void photochemvars_upwind_molec_diff_get(PhotochemVars *ptr, bool *val)
 cdef extern void photochemvars_upwind_molec_diff_set(PhotochemVars *ptr, bool *val)

@@ -2,6 +2,7 @@ program test_input
   implicit none
   call test_parsing()
   call test_removed_evolve_climate_setting()
+  call test_removed_water_settings()
   print *, 'test_input passed'
 contains
 
@@ -39,6 +40,33 @@ contains
     endif
     if (index(err, 'evolve-climate') == 0) then
       call fail('Unexpected error for obsolete evolve-climate setting: '//trim(err))
+    endif
+  end subroutine
+
+  subroutine test_removed_water_settings()
+    use photochem_types, only: PhotoSettings
+    type(PhotoSettings) :: settings
+    character(:), allocatable :: err
+
+    settings = PhotoSettings('../tests/test_settings_water_compat.yaml', err)
+    if (allocated(err)) then
+      call fail('Disabled legacy water settings were rejected: '//trim(err))
+    endif
+
+    settings = PhotoSettings('../tests/test_settings_fix_water.yaml', err)
+    if (.not. allocated(err)) then
+      call fail('The obsolete fix-water-in-troposphere setting was accepted')
+    endif
+    if (index(err, 'fix-water-in-troposphere: true') == 0) then
+      call fail('Unexpected error for fix-water-in-troposphere: '//trim(err))
+    endif
+
+    settings = PhotoSettings('../tests/test_settings_water_condensation.yaml', err)
+    if (.not. allocated(err)) then
+      call fail('The obsolete water-condensation setting was accepted')
+    endif
+    if (index(err, 'water-condensation: true') == 0) then
+      call fail('Unexpected error for water-condensation: '//trim(err))
     endif
   end subroutine
 

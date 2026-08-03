@@ -954,9 +954,7 @@ planet:
     type: none
   default-gas-lower-boundary: Moses
   water:
-    fix-water-in-troposphere: false
     gas-rainout: false
-    water-condensation: false
 
 boundary-conditions:
 - name: H2

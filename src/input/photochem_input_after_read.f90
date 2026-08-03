@@ -35,7 +35,7 @@ contains
       if (allocated(err)) return
     endif
     
-    if (dat%fix_water_in_trop .or. dat%gas_rainout) then
+    if (dat%gas_rainout) then
       ! we have a tropopause
       var%trop_ind = max(minloc(abs(var%z - var%trop_alt), 1) - 1, 1)
 

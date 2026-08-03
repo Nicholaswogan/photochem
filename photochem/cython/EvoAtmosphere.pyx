@@ -322,8 +322,7 @@ cdef class EvoAtmosphere:
     temperature : ndarray[double,ndim=1]
         new temperature at each atomspheric layer
     trop_alt : float, optional
-        Tropopause altitude (cm). Only necessary if rainout == True, 
-        or fix_water_in_trop == True.
+        Tropopause altitude (cm). Only necessary if gas rainout is enabled.
     """
     cdef char err[ERR_LEN+1]
     cdef int nz = temperature.size
@@ -352,8 +351,7 @@ cdef class EvoAtmosphere:
     edd : ndarray[double,ndim=1]
         Eddy diffusion (cm^2/s)
     trop_p : float, optional
-        Tropopause pressure (dynes/cm^2). Only necessary if rainout == True, 
-        or fix_water_in_trop == True.
+        Tropopause pressure (dynes/cm^2). Only necessary if gas rainout is enabled.
     hydro_pressure : bool, optional
         If True, then use hydrostatic pressure. If False then use the
         actual pressure in the atmosphere. Default is True.
