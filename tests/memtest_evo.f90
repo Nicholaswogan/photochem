@@ -9,7 +9,6 @@ contains
 
   subroutine test()
 
-    call test_climate() ! Test climate version
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
 
@@ -24,7 +23,7 @@ contains
     ! Test all functions in code. Comments indicates if function is already
     ! tested in another test.
 
-    ! set_trop_ind : test_climate
+    ! set_trop_ind : test_step
     ! prep_atm_evo_gas : test_production_and_loss
     ! prep_atmosphere : test_production_and_loss
     ! right_hand_side_chem : gas_fluxes
@@ -48,82 +47,6 @@ contains
     ! rebin_update_vertical_grid : NOT TESTED
     ! regrid_prep_atmosphere : NOT TESTED
     
-  end subroutine
-
-  subroutine make_new_mechanism(err)
-    use fortran_yaml_c, only: YamlFile, type_dictionary, type_list, type_error, type_list_item
-    character(:), allocatable, intent(out) :: err
-    type(YamlFile) :: f
-    type(type_list), pointer :: particles
-    type(type_list_item), pointer :: list_item
-    type (type_error), allocatable :: io_err
-
-    call f%parse('../data/reaction_mechanisms/zahnle_earth.yaml', err)
-    if (allocated(err)) return
-
-    select type (root => f%root)
-      class is (type_dictionary)
-      particles => root%get_list('particles',.true.,error=io_err)
-      if (allocated(io_err)) then; err = io_err%message; return; endif
-
-      ! Save the first list item
-      list_item => particles%first
-
-      ! Skip the first (H2O)
-      particles%first => particles%first%next
-
-      open(unit=2,file='tmp.yaml',status='replace')
-      call f%dump(2, 0)
-      close(2)
-
-      ! Replace the first list item with H2O
-      particles%first => list_item
-
-    end select
-
-  end subroutine
-
-  subroutine test_climate()
-    use futils, only: linspace
-    character(:), allocatable :: err
-    type(EvoAtmosphere) :: pc
-    logical :: success
-    real(dp) :: tstart
-    real(dp), allocatable :: t_eval(:)
-
-    ! Make new mechanism that deletes H2Oaer
-    call make_new_mechanism(err)
-    if (allocated(err)) then
-      print*,trim(err)
-      stop 1
-    endif
-
-    pc = EvoAtmosphere("tmp.yaml", &
-                      "../tests/test_settings1.yaml", &
-                      "../examples/ModernEarth/Sun_now.txt", &
-                      "../examples/ModernEarth/atmosphere.txt", &
-                      "../data", &
-                      err)
-    if (allocated(err)) then
-      print*,trim(err)
-      stop 1
-    endif
-
-    ! Just take a few steps
-    pc%var%max_error_reinit_attempts = 0
-    pc%var%mxsteps = 3
-
-    allocate(t_eval(100))
-    call linspace(5.0_dp, 17.0_dp, t_eval)
-    t_eval = 10.0_dp**t_eval
-    tstart = 0.0_dp
-
-    success = pc%evolve('testevo.dat', tstart, pc%var%usol_init, t_eval, overwrite=.true., restart_from_file=.false., err=err)
-    if (allocated(err)) then
-      print*,trim(err)
-      stop 1
-    endif
-
   end subroutine
 
   subroutine test_twoinitializations(pc, filename)
@@ -409,6 +332,5 @@ contains
   end subroutine
 
 end program
-
 
 

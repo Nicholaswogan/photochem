@@ -1,6 +1,7 @@
 program test_input
   implicit none
   call test_parsing()
+  call test_removed_evolve_climate_setting()
   print *, 'test_input passed'
 contains
 
@@ -25,6 +26,20 @@ contains
     call expect_invalid('H2 + O => (H2O', 'unmatched opening parenthesis')
     call expect_invalid('ABCDEFGHIJKLMNOPQRSTU => H2O', 'longer than the supported')
 
+  end subroutine
+
+  subroutine test_removed_evolve_climate_setting()
+    use photochem_types, only: PhotoSettings
+    type(PhotoSettings) :: settings
+    character(:), allocatable :: err
+
+    settings = PhotoSettings('../tests/test_settings1.yaml', err)
+    if (.not. allocated(err)) then
+      call fail('The obsolete evolve-climate setting was accepted')
+    endif
+    if (index(err, 'evolve-climate') == 0) then
+      call fail('Unexpected error for obsolete evolve-climate setting: '//trim(err))
+    endif
   end subroutine
 
   subroutine expect_valid(equation, expected_reverse, expected_reactants, expected_products)

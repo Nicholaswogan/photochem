@@ -1,38 +1,15 @@
 module photochem_evoatmosphere
   use photochem_const, only: dp
   use photochem_types, only : PhotochemData, PhotochemVars, PhotochemWrkEvo
-  use clima_radtran, only: Radtran
   implicit none
 
   private
   public :: EvoAtmosphere
-  public :: temp_dependent_albedo_fcn
-
-  abstract interface
-    !> A temperature dependent surface albedo
-    function temp_dependent_albedo_fcn(T_surf) result(albedo)
-      use iso_c_binding, only: c_double
-      real(c_double), value, intent(in) :: T_surf !! K
-      real(c_double) :: albedo
-    end function
-  end interface
 
   type :: EvoAtmosphere
     type(PhotochemData), allocatable :: dat
     type(PhotochemVars), allocatable :: var
     type(PhotochemWrkEvo), allocatable :: wrk
-
-    logical :: evolve_climate
-    ! Below are only relevant for evolve_climate = .true.
-    !> The surface temperature (K). Only relevent when doing time-dependent
-    !> photochemical-climate simulation.
-    real(dp) :: T_surf
-    !> Assumed tropopause temperature for climate calculations (K).
-    real(dp) :: T_trop = 200.0_dp
-    !> Callback function to set a temperature dependent albedo (e.g. ice-albedo feedback).
-    procedure(temp_dependent_albedo_fcn), nopass, pointer :: albedo_fcn => null()
-    type(Radtran), allocatable :: rad
-    ! Above are only relevant for evolve_climate = .true.
 
     !> When running the `evolve` routine, this determines
     !> the minimum pressure of the top of the model domain (bars). 

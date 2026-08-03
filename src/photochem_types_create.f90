@@ -40,6 +40,7 @@ contains
     type(PhotoSettings) :: s
     
     type(type_dictionary), pointer :: dict, tmp2
+    class(type_node), pointer :: obsolete_node
     type(type_list), pointer :: list, bcs
     type(type_list_item), pointer :: item
     type(type_error), allocatable :: io_err
@@ -105,6 +106,13 @@ contains
       err = 'IOError: solar zenith must be between 0 and 90.'
       return
     endif
+
+    obsolete_node => dict%get('evolve-climate')
+    if (associated(obsolete_node)) then
+      err = trim(filename)//': the "evolve-climate" setting is no longer supported; '// &
+            'remove it from the planet section.'
+      return
+    endif
     
     ! H2 escape
     tmp2 => dict%get_dictionary('hydrogen-escape',.true.,error = io_err)
@@ -141,18 +149,10 @@ contains
     s%conserving_init = dict%get_logical('conserving-initialization',default=.false.,error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
 
-    ! climate
-    s%evolve_climate = dict%get_logical('evolve-climate',default=.false.,error = io_err)
-    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    
     tmp2 => dict%get_dictionary('water',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     s%fix_water_in_trop = tmp2%get_logical('fix-water-in-troposphere',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    if (s%evolve_climate .and. .not. s%fix_water_in_trop) then
-      err = 'fix-water-in-troposphere must be true if evolve-climate is true in '//filename
-      return
-    endif
     s%water_cond = tmp2%get_logical('water-condensation',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     s%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
@@ -162,11 +162,6 @@ contains
       s%relative_humidity = trim(tmp2%get_string('relative-humidity',error = io_err))
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
 
-      if (s%evolve_climate .and. s%relative_humidity == 'manabe') then
-        err = 'relative-humidity must not be "manabe" if evolve-climate is true in '//filename
-        return
-      endif
-      
     endif
     
     if (s%gas_rainout) then

@@ -29,7 +29,6 @@ set(PHOTOCHEM_INPUT
 set(PHOTOCHEM_EVOATMOSPHERE
     evoatmosphere/photochem_evoatmosphere.f90
     evoatmosphere/photochem_evoatmosphere_init.f90
-    evoatmosphere/photochem_evoatmosphere_rhs_climate.f90
     evoatmosphere/photochem_evoatmosphere_integrate.f90
     evoatmosphere/photochem_evoatmosphere_utils.f90)
 

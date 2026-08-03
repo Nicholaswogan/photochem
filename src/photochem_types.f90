@@ -65,8 +65,6 @@ module photochem_types ! make a giant IO object
     integer :: default_lowerboundcond
     ! initialization
     logical :: conserving_init
-    ! climate
-    logical :: evolve_climate
     ! water
     logical :: fix_water_in_trop
     logical :: water_cond
@@ -774,5 +772,4 @@ contains
   end subroutine
   
 end module
-
 

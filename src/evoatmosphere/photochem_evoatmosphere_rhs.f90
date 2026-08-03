@@ -9,19 +9,6 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_rhs
     module procedure :: dochem_real, dochem_dual
   end interface
 
-  interface
-    module subroutine equilibrium_climate(self, usol_den, molecules_per_particle, T_trop, T_surf_guess, &
-                                          T_surf, T, z_trop, err)
-      class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), target, intent(in) :: usol_den(:,:)
-      real(dp), intent(in) :: molecules_per_particle(:,:)
-      real(dp), target, intent(in) :: T_trop, T_surf_guess
-      real(dp), target, intent(out) :: T_surf, T(:)
-      real(dp), target, intent(out) :: z_trop
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-  end interface
-
 contains
 
   #:for TYPE1, NAME in TYPES_NAMES
@@ -510,7 +497,6 @@ contains
     use photochem_common, only: molec_per_particle
     use photochem_const, only: small_real, N_avo, k_boltz
     use photochem_enum, only: DensityBC, PressureBC
-    use photochem_input, only: compute_gibbs_energy, interp2xsdata
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
     real(dp), intent(out) :: usol(:,:)
@@ -519,7 +505,7 @@ contains
     real(dp), intent(out) :: pressure_hydro(:), density_hydro(:)
     character(:), allocatable, intent(out) :: err
 
-    real(dp) :: T_surf_guess, Psat
+    real(dp) :: Psat
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     integer :: i, j
@@ -554,35 +540,6 @@ contains
     !!! molecules/particle
     if (dat%there_are_particles) then
       call molec_per_particle(dat, var, molecules_per_particle)
-    endif
-
-    !!! climate model
-    if (self%evolve_climate) then
-      ! This block changes the following variables, which normally do not change
-      ! during integration.
-      ! self%T_surf
-      ! var%temperature
-      ! var%trop_alt
-      ! var%xs_x_qy
-      ! var%gibbs_energy
-
-      T_surf_guess = self%T_surf
-      ! update the temperature profile
-      call equilibrium_climate(self, usol, molecules_per_particle, self%T_trop, T_surf_guess, &
-                               self%T_surf, var%temperature, var%trop_alt, err)
-      if (allocated(err)) return
-
-      ! Update all things that depend on temperature
-
-      ! Need to interpolate xsections, but more work is needed
-      call interp2xsdata(dat, var, err)
-      if (allocated(err)) return
-
-      if (dat%reverse) then
-        call compute_gibbs_energy(dat, var, err)
-        if (allocated(err)) return
-      endif
-
     endif
 
     !!! pressure, density and mean molcular weight
@@ -1252,5 +1209,4 @@ contains
   end subroutine
 
 end submodule
-
 

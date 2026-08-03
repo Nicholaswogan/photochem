@@ -4,8 +4,7 @@ cimport EvoAtmosphere_pxd as ea_pxd
 cdef class EvoAtmosphere:
   """A photochemical model which assumes no background gas. Once initialized,
   this class can integrate an atmosphere forward in time to a steady
-  state. The model can also, optionally, self-consistently evolve climate for
-  terrestrial planets.
+  state.
   """
 
   cdef ea_pxd.EvoAtmosphere *_ptr
@@ -655,50 +654,6 @@ cdef class EvoAtmosphere:
     for i in range(self.dat.nsl):
       out[names[nq+i]] = densities[nq+i,:]/density
     return out
-
-  property T_surf:
-    """double. The surface temperature (K). Only relevent when doing time-dependent
-    photochemical-climate simulation.
-    """
-    def __get__(self):
-      cdef double val
-      ea_pxd.evoatmosphere_t_surf_get(self._ptr, &val)
-      return val
-    def __set__(self, double val):
-      ea_pxd.evoatmosphere_t_surf_set(self._ptr, &val)
-
-  property T_trop:
-    "double. Assumed tropopause temperature for climate calculations (K)."
-    def __get__(self):
-      cdef double val
-      ea_pxd.evoatmosphere_t_trop_get(self._ptr, &val)
-      return val
-    def __set__(self, double val):
-      ea_pxd.evoatmosphere_t_trop_set(self._ptr, &val)
-
-  property albedo_fcn:
-    """A function describing a temperature dependent surface albedo.
-    This is useful for modeling the ice-albedo feedback.
-    """
-    def __set__(self, object fcn):
-      cdef uintptr_t fcn_l
-      cdef ea_pxd.temp_dependent_albedo_fcn fcn_c
-
-      if fcn is None:
-        fcn_l = 0
-        fcn_c = NULL
-      else:
-        argtypes = (ct.c_double,)
-        restype = ct.c_double
-        if not fcn.ctypes.argtypes == argtypes:
-          raise PhotoException("The callback function has the wrong argument types.")
-        if not fcn.ctypes.restype == restype:
-          raise PhotoException("The callback function has the wrong return type.")
-
-        fcn_l = fcn.address
-        fcn_c = <ea_pxd.temp_dependent_albedo_fcn> fcn_l
-      
-      ea_pxd.evoatmosphere_albedo_fcn_set(self._ptr, fcn_c)
 
   property P_top_min:
     """double. When running the `evolve` routine, this determines

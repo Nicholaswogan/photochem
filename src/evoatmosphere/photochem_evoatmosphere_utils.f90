@@ -142,11 +142,6 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
               " you must supply the 'press' argument"
         return
       endif
-      if (self%evolve_climate) then
-        err = "You can not set a fixed surface pressure when"// &
-              " evolving climate."
-        return
-      endif
       self%var%lowerboundcond(ind) = PressureBC
       self%var%lower_fix_press(ind) = press
       
@@ -277,11 +272,6 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       err = "temperature has the wrong input dimension"
       return
     endif
-    if (self%evolve_climate) then
-      err = "You can not set the temperature when evolving climate"
-      return
-    endif
-    
     ! save in case there is an issue
     var_save = var
     
@@ -359,11 +349,6 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     dat => self%dat
     var => self%var
     
-    if (self%evolve_climate) then
-      err = "You can not set the temperature when evolving climate"
-      return
-    endif
-
     if (size(P) /= size(T)) then
       err = '"P" and "T" not the same size'
       return
@@ -737,11 +722,6 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     dat => self%dat
     var => self%var
     wrk => self%wrk
-
-    if (self%evolve_climate) then
-      err = 'You can not call "update_vertical_grid" when evolving climate'
-      return
-    endif
 
     if (present(TOA_alt) .and. present(TOA_pressure)) then
       err = 'Both "TOA_alt" and "TOA_pressure" can not be specified'

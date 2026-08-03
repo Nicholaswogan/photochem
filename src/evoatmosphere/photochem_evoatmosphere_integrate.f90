@@ -46,14 +46,8 @@ contains
       loc_ierr = FCVodeGetCurrentStep(self%wrk%sun%cvode_mem, hcur)
       
       if (self%var%verbose == 1) then
-        if (self%evolve_climate) then
-          print"(1x,'N =',i6,2x,'Time = ',es11.5,2x,'dt = ',es11.5,"// &
-               "2x,'max(dy/dt) = ',es11.5,2x,'T_surf = ',f11.5,2x,'trop_ind = ',i3,2x,'Ptop = ',es11.5)", &
-              nsteps, tn, hcur(1),maxval(abs(fvec)),self%T_surf,self%var%trop_ind,self%wrk%pressure_hydro(self%var%nz)/1.0e6_dp
-        else
-          print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,'max(dy/dt) = ',es11.5)", &
-              nsteps, tn, hcur(1),maxval(abs(fvec))
-        endif
+        print"(1x,'N =',i6,3x,'Time = ',es11.5,3x,'dt = ',es11.5,3x,'max(dy/dt) = ',es11.5)", &
+             nsteps, tn, hcur(1),maxval(abs(fvec))
              
       elseif (self%var%verbose == 2) then
         ! Find the fastest changing variable
@@ -142,8 +136,6 @@ contains
     real(dp), pointer :: usol_in(:,:)
     type(EvoAtmosphere), pointer :: self
     character(:), allocatable :: err
-    real(dp), parameter :: tol = 1.0e-2
-
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
@@ -161,19 +153,9 @@ contains
                                wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
                                wrk%pressure_hydro, wrk%density_hydro, err)
 
-    ! tropopause
-    ! We only dynamically adjust the tropopause when climate is evolving
-    if (self%evolve_climate) then
-      gvec(1) = var%trop_alt - (var%z(var%trop_ind+1) + (0.5_dp+tol)*var%dz(var%trop_ind+1))
-      gvec(2) = var%trop_alt - (var%z(var%trop_ind+1) - (0.5_dp+tol)*var%dz(var%trop_ind+1))
-    else
-      gvec(1) = 1.0_dp
-      gvec(2) = 1.0_dp
-    endif
-
     ! pressure at the top of the atmosphere
-    gvec(3) = wrk%pressure_hydro(var%nz)/1.0e6_dp - self%P_top_min
-    gvec(4) = wrk%pressure_hydro(var%nz)/1.0e6_dp - self%P_top_max
+    gvec(1) = wrk%pressure_hydro(var%nz)/1.0e6_dp - self%P_top_min
+    gvec(2) = wrk%pressure_hydro(var%nz)/1.0e6_dp - self%P_top_max
 
   end function
 
@@ -222,7 +204,7 @@ contains
     integer(c_int) :: ierr       ! error flag from C functions
     
     ! solution vector, neq is set in the ode_mod module
-    integer(c_int), parameter :: nrtfn = 4
+    integer(c_int), parameter :: nrtfn = 2
     integer(c_int) :: rootsfound(nrtfn)
     real(c_double) :: usol_new(self%dat%nq,self%var%nz)
     real(c_double), pointer :: yvec_usol(:,:)
@@ -505,7 +487,7 @@ contains
             return
           endif
 
-          if (rootsfound(3) == -1) then
+          if (rootsfound(1) == -1) then
             ! pressure at the top of the atmosphere is going down
             ! we must decrease the top of the atmosphere
             new_top_atmos = (1.0_dp-self%top_atmos_adjust_frac)*var%top_atmos
@@ -513,7 +495,7 @@ contains
             if (allocated(err)) return
             yvec_usol = usol_new
 
-          elseif (rootsfound(4) == 1) then
+          elseif (rootsfound(2) == 1) then
             ! pressure at the top of the atmosphere is going up
             ! we must increase the top of the atmosphere
             new_top_atmos = (1.0_dp+self%top_atmos_adjust_frac)*var%top_atmos
@@ -521,13 +503,6 @@ contains
             if (allocated(err)) return
             yvec_usol = usol_new
 
-          elseif (rootsfound(1) /= 0 .or. rootsfound(2) /= 0) then
-            ! tropopause index needs changing
-          
-            ! set the tropopause index
-            call self%set_trop_ind(yvec_usol, err)
-            if (allocated(err)) return
-            
           endif
 
           reinitialize = .true.
@@ -814,12 +789,6 @@ contains
 
     if (size(usol_start,1) /= dat%nq .or. size(usol_start,2) /= var%nz) then
       err = "Input 'usol_start' to 'initialize_stepper' is the wrong dimension"
-      return
-    endif
-
-    if (self%evolve_climate) then
-      err = 'You can not integrate with this stepper when climate evolution is turned on. '// &
-            'Use the `evolve` routine instead for integrations with changing climate.'
       return
     endif
 

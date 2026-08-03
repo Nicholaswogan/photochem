@@ -555,52 +555,6 @@
   !!! getters and setters !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  subroutine evoatmosphere_t_surf_get(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(out) :: val
-    type(EvoAtmosphere), pointer :: pc
-    call c_f_pointer(ptr, pc)
-    val = pc%T_surf
-  end subroutine
-
-  subroutine evoatmosphere_t_surf_set(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(in) :: val
-    type(EvoAtmosphere), pointer :: pc
-    call c_f_pointer(ptr, pc)
-    pc%T_surf = val
-  end subroutine
-  
-  subroutine evoatmosphere_t_trop_get(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(out) :: val
-    type(EvoAtmosphere), pointer :: pc
-    call c_f_pointer(ptr, pc)
-    val = pc%T_trop
-  end subroutine
-
-  subroutine evoatmosphere_t_trop_set(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(in) :: val
-    type(EvoAtmosphere), pointer :: pc
-    call c_f_pointer(ptr, pc)
-    pc%T_trop = val
-  end subroutine
-
-  subroutine evoatmosphere_albedo_fcn_set(ptr, albedo_fcn_c) bind(c)
-    use photochem_evoatmosphere, only: temp_dependent_albedo_fcn
-    type(c_ptr), value, intent(in) :: ptr
-    type(c_funptr), value, intent(in) :: albedo_fcn_c
-
-    procedure(temp_dependent_albedo_fcn), pointer :: albedo_fcn_f
-    type(EvoAtmosphere), pointer :: pc
-
-    call c_f_pointer(ptr, pc)
-    call c_f_procpointer(albedo_fcn_c, albedo_fcn_f)
-    pc%albedo_fcn => albedo_fcn_f
-
-  end subroutine
-  
   subroutine evoatmosphere_p_top_min_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val

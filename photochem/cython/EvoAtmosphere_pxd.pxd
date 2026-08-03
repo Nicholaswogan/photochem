@@ -11,7 +11,6 @@ cdef extern from *:
     pass
 
 # callback signatures
-ctypedef double (*temp_dependent_albedo_fcn)(double T_surf)
 ctypedef void (*time_dependent_rate_fcn)(double tn, int nz, double *rate)
 
 # allocate and destroy
@@ -65,14 +64,6 @@ cdef extern void evoatmosphere_production_and_loss_wrapper(EvoAtmosphere *ptr, c
                                                         int *nz, double *usol, pl_pxd.ProductionLoss **pl_ptr, char *err)
 
 # getters and setters
-cdef extern void evoatmosphere_t_surf_get(EvoAtmosphere *ptr, double *val)
-cdef extern void evoatmosphere_t_surf_set(EvoAtmosphere *ptr, double *val)
-
-cdef extern void evoatmosphere_t_trop_get(EvoAtmosphere *ptr, double *val)
-cdef extern void evoatmosphere_t_trop_set(EvoAtmosphere *ptr, double *val)
-
-cdef extern void evoatmosphere_albedo_fcn_set(EvoAtmosphere *ptr, temp_dependent_albedo_fcn fcn)
-
 cdef extern void evoatmosphere_p_top_min_get(EvoAtmosphere *ptr, double *val)
 cdef extern void evoatmosphere_p_top_min_set(EvoAtmosphere *ptr, double *val)
 

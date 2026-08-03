@@ -11,6 +11,7 @@ planet:
   solar-zenith-angle: 60.0
   hydrogen-escape:
     type: diffusion limited
+  # Legacy setting retained so test_input can verify that it is rejected.
   evolve-climate: true
   water:
     fix-water-in-troposphere: true
@@ -127,4 +128,3 @@ boundary-conditions:
 - name: CN
   lower-boundary: {type: vdep, vdep: 1.0}
   upper-boundary: {type: veff, veff: 0.0}
-      
