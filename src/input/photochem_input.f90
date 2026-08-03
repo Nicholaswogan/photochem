@@ -7,7 +7,7 @@ module photochem_input
   implicit none
   private 
 
-  public :: setup, interp2xsdata, compute_gibbs_energy, interp2particlexsdata
+  public :: setup, interp2xsdata, compute_gibbs_energy, interp2particlexsdata, parse_reaction
   
   type, extends(type_list) :: type_list_tmp
   ! temporary list for accessing all reactions and
@@ -31,6 +31,13 @@ module photochem_input
       character(len=*), intent(in) :: atmosphere_txt
       type(PhotochemData), intent(inout) :: dat
       type(PhotochemVars), intent(inout) :: var
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    module subroutine parse_reaction(instring, reverse, eqr, eqp, err)
+      character(len=*), intent(in) :: instring
+      logical, intent(out) :: reverse
+      character(len=s_str_len), allocatable, intent(out) :: eqr(:), eqp(:)
       character(:), allocatable, intent(out) :: err
     end subroutine
     
@@ -90,6 +97,5 @@ contains
   end subroutine
   
 end module
-
 
 

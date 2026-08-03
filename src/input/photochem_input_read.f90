@@ -1034,6 +1034,17 @@ contains
       rxstring = rxstring //' + M'
     endif
   end subroutine
+
+  pure integer function count_reaction_tokens(tokens, token)
+    character(len=*), intent(in) :: tokens(:)
+    character(len=*), intent(in) :: token
+    integer :: i
+
+    count_reaction_tokens = 0
+    do i = 1,size(tokens)
+      if (trim(tokens(i)) == trim(token)) count_reaction_tokens = count_reaction_tokens + 1
+    enddo
+  end function
   
   subroutine compare_rxtype_string(tmp, eqr, eqp, reverse, rxtype_int, err)
     use photochem_enum, only: PhotolysisRateType, ElementaryRateType, ThreeBodyRateType, FalloffRateType, PressDependentRateType
@@ -1043,14 +1054,7 @@ contains
     integer, intent(in) :: rxtype_int
     character(:), allocatable, intent(out) :: err
     character(:), allocatable :: rxtype
-    integer i
-    logical k, j, m, l, kk, jj
-    l = .false.
-    m = .false.
-    k = .false.
-    kk = .false.
-    j = .false.
-    jj = .false.
+    integer :: n_m_react, n_m_prod, n_hv_react, n_hv_prod
     if (rxtype_int == PhotolysisRateType) then
       rxtype = 'photolysis'
     elseif (rxtype_int == ElementaryRateType) then
@@ -1066,17 +1070,12 @@ contains
       return
     endif
   
-    if ((trim(rxtype) == 'three-body') .or. (trim(rxtype) == 'falloff')) then
-      do i = 1,size(eqr)
-        if ((trim(eqr(i)) == 'M').and.j) jj = .true.
-        if (trim(eqr(i)) == 'M') j = .true.
-        if (trim(eqr(i)) == 'hv') m = .true.
-      enddo
-      do i = 1,size(eqp)
-        if ((trim(eqp(i)) == 'M').and.k) kk = .true.
-        if (trim(eqp(i)) == 'M') k = .true.
-        if (trim(eqp(i)) == 'hv') l = .true.
-      enddo
+    n_m_react = count_reaction_tokens(eqr, 'M')
+    n_m_prod = count_reaction_tokens(eqp, 'M')
+    n_hv_react = count_reaction_tokens(eqr, 'hv')
+    n_hv_prod = count_reaction_tokens(eqp, 'hv')
+
+    if (trim(rxtype) == 'three-body' .or. trim(rxtype) == 'falloff') then
       if (trim(eqr(size(eqr))) /= 'M') then
         err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' must have "M" as the last reactant'
@@ -1087,38 +1086,24 @@ contains
                 ' must have "M" as the last product'
         return
       endif
-      if ((j).and.(k)) then
-        ! good
-      else
-        err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
-                ' must have "M" on both sides'
-        return
-      endif
-      if ((jj).or.(kk)) then
+      if (n_m_react /= 1 .or. n_m_prod /= 1) then
         err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' can only have one "M" on either side'
         return
       endif
-      if ((m).or.(l)) then
+      if (n_hv_react > 0 .or. n_hv_prod > 0) then
         err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' can not contain "hv". Only photolysis reactions can.'
         return
       endif
-    elseif (trim(rxtype) == 'elementary' .or. trim(rxtype) == 'pressure-dependent-Arrhenius') then
-      do i = 1,size(eqr)
-        if (trim(eqr(i)) == 'M') j = .true.
-        if (trim(eqr(i)) == 'hv') m = .true.
-      enddo
-      do i = 1,size(eqp)
-        if (trim(eqp(i)) == 'M') k = .true.
-        if (trim(eqp(i)) == 'hv') l = .true.
-      enddo
-      if ((j).or.(k)) then
+    elseif (trim(rxtype) == 'elementary' .or. &
+            trim(rxtype) == 'pressure-dependent-Arrhenius') then
+      if (n_m_react > 0 .or. n_m_prod > 0) then
         err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' can not contain "M".'
         return
       endif
-      if ((m).or.(l)) then
+      if (n_hv_react > 0 .or. n_hv_prod > 0) then
         err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' can not contain "hv". Only photolysis reactions can.'
         return
@@ -1126,30 +1111,20 @@ contains
     elseif (trim(rxtype) == 'photolysis') then
       if (reverse) then
         err = 'IOError: Photolysis reaction '//trim(tmp)//' can not be reversed.'
+        return
       endif
-      
-      do i = 1,size(eqr)
-        if (trim(eqr(i)) == 'M') j = .true.
-        if ((trim(eqr(i)) == 'hv').and.(m)) jj = .true.
-        if (trim(eqr(i)) == 'hv') m = .true.
-      enddo
-      do i = 1,size(eqp)
-        if (trim(eqp(i)) == 'M') k = .true.
-        if (trim(eqp(i)) == 'hv') l = .true.
-      enddo
-      if ((j).or.(k)) then
+
+      if (n_m_react > 0 .or. n_m_prod > 0) then
         err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' can not contain "M".'
         return
       endif
-      if (jj) then
+      if (n_hv_react > 1) then
         err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' can only have one "hv" on the left side.'
         return
       endif
-      if ((m).and..not.(l)) then
-        ! good
-      else
+      if (n_hv_react /= 1 .or. n_hv_prod /= 0) then
         err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
                 ' must have "hv" on the left and no "hv" on the right.'
         return
@@ -1289,23 +1264,20 @@ contains
     logical, intent(out) :: reverse
     character(:), allocatable, intent(out) :: err
     
-    character(len=s_str_len), allocatable :: eqr(:), eqp(:), eqr1(:), eqp1(:)
+    character(len=s_str_len), allocatable :: eqr(:), eqp(:)
     integer :: reactant_atoms(dat%natoms), product_atoms(dat%natoms)
     integer :: ind(1), i
     
     
-    call parse_reaction(rx_str, reverse, eqr1, eqp1, err)
+    call parse_reaction(rx_str, reverse, eqr, eqp, err)
     if (allocated(err)) return
-    call compare_rxtype_string(rx_str, eqr1, eqp1, reverse, rx%rp%rxtype, err)
+    call compare_rxtype_string(rx_str, eqr, eqp, reverse, rx%rp%rxtype, err)
     if (allocated(err)) return
     
     if (rx%rp%rxtype == ThreeBodyRateType .or. rx%rp%rxtype == FalloffRateType) then
       ! remove the M
-      eqr = eqr1(1:size(eqr1)-1)
-      eqp = eqp1(1:size(eqp1)-1)
-    else
-      eqr = eqr1
-      eqp = eqp1
+      eqr = eqr(1:size(eqr)-1)
+      eqp = eqp(1:size(eqp)-1)
     endif
     
     rx%nreact = size(eqr)
@@ -1356,17 +1328,9 @@ contains
     character(len=*), intent(in) :: rx_string
     logical :: reverse
     character(:), allocatable, intent(out) :: err
-    
-    
-    if (index(rx_string, "<=>") /= 0) then
-      reverse = .true.
-    elseif (index(rx_string, " =>") /= 0) then
-      reverse = .false.
-    else
-      err = "IOError: Invalid reaction arrow in reaction "//trim(rx_string)// &
-            '. Note, forward reactions must have a space before the arrow, like " =>"'
-      return
-    endif
+    character(:), allocatable :: lhs, rhs
+
+    call split_reaction_arrow(rx_string, reverse, lhs, rhs, err)
     
   end function
   
@@ -1639,147 +1603,256 @@ contains
     
   end subroutine
 
-  subroutine parse_reaction(instring, reverse, eqr, eqp, err)
+  module subroutine parse_reaction(instring, reverse, eqr, eqp, err)
     character(len=*), intent(in) :: instring
     logical, intent(out) :: reverse
     character(len=s_str_len), allocatable, intent(out) :: eqr(:), eqp(:)
     character(:), allocatable, intent(out) :: err
-    
-    character(len=:), allocatable :: string2, string3
-    character(len=:), allocatable :: eqr1, eqp1, eqr2, eqp2
-    integer :: i, nreac1, nprod1, nreac2, nprod2, start
-    logical :: switch
-    
-    string2 = ''
-    string3 = ''
-    do i = 1,len_trim(instring)
-      if (instring(i:i) /= '(' .and. instring(i:i) /= ')') then
-        string2 = string2//instring(i:i)
-        if (instring(i:i) == '+') then
-          string3 = string3//' '
-        else
-          string3 = string3//instring(i:i)
+    character(:), allocatable :: lhs, rhs
+
+    call split_reaction_arrow(instring, reverse, lhs, rhs, err)
+    if (allocated(err)) return
+
+    call tokenize_reaction_side(lhs, eqr, err)
+    if (allocated(err)) return
+
+    call tokenize_reaction_side(rhs, eqp, err)
+  end subroutine
+
+  subroutine split_reaction_arrow(instring, reverse, lhs, rhs, err)
+    character(len=*), intent(in) :: instring
+    logical, intent(out) :: reverse
+    character(:), allocatable, intent(out) :: lhs, rhs
+    character(:), allocatable, intent(out) :: err
+
+    integer :: i, n, arrow_start, arrow_length, arrow_count
+
+    reverse = .false.
+    lhs = ''
+    rhs = ''
+    arrow_start = 0
+    arrow_length = 0
+    arrow_count = 0
+    n = len_trim(instring)
+
+    if (n == 0) then
+      err = 'IOError: Reaction equation is empty.'
+      return
+    endif
+
+    i = 1
+    do while (i <= n)
+      if (i <= n-2) then
+        if (instring(i:i+2) == '<=>') then
+          arrow_count = arrow_count + 1
+          arrow_start = i
+          arrow_length = 3
+          reverse = .true.
+          i = i + 3
+          cycle
         endif
       endif
+
+      if (i <= n-1) then
+        if (instring(i:i+1) == '=>') then
+          arrow_count = arrow_count + 1
+          arrow_start = i
+          arrow_length = 2
+          reverse = .false.
+          i = i + 2
+          cycle
+        endif
+      endif
+
+      i = i + 1
     enddo
-    
-    if (index(instring, "<=>") /= 0) then
-      i = index(string2, "<=>")
-      eqr1 = string2(1:i-1)
-      eqp1 = string2(i+3:)
-      i = index(string3, "<=>")
-      eqr2 = string3(1:i-1)
-      eqp2 = string3(i+3:)
-      reverse = .true.
-    elseif (index(instring, " =>") /= 0) then
-      i = index(string2, " =>")
-      eqr1 = string2(1:i-1)
-      eqp1 = string2(i+3:)
-      i = index(string3, " =>")
-      eqr2 = string3(1:i-1)
-      eqp2 = string3(i+3:)
-      reverse = .false.
+
+    if (arrow_count == 0) then
+      err = 'IOError: Reaction "'//trim(instring)//'" has no valid arrow. '// &
+            'Expected "=>" or "<=>".'
+      return
+    elseif (arrow_count > 1) then
+      err = 'IOError: Reaction "'//trim(instring)//'" has more than one reaction arrow.'
+      return
+    endif
+
+    if (arrow_start > 1) lhs = trim(instring(:arrow_start-1))
+    if (arrow_start + arrow_length <= n) then
+      rhs = trim(instring(arrow_start+arrow_length:n))
+    endif
+
+    if (len_trim(lhs) == 0) then
+      err = 'IOError: Reaction "'//trim(instring)//'" has no reactants.'
+      return
+    endif
+    if (len_trim(rhs) == 0) then
+      err = 'IOError: Reaction "'//trim(instring)//'" has no products.'
+      return
+    endif
+  end subroutine
+
+  subroutine tokenize_reaction_side(side, tokens, err)
+    character(len=*), intent(in) :: side
+    character(len=s_str_len), allocatable, intent(out) :: tokens(:)
+    character(:), allocatable, intent(out) :: err
+
+    integer :: i, n, token_start, parentheses_depth
+    logical :: term_complete, expect_term
+    character :: c
+
+    allocate(tokens(0))
+    n = len_trim(side)
+    token_start = 0
+    parentheses_depth = 0
+    term_complete = .false.
+    expect_term = .false.
+
+    do i = 1,n
+      c = side(i:i)
+
+      if (c == '+' .and. is_reaction_plus_marker(side, i)) then
+        ! In parenthesized third-body notation, '+' is a marker, not a
+        ! separator: both (+M) and (+ M) represent the species M.
+        expect_term = .true.
+        term_complete = .false.
+        cycle
+      endif
+
+      if (c == '+' .and. is_reaction_plus_separator(side, i)) then
+        if (.not. term_complete) then
+          err = 'IOError: Reaction side "'//trim(side)// &
+                '" has a plus sign without a species on its left.'
+          return
+        endif
+        expect_term = .true.
+        term_complete = .false.
+        cycle
+      endif
+
+      if (c == '(') parentheses_depth = parentheses_depth + 1
+      if (c == ')') then
+        if (parentheses_depth == 0) then
+          err = 'IOError: Reaction side "'//trim(side)//'" has an unmatched closing parenthesis.'
+          return
+        endif
+        parentheses_depth = parentheses_depth - 1
+      endif
+
+      if (is_reaction_space(c) .or. c == '(' .or. c == ')') then
+        if (token_start /= 0) then
+          call append_reaction_token(tokens, side, token_start, i-1, err)
+          if (allocated(err)) return
+          token_start = 0
+          term_complete = .true.
+        endif
+        cycle
+      endif
+
+      if (token_start == 0) then
+        if (term_complete .and. .not. expect_term) then
+          err = 'IOError: Reaction side "'//trim(side)// &
+                '" has adjacent species without a "+" separator.'
+          return
+        endif
+        token_start = i
+        term_complete = .false.
+        expect_term = .false.
+      endif
+    enddo
+
+    if (token_start /= 0) then
+      call append_reaction_token(tokens, side, token_start, n, err)
+      if (allocated(err)) return
+      term_complete = .true.
+    endif
+
+    if (parentheses_depth /= 0) then
+      err = 'IOError: Reaction side "'//trim(side)//'" has an unmatched opening parenthesis.'
+      return
+    endif
+
+    if (expect_term) then
+      err = 'IOError: Reaction side "'//trim(side)//'" ends with a plus sign.'
+      return
+    endif
+    if (size(tokens) == 0) then
+      err = 'IOError: Reaction side "'//trim(side)//'" contains no species.'
+    endif
+  end subroutine
+
+  subroutine append_reaction_token(tokens, side, first, last, err)
+    character(len=s_str_len), allocatable, intent(inout) :: tokens(:)
+    character(len=*), intent(in) :: side
+    integer, intent(in) :: first, last
+    character(:), allocatable, intent(out) :: err
+
+    character(:), allocatable :: token
+
+    if (last < first) return
+    token = trim(side(first:last))
+    if (len_trim(token) == 0) return
+    if (len(token) > s_str_len) then
+      err = 'IOError: Species token "'//trim(token)//'" in reaction side "'// &
+            trim(side)//'" is longer than the supported species-name length.'
+      return
+    endif
+
+    if (size(tokens) == 0) then
+      tokens = [repeat(' ', s_str_len)]
     else
-      err = "IOError: Invalid reaction arrow in reaction "//instring// &
-            '. Note, forward reactions must have a space before the arrow, like " =>"'
-      return
+      tokens = [tokens, repeat(' ', s_str_len)]
     endif
-    
-    ! trim whitespace
-    call trim_whitespace(eqr1)
-    call trim_whitespace(eqp1)
-    call trim_whitespace(eqp2)
-    call trim_whitespace(eqr2)
-    
-    ! count number of + signs
-    nreac1 = 1
-    do i = 1,len(eqr1)
-      if (eqr1(i:i) == '+') nreac1 = nreac1 + 1
-    enddo
-    nprod1 = 1
-    do i = 1,len(eqp1)
-      if (eqp1(i:i) == '+') nprod1 = nprod1 + 1
-    enddo
-    
-    ! count number of gaps
-    nreac2 = 1
-    switch = .true.
-    do i = 1,len(eqr2)
-      if (eqr2(i:i) == ' ' .and. switch) then
-        nreac2 = nreac2 + 1
-        switch = .false.
-      endif
-      if (eqr2(i:i) /= ' ' .and. .not.switch) switch = .true.
-    enddo
-    nprod2 = 1
-    switch = .true.
-    do i = 1,len(eqp2)
-      if (eqp2(i:i) == ' ' .and. switch) then
-        nprod2 = nprod2 + 1
-        switch = .false.
-      endif
-      if (eqp2(i:i) /= ' ' .and. .not.switch) switch = .true.
-    enddo
-    
-    if (nreac1 /= nreac2 .or. nprod1 /= nprod2) then
-      err = 'IOError: Missing or too many "+" sign(s) in reaction '//instring
-      return
-    endif
-    
-    if (allocated(eqr)) then
-      deallocate(eqr, eqp)
-    endif
-    allocate(eqr(nreac1), eqp(nprod1))
-    eqr = ''
-    eqp = ''
-    
-    nreac2 = 1
-    start = 1
-    switch = .true.
-    do i = 1,len(eqr2)
-      if (eqr2(i:i) == ' ' .and. switch) then
-        eqr(nreac2) = eqr2(start:i-1)
-        nreac2 = nreac2 + 1
-        switch = .false.
-      endif
-      if (eqr2(i:i) /= ' ' .and. .not.switch) then
-        start = i
-        switch = .true.
-      endif
-    enddo
-    eqr(nreac2) = eqr2(start:)
-    
-    nprod2 = 1
-    start = 1
-    switch = .true.
-    do i = 1,len(eqp2)
-      if (eqp2(i:i) == ' ' .and. switch) then
-        eqp(nprod2) = eqp2(start:i-1)
-        nprod2 = nprod2 + 1
-        switch = .false.
-      endif
-      if (eqp2(i:i) /= ' ' .and. .not.switch) then
-        start = i
-        switch = .true.
-      endif
-    enddo
-    eqp(nprod2) = eqp2(start:)
-    
+    tokens(size(tokens)) = token
   end subroutine
-  
-  subroutine trim_whitespace(str)
-    character(len=:), allocatable, intent(inout) :: str
-    
+
+  pure logical function is_reaction_space(c)
+    character, intent(in) :: c
+    is_reaction_space = c == ' ' .or. c == achar(9)
+  end function
+
+  pure logical function is_reaction_plus_separator(side, position)
+    character(len=*), intent(in) :: side
+    integer, intent(in) :: position
+    integer :: n
+    logical :: left_space, right_space
+
+    n = len_trim(side)
+    if (position == 1) then
+      left_space = .true.
+    else
+      left_space = is_reaction_space(side(position-1:position-1))
+    endif
+    if (position == n) then
+      right_space = .true.
+    else
+      right_space = is_reaction_space(side(position+1:position+1))
+    endif
+
+    ! Parenthesized third-body notation commonly uses (+M), (+ M), or ( + M).
+    is_reaction_plus_separator = left_space .and. right_space
+    if (position > 1) then
+      is_reaction_plus_separator = is_reaction_plus_separator .or. &
+                                   side(position-1:position-1) == '('
+    endif
+    if (position < n) then
+      is_reaction_plus_separator = is_reaction_plus_separator .or. &
+                                   side(position+1:position+1) == ')'
+    endif
+  end function
+
+  pure logical function is_reaction_plus_marker(side, position)
+    character(len=*), intent(in) :: side
+    integer, intent(in) :: position
     integer :: i
-    do i = 1,len(str)
-      if (str(i:i) /= ' ') exit
+
+    i = position - 1
+    do while (i >= 1)
+      if (.not. is_reaction_space(side(i:i))) exit
+      i = i - 1
     enddo
-    str= str(i:)
-    do i = len(str),1,-1
-      if (str(i:i) /= ' ') exit
-    enddo
-    str = str(1:i)
-  end subroutine
+    is_reaction_plus_marker = .false.
+    if (i >= 1) is_reaction_plus_marker = side(i:i) == '('
+  end function
   
   subroutine check_sl(dat, err)
     use photochem_types, only: ThreeBodyRate, FalloffRate
