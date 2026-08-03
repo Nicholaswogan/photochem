@@ -2004,6 +2004,7 @@ contains
     use h5fortran
     use futils, only: interp_discrete_to_bins
     use clima_useful, only: hdf5_file_closer
+    use ieee_arithmetic, only: ieee_is_finite
     character(*), intent(in) :: filename
     integer, intent(in) :: nw
     real(dp), intent(in) :: wavl(:)
@@ -2045,6 +2046,25 @@ contains
     nrad_file = dims(1)
     allocate(radii_file(dims(1)))
     call h%read("radii", radii_file)
+
+    if (nrad_file < 2) then
+      err = '"radii" must contain at least two values in "'//filename//'"'
+      return
+    endif
+    if (.not. all(ieee_is_finite(radii_file))) then
+      err = '"radii" contains a non-finite value in "'//filename//'"'
+      return
+    endif
+    if (any(radii_file <= 0.0_dp)) then
+      err = '"radii" must contain only positive values in "'//filename//'"'
+      return
+    endif
+    do i = 1,nrad_file-1
+      if (radii_file(i+1) <= radii_file(i)) then
+        err = '"radii" must be strictly increasing in "'//filename//'"'
+        return
+      endif
+    enddo
 
     ! w0
     call check_h5_dataset(h, 'w0', 2, H5T_FLOAT_F, filename, err)
