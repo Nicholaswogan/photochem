@@ -37,9 +37,7 @@ class GasGiantData():
 
         # Parameters for determining steady state
         self.TOA_pressure_avg = 1.0e-7*1e6 # mean TOA pressure (dynes/cm^2)
-        self.max_dT_tol = 5 # The permitted difference between T in photochem and desired T
-        self.max_dlog10edd_tol = 0.2 # The permitted difference between Kzz in photochem and desired Kzz
-        self.freq_update_PTKzz = 1000 # step frequency to update PTKzz profile.
+        self.freq_update_TOA = 1000 # Step frequency to adjust the TOA pressure.
         self.max_total_step = 100_000 # Maximum total allowed steps before giving up
         self.min_step_conv = 300 # Min internal steps considered before convergence is allowed
         self.verbose = True # print information or not?
@@ -50,10 +48,6 @@ class GasGiantData():
         self.P_clima_grid = None # The climate grid
         self.metallicity = None
         self.CtoO = None
-        # Below for interpolation
-        self.log10P_interp = None
-        self.T_interp = None
-        self.log10edd_interp = None
         self.P_desired = None
         self.T_desired = None
         self.Kzz_desired = None
@@ -230,10 +224,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
             # Update z1 to get a new altitude profile
             P1, T1, mubar1, z1 = compute_altitude_of_PT(P1, gdat.P_ref, T1, mubar1, gdat.planet_radius, gdat.planet_mass, gdat.TOA_pressure_avg)
 
-        # Save P-T-Kzz for later interpolation and corrections
-        gdat.log10P_interp = np.log10(P1.copy()[::-1])
-        gdat.T_interp = T1.copy()[::-1]
-        gdat.log10edd_interp = np.log10(Kzz1.copy()[::-1])
+        # Save the prescribed P-T-Kzz profile.
         gdat.P_desired = P1.copy()
         gdat.T_desired = T1.copy()
         gdat.Kzz_desired = Kzz1.copy()
@@ -302,10 +293,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
             Kzz1 = Kzz_in.copy()
             mix1 = mix
 
-        # Save P-T-Kzz for later interpolation and corrections
-        gdat.log10P_interp = np.log10(P1.copy()[::-1])
-        gdat.T_interp = T1.copy()[::-1]
-        gdat.log10edd_interp = np.log10(Kzz1.copy()[::-1])
+        # Save the prescribed P-T-Kzz profile.
         gdat.P_desired = P1.copy()
         gdat.T_desired = T1.copy()
         gdat.Kzz_desired = Kzz1.copy()
@@ -316,6 +304,12 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         "Little helper function preventing code duplication."
 
         gdat = self.gdat
+
+        # Rebuilding the atmosphere invalidates any existing CVODE history and
+        # replaces any previously prescribed pressure-based profile.
+        self.destroy_stepper()
+        self.clear_press_temp_edd_profile()
+        gdat.robust_stepper_initialized = False
 
         # Compute TOA index
         ind_t = np.argmin(np.abs(P1 - gdat.TOA_pressure_avg))
@@ -370,7 +364,11 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
                 Pi = P_p[0]*mix_p[sp][0]
                 self.set_lower_bc(sp, bc_type='press', press=Pi)
 
-        self.prep_atmosphere(self.wrk.usol)
+        # Keep T and Kzz tied to the desired pressure profiles throughout all
+        # subsequent RHS evaluations.
+        self.set_press_temp_edd_profile(
+            P1, T1, Kzz1, hydro_pressure=True
+        )
 
     def return_atmosphere_climate_grid(self):
         """Returns a dictionary with temperature, Kzz and mixing ratios
@@ -527,38 +525,25 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
             # convergence checking
             converged = self.check_for_convergence()
 
-            # Compute the max difference between the P-T profile in photochemical model
-            # and the desired P-T profile
-            T_p = np.interp(np.log10(self.wrk.pressure_hydro.copy()[::-1]), gdat.log10P_interp, gdat.T_interp)
-            T_p = T_p.copy()[::-1]
-            max_dT = np.max(np.abs(T_p - self.var.temperature))
-
-            # Compute the max difference between the P-edd profile in photochemical model
-            # and the desired P-edd profile
-            log10edd_p = np.interp(np.log10(self.wrk.pressure_hydro.copy()[::-1]), gdat.log10P_interp, gdat.log10edd_interp)
-            log10edd_p = log10edd_p.copy()[::-1]
-            max_dlog10edd = np.max(np.abs(log10edd_p - np.log10(self.var.edd)))
-
             # TOA pressure
             TOA_pressure = self.wrk.pressure_hydro[-1]
 
-            condition1 = converged and self.wrk.nsteps > gdat.min_step_conv or self.wrk.tn > self.var.equilibrium_time
-            condition2 = max_dT < gdat.max_dT_tol and max_dlog10edd < gdat.max_dlog10edd_tol and gdat.TOA_pressure_avg/3 < TOA_pressure < gdat.TOA_pressure_avg*3
+            chemistry_converged = (
+                converged and self.wrk.nsteps > gdat.min_step_conv
+            ) or self.wrk.tn > self.var.equilibrium_time
+            TOA_in_range = gdat.TOA_pressure_avg/3 < TOA_pressure < gdat.TOA_pressure_avg*3
 
-            if condition1 and condition2:
+            if chemistry_converged and TOA_in_range:
                 if gdat.verbose:
-                    print('nsteps = %i  longdy = %.1e  max_dT = %.1e  max_dlog10edd = %.1e  TOA_pressure = %.1e'% \
-                        (gdat.total_step_counter, self.wrk.longdy, max_dT, max_dlog10edd, TOA_pressure/1e6))
+                    print('nsteps = %i  longdy = %.1e  TOA_pressure = %.1e'% \
+                        (gdat.total_step_counter, self.wrk.longdy, TOA_pressure/1e6))
                 # success!
                 reached_steady_state = True
                 break
 
-            if not (self.wrk.nsteps % gdat.freq_update_PTKzz) or (condition1 and not condition2):
-                # After ~1000 steps, lets update P,T, edd and vertical grid, if possible.
-                try:
-                    self.set_press_temp_edd(gdat.P_desired,gdat.T_desired,gdat.Kzz_desired,hydro_pressure=True)
-                except PhotoException:
-                    pass
+            if not (self.wrk.nsteps % gdat.freq_update_TOA) or (chemistry_converged and not TOA_in_range):
+                # Periodically keep the TOA near the desired pressure. The
+                # persistent profile is automatically remapped on the new grid.
                 try:
                     self.update_vertical_grid(TOA_pressure=gdat.TOA_pressure_avg)
                 except PhotoException:
@@ -570,8 +555,8 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
                 break
 
             if not (self.wrk.nsteps % gdat.freq_print) and gdat.verbose:
-                print('nsteps = %i  longdy = %.1e  max_dT = %.1e  max_dlog10edd = %.1e  TOA_pressure = %.1e'% \
-                    (gdat.total_step_counter, self.wrk.longdy, max_dT, max_dlog10edd, TOA_pressure/1e6))
+                print('nsteps = %i  longdy = %.1e  TOA_pressure = %.1e'% \
+                    (gdat.total_step_counter, self.wrk.longdy, TOA_pressure/1e6))
                 
         return give_up, reached_steady_state
     
@@ -609,9 +594,6 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         out['P_clima_grid'] = gdat.P_clima_grid
         out['metallicity'] = gdat.metallicity
         out['CtoO'] = gdat.CtoO
-        out['log10P_interp'] = gdat.log10P_interp
-        out['T_interp'] = gdat.T_interp
-        out['log10edd_interp'] = gdat.log10edd_interp
         out['P_desired'] = gdat.P_desired
         out['T_desired'] = gdat.T_desired
         out['Kzz_desired'] = gdat.Kzz_desired
@@ -631,12 +613,15 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
 
         gdat = self.gdat
 
+        # The saved state replaces any current integration and prescribed
+        # pressure profile.
+        self.destroy_stepper()
+        self.clear_press_temp_edd_profile()
+        gdat.robust_stepper_initialized = False
+
         gdat.P_clima_grid = out['P_clima_grid']
         gdat.metallicity = out['metallicity']
         gdat.CtoO = out['CtoO']
-        gdat.log10P_interp = out['log10P_interp']
-        gdat.T_interp = out['T_interp']
-        gdat.log10edd_interp = out['log10edd_interp']
         gdat.P_desired = out['P_desired']
         gdat.T_desired = out['T_desired']
         gdat.Kzz_desired = out['Kzz_desired']
@@ -658,7 +643,10 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         for i,sp in enumerate(species_names):
             self.set_lower_bc(sp, bc_type='press', press=out['P_i_surf'][i])
 
-        self.prep_atmosphere(self.wrk.usol)
+        self.set_press_temp_edd_profile(
+            gdat.P_desired, gdat.T_desired, gdat.Kzz_desired,
+            hydro_pressure=True
+        )
 
 ###
 ### Helper functions for the EvoAtmosphereGasGiant class
