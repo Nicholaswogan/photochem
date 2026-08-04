@@ -14,7 +14,7 @@ if (NOT EXISTS "${CMAKE_SOURCE_DIR}/data")
   )
 endif()
 
-set(PHOTOCHEM_TESTS test_input testevo memtest_evo)
+set(PHOTOCHEM_TESTS test_input test_api test_memory test_evolution)
 
 if (BUILD_EXECUTABLES)
   foreach(PHOTOCHEM_TEST ${PHOTOCHEM_TESTS})

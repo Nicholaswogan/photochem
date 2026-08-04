@@ -1,4 +1,5 @@
 program test_input
+  ! Focused input parsing and validation tests. See tests/README.md.
   implicit none
   call test_parsing()
   call test_removed_evolve_climate_setting()

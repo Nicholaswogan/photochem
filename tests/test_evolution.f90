@@ -1,4 +1,6 @@
-program main
+program test_evolution
+  ! This longer-running end-to-end evolution exercise is intended for manual
+  ! use and is compiled, but not run, in CI. See tests/README.md.
   implicit none
   call main_()
 contains

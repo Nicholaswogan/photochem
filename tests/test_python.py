@@ -1,3 +1,5 @@
+"""Smoke test for the installed Python wrappers. See README.md."""
+
 import numpy as np
 
 from photochem import EvoAtmosphere, zahnle_earth
