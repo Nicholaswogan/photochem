@@ -316,17 +316,36 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Given an input P, T, and edd, the code will find the temperature and eddy diffusion profile
-    !> on the current altitude-grid that matches the inputs.
+    !> Maps pressure-temperature and pressure-eddy-diffusion profiles onto
+    !! the model's current altitude grid.
+    !!
+    !! Temperature is interpolated linearly in log10 pressure, while eddy
+    !! diffusion is interpolated linearly in log10 pressure-log10 eddy space.
+    !! The input pressure must be strictly decreasing, and all three input
+    !! arrays must have the same size with at least two elements. If the input
+    !! profile does not reach the model surface, its deepest two points are
+    !! used to extrapolate it to the surface. Values above the input profile
+    !! are held constant.
+    !!
+    !! By default, the mapping uses hydrostatic pressure and solves for it
+    !! sequentially from the bottom of the atmosphere upward. Alternatively,
+    !! the mapping can use the actual gas pressure, `density*k_boltz*T`.
+    !!
+    !! On success, this procedure updates the model temperature, eddy
+    !! diffusion, and derived atmospheric working state. Atmospheric species
+    !! number densities are not evolved by this procedure.
     module subroutine set_press_temp_edd(self, P, T, edd, trop_p, hydro_pressure, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: P(:) !! Pressure (dynes/cm^2)
-      real(dp), intent(in) :: T(:) !! Temperature (K)
-      real(dp), intent(in) :: edd(:) !! Eddy diffusion (cm^2/s)
-      real(dp), optional, intent(in) :: trop_p !! Tropopause pressure (dynes/cm^2)
+      real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dynes/cm^2)
+      real(dp), intent(in) :: T(:) !! Temperature corresponding to `P` (K)
+      real(dp), intent(in) :: edd(:) !! Eddy diffusion corresponding to `P` (cm^2/s)
+      !> Tropopause pressure (dynes/cm^2). Required when gas rainout is enabled.
+      real(dp), optional, intent(in) :: trop_p
       !> If .true., then use hydrostatic pressure. If .false. then use the
-      !> actual pressure in the atmosphere. Default is .true..
+      !> actual gas pressure in the atmosphere. Default is .true..
       logical, optional, intent(in) :: hydro_pressure
+      !> Allocated with an error message if the profiles are invalid or cannot
+      !> be mapped onto the altitude grid.
       character(:), allocatable, intent(out) :: err
     end subroutine
 

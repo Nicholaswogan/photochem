@@ -339,27 +339,55 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
   
   def set_press_temp_edd(self, ndarray[double, ndim=1] P, ndarray[double, ndim=1] T, ndarray[double, ndim=1] edd, trop_p = None, hydro_pressure = None):
-    """Given an input P, T, and edd, the code will find the temperature and eddy diffusion profile
-    on the current altitude-grid that matches the inputs.
+    """Map pressure-temperature and pressure-eddy-diffusion profiles onto
+    the model's current altitude grid.
+
+    Temperature is interpolated linearly in log10 pressure. Eddy diffusion
+    is interpolated linearly in log10 pressure-log10 eddy space. If the input
+    profile does not reach the model surface, its deepest two points are used
+    to extrapolate it to the surface. Values above the input profile are held
+    constant.
+
+    By default, the mapping uses hydrostatic pressure and solves for it from
+    the bottom of the atmosphere upward. The alternative uses the actual gas
+    pressure, ``density * k_boltz * T``.
+
+    On success, this method updates the model temperature, eddy diffusion,
+    and derived atmospheric working state. It does not evolve atmospheric
+    species number densities.
     
     Parameters
     ----------
-    P : ndarray[double,ndim=1]
-        Pressure (dynes/cm^2)
-    T : ndarray[double,ndim=1]
-        Temperature (K)
-    edd : ndarray[double,ndim=1]
-        Eddy diffusion (cm^2/s)
+    P : ndarray of float64, shape (n,)
+        Strictly decreasing pressure profile in dynes/cm^2. Must contain at
+        least two finite, positive values. ``T`` and ``edd`` must have the
+        same shape.
+    T : ndarray of float64, shape (n,)
+        Temperature corresponding to ``P``, in K. Must be finite and
+        positive.
+    edd : ndarray of float64, shape (n,)
+        Eddy diffusion corresponding to ``P``, in cm^2/s. Must be finite and
+        positive.
     trop_p : float, optional
-        Tropopause pressure (dynes/cm^2). Only necessary if gas rainout is enabled.
-    hydro_pressure : bool, optional
-        If True, then use hydrostatic pressure. If False then use the
-        actual pressure in the atmosphere. Default is True.
+        Tropopause pressure in dynes/cm^2. Required when gas rainout is
+        enabled.
+    hydro_pressure : bool, default=True
+        Use hydrostatic pressure if True. If False, use the actual gas
+        pressure computed from number density and temperature.
+
+    Raises
+    ------
+    PhotoException
+        If the profiles are invalid or cannot be mapped onto the altitude
+        grid.
     """
     cdef char err[ERR_LEN+1]
-    cdef int P_dim1 = P.size
-    cdef int T_dim1 = T.size
-    cdef int edd_dim1 = edd.size
+    cdef ndarray P_ = np.ascontiguousarray(P)
+    cdef ndarray T_ = np.ascontiguousarray(T)
+    cdef ndarray edd_ = np.ascontiguousarray(edd)
+    cdef int P_dim1 = P_.size
+    cdef int T_dim1 = T_.size
+    cdef int edd_dim1 = edd_.size
     
     cdef double trop_p_ = 0.0
     cdef bool trop_p_present = False
@@ -373,9 +401,12 @@ cdef class EvoAtmosphere:
       hydro_pressure_present = True
       hydro_pressure_ = hydro_pressure
       
-    ea_pxd.evoatmosphere_set_press_temp_edd_wrapper(self._ptr, &P_dim1, <double *>P.data, &T_dim1, <double *>T.data, &edd_dim1, <double *>edd.data,
-                                               &trop_p_, &trop_p_present, 
-                                               &hydro_pressure_, &hydro_pressure_present, err)
+    ea_pxd.evoatmosphere_set_press_temp_edd_wrapper(
+      self._ptr, &P_dim1, <double *>P_.data,
+      &T_dim1, <double *>T_.data, &edd_dim1, <double *>edd_.data,
+      &trop_p_, &trop_p_present, &hydro_pressure_,
+      &hydro_pressure_present, err
+    )
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     
