@@ -40,6 +40,16 @@ module photochem_types ! make a giant IO object
     real(dp) :: smooth_factor = 0.2_dp !! A factor that smooths condensation/evaporation 
                                        !! rate to prevents stiffness
   end type
+
+  type :: PressureTempEddProfile
+    logical :: enabled = .false.
+    logical :: hydro_pressure = .true.
+    logical :: has_trop_p = .false.
+    real(dp) :: trop_p = 0.0_dp
+    real(dp), allocatable :: pressure(:)
+    real(dp), allocatable :: temperature(:)
+    real(dp), allocatable :: edd(:)
+  end type
   
   type :: SettingsParticle
     character(:), allocatable :: name
@@ -393,6 +403,9 @@ module photochem_types ! make a giant IO object
     real(dp) :: trop_alt !! cm (only for gas_rainout == true)
     real(dp) :: rainfall_rate !! relative to modern Earth's average rainfall rate of 1.1e17 molecules/cm2/s
     integer :: trop_ind !! index of troposphere (only for gas_rainout == true)
+
+    ! State for a persistent pressure-based temperature and Kzz profile.
+    type(PressureTempEddProfile) :: press_temp_edd_profile
     
     ! radiative transfer
     real(dp), allocatable :: photon_flux(:) !! (nw) photon/cm^2/s in each wavelength bin hitting planet.

@@ -474,6 +474,12 @@ contains
     dat => self%dat
     var => self%var
 
+    ! A persistent pressure-based profile depends on the trial composition.
+    ! Apply it before boundary conditions, hydrostatics, transport, chemistry,
+    ! and saturation quantities are prepared.
+    call apply_press_temp_edd_profile(self, usol_in, err)
+    if (allocated(err)) return
+
     !!! alter input usol
     do j = 1,var%nz
       do i = 1,dat%nq

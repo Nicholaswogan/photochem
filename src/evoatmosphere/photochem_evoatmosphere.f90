@@ -56,6 +56,8 @@ module photochem_evoatmosphere
     procedure :: set_rate_fcn
     procedure :: set_temperature
     procedure :: set_press_temp_edd
+    procedure :: set_press_temp_edd_profile
+    procedure :: clear_press_temp_edd_profile
     procedure :: update_vertical_grid
     procedure :: rebin_update_vertical_grid
     procedure :: regrid_prep_atmosphere
@@ -364,6 +366,26 @@ module photochem_evoatmosphere
       real(dp), intent(out) :: edd_new(:)
       real(dp), intent(out) :: log10P_wrk(:)
       real(dp), intent(out) :: trop_alt
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    module subroutine set_press_temp_edd_profile(self, P, T, edd, trop_p, hydro_pressure, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: P(:)
+      real(dp), intent(in) :: T(:)
+      real(dp), intent(in) :: edd(:)
+      real(dp), optional, intent(in) :: trop_p
+      logical, optional, intent(in) :: hydro_pressure
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    module subroutine clear_press_temp_edd_profile(self)
+      class(EvoAtmosphere), intent(inout) :: self
+    end subroutine
+
+    module subroutine apply_press_temp_edd_profile(self, usol_in, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: usol_in(:,:)
       character(:), allocatable, intent(out) :: err
     end subroutine
 

@@ -348,6 +348,119 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
   end subroutine
 
+  module subroutine set_press_temp_edd_profile(self, P, T, edd, trop_p, hydro_pressure, err)
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: P(:)
+    real(dp), intent(in) :: T(:)
+    real(dp), intent(in) :: edd(:)
+    real(dp), optional, intent(in) :: trop_p
+    logical, optional, intent(in) :: hydro_pressure
+    character(:), allocatable, intent(out) :: err
+
+    type(PhotochemVars) :: var_save
+
+    var_save = self%var
+
+    self%var%press_temp_edd_profile%pressure = P
+    self%var%press_temp_edd_profile%temperature = T
+    self%var%press_temp_edd_profile%edd = edd
+    self%var%press_temp_edd_profile%has_trop_p = present(trop_p)
+    if (present(trop_p)) then
+      self%var%press_temp_edd_profile%trop_p = trop_p
+    else
+      self%var%press_temp_edd_profile%trop_p = 0.0_dp
+    endif
+    if (present(hydro_pressure)) then
+      self%var%press_temp_edd_profile%hydro_pressure = hydro_pressure
+    else
+      self%var%press_temp_edd_profile%hydro_pressure = .true.
+    endif
+    self%var%press_temp_edd_profile%enabled = .true.
+
+    ! prep_atmosphere validates and applies the stored profile through the
+    ! same path used by RHS and Jacobian evaluations.
+    call self%prep_atmosphere(self%wrk%usol, err)
+    if (allocated(err)) then
+      self%var = var_save
+      return
+    endif
+
+  end subroutine
+
+  module subroutine clear_press_temp_edd_profile(self)
+    class(EvoAtmosphere), intent(inout) :: self
+
+    self%var%press_temp_edd_profile%enabled = .false.
+    self%var%press_temp_edd_profile%hydro_pressure = .true.
+    self%var%press_temp_edd_profile%has_trop_p = .false.
+    self%var%press_temp_edd_profile%trop_p = 0.0_dp
+    if (allocated(self%var%press_temp_edd_profile%pressure)) deallocate(self%var%press_temp_edd_profile%pressure)
+    if (allocated(self%var%press_temp_edd_profile%temperature)) deallocate(self%var%press_temp_edd_profile%temperature)
+    if (allocated(self%var%press_temp_edd_profile%edd)) deallocate(self%var%press_temp_edd_profile%edd)
+
+  end subroutine
+
+  module subroutine apply_press_temp_edd_profile(self, usol_in, err)
+    use photochem_input, only: interp2xsdata, compute_gibbs_energy
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol_in(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp) :: T_new(self%var%nz), edd_new(self%var%nz)
+    real(dp) :: log10P_wrk(self%var%nz), trop_alt
+    integer :: trop_ind
+
+    if (.not. self%var%press_temp_edd_profile%enabled) return
+
+    if (self%var%press_temp_edd_profile%has_trop_p) then
+      call map_press_temp_edd(self, usol_in, &
+           self%var%press_temp_edd_profile%pressure, &
+           self%var%press_temp_edd_profile%temperature, &
+           self%var%press_temp_edd_profile%edd, &
+           self%var%press_temp_edd_profile%trop_p, &
+           self%var%press_temp_edd_profile%hydro_pressure, &
+           T_new, edd_new, log10P_wrk, trop_alt, err)
+    else
+      call map_press_temp_edd(self, usol_in, &
+           self%var%press_temp_edd_profile%pressure, &
+           self%var%press_temp_edd_profile%temperature, &
+           self%var%press_temp_edd_profile%edd, &
+           hydro_pressure=self%var%press_temp_edd_profile%hydro_pressure, &
+           T_new=T_new, edd_new=edd_new, log10P_wrk=log10P_wrk, &
+           trop_alt=trop_alt, err=err)
+    endif
+    if (allocated(err)) return
+
+    if (self%dat%gas_rainout) then
+      trop_ind = max(minloc(abs(self%var%z-trop_alt), 1)-1, 1)
+      if (trop_ind < 3) then
+        err = 'Tropopause is too low.'
+        return
+      elseif (trop_ind > self%var%nz-2) then
+        err = 'Tropopause is too high.'
+        return
+      endif
+    else
+      trop_ind = 1
+    endif
+
+    ! Commit only after the profile has mapped successfully and the
+    ! tropopause has been validated. Do not call set_temperature here: that
+    ! routine calls prep_atmosphere and would recurse back into this routine.
+    self%var%temperature = T_new
+    self%var%edd = edd_new
+    self%var%trop_ind = trop_ind
+    if (self%dat%gas_rainout) self%var%trop_alt = trop_alt
+
+    call interp2xsdata(self%dat, self%var, err)
+    if (allocated(err)) return
+    if (self%dat%reverse) then
+      call compute_gibbs_energy(self%dat, self%var, err)
+      if (allocated(err)) return
+    endif
+
+  end subroutine
+
   module subroutine map_press_temp_edd(self, usol_in, P, T, edd, trop_p, hydro_pressure, &
                                        T_new, edd_new, log10P_wrk, trop_alt, err)
     use futils, only: interp, brent_class

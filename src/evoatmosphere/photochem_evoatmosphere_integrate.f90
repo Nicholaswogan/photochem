@@ -152,6 +152,10 @@ contains
     call self%prep_atm_evo_gas(usol_in, wrk%usol, &
                                wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
                                wrk%pressure_hydro, wrk%density_hydro, err)
+    if (allocated(err)) then
+      ierr = -1
+      return
+    endif
 
     ! pressure at the top of the atmosphere
     gvec(1) = wrk%pressure_hydro(var%nz)/1.0e6_dp - self%P_top_min
