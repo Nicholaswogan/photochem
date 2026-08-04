@@ -259,6 +259,12 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     
     dat => self%dat
     var => self%var
+
+    if (var%press_temp_edd_profile%enabled) then
+      err = "The persistent pressure-temperature-eddy profile is enabled. "// &
+            "Call 'clear_press_temp_edd_profile' before 'set_temperature'."
+      return
+    endif
     
     if (size(temperature) /= var%nz) then
       err = "temperature has the wrong input dimension"
@@ -327,6 +333,12 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     real(dp) :: log10P_wrk(self%var%nz), trop_alt
     real(dp) :: edd_save(self%var%nz)
 
+    if (self%var%press_temp_edd_profile%enabled) then
+      err = "The persistent pressure-temperature-eddy profile is enabled. "// &
+            "Call 'clear_press_temp_edd_profile' before 'set_press_temp_edd'."
+      return
+    endif
+
     ! First compute the mapping without changing model state. This kernel is
     ! also suitable for applying a persistent pressure-based profile to an
     ! arbitrary trial composition during a future RHS evaluation.
@@ -349,6 +361,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
   end subroutine
 
   module subroutine set_press_temp_edd_profile(self, P, T, edd, trop_p, hydro_pressure, err)
+    use iso_c_binding, only: c_associated
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: P(:)
     real(dp), intent(in) :: T(:)
@@ -358,6 +371,12 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     character(:), allocatable, intent(out) :: err
 
     type(PhotochemVars) :: var_save
+
+    if (c_associated(self%wrk%sun%cvode_mem)) then
+      err = "Can not set a persistent pressure-temperature-eddy profile while "// &
+            "a stepper is initialized. Call 'destroy_stepper' first."
+      return
+    endif
 
     var_save = self%var
 
@@ -387,8 +406,16 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
   end subroutine
 
-  module subroutine clear_press_temp_edd_profile(self)
+  module subroutine clear_press_temp_edd_profile(self, err)
+    use iso_c_binding, only: c_associated
     class(EvoAtmosphere), intent(inout) :: self
+    character(:), allocatable, intent(out) :: err
+
+    if (c_associated(self%wrk%sun%cvode_mem)) then
+      err = "Can not clear the persistent pressure-temperature-eddy profile while "// &
+            "a stepper is initialized. Call 'destroy_stepper' first."
+      return
+    endif
 
     self%var%press_temp_edd_profile%enabled = .false.
     self%var%press_temp_edd_profile%hydro_pressure = .true.
@@ -1129,8 +1156,12 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     call interp2particlexsdata(dat, var, err)
     if (allocated(err)) return
 
-    ! Update variables that depend on temperature
-    if (dat%gas_rainout) then
+    ! Update variables that depend on temperature. A persistent pressure-based
+    ! profile must be remapped using the composition on the new grid. Otherwise,
+    ! retain the interpolated altitude-based profile.
+    if (var%press_temp_edd_profile%enabled) then
+      call self%prep_atmosphere(wrk%usol, err)
+    elseif (dat%gas_rainout) then
       call self%set_temperature(var%temperature, var%trop_alt, err)
     else
       call self%set_temperature(var%temperature, err=err)

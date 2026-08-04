@@ -317,6 +317,9 @@ cdef class EvoAtmosphere:
   def set_temperature(self, ndarray[double, ndim=1] temperature, trop_alt = None):
     """Changes the temperature profile.
 
+    This method cannot be used while a persistent pressure-temperature-eddy
+    profile is enabled. Call :meth:`clear_press_temp_edd_profile` first.
+
     Parameters
     ----------
     temperature : ndarray[double,ndim=1]
@@ -354,7 +357,9 @@ cdef class EvoAtmosphere:
 
     On success, this method updates the model temperature, eddy diffusion,
     and derived atmospheric working state. It does not evolve atmospheric
-    species number densities.
+    species number densities. This method cannot be used while a persistent
+    pressure-temperature-eddy profile is enabled; call
+    :meth:`clear_press_temp_edd_profile` first.
     
     Parameters
     ----------
@@ -407,6 +412,85 @@ cdef class EvoAtmosphere:
       &trop_p_, &trop_p_present, &hydro_pressure_,
       &hydro_pressure_present, err
     )
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+
+  def set_press_temp_edd_profile(self, ndarray[double, ndim=1] P, ndarray[double, ndim=1] T, ndarray[double, ndim=1] edd, trop_p = None, hydro_pressure = None):
+    """Prescribe persistent pressure-temperature and pressure-eddy profiles.
+
+    The profiles are mapped onto the current altitude grid immediately and
+    during every subsequent atmospheric preparation, including every ODE
+    right-hand-side evaluation. Temperature and eddy diffusion therefore
+    remain functions of atmospheric pressure as composition evolves.
+
+    Temperature is interpolated linearly in log10 pressure. Eddy diffusion
+    is interpolated linearly in log10 pressure-log10 eddy space. If the input
+    profile does not reach the model surface, its deepest two points are used
+    to extrapolate it to the surface. Values above the input profile are held
+    constant. Vertical-grid updates preserve and remap the profile.
+
+    This method cannot be called while a stepper is initialized. Call
+    :meth:`destroy_stepper` first. While persistent mode is enabled,
+    :meth:`set_temperature` and :meth:`set_press_temp_edd` cannot be used;
+    call :meth:`clear_press_temp_edd_profile` first.
+
+    Parameters
+    ----------
+    P : ndarray of float64, shape (n,)
+        Strictly decreasing pressure profile in dynes/cm^2. Must contain at
+        least two finite, positive values. ``T`` and ``edd`` must have the
+        same shape.
+    T : ndarray of float64, shape (n,)
+        Temperature corresponding to ``P``, in K. Must be finite and
+        positive.
+    edd : ndarray of float64, shape (n,)
+        Eddy diffusion corresponding to ``P``, in cm^2/s. Must be finite and
+        positive.
+    trop_p : float, optional
+        Tropopause pressure in dynes/cm^2. Required when gas rainout is
+        enabled.
+    hydro_pressure : bool, default=True
+        Use hydrostatic pressure if True. If False, use actual gas pressure,
+        ``density * k_boltz * T``.
+    """
+    cdef char err[ERR_LEN+1]
+    cdef ndarray P_ = np.ascontiguousarray(P)
+    cdef ndarray T_ = np.ascontiguousarray(T)
+    cdef ndarray edd_ = np.ascontiguousarray(edd)
+    cdef int P_dim1 = P_.size
+    cdef int T_dim1 = T_.size
+    cdef int edd_dim1 = edd_.size
+
+    cdef double trop_p_ = 0.0
+    cdef bool trop_p_present = False
+    if trop_p != None:
+      trop_p_present = True
+      trop_p_ = trop_p
+
+    cdef bool hydro_pressure_ = True
+    cdef bool hydro_pressure_present = False
+    if hydro_pressure != None:
+      hydro_pressure_present = True
+      hydro_pressure_ = hydro_pressure
+
+    ea_pxd.evoatmosphere_set_press_temp_edd_profile_wrapper(
+      self._ptr, &P_dim1, <double *>P_.data,
+      &T_dim1, <double *>T_.data, &edd_dim1, <double *>edd_.data,
+      &trop_p_, &trop_p_present, &hydro_pressure_,
+      &hydro_pressure_present, err
+    )
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+
+  def clear_press_temp_edd_profile(self):
+    """Disable the persistent pressure-temperature-eddy profile.
+
+    The most recently mapped altitude-based temperature and eddy-diffusion
+    profiles remain in place. This method cannot be called while a stepper is
+    initialized; call :meth:`destroy_stepper` first.
+    """
+    cdef char err[ERR_LEN+1]
+    ea_pxd.evoatmosphere_clear_press_temp_edd_profile_wrapper(self._ptr, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
     

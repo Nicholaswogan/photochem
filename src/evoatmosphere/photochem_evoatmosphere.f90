@@ -309,7 +309,10 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(inout) :: err
     end subroutine
 
-    !> Changes the temperature profile.
+    !> Changes the altitude-based temperature profile.
+    !!
+    !! This procedure cannot be used while a persistent pressure-temperature-
+    !! eddy profile is enabled. Call `clear_press_temp_edd_profile` first.
     module subroutine set_temperature(self, temperature, trop_alt, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: temperature(:) !! new temperature at each atomspheric layer
@@ -335,7 +338,9 @@ module photochem_evoatmosphere
     !!
     !! On success, this procedure updates the model temperature, eddy
     !! diffusion, and derived atmospheric working state. Atmospheric species
-    !! number densities are not evolved by this procedure.
+    !! number densities are not evolved by this procedure. This procedure
+    !! cannot be used while a persistent pressure-temperature-eddy profile is
+    !! enabled; call `clear_press_temp_edd_profile` first.
     module subroutine set_press_temp_edd(self, P, T, edd, trop_p, hydro_pressure, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dynes/cm^2)
@@ -369,18 +374,50 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    !> Prescribes persistent pressure-temperature and pressure-eddy-diffusion
+    !! profiles.
+    !!
+    !! The profiles are mapped onto the altitude grid immediately and again
+    !! during every subsequent atmospheric preparation, including every ODE
+    !! right-hand-side evaluation. Thus, temperature and eddy diffusion remain
+    !! functions of the trial atmospheric pressure as composition evolves.
+    !! Temperature is interpolated linearly in log10 pressure, while eddy
+    !! diffusion is interpolated linearly in log10 pressure-log10 eddy space.
+    !!
+    !! The input pressure must be strictly decreasing, and all three arrays
+    !! must have the same size with at least two elements. If the input profile
+    !! does not reach the model surface, its deepest two points are extrapolated
+    !! to the surface. Values above the input profile are held constant.
+    !!
+    !! This procedure cannot be called while a CVODE stepper is initialized.
+    !! Call `destroy_stepper` first. While the persistent mode is enabled,
+    !! `set_temperature` and `set_press_temp_edd` cannot be used; call
+    !! `clear_press_temp_edd_profile` first. Vertical-grid updates preserve and
+    !! remap the persistent profiles.
     module subroutine set_press_temp_edd_profile(self, P, T, edd, trop_p, hydro_pressure, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: P(:)
-      real(dp), intent(in) :: T(:)
-      real(dp), intent(in) :: edd(:)
+      real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dynes/cm^2)
+      real(dp), intent(in) :: T(:) !! Temperature corresponding to `P` (K)
+      real(dp), intent(in) :: edd(:) !! Eddy diffusion corresponding to `P` (cm^2/s)
+      !> Tropopause pressure (dynes/cm^2). Required when gas rainout is enabled.
       real(dp), optional, intent(in) :: trop_p
+      !> If .true., use hydrostatic pressure. If .false., use actual gas
+      !! pressure, `density*k_boltz*T`. Default is .true..
       logical, optional, intent(in) :: hydro_pressure
+      !> Allocated with an error message if the profiles are invalid, cannot be
+      !! mapped, or a CVODE stepper is currently initialized.
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    module subroutine clear_press_temp_edd_profile(self)
+    !> Disables the persistent pressure-temperature-eddy profile.
+    !!
+    !! The most recently mapped altitude-based temperature and eddy-diffusion
+    !! profiles remain in place. This procedure cannot be called while a CVODE
+    !! stepper is initialized; call `destroy_stepper` first.
+    module subroutine clear_press_temp_edd_profile(self, err)
       class(EvoAtmosphere), intent(inout) :: self
+      !> Allocated with an error message if a CVODE stepper is initialized.
+      character(:), allocatable, intent(out) :: err
     end subroutine
 
     module subroutine apply_press_temp_edd_profile(self, usol_in, err)

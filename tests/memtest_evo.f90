@@ -283,12 +283,14 @@ contains
     type(EvoAtmosphere), intent(inout) :: pc
     character(:), allocatable :: err
     real(dp) :: P(2), T(2), edd(2)
+    real(dp) :: P_bad(2)
     real(dp) :: usol_original(pc%dat%nq,pc%var%nz)
     real(dp) :: usol_trial(pc%dat%nq,pc%var%nz)
     real(dp), target :: usol_flat(pc%var%neqs)
     real(dp) :: rhs(pc%var%neqs)
     real(dp) :: temperature_before(pc%var%nz)
     real(dp) :: temperature_disabled(pc%var%nz)
+    real(dp) :: top_atmos_original
     real(dp) :: tn
 
     usol_original = pc%wrk%usol
@@ -296,6 +298,20 @@ contains
          0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
     T = [300.0_dp, 180.0_dp]
     edd = [3.0e7_dp, 4.0e5_dp]
+
+    ! Invalid input must fail without enabling or otherwise changing the mode.
+    P_bad = [P(2), P(1)]
+    call pc%set_press_temp_edd_profile(P_bad, T, edd, &
+         pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
+    if (.not.allocated(err)) then
+      print*,'An increasing persistent pressure profile was accepted'
+      stop 1
+    endif
+    deallocate(err)
+    if (pc%var%press_temp_edd_profile%enabled) then
+      print*,'An invalid persistent profile left the mode enabled'
+      stop 1
+    endif
 
     call pc%set_press_temp_edd_profile(P, T, edd, &
          pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
@@ -305,6 +321,22 @@ contains
     endif
     call check_press_temp_edd_profile(pc, P, T, edd)
 
+    ! Altitude-based setters must not be silently overridden by persistent
+    ! mode. The caller must first make the mode change explicit by clearing it.
+    call pc%set_temperature(pc%var%temperature, err=err)
+    if (.not.allocated(err)) then
+      print*,'set_temperature was accepted while a persistent profile was enabled'
+      stop 1
+    endif
+    deallocate(err)
+    call pc%set_press_temp_edd(P, T, edd, &
+         pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
+    if (.not.allocated(err)) then
+      print*,'set_press_temp_edd was accepted while a persistent profile was enabled'
+      stop 1
+    endif
+    deallocate(err)
+
     ! Exercise repeated RHS and Jacobian preparation through CVODE while the
     ! persistent mode is enabled.
     call pc%initialize_stepper(usol_original, err)
@@ -312,12 +344,53 @@ contains
       print*,trim(err)
       stop 1
     endif
+
+    ! Changing persistent mode would invalidate CVODE's current history and
+    ! must therefore require an explicit stepper destruction/reinitialization.
+    call pc%set_press_temp_edd_profile(P, T, edd, &
+         pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
+    if (.not.allocated(err)) then
+      print*,'Persistent profile was replaced while a stepper was initialized'
+      stop 1
+    endif
+    deallocate(err)
+    call pc%clear_press_temp_edd_profile(err)
+    if (.not.allocated(err)) then
+      print*,'Persistent profile was cleared while a stepper was initialized'
+      stop 1
+    endif
+    deallocate(err)
+    if (.not.pc%var%press_temp_edd_profile%enabled) then
+      print*,'Rejected profile clear changed persistent mode'
+      stop 1
+    endif
+
     tn = pc%step(err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
     endif
     call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    call check_press_temp_edd_profile(pc, P, T, edd)
+
+    ! Public vertical regridding must preserve the pressure-based inputs and
+    ! remap them onto both the changed grid and the restored grid.
+    top_atmos_original = pc%var%top_atmos
+    call pc%update_vertical_grid(TOA_alt=0.98_dp*top_atmos_original, err=err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    if (.not.pc%var%press_temp_edd_profile%enabled) then
+      print*,'Vertical regridding disabled the persistent profile'
+      stop 1
+    endif
+    call check_press_temp_edd_profile(pc, P, T, edd)
+    call pc%update_vertical_grid(TOA_alt=top_atmos_original, err=err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
@@ -343,7 +416,11 @@ contains
 
     ! Clearing the profile leaves the latest mapped altitude profiles in
     ! place but prevents subsequent RHS calls from remapping them.
-    call pc%clear_press_temp_edd_profile()
+    call pc%clear_press_temp_edd_profile(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
     temperature_disabled = pc%var%temperature
     usol_trial(pc%dat%ng_1:,:) = 0.5_dp*usol_trial(pc%dat%ng_1:,:)
     usol_flat = reshape(usol_trial, [pc%var%neqs])
@@ -472,6 +549,12 @@ contains
     endif
 
     call pc%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    call pc%destroy_stepper(err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1

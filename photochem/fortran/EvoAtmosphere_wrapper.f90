@@ -322,6 +322,59 @@
     endif
     
   end subroutine
+
+  subroutine evoatmosphere_set_press_temp_edd_profile_wrapper(ptr, P_dim1, P, T_dim1, T, &
+                                                      edd_dim1, edd, trop_p, trop_p_present, &
+                                                      hydro_pressure, hydro_pressure_present, err) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: P_dim1
+    real(c_double), intent(in) :: P(P_dim1)
+    integer(c_int), intent(in) :: T_dim1
+    real(c_double), intent(in) :: T(T_dim1)
+    integer(c_int), intent(in) :: edd_dim1
+    real(c_double), intent(in) :: edd(edd_dim1)
+    real(c_double), intent(in) :: trop_p
+    logical(c_bool), intent(in) :: trop_p_present
+    logical(c_bool), intent(in) :: hydro_pressure
+    logical(c_bool), intent(in) :: hydro_pressure_present
+    character(kind=c_char), intent(out) :: err(err_len+1)
+
+    character(:), allocatable :: err_f
+    logical :: hydro_pressure_f
+    type(EvoAtmosphere), pointer :: pc
+
+    call c_f_pointer(ptr, pc)
+    hydro_pressure_f = hydro_pressure
+
+    if (trop_p_present .and. hydro_pressure_present) then
+      call pc%set_press_temp_edd_profile(P, T, edd, trop_p=trop_p, &
+                                         hydro_pressure=hydro_pressure_f, err=err_f)
+    elseif (trop_p_present) then
+      call pc%set_press_temp_edd_profile(P, T, edd, trop_p=trop_p, err=err_f)
+    elseif (hydro_pressure_present) then
+      call pc%set_press_temp_edd_profile(P, T, edd, &
+                                         hydro_pressure=hydro_pressure_f, err=err_f)
+    else
+      call pc%set_press_temp_edd_profile(P, T, edd, err=err_f)
+    endif
+    err(1) = c_null_char
+    if (allocated(err_f)) call copy_string_ftoc(err_f, err)
+
+  end subroutine
+
+  subroutine evoatmosphere_clear_press_temp_edd_profile_wrapper(ptr, err) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    character(kind=c_char), intent(out) :: err(err_len+1)
+
+    character(:), allocatable :: err_f
+    type(EvoAtmosphere), pointer :: pc
+
+    call c_f_pointer(ptr, pc)
+    call pc%clear_press_temp_edd_profile(err_f)
+    err(1) = c_null_char
+    if (allocated(err_f)) call copy_string_ftoc(err_f, err)
+
+  end subroutine
   
   subroutine evoatmosphere_update_vertical_grid_wrapper(ptr, TOA_alt, TOA_alt_present, &
                                                      TOA_pressure, TOA_pressure_present, err) bind(c)

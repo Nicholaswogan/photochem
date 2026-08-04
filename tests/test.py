@@ -1,3 +1,5 @@
+import numpy as np
+
 from photochem import EvoAtmosphere, zahnle_earth
 
 def test_wrapper(pc):
@@ -72,7 +74,16 @@ def test_wrapper(pc):
     pc.set_rate_fcn('CH4',None)
     pc.set_temperature(pc.var.temperature)
     pc.set_press_temp_edd(pc.wrk.pressure,pc.var.temperature,pc.var.edd,1e-1*1e6)
+    P = np.array([2.0*pc.var.surface_pressure*1.0e6,
+                  0.5*pc.wrk.pressure_hydro[-1]])
+    T = np.array([300.0, 180.0])
+    edd = np.array([3.0e7, 4.0e5])
+    pc.set_press_temp_edd_profile(
+        P, T, edd, pc.wrk.pressure_hydro[pc.var.nz//2],
+        hydro_pressure=True
+    )
     pc.update_vertical_grid(TOA_pressure=1e-7*1e6)
+    pc.clear_press_temp_edd_profile()
     pc.initialize_stepper(pc.wrk.usol)
     pc.step()
     converged = pc.check_for_convergence()
