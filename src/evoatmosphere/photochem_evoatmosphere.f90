@@ -349,6 +349,24 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    ! Internal, non-mutating mapping kernel shared by the public setter and
+    ! routines that need to map a profile for an arbitrary trial composition.
+    module subroutine map_press_temp_edd(self, usol_in, P, T, edd, trop_p, hydro_pressure, &
+                                         T_new, edd_new, log10P_wrk, trop_alt, err)
+      class(EvoAtmosphere), target, intent(in) :: self
+      real(dp), intent(in) :: usol_in(:,:)
+      real(dp), intent(in) :: P(:)
+      real(dp), intent(in) :: T(:)
+      real(dp), intent(in) :: edd(:)
+      real(dp), optional, intent(in) :: trop_p
+      logical, optional, intent(in) :: hydro_pressure
+      real(dp), intent(out) :: T_new(:)
+      real(dp), intent(out) :: edd_new(:)
+      real(dp), intent(out) :: log10P_wrk(:)
+      real(dp), intent(out) :: trop_alt
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
     !> Re-does the vertical grid so that the pressure at the top of the
     !> atmosphere is a `TOA_alt` or `TOA_pressure`. If the TOA needs to be raised above the current
     !> TOA, then the function constantly extrapolates mixing ratios, temperature,

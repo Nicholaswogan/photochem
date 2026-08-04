@@ -315,10 +315,6 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
   end subroutine
 
   module subroutine set_press_temp_edd(self, P, T, edd, trop_p, hydro_pressure, err)
-    use futils, only: interp, brent_class
-    use ieee_arithmetic, only: ieee_is_finite
-    use photochem_const, only: small_real, k_boltz, N_avo
-    use photochem_enum, only: DensityBC, PressureBC
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: P(:)
     real(dp), intent(in) :: T(:)
@@ -327,11 +323,56 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     logical, optional, intent(in) :: hydro_pressure
     character(:), allocatable, intent(out) :: err
 
+    real(dp) :: T_new(self%var%nz), edd_new(self%var%nz)
+    real(dp) :: log10P_wrk(self%var%nz), trop_alt
+    real(dp) :: edd_save(self%var%nz)
+
+    ! First compute the mapping without changing model state. This kernel is
+    ! also suitable for applying a persistent pressure-based profile to an
+    ! arbitrary trial composition during a future RHS evaluation.
+    call map_press_temp_edd(self, self%wrk%usol, P, T, edd, trop_p, &
+                            hydro_pressure, T_new, edd_new, log10P_wrk, &
+                            trop_alt, err)
+    if (allocated(err)) return
+
+    ! Commit point: the mapping above only reads self. Updating Kzz and
+    ! calling set_temperature below are the only operations that mutate it.
+    edd_save = self%var%edd
+    self%var%edd = edd_new
+    if (present(trop_p)) then
+      call self%set_temperature(T_new, trop_alt, err)
+    else
+      call self%set_temperature(T_new, err=err)
+    endif
+    if (allocated(err)) self%var%edd = edd_save
+
+  end subroutine
+
+  module subroutine map_press_temp_edd(self, usol_in, P, T, edd, trop_p, hydro_pressure, &
+                                       T_new, edd_new, log10P_wrk, trop_alt, err)
+    use futils, only: interp, brent_class
+    use ieee_arithmetic, only: ieee_is_finite
+    use photochem_const, only: small_real, k_boltz, N_avo
+    use photochem_enum, only: DensityBC, PressureBC
+    class(EvoAtmosphere), target, intent(in) :: self
+    real(dp), intent(in) :: usol_in(:,:)
+    real(dp), intent(in) :: P(:)
+    real(dp), intent(in) :: T(:)
+    real(dp), intent(in) :: edd(:)
+    real(dp), optional, intent(in) :: trop_p
+    logical, optional, intent(in) :: hydro_pressure
+    real(dp), intent(out) :: T_new(:)
+    real(dp), intent(out) :: edd_new(:)
+    real(dp), intent(out) :: log10P_wrk(:)
+    real(dp), intent(out) :: trop_alt
+    character(:), allocatable, intent(out) :: err
+
     real(dp), allocatable :: log10P_in(:), T_in(:), log10edd_in(:)
-    real(dp), allocatable :: P_wrk(:), log10P_wrk(:), T_new(:), log10edd_new(:), edd_save(:)
+    real(dp), allocatable :: P_wrk(:), log10edd_new(:)
     real(dp), allocatable :: usol_base(:,:), density_base(:), mubar_base(:)
     real(dp) :: xzero, Psurf_initial, Psurf_final
     real(dp) :: log10P_previous, temperature_previous
+    real(dp) :: trop_alt_array(1)
     logical :: hydro_pressure_
     integer :: ierr, i, j, residual_layer
     character(32) :: layer_string
@@ -347,6 +388,17 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     
     dat => self%dat
     var => self%var
+
+    if (size(usol_in,1) /= dat%nq .or. size(usol_in,2) /= var%nz) then
+      err = '"usol_in" has the wrong dimensions'
+      return
+    endif
+
+    if (size(T_new) /= var%nz .or. size(edd_new) /= var%nz .or. &
+        size(log10P_wrk) /= var%nz) then
+      err = 'Pressure-profile mapping output arrays have the wrong dimensions'
+      return
+    endif
     
     if (size(P) /= size(T)) then
       err = '"P" and "T" not the same size'
@@ -398,12 +450,11 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       hydro_pressure_ = .true. ! default is True
     endif
 
-    allocate(P_wrk(var%nz), log10P_wrk(var%nz), T_new(var%nz))
-    allocate(log10edd_new(var%nz), edd_save(var%nz))
+    allocate(P_wrk(var%nz), log10edd_new(var%nz))
     allocate(usol_base(dat%nq,var%nz), density_base(var%nz), mubar_base(var%nz))
 
     ! Copy and clip the current state in the same way as prep_atm_evo_gas.
-    usol_base = self%wrk%usol
+    usol_base = usol_in
     where (usol_base >= 0.0_dp)
       usol_base = max(usol_base, small_real)
     elsewhere
@@ -518,30 +569,16 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       temperature_previous = T_new(i)
     enddo
 
-    ! Commit point: everything above only reads self and works with local
-    ! arrays. Updating Kzz and calling set_temperature below are the only
-    ! operations in this routine that mutate self.
-    if (present(trop_p)) then; block
-      real(dp) :: trop_alt(1)
-
+    edd_new = 10.0_dp**log10edd_new
+    trop_alt = 0.0_dp
+    if (present(trop_p)) then
       call interp([log10(trop_p)], log10P_wrk(var%nz:1:-1), &
-                  var%z(var%nz:1:-1), trop_alt, ierr=ierr)
+                  var%z(var%nz:1:-1), trop_alt_array, ierr=ierr)
       if (ierr /= 0) then
         err = 'Subroutine interp returned an error.'
         return
       endif
-
-      edd_save = var%edd
-      var%edd = 10.0_dp**log10edd_new
-      call self%set_temperature(T_new, trop_alt(1), err)
-      if (allocated(err)) var%edd = edd_save
-      if (allocated(err)) return
-    endblock; else
-      edd_save = var%edd
-      var%edd = 10.0_dp**log10edd_new
-      call self%set_temperature(T_new, err=err)
-      if (allocated(err)) var%edd = edd_save
-      if (allocated(err)) return
+      trop_alt = trop_alt_array(1)
     endif
 
   contains

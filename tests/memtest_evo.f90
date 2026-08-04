@@ -211,10 +211,68 @@ contains
   subroutine test_set_press_temp_edd(pc)
     type(EvoAtmosphere), intent(inout) :: pc
     character(:), allocatable :: err
+    real(dp) :: P(2), T(2), edd(2)
+    real(dp) :: T_expected(pc%var%nz), log10edd_expected(pc%var%nz)
+    real(dp) :: fraction
+    integer :: i
 
-    call pc%set_press_temp_edd(pc%wrk%pressure, pc%var%temperature, pc%var%edd, 0.22_dp*1e6_dp, err=err)
+    ! Two input points are sufficient because interpolation is linear in log10(P).
+    ! First test the default hydrostatic-pressure mode with profiles that differ
+    ! substantially from the current atmosphere.
+    P = [2.0_dp*pc%var%surface_pressure*1.0e6_dp, &
+         0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
+    T = [310.0_dp, 160.0_dp]
+    edd = [1.0e7_dp, 2.0e5_dp]
+
+    call pc%set_press_temp_edd(P, T, edd, pc%wrk%pressure_hydro(10), &
+                               hydro_pressure=.true., err=err)
     if (allocated(err)) then
       print*,trim(err)
+      stop 1
+    endif
+
+    do i = 1,pc%var%nz
+      fraction = (log10(pc%wrk%pressure_hydro(i))-log10(P(2)))/ &
+                 (log10(P(1))-log10(P(2)))
+      fraction = min(max(fraction,0.0_dp),1.0_dp)
+      T_expected(i) = T(2) + fraction*(T(1)-T(2))
+      log10edd_expected(i) = log10(edd(2)) + fraction*(log10(edd(1))-log10(edd(2)))
+    enddo
+    if (maxval(abs(pc%var%temperature-T_expected)) > 1.0e-6_dp) then
+      print*,'set_press_temp_edd did not reproduce the hydrostatic P-T profile'
+      stop 1
+    endif
+    if (maxval(abs(log10(pc%var%edd)-log10edd_expected)) > 1.0e-8_dp) then
+      print*,'set_press_temp_edd did not reproduce the hydrostatic P-Kzz profile'
+      stop 1
+    endif
+
+    ! Then test actual-pressure mode. This pressure is density*k*T and each
+    ! layer can therefore be solved independently.
+    P = [2.0_dp*maxval(pc%wrk%pressure), 0.5_dp*minval(pc%wrk%pressure)]
+    T = [280.0_dp, 140.0_dp]
+    edd = [2.0e8_dp, 8.0e4_dp]
+
+    call pc%set_press_temp_edd(P, T, edd, pc%wrk%pressure(10), &
+                               hydro_pressure=.false., err=err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
+    do i = 1,pc%var%nz
+      fraction = (log10(pc%wrk%pressure(i))-log10(P(2)))/ &
+                 (log10(P(1))-log10(P(2)))
+      fraction = min(max(fraction,0.0_dp),1.0_dp)
+      T_expected(i) = T(2) + fraction*(T(1)-T(2))
+      log10edd_expected(i) = log10(edd(2)) + fraction*(log10(edd(1))-log10(edd(2)))
+    enddo
+    if (maxval(abs(pc%var%temperature-T_expected)) > 1.0e-6_dp) then
+      print*,'set_press_temp_edd did not reproduce the actual P-T profile'
+      stop 1
+    endif
+    if (maxval(abs(log10(pc%var%edd)-log10edd_expected)) > 1.0e-8_dp) then
+      print*,'set_press_temp_edd did not reproduce the actual P-Kzz profile'
       stop 1
     endif
 
@@ -332,5 +390,4 @@ contains
   end subroutine
 
 end program
-
 
