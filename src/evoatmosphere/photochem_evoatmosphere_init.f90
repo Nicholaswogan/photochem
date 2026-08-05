@@ -52,11 +52,27 @@ contains
     character(len=*), intent(in) :: atmosphere_txt
     character(:), allocatable, intent(out) :: err
 
+    self%atmosphere_initialized = .false.
+
     call setup_atmosphere_from_file(atmosphere_txt, self%dat, self%var, err)
     if (allocated(err)) return
 
     call self%prep_atmosphere(self%var%usol_init, err)
     if (allocated(err)) return
+
+    self%atmosphere_initialized = .true.
+
+  end subroutine
+
+  module subroutine require_atmosphere_initialized(self, operation, err)
+    class(EvoAtmosphere), intent(in) :: self
+    character(len=*), intent(in) :: operation
+    character(:), allocatable, intent(out) :: err
+
+    if (.not. self%atmosphere_initialized) then
+      err = 'EvoAtmosphere atmosphere is not initialized. Initialize the atmosphere before calling "'// &
+            trim(operation)//'".'
+    endif
 
   end subroutine
   

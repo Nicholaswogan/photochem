@@ -10,9 +10,45 @@ program test_api
 contains
 
   subroutine test()
+    call test_initialization_state()
     call test_top_from_atmosphere_file()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
+  end subroutine
+
+  subroutine test_initialization_state()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_top_atmospherefile.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', &
+                       err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not. pc%atmosphere_initialized) then
+      print *, 'successful initialization did not set atmosphere_initialized'
+      stop 1
+    endif
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_top_atmospherefile.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../tests/does_not_exist.txt', &
+                       '../data', &
+                       err)
+    if (.not. allocated(err)) then
+      print *, 'missing atmosphere file did not produce an initialization error'
+      stop 1
+    endif
+    if (pc%atmosphere_initialized) then
+      print *, 'failed initialization left atmosphere_initialized set'
+      stop 1
+    endif
   end subroutine
 
   subroutine test_top_from_atmosphere_file()
@@ -28,6 +64,11 @@ contains
                        err)
     if (allocated(err)) then
       print *, trim(err)
+      stop 1
+    endif
+
+    if (.not. pc%atmosphere_initialized) then
+      print *, 'top: atmospherefile initialization did not set lifecycle state'
       stop 1
     endif
 

@@ -11,6 +11,10 @@ module photochem_evoatmosphere
     type(PhotochemVars), allocatable :: var
     type(PhotochemWrkEvo), allocatable :: wrk
 
+    !> True only after atmosphere-dependent initialization and preparation have
+    !! completed successfully.
+    logical :: atmosphere_initialized = .false.
+
     !> When running the `evolve` routine, this determines
     !> the minimum pressure of the top of the model domain (bars). 
     !> If the pressure gets smaller than this value, then the integration will stop
@@ -30,6 +34,7 @@ module photochem_evoatmosphere
   contains
 
     procedure, private :: initialize_from_atmosphere_file
+    procedure, private :: require_atmosphere_initialized
 
     !~~ photochem_evoatmosphere_rhs.f90 ~~!
     procedure :: set_trop_ind
@@ -98,6 +103,13 @@ module photochem_evoatmosphere
     module subroutine initialize_from_atmosphere_file(self, atmosphere_txt, err)
       class(EvoAtmosphere), intent(inout) :: self
       character(len=*), intent(in) :: atmosphere_txt !! Path to the legacy atmosphere text file.
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Return an error when an operation requires an initialized atmosphere.
+    module subroutine require_atmosphere_initialized(self, operation, err)
+      class(EvoAtmosphere), intent(in) :: self
+      character(len=*), intent(in) :: operation !! Name of the attempted operation.
       character(:), allocatable, intent(out) :: err
     end subroutine
 
