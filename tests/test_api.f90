@@ -49,6 +49,43 @@ contains
       print *, 'failed initialization left atmosphere_initialized set'
       stop 1
     endif
+
+    ! Static configuration methods remain available before atmosphere
+    ! initialization.
+    deallocate(err)
+    call pc%set_lower_bc('H2', 'flux', flux=1.0e8_dp, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ! Atmosphere-dependent methods consistently reject the same object before
+    ! touching uninitialized atmospheric arrays.
+    call pc%prep_atmosphere(pc%var%usol_init, err)
+    call check_not_initialized_error(err, 'prep_atmosphere')
+    deallocate(err)
+
+    call pc%set_temperature(pc%var%temperature, err=err)
+    call check_not_initialized_error(err, 'set_temperature')
+    deallocate(err)
+
+    call pc%initialize_stepper(pc%var%usol_init, err)
+    call check_not_initialized_error(err, 'initialize_stepper')
+  end subroutine
+
+  subroutine check_not_initialized_error(err, operation)
+    character(:), allocatable, intent(in) :: err
+    character(len=*), intent(in) :: operation
+
+    if (.not. allocated(err)) then
+      print *, trim(operation)//' did not reject an uninitialized atmosphere'
+      stop 1
+    endif
+    if (index(err, 'atmosphere is not initialized') == 0 .or. &
+        index(err, '"'//trim(operation)//'"') == 0) then
+      print *, trim(operation)//' returned an unexpected lifecycle error: '//err
+      stop 1
+    endif
   end subroutine
 
   subroutine test_top_from_atmosphere_file()

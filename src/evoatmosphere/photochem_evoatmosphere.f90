@@ -37,9 +37,10 @@ module photochem_evoatmosphere
     procedure, private :: require_atmosphere_initialized
 
     !~~ photochem_evoatmosphere_rhs.f90 ~~!
-    procedure :: set_trop_ind
-    procedure :: prep_atm_evo_gas
-    procedure :: prep_atmosphere => prep_all_evo_gas
+    procedure, private :: set_trop_ind
+    procedure, private :: prep_atm_evo_gas
+    procedure, private :: prep_atmosphere_unchecked => prep_all_evo_gas
+    procedure :: prep_atmosphere
     procedure :: right_hand_side_chem
     procedure :: production_and_loss
     procedure :: right_hand_side => rhs_evo_gas
@@ -138,6 +139,13 @@ module photochem_evoatmosphere
     !> and puts this information into self.wrk. self.wrk contains all the
     !> information needed for `dochem` to compute chemistry.
     module subroutine prep_all_evo_gas(self, usol_in, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: usol_in(:,:) !! Number densities (molecules/cm^3)
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Prepare atmospheric working state after verifying lifecycle state.
+    module subroutine prep_atmosphere(self, usol_in, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:) !! Number densities (molecules/cm^3)
       character(:), allocatable, intent(out) :: err

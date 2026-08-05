@@ -18,6 +18,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
     
+    call self%require_atmosphere_initialized('out2atmosphere_txt', err)
+    if (allocated(err)) return
+
     dat => self%dat
     var => self%var
     wrk => self%wrk
@@ -48,6 +51,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
   
     integer :: i
     
+    call self%require_atmosphere_initialized('gas_fluxes', err)
+    if (allocated(err)) return
+
     dat => self%dat
     var => self%var
     wrk => self%wrk
@@ -257,6 +263,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     type(PhotochemVars), pointer :: var
     type(PhotochemVars) :: var_save
     
+    call self%require_atmosphere_initialized('set_temperature', err)
+    if (allocated(err)) return
+
     dat => self%dat
     var => self%var
 
@@ -333,6 +342,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     real(dp) :: log10P_wrk(self%var%nz), trop_alt
     real(dp) :: edd_save(self%var%nz)
 
+    call self%require_atmosphere_initialized('set_press_temp_edd', err)
+    if (allocated(err)) return
+
     if (self%var%press_temp_edd_profile%enabled) then
       err = "The persistent pressure-temperature-eddy profile is enabled. "// &
             "Call 'clear_press_temp_edd_profile' before 'set_press_temp_edd'."
@@ -371,6 +383,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     character(:), allocatable, intent(out) :: err
 
     type(PhotochemVars) :: var_save
+
+    call self%require_atmosphere_initialized('set_press_temp_edd_profile', err)
+    if (allocated(err)) return
 
     if (c_associated(self%wrk%sun%cvode_mem)) then
       err = "Can not set a persistent pressure-temperature-eddy profile while "// &
@@ -1095,6 +1110,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
 
+    call self%require_atmosphere_initialized('update_vertical_grid', err)
+    if (allocated(err)) return
+
     dat => self%dat
     var => self%var
     wrk => self%wrk
@@ -1178,6 +1196,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     real(dp), intent(in) :: top_atmos
     real(dp), intent(out) :: usol_new(:,:)
     character(:), allocatable, intent(out) :: err
+
+    call self%require_atmosphere_initialized('rebin_update_vertical_grid', err)
+    if (allocated(err)) return
 
     call rebin_densities(self, usol_old, top_atmos, usol_new, err)
     if(allocated(err)) return
@@ -1315,6 +1336,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     real(dp), intent(in) :: usol_new(:,:)
     real(dp), intent(in) :: top_atmos
     character(:), allocatable, intent(out) :: err
+
+    call self%require_atmosphere_initialized('regrid_prep_atmosphere', err)
+    if (allocated(err)) return
 
     call update_vertical_grid_file(self, usol_new, top_atmos, err)
     if(allocated(err)) return

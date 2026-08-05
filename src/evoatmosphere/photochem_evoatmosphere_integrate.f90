@@ -231,6 +231,10 @@ contains
     type(PhotochemWrkEvo), pointer :: wrk
     type(EvoAtmosphere), pointer :: self_ptr
     
+    success = .false.
+    call self%require_atmosphere_initialized('evolve', err)
+    if (allocated(err)) return
+
     dat => self%dat
     var => self%var
     wrk => self%wrk
@@ -696,11 +700,14 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
 
+    converged = .false.
+    call self%require_atmosphere_initialized('check_for_convergence', err)
+    if (allocated(err)) return
+
     dat => self%dat
     var => self%var
     wrk => self%wrk
 
-    converged = .false.
     if (.not.c_associated(wrk%sun%cvode_mem)) then
       err = "You must first initialize the stepper with 'initialize_stepper'"
       return
@@ -786,6 +793,9 @@ contains
     
     real(dp) :: Psat
     integer :: i, j, k
+
+    call self%require_atmosphere_initialized('initialize_stepper', err)
+    if (allocated(err)) return
 
     dat => self%dat
     var => self%var
@@ -957,6 +967,10 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
     
+    tn = 0.0_dp
+    call self%require_atmosphere_initialized('step', err)
+    if (allocated(err)) return
+
     dat => self%dat
     var => self%var
     wrk => self%wrk
@@ -1018,6 +1032,9 @@ contains
     real(dp), intent(in) :: usol_start(:,:)
     character(:), allocatable, intent(out) :: err
 
+    call self%require_atmosphere_initialized('initialize_robust_stepper', err)
+    if (allocated(err)) return
+
     self%wrk%nsteps_total = 0
     self%wrk%nerrors_total = 0
     call self%initialize_stepper(usol_start, err)
@@ -1036,11 +1053,14 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
     
-    var => self%var
-    wrk => self%wrk
-
     converged = .false.
     give_up = .false.
+
+    call self%require_atmosphere_initialized('robust_step', err)
+    if (allocated(err)) return
+
+    var => self%var
+    wrk => self%wrk
 
     if (wrk%nsteps_total < 0) then
       err = "You must first initialize a robust stepper with 'initialize_robust_stepper'"
@@ -1110,6 +1130,9 @@ contains
     logical :: give_up
 
     converged = .false.
+
+    call self%require_atmosphere_initialized('find_steady_state', err)
+    if (allocated(err)) return
 
     call self%initialize_robust_stepper(self%wrk%usol, err)
     if (allocated(err)) return

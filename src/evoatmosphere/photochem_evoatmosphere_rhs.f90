@@ -640,6 +640,19 @@ contains
 
   end subroutine
 
+  module subroutine prep_atmosphere(self, usol_in, err)
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol_in(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    call self%require_atmosphere_initialized('prep_atmosphere', err)
+    if (allocated(err)) return
+
+    call prep_all_evo_gas(self, usol_in, err)
+    if (allocated(err)) return
+
+  end subroutine
+
   module subroutine rhs_evo_gas(self, neqs, tn, usol_flat, rhs, err)
     use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
     use photochem_enum, only: ZahnleHydrogenEscape
@@ -661,6 +674,9 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
     
+    call self%require_atmosphere_initialized('right_hand_side', err)
+    if (allocated(err)) return
+
     dat => self%dat
     var => self%var
     wrk => self%wrk
@@ -846,6 +862,9 @@ contains
 
     integer :: i, k, j, m, mm
   
+    call self%require_atmosphere_initialized('jacobian', err)
+    if (allocated(err)) return
+
     dat => self%dat
     var => self%var
     wrk => self%wrk
@@ -1008,6 +1027,9 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
     
+    call self%require_atmosphere_initialized('right_hand_side_chem', err)
+    if (allocated(err)) return
+
     dat => self%dat
     var => self%var
     wrk => self%wrk
@@ -1067,6 +1089,9 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
   
+    call self%require_atmosphere_initialized('production_and_loss', err)
+    if (allocated(err)) return
+
     dat => self%dat
     var => self%var
     wrk => self%wrk

@@ -57,7 +57,7 @@ contains
     call setup_atmosphere_from_file(atmosphere_txt, self%dat, self%var, err)
     if (allocated(err)) return
 
-    call self%prep_atmosphere(self%var%usol_init, err)
+    call self%prep_atmosphere_unchecked(self%var%usol_init, err)
     if (allocated(err)) return
 
     self%atmosphere_initialized = .true.
