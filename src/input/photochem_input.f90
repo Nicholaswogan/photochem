@@ -7,7 +7,7 @@ module photochem_input
   implicit none
   private 
 
-  public :: setup, setup_static, setup_atmosphere_from_file
+  public :: setup_static, setup_atmosphere_from_file
   public :: interp2xsdata, compute_gibbs_energy, interp2particlexsdata, parse_reaction
   
   type, extends(type_list) :: type_list_tmp
@@ -87,29 +87,6 @@ module photochem_input
   end interface
     
 contains
-
-  !> Configure and initialize a model using the legacy atmosphere-file path.
-  !!
-  !! This compatibility routine performs both phases of setup. New lifecycle
-  !! code should call [[setup_static]] and [[setup_atmosphere_from_file]]
-  !! separately so work arrays can be allocated between the two phases.
-  subroutine setup(mechanism_file, s, flux_file, atmosphere_txt, dat, var, err)
-    
-    character(len=*), intent(in) :: mechanism_file
-    type(PhotoSettings), intent(in) :: s
-    character(len=*), intent(in) :: flux_file
-    character(len=*), intent(in) :: atmosphere_txt
-    type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    character(:), allocatable, intent(out) :: err
-    
-    call setup_static(mechanism_file, s, flux_file, dat, var, err)
-    if (allocated(err)) return
-
-    call setup_atmosphere_from_file(atmosphere_txt, dat, var, err)
-    if (allocated(err)) return
-    
-  end subroutine
 
   !> Read and allocate model state that is independent of atmospheric profiles.
   !!

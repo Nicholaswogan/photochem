@@ -10,8 +10,35 @@ program test_api
 contains
 
   subroutine test()
+    call test_top_from_atmosphere_file()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
+  end subroutine
+
+  subroutine test_top_from_atmosphere_file()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp), parameter :: expected_top = 1.0e7_dp
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_top_atmospherefile.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', &
+                       err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    if (.not. pc%var%top_atmos_from_file) then
+      print *, 'top: atmospherefile was not retained during static setup'
+      stop 1
+    endif
+    if (abs(pc%var%top_atmos - expected_top) > 1.0e-6_dp) then
+      print *, 'top: atmospherefile did not resolve to the atmosphere-file edge'
+      stop 1
+    endif
   end subroutine
 
   subroutine test_methods(filename)
@@ -294,4 +321,3 @@ contains
   end subroutine
 
 end program
-
