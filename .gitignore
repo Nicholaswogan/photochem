@@ -4,6 +4,8 @@ __pycache__
 *.so
 data
 build
-
+photochem.egg-info
+_skbuild
+codex_reference
 
 
