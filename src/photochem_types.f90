@@ -395,6 +395,7 @@ module photochem_types ! make a giant IO object
     ! Atmospheres structure
     real(dp) :: bottom_atmos !! cm
     real(dp) :: top_atmos !! cm
+    logical :: top_atmos_from_file = .false. !! determine top_atmos from the initial atmosphere file
     integer :: nz !! number of vertical layers
     real(dp) :: surface_pressure !! bars
     real(dp) :: surface_albedo

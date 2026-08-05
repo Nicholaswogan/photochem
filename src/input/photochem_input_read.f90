@@ -3,11 +3,10 @@ submodule (photochem_input) photochem_input_read
   
 contains
   
-  module subroutine read_all_files(mechanism_file, s, flux_file, atmosphere_txt, dat, var, err)
+  module subroutine read_static_files(mechanism_file, s, flux_file, dat, var, err)
     character(len=*), intent(in) :: mechanism_file
     type(PhotoSettings), intent(in) :: s
     character(len=*), intent(in) :: flux_file
-    character(len=*), intent(in) :: atmosphere_txt
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
@@ -19,10 +18,6 @@ contains
     call get_photomech(mechanism_file, dat, var, err)
     if (allocated(err)) return
 
-    ! initial atmosphere
-    call read_atmosphere_file(atmosphere_txt, dat, var, err)
-    if (allocated(err)) return
-    
     call unpack_settings(s%filename, s, dat, var, err)
     if (allocated(err)) return
 
@@ -579,19 +574,19 @@ contains
     !!! atmosphere-grid !!!
     !!!!!!!!!!!!!!!!!!!!!!!
     var%bottom_atmos = s%bottom
+    var%top_atmos_from_file = .false.
 
     read(s%top,*,iostat = io) var%top_atmos
     if (io /= 0) then
       ! it isn't a float
       if (trim(s%top) == "atmospherefile") then
-        ! Use the TOA in the initialization file
-        var%top_atmos = dat%z_file(dat%nzf) + 0.5_dp*(dat%z_file(2) - dat%z_file(1))
+        var%top_atmos_from_file = .true.
       else
         err = '"top" can only be a number or "atmospherefile". See '//trim(infile)
         return 
       endif
     endif
-    if (var%top_atmos < var%bottom_atmos) then
+    if (.not. var%top_atmos_from_file .and. var%top_atmos < var%bottom_atmos) then
       err = 'The top of the atmosphere must be bigger than the bottom'
       return
     endif
@@ -664,10 +659,6 @@ contains
     if (dat%gas_rainout) then
       ! we need a tropopause altitude
       var%trop_alt = s%trop_alt
-      if (var%trop_alt > var%top_atmos) then
-        err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
-        return
-      endif
     endif
     
     !!!!!!!!!!!!!!!!!
@@ -2608,7 +2599,7 @@ contains
     
   end subroutine
   
-  subroutine read_atmosphere_file(atmosphere_txt, dat, var, err)
+  module subroutine read_atmosphere_file(atmosphere_txt, dat, var, err)
     use futils, only: FileCloser
     character(len=*), intent(in) :: atmosphere_txt
     type(PhotochemData), intent(inout) :: dat
@@ -2742,6 +2733,27 @@ contains
       dat%den_file(:) = temp(ind(1),:)
     else
       err = '"den" was not found in input file '//trim(atmosphere_txt)
+      return
+    endif
+
+  end subroutine
+
+  module subroutine resolve_atmosphere_settings(dat, var, err)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    character(:), allocatable, intent(out) :: err
+
+    if (var%top_atmos_from_file) then
+      var%top_atmos = dat%z_file(dat%nzf) + 0.5_dp*(dat%z_file(2) - dat%z_file(1))
+    endif
+
+    if (var%top_atmos < var%bottom_atmos) then
+      err = 'The top of the atmosphere must be bigger than the bottom'
+      return
+    endif
+
+    if (dat%gas_rainout .and. var%trop_alt > var%top_atmos) then
+      err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
       return
     endif
 

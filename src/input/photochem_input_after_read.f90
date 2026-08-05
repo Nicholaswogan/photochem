@@ -9,12 +9,6 @@ contains
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
-    dat%kd = 2*dat%nq + 1
-    dat%kl = dat%kd + dat%nq
-    dat%ku = dat%kd - dat%nq
-    dat%lda = 3*dat%nq + 1
-    
-    call allocate_nz_vars(dat, var)
     ! set up the atmosphere grid
     call vertical_grid(var%bottom_atmos, var%top_atmos, &
                        var%nz, var%z, var%dz)
@@ -286,47 +280,47 @@ contains
     
   end subroutine
   
-  subroutine allocate_nz_vars(dat, vars)
+  module subroutine allocate_nz_vars(dat, var)
     type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: vars
+    type(PhotochemVars), intent(inout) :: var
     
     integer :: i
     
-    vars%neqs = dat%nq*vars%nz
+    var%neqs = dat%nq*var%nz
 
-    allocate(vars%temperature(vars%nz))
-    allocate(vars%z(vars%nz))
-    allocate(vars%dz(vars%nz))
-    allocate(vars%edd(vars%nz))
-    allocate(vars%grav(vars%nz))
-    allocate(vars%usol_init(dat%nq,vars%nz))
-    allocate(vars%particle_radius(dat%npq,vars%nz))
-    allocate(vars%xs_x_qy(vars%nz,dat%kj,dat%nw))
-    allocate(vars%usol_out(dat%nq,vars%nz))
+    allocate(var%temperature(var%nz))
+    allocate(var%z(var%nz))
+    allocate(var%dz(var%nz))
+    allocate(var%edd(var%nz))
+    allocate(var%grav(var%nz))
+    allocate(var%usol_init(dat%nq,var%nz))
+    allocate(var%particle_radius(dat%npq,var%nz))
+    allocate(var%xs_x_qy(var%nz,dat%kj,dat%nw))
+    allocate(var%usol_out(dat%nq,var%nz))
     
-    allocate(vars%particle_xs(dat%np))
+    allocate(var%particle_xs(dat%np))
     do i = 1,dat%np
       ! only allocate space if there is data
       if (dat%part_xs_file(i)%ThereIsData) then
-        vars%particle_xs(i)%ThereIsData = .true.
-        allocate(vars%particle_xs(i)%w0(vars%nz,dat%nw))
-        allocate(vars%particle_xs(i)%qext(vars%nz,dat%nw))
-        allocate(vars%particle_xs(i)%gt(vars%nz,dat%nw))
+        var%particle_xs(i)%ThereIsData = .true.
+        allocate(var%particle_xs(i)%w0(var%nz,dat%nw))
+        allocate(var%particle_xs(i)%qext(var%nz,dat%nw))
+        allocate(var%particle_xs(i)%gt(var%nz,dat%nw))
       else
-        vars%particle_xs(i)%ThereIsData = .false.
+        var%particle_xs(i)%ThereIsData = .false.
       endif
     enddo
     
     if (dat%reverse) then
-      allocate(vars%gibbs_energy(vars%nz,dat%ng))
+      allocate(var%gibbs_energy(var%nz,dat%ng))
     endif
 
-    allocate(vars%tauc(vars%nz,dat%nw))
-    vars%tauc = 0.0_dp
-    allocate(vars%w0c(vars%nz,dat%nw))
-    vars%w0c = 0.0_dp
-    allocate(vars%g0c(vars%nz,dat%nw))
-    vars%g0c = 0.0_dp
+    allocate(var%tauc(var%nz,dat%nw))
+    var%tauc = 0.0_dp
+    allocate(var%w0c(var%nz,dat%nw))
+    var%w0c = 0.0_dp
+    allocate(var%g0c(var%nz,dat%nw))
+    var%g0c = 0.0_dp
 
   end subroutine
 

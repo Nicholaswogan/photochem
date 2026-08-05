@@ -7,7 +7,7 @@ module photochem_input
   implicit none
   private 
 
-  public :: setup, interp2xsdata, compute_gibbs_energy, interp2particlexsdata, parse_reaction
+  public :: setup, setup_static, interp2xsdata, compute_gibbs_energy, interp2particlexsdata, parse_reaction
   
   type, extends(type_list) :: type_list_tmp
   ! temporary list for accessing all reactions and
@@ -24,14 +24,31 @@ module photochem_input
       character(:), allocatable, intent(out) :: err
     end subroutine
     
-    module subroutine read_all_files(mechanism_file, s, flux_file, atmosphere_txt, dat, var, err)
+    module subroutine read_static_files(mechanism_file, s, flux_file, dat, var, err)
       character(len=*), intent(in) :: mechanism_file
       type(PhotoSettings), intent(in) :: s
       character(len=*), intent(in) :: flux_file
+      type(PhotochemData), intent(inout) :: dat
+      type(PhotochemVars), intent(inout) :: var
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    module subroutine read_atmosphere_file(atmosphere_txt, dat, var, err)
       character(len=*), intent(in) :: atmosphere_txt
       type(PhotochemData), intent(inout) :: dat
       type(PhotochemVars), intent(inout) :: var
       character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    module subroutine resolve_atmosphere_settings(dat, var, err)
+      type(PhotochemData), intent(in) :: dat
+      type(PhotochemVars), intent(inout) :: var
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    module subroutine allocate_nz_vars(dat, var)
+      type(PhotochemData), intent(in) :: dat
+      type(PhotochemVars), intent(inout) :: var
     end subroutine
 
     module subroutine parse_reaction(instring, reverse, eqr, eqp, err)
@@ -74,12 +91,39 @@ contains
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
-    call read_all_files(mechanism_file, s, flux_file, atmosphere_txt, dat, var, err)
-    if (allocated(err)) return     
+    call setup_static(mechanism_file, s, flux_file, dat, var, err)
+    if (allocated(err)) return
+
+    call read_atmosphere_file(atmosphere_txt, dat, var, err)
+    if (allocated(err)) return
+
+    call resolve_atmosphere_settings(dat, var, err)
+    if (allocated(err)) return
                  
     call after_read_setup(dat, var, err)
     if (allocated(err)) return
     
+  end subroutine
+
+  subroutine setup_static(mechanism_file, s, flux_file, dat, var, err)
+
+    character(len=*), intent(in) :: mechanism_file
+    type(PhotoSettings), intent(in) :: s
+    character(len=*), intent(in) :: flux_file
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    character(:), allocatable, intent(out) :: err
+
+    call read_static_files(mechanism_file, s, flux_file, dat, var, err)
+    if (allocated(err)) return
+
+    dat%kd = 2*dat%nq + 1
+    dat%kl = dat%kd + dat%nq
+    dat%ku = dat%kd - dat%nq
+    dat%lda = 3*dat%nq + 1
+
+    call allocate_nz_vars(dat, var)
+
   end subroutine
   
   subroutine list_destroy(self)
@@ -97,5 +141,4 @@ contains
   end subroutine
   
 end module
-
 
