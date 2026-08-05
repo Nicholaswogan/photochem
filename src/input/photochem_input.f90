@@ -7,7 +7,8 @@ module photochem_input
   implicit none
   private 
 
-  public :: setup, setup_static, interp2xsdata, compute_gibbs_energy, interp2particlexsdata, parse_reaction
+  public :: setup, setup_static, setup_atmosphere_from_file
+  public :: interp2xsdata, compute_gibbs_energy, interp2particlexsdata, parse_reaction
   
   type, extends(type_list) :: type_list_tmp
   ! temporary list for accessing all reactions and
@@ -17,6 +18,8 @@ module photochem_input
   end type
   
   interface
+    !> Construct and prepare atmosphere-dependent state after raw atmospheric
+    !! profiles and the static model state have been loaded.
     module subroutine after_read_setup(dat, var, err)
       use photochem_eqns, only: vertical_grid, gravity
       type(PhotochemData), intent(inout) :: dat
@@ -24,6 +27,7 @@ module photochem_input
       character(:), allocatable, intent(out) :: err
     end subroutine
     
+    !> Read files and settings that do not require an initialized atmosphere.
     module subroutine read_static_files(mechanism_file, s, flux_file, dat, var, err)
       character(len=*), intent(in) :: mechanism_file
       type(PhotoSettings), intent(in) :: s
@@ -33,6 +37,7 @@ module photochem_input
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    !> Read raw profiles from a legacy atmosphere text file.
     module subroutine read_atmosphere_file(atmosphere_txt, dat, var, err)
       character(len=*), intent(in) :: atmosphere_txt
       type(PhotochemData), intent(inout) :: dat
@@ -40,12 +45,14 @@ module photochem_input
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    !> Resolve and validate settings that depend on raw atmosphere-file data.
     module subroutine resolve_atmosphere_settings(dat, var, err)
       type(PhotochemData), intent(in) :: dat
       type(PhotochemVars), intent(inout) :: var
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    !> Allocate persistent arrays whose dimensions depend on the mechanism and nz.
     module subroutine allocate_nz_vars(dat, var)
       type(PhotochemData), intent(in) :: dat
       type(PhotochemVars), intent(inout) :: var
@@ -80,7 +87,12 @@ module photochem_input
   end interface
     
 contains
-  
+
+  !> Configure and initialize a model using the legacy atmosphere-file path.
+  !!
+  !! This compatibility routine performs both phases of setup. New lifecycle
+  !! code should call [[setup_static]] and [[setup_atmosphere_from_file]]
+  !! separately so work arrays can be allocated between the two phases.
   subroutine setup(mechanism_file, s, flux_file, atmosphere_txt, dat, var, err)
     
     character(len=*), intent(in) :: mechanism_file
@@ -94,17 +106,17 @@ contains
     call setup_static(mechanism_file, s, flux_file, dat, var, err)
     if (allocated(err)) return
 
-    call read_atmosphere_file(atmosphere_txt, dat, var, err)
-    if (allocated(err)) return
-
-    call resolve_atmosphere_settings(dat, var, err)
-    if (allocated(err)) return
-                 
-    call after_read_setup(dat, var, err)
+    call setup_atmosphere_from_file(atmosphere_txt, dat, var, err)
     if (allocated(err)) return
     
   end subroutine
 
+  !> Read and allocate model state that is independent of atmospheric profiles.
+  !!
+  !! This establishes mechanism and radiative dimensions, reads settings and
+  !! stellar data, and allocates persistent arrays whose shapes depend only on
+  !! those dimensions and `number-of-layers`. It does not construct a vertical
+  !! grid, initialize atmospheric profiles, or prepare an RHS state.
   subroutine setup_static(mechanism_file, s, flux_file, dat, var, err)
 
     character(len=*), intent(in) :: mechanism_file
@@ -125,6 +137,31 @@ contains
     call allocate_nz_vars(dat, var)
 
   end subroutine
+
+  !> Initialize atmosphere-dependent state from a legacy atmosphere text file.
+  !!
+  !! [[setup_static]] must have completed successfully before this routine is
+  !! called. This routine reads the raw atmosphere, resolves grid-dependent
+  !! settings, constructs the grid and gravity, interpolates atmospheric and
+  !! optical properties, computes temperature-dependent data, and validates the
+  !! tropopause. It does not allocate or prepare EvoAtmosphere RHS work arrays.
+  subroutine setup_atmosphere_from_file(atmosphere_txt, dat, var, err)
+
+    character(len=*), intent(in) :: atmosphere_txt
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    character(:), allocatable, intent(out) :: err
+
+    call read_atmosphere_file(atmosphere_txt, dat, var, err)
+    if (allocated(err)) return
+
+    call resolve_atmosphere_settings(dat, var, err)
+    if (allocated(err)) return
+
+    call after_read_setup(dat, var, err)
+    if (allocated(err)) return
+
+  end subroutine
   
   subroutine list_destroy(self)
     type(type_list_tmp), intent(inout) :: self
@@ -141,4 +178,3 @@ contains
   end subroutine
   
 end module
-

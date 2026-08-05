@@ -29,6 +29,8 @@ module photochem_evoatmosphere
 
   contains
 
+    procedure, private :: initialize_from_atmosphere_file
+
     !~~ photochem_evoatmosphere_rhs.f90 ~~!
     procedure :: set_trop_ind
     procedure :: prep_atm_evo_gas
@@ -87,6 +89,17 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
       type(EvoAtmosphere) :: self
     end function
+
+    !> Initialize atmosphere-dependent model state from a legacy atmosphere file.
+    !!
+    !! Static setup and work-array allocation must already be complete. On
+    !! success, the vertical grid, atmospheric profiles, derived data, and the
+    !! initial prepared RHS state are ready for use.
+    module subroutine initialize_from_atmosphere_file(self, atmosphere_txt, err)
+      class(EvoAtmosphere), intent(inout) :: self
+      character(len=*), intent(in) :: atmosphere_txt !! Path to the legacy atmosphere text file.
+      character(:), allocatable, intent(out) :: err
+    end subroutine
 
     !~~ photochem_atmosphere_rhs.f90 ~~!
 
