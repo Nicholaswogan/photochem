@@ -33,7 +33,7 @@ module photochem_evoatmosphere
 
   contains
 
-    procedure, private :: initialize_from_atmosphere_file
+    procedure :: initialize_from_atmosphere_file
     procedure, private :: require_atmosphere_initialized
 
     !~~ photochem_evoatmosphere_rhs.f90 ~~!
@@ -100,7 +100,9 @@ module photochem_evoatmosphere
     !!
     !! Static setup and work-array allocation must already be complete. On
     !! success, the vertical grid, atmospheric profiles, derived data, and the
-    !! initial prepared RHS state are ready for use.
+    !! initial prepared RHS state are ready for use, and any active integrator
+    !! is destroyed. If reading or preparing the replacement atmosphere fails,
+    !! the existing atmospheric state and integrator are retained.
     module subroutine initialize_from_atmosphere_file(self, atmosphere_txt, err)
       class(EvoAtmosphere), intent(inout) :: self
       character(len=*), intent(in) :: atmosphere_txt !! Path to the legacy atmosphere text file.

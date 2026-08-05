@@ -17,8 +17,10 @@ contains
   end subroutine
 
   subroutine test_initialization_state()
+    use iso_c_binding, only: c_associated
     type(EvoAtmosphere) :: pc
     character(:), allocatable :: err
+    real(dp), allocatable :: temperature_before(:)
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_top_atmospherefile.yaml', &
@@ -71,6 +73,63 @@ contains
 
     call pc%initialize_stepper(pc%var%usol_init, err)
     call check_not_initialized_error(err, 'initialize_stepper')
+
+    ! A configured object can be initialized after construction failed only in
+    ! the atmosphere-dependent phase.
+    deallocate(err)
+    call pc%initialize_from_atmosphere_file('../examples/ModernEarth/atmosphere.txt', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not. pc%atmosphere_initialized) then
+      print *, 'explicit atmosphere initialization did not set lifecycle state'
+      stop 1
+    endif
+
+    ! Failed reinitialization is atomic: the initialized atmosphere and active
+    ! CVODE state are retained.
+    call pc%initialize_stepper(pc%var%usol_init, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    temperature_before = pc%var%temperature
+
+    call pc%initialize_from_atmosphere_file('../tests/does_not_exist.txt', err)
+    if (.not. allocated(err)) then
+      print *, 'failed reinitialization did not return an error'
+      stop 1
+    endif
+    if (.not. pc%atmosphere_initialized) then
+      print *, 'failed reinitialization cleared atmosphere_initialized'
+      stop 1
+    endif
+    if (any(pc%var%temperature /= temperature_before)) then
+      print *, 'failed reinitialization changed atmospheric state'
+      stop 1
+    endif
+    if (.not. c_associated(pc%wrk%sun%cvode_mem)) then
+      print *, 'failed reinitialization destroyed the active stepper'
+      stop 1
+    endif
+
+    ! Successful reinitialization commits the replacement atmosphere and
+    ! invalidates CVODE state associated with the old atmosphere.
+    deallocate(err)
+    call pc%initialize_from_atmosphere_file('../examples/ModernEarth/atmosphere.txt', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not. pc%atmosphere_initialized) then
+      print *, 'successful reinitialization did not set atmosphere_initialized'
+      stop 1
+    endif
+    if (c_associated(pc%wrk%sun%cvode_mem)) then
+      print *, 'successful reinitialization retained stale CVODE state'
+      stop 1
+    endif
   end subroutine
 
   subroutine check_not_initialized_error(err, operation)
@@ -130,6 +189,14 @@ contains
                        "../examples/ModernEarth/atmosphere.txt", &
                        "../data", &
                        err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ! Exercise repeated legacy-file loading for both particle-bearing and
+    ! particle-free mechanisms.
+    call pc%initialize_from_atmosphere_file('../examples/ModernEarth/atmosphere.txt', err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1

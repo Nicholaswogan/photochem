@@ -52,15 +52,59 @@ contains
     character(len=*), intent(in) :: atmosphere_txt
     character(:), allocatable, intent(out) :: err
 
-    self%atmosphere_initialized = .false.
+    type(EvoAtmosphere) :: candidate
+    character(:), allocatable :: destroy_err
 
-    call setup_atmosphere_from_file(atmosphere_txt, self%dat, self%var, err)
+    if (.not. allocated(self%dat) .or. .not. allocated(self%var) .or. &
+        .not. allocated(self%wrk)) then
+      err = 'EvoAtmosphere static setup is not complete.'
+      return
+    endif
+
+    allocate(candidate%dat)
+    allocate(candidate%var)
+    allocate(candidate%wrk)
+    candidate%dat = self%dat
+    candidate%var = self%var
+    call clear_legacy_atmosphere_data(candidate%dat)
+    call candidate%wrk%init(candidate%dat%nsp, candidate%dat%np, candidate%dat%nq, &
+                            candidate%var%nz, candidate%dat%nrT, candidate%dat%kj, &
+                            candidate%dat%nw)
+
+    call setup_atmosphere_from_file(atmosphere_txt, candidate%dat, candidate%var, err)
     if (allocated(err)) return
 
-    call self%prep_atmosphere_unchecked(self%var%usol_init, err)
+    call candidate%prep_atmosphere_unchecked(candidate%var%usol_init, err)
     if (allocated(err)) return
 
+    candidate%atmosphere_initialized = .true.
+
+    ! Do not disturb the current model or its integrator until the replacement
+    ! atmosphere has been prepared successfully.
+    call self%destroy_stepper(destroy_err)
+    if (allocated(destroy_err)) then
+      err = destroy_err
+      return
+    endif
+
+    call move_alloc(candidate%dat, self%dat)
+    call move_alloc(candidate%var, self%var)
+    call move_alloc(candidate%wrk, self%wrk)
     self%atmosphere_initialized = .true.
+
+  end subroutine
+
+  subroutine clear_legacy_atmosphere_data(dat)
+    use photochem_types, only: PhotochemData
+
+    type(PhotochemData), intent(inout) :: dat
+
+    if (allocated(dat%z_file)) deallocate(dat%z_file)
+    if (allocated(dat%T_file)) deallocate(dat%T_file)
+    if (allocated(dat%edd_file)) deallocate(dat%edd_file)
+    if (allocated(dat%den_file)) deallocate(dat%den_file)
+    if (allocated(dat%mix_file)) deallocate(dat%mix_file)
+    if (allocated(dat%particle_radius_file)) deallocate(dat%particle_radius_file)
 
   end subroutine
 
