@@ -301,74 +301,53 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         self._initialize_atmosphere(P1, T1, Kzz1, z1, mix1)
 
     def _initialize_atmosphere(self, P1, T1, Kzz1, z1, mix1):
-        "Little helper function preventing code duplication."
+        "Initialize the shared photochemical model from gas-giant profiles."
 
         gdat = self.gdat
 
-        # Rebuilding the atmosphere invalidates any existing CVODE history and
-        # replaces any previously prescribed pressure-based profile.
-        self.destroy_stepper()
-        self.clear_press_temp_edd_profile()
+        # Select the pressure interval used by the photochemical model. The
+        # deeper profile remains in gdat for return_atmosphere.
+        ind_t = np.argmin(np.abs(P1 - gdat.TOA_pressure_avg))
+        if ind_t <= gdat.ind_b:
+            raise Exception('The photochemical pressure domain is empty.')
+        inds = slice(gdat.ind_b, ind_t + 1)
+
+        # The base class interprets planet_radius at the lower pressure
+        # boundary. Convert from the gas-giant reference pressure before
+        # delegating the hydrostatic construction and profile mapping.
+        planet_radius_new = gdat.planet_radius + z1[gdat.ind_b]
+        species_names = self.dat.species_names[:(-2-self.dat.nsl)]
+        mix_profile = {
+            sp: np.asarray(mix1[sp])[inds]
+            for sp in mix1 if sp in species_names
+        }
+
+        planet_radius_old = self.dat.planet_radius
+        self.dat.planet_radius = planet_radius_new
+        try:
+            self.initialize_atmosphere_p(
+                np.asarray(P1)[inds], np.asarray(T1)[inds],
+                np.asarray(Kzz1)[inds], mix_profile, persistent=True
+            )
+        except Exception:
+            self.dat.planet_radius = planet_radius_old
+            raise
         gdat.robust_stepper_initialized = False
 
-        # Compute TOA index
-        ind_t = np.argmin(np.abs(P1 - gdat.TOA_pressure_avg))
-
-        # Shift z profile so that zero is at photochem BOA
-        z1_p = z1 - z1[gdat.ind_b]
-
-        # Calculate the photochemical grid
-        z_top = z1_p[ind_t]
-        z_bottom = 0.0
-        dz = (z_top - z_bottom)/self.var.nz
-        z_p = np.empty(self.var.nz)
-        z_p[0] = dz/2.0
-        for i in range(1,self.var.nz):
-            z_p[i] = z_p[i-1] + dz
-
-        # Now, we interpolate all values to the photochemical grid
-        P_p = 10.0**np.interp(z_p, z1_p, np.log10(P1))
-        T_p = np.interp(z_p, z1_p, T1)
-        Kzz_p = 10.0**np.interp(z_p, z1_p, np.log10(Kzz1))
-        mix_p = {}
-        for sp in mix1:
-            mix_p[sp] = 10.0**np.interp(z_p, z1_p, np.log10(mix1[sp]))
-        k_boltz = const.k*1e7
-        den_p = P_p/(k_boltz*T_p)
-
-        # Compute new planet radius
-        planet_radius_new = gdat.planet_radius + z1[gdat.ind_b]
-
-        # Update photochemical model grid
-        self.dat.planet_radius = planet_radius_new
-        self.update_vertical_grid(TOA_alt=z_top) # this will update gravity for new planet radius
-        self.set_temperature(T_p)
-        self.var.edd = Kzz_p
-        usol = np.ones(self.wrk.usol.shape)*1e-40
-        species_names = self.dat.species_names[:(-2-self.dat.nsl)]
-        for sp in mix_p:
-            if sp in species_names:
-                ind = species_names.index(sp)
-                usol[ind,:] = mix_p[sp]*den_p
-        self.wrk.usol = usol
-
-        # Now set boundary conditions
+        # Retain the gas-giant boundary-condition policy. Pressure boundary
+        # conditions use the initialized lowest model cell, as before.
         for i,sp in enumerate(species_names):
             if i >= self.dat.np:
                 self.set_lower_bc(sp, bc_type='Moses') # gas
             else:
                 self.set_lower_bc(sp, bc_type='vdep', vdep=0.0) # particle
         particle_names = self.dat.species_names[:self.dat.np]
-        for sp in mix_p:
+        for sp in mix_profile:
             if sp not in particle_names:
-                Pi = P_p[0]*mix_p[sp][0]
+                ind = species_names.index(sp)
+                mix_surf = self.wrk.usol[ind,0]/self.wrk.density[0]
+                Pi = self.wrk.pressure_hydro[0]*mix_surf
                 self.set_lower_bc(sp, bc_type='press', press=Pi)
-
-        # Keep T and Kzz tied to the desired pressure profiles throughout all
-        # subsequent RHS evaluations.
-        self.set_press_temp_edd_profile(
-            P1, T1, Kzz1, hydro_pressure=True
-        )
 
     def return_atmosphere_climate_grid(self):
         """Returns a dictionary with temperature, Kzz and mixing ratios
