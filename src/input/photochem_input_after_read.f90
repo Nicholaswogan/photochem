@@ -166,6 +166,119 @@ contains
     var%surface_pressure = surface_pressure/1.0e6_dp
 
   end subroutine
+
+  module subroutine map_atmosphere_p_to_grid(dat, var, profile_pressure, &
+                                             temperature, edd, mix, &
+                                             particle_radius, pressure, &
+                                             density, mubar, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use photochem_const, only: k_boltz, N_avo
+    use photochem_eqns, only: gravity
+
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    real(dp), intent(in) :: profile_pressure(:), temperature(:), edd(:)
+    real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
+    real(dp), intent(out) :: pressure(:), density(:), mubar(:)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: z(:), profile_mubar(:)
+    real(dp) :: gas_total, inverse_radius, inverse_radius_new
+    real(dp) :: inverse_radius_factor, delta_log_pressure
+    real(dp) :: surface_z(1), surface_gravity(1)
+    integer :: i, nprofile
+
+    nprofile = size(profile_pressure)
+
+    ! These checks are needed before pressure and composition can safely be
+    ! converted to altitude. The altitude mapper performs the remaining common
+    ! profile validation before changing var.
+    if (nprofile < 2) then
+      err = 'Pressure initialization requires at least two profile points.'
+      return
+    endif
+    if (size(temperature) /= nprofile .or. size(edd) /= nprofile) then
+      err = 'Pressure, temperature, and eddy-diffusion profiles must have the same length.'
+      return
+    endif
+    if (size(mix,1) /= dat%nq .or. size(mix,2) /= nprofile) then
+      err = 'The mixing-ratio array has the wrong shape.'
+      return
+    endif
+    if (.not. all(ieee_is_finite(profile_pressure)) .or. &
+        any(profile_pressure <= 0.0_dp)) then
+      err = 'Pressure profile must contain only finite, positive values.'
+      return
+    endif
+    if (any(profile_pressure(2:) >= profile_pressure(:nprofile-1))) then
+      err = 'Pressure profile must be strictly decreasing.'
+      return
+    endif
+    if (.not. all(ieee_is_finite(temperature)) .or. any(temperature <= 0.0_dp)) then
+      err = 'Temperature profile must contain only finite, positive values.'
+      return
+    endif
+    if (.not. all(ieee_is_finite(mix)) .or. any(mix < 0.0_dp)) then
+      err = 'Mixing ratios must contain only finite, nonnegative values.'
+      return
+    endif
+
+    allocate(z(nprofile), profile_mubar(nprofile))
+    do i = 1,nprofile
+      gas_total = sum(mix(dat%ng_1:dat%nq,i))
+      if (.not. ieee_is_finite(gas_total) .or. gas_total <= 0.0_dp) then
+        err = 'At least one gas mixing ratio must be positive at every pressure.'
+        return
+      endif
+      profile_mubar(i) = sum(mix(dat%ng_1:dat%nq,i)* &
+                             dat%species_mass(dat%ng_1:dat%nq))/gas_total
+      if (.not. ieee_is_finite(profile_mubar(i)) .or. profile_mubar(i) <= 0.0_dp) then
+        err = 'Gas composition produced a nonfinite or nonpositive mean molecular weight.'
+        return
+      endif
+    enddo
+
+    ! For spherical gravity, hydrostatic balance can be integrated in inverse
+    ! radius without a nonlinear solve:
+    !
+    !   d(1/r)/d(log(P)) = N_A*k_B*T/(mubar*g_surface*R_surface^2).
+    !
+    ! Apply the trapezoid rule to T/mubar between pressure knots. The configured
+    ! planet radius is the radius at the lower pressure boundary.
+    surface_z = 0.0_dp
+    call gravity(dat%planet_radius, dat%planet_mass, 1, surface_z, surface_gravity)
+    if (.not. ieee_is_finite(surface_gravity(1)) .or. surface_gravity(1) <= 0.0_dp) then
+      err = 'Could not compute finite, positive gravity at the lower boundary.'
+      return
+    endif
+
+    inverse_radius_factor = N_avo*k_boltz/ &
+                            (surface_gravity(1)*dat%planet_radius**2)
+    inverse_radius = 1.0_dp/dat%planet_radius
+    z(1) = 0.0_dp
+    do i = 2,nprofile
+      delta_log_pressure = log(profile_pressure(i))-log(profile_pressure(i-1))
+      inverse_radius_new = inverse_radius + inverse_radius_factor*0.5_dp* &
+                           (temperature(i-1)/profile_mubar(i-1) + &
+                            temperature(i)/profile_mubar(i))*delta_log_pressure
+      if (.not. ieee_is_finite(inverse_radius_new) .or. inverse_radius_new <= 0.0_dp) then
+        err = 'Pressure profile extends beyond a finite hydrostatic altitude.'
+        return
+      endif
+
+      z(i) = 1.0_dp/inverse_radius_new-dat%planet_radius
+      if (.not. ieee_is_finite(z(i)) .or. z(i) <= z(i-1)) then
+        err = 'Hydrostatic pressure integration did not produce increasing altitude.'
+        return
+      endif
+      inverse_radius = inverse_radius_new
+    enddo
+
+    call map_atmosphere_z_to_grid(dat, var, z, temperature, edd, &
+                                  profile_pressure(1), mix, particle_radius, &
+                                  pressure, density, mubar, err)
+
+  end subroutine
   
   module subroutine after_read_setup(dat, var, err)
     use photochem_eqns, only: vertical_grid, gravity

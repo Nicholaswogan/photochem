@@ -8,6 +8,7 @@ module photochem_input
   private 
 
   public :: setup_static, setup_atmosphere_from_file, map_atmosphere_z_to_grid
+  public :: map_atmosphere_p_to_grid
   public :: interp2xsdata, compute_gibbs_energy, interp2particlexsdata, parse_reaction
   
   type, extends(type_list) :: type_list_tmp
@@ -103,6 +104,31 @@ module photochem_input
       !! of `usol`.
       real(dp), intent(in) :: mix(:,:)
       !> Particle radii in mechanism order (`1:dat%npq`) at `z` (cm).
+      real(dp), intent(in) :: particle_radius(:,:)
+      real(dp), intent(out) :: pressure(:) !! Hydrostatic pressure at model centers (dyn/cm^2).
+      real(dp), intent(out) :: density(:) !! Total gas number density at model centers (molecules/cm^3).
+      real(dp), intent(out) :: mubar(:) !! Gas mean molecular weight at model centers (g/mol).
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Map pressure-based atmospheric inputs onto the model altitude grid and
+    !! construct a hydrostatic initial state. The first and last pressure
+    !! points define the lower and upper boundaries of the model domain. This
+    !! is an internal initialization kernel; transactional model updates are
+    !! performed by EvoAtmosphere.
+    module subroutine map_atmosphere_p_to_grid(dat, var, profile_pressure, &
+                                               temperature, edd, mix, &
+                                               particle_radius, pressure, &
+                                               density, mubar, err)
+      type(PhotochemData), intent(in) :: dat
+      type(PhotochemVars), intent(inout) :: var
+      !> Strictly decreasing pressure profile knots (dyn/cm^2), including both domain edges.
+      real(dp), intent(in) :: profile_pressure(:)
+      real(dp), intent(in) :: temperature(:) !! Temperature at `profile_pressure` (K).
+      real(dp), intent(in) :: edd(:) !! Eddy diffusion at `profile_pressure` (cm^2/s).
+      !> Mixing ratios in evolved-species order (`1:dat%nq`) at `profile_pressure`.
+      real(dp), intent(in) :: mix(:,:)
+      !> Particle radii in mechanism order (`1:dat%npq`) at `profile_pressure` (cm).
       real(dp), intent(in) :: particle_radius(:,:)
       real(dp), intent(out) :: pressure(:) !! Hydrostatic pressure at model centers (dyn/cm^2).
       real(dp), intent(out) :: density(:) !! Total gas number density at model centers (molecules/cm^3).
