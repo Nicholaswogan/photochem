@@ -12,6 +12,7 @@ contains
   subroutine test()
     call test_initialization_state()
     call test_initialize_atmosphere_z()
+    call test_initialize_atmosphere_p()
     call test_top_from_atmosphere_file()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
@@ -151,6 +152,159 @@ contains
     enddo
 
     call test_initialize_atmosphere_z_particles(z, temperature, edd, surface_pressure)
+  end subroutine
+
+  subroutine test_initialize_atmosphere_p()
+    use iso_c_binding, only: c_associated
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    integer, parameter :: nprofile = 4
+    real(dp) :: pressure(nprofile), pressure_bad(nprofile)
+    real(dp) :: temperature(nprofile), edd(nprofile)
+    real(dp), allocatable :: mix(:,:), particle_radius(:,:)
+    real(dp), allocatable :: temperature_before(:)
+    real(dp) :: top_before
+    integer :: i
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_top_atmospherefile.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', &
+                       err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    pressure = [1.0e6_dp, 1.0e5_dp, 1.0e4_dp, 1.0e2_dp]
+    temperature = [300.0_dp, 260.0_dp, 220.0_dp, 180.0_dp]
+    edd = [1.0e5_dp, 3.0e5_dp, 1.0e6_dp, 1.0e7_dp]
+    allocate(mix(pc%dat%nq,nprofile))
+    allocate(particle_radius(pc%dat%npq,nprofile))
+    do i = 1,nprofile
+      mix(:,i) = pc%wrk%mix(1:pc%dat%nq,1)
+    enddo
+
+    call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                    particle_radius, persistent=.true., err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not. pc%atmosphere_initialized .or. pc%var%top_atmos <= 0.0_dp .or. &
+        pc%var%bottom_atmos /= 0.0_dp) then
+      print *, 'pressure initialization produced an invalid model domain'
+      stop 1
+    endif
+    if (any(pc%wrk%pressure_hydro(2:) >= &
+            pc%wrk%pressure_hydro(:pc%var%nz-1))) then
+      print *, 'pressure initialization did not produce decreasing hydrostatic pressure'
+      stop 1
+    endif
+    if (pc%wrk%pressure_hydro(1) >= pressure(1) .or. &
+        pc%wrk%pressure_hydro(pc%var%nz) <= pressure(nprofile)) then
+      print *, 'pressure initialization did not treat input endpoints as domain boundaries'
+      stop 1
+    endif
+    if (.not. pc%var%press_temp_edd_profile%enabled .or. &
+        any(pc%var%press_temp_edd_profile%pressure /= pressure) .or. &
+        any(pc%var%press_temp_edd_profile%temperature /= temperature) .or. &
+        any(pc%var%press_temp_edd_profile%edd /= edd)) then
+      print *, 'pressure initialization did not retain the persistent profile'
+      stop 1
+    endif
+    if (any(pc%var%usol_init /= pc%wrk%usol)) then
+      print *, 'canonical and prepared pressure-initialization states differ'
+      stop 1
+    endif
+
+    ! A failed pressure reinitialization must retain atmospheric, profile, and
+    ! CVODE state. Equal adjacent pressure points violate strict ordering.
+    call pc%initialize_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    top_before = pc%var%top_atmos
+    temperature_before = pc%var%temperature
+    pressure_bad = pressure
+    pressure_bad(2) = pressure_bad(1)
+    call pc%initialize_atmosphere_p(pressure_bad, temperature, edd, mix, &
+                                    particle_radius, err=err)
+    if (.not. allocated(err)) then
+      print *, 'invalid pressure initialization did not return an error'
+      stop 1
+    endif
+    if (pc%var%top_atmos /= top_before .or. &
+        any(pc%var%temperature /= temperature_before)) then
+      print *, 'failed pressure initialization changed atmospheric state'
+      stop 1
+    endif
+    if (.not. c_associated(pc%wrk%sun%cvode_mem) .or. &
+        .not. pc%var%press_temp_edd_profile%enabled) then
+      print *, 'failed pressure initialization changed integrator or profile state'
+      stop 1
+    endif
+
+    ! Persistence is opt-in. A successful default initialization replaces the
+    ! profile and invalidates CVODE state associated with the old atmosphere.
+    deallocate(err)
+    call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                    particle_radius, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (pc%var%press_temp_edd_profile%enabled .or. &
+        c_associated(pc%wrk%sun%cvode_mem)) then
+      print *, 'default pressure initialization retained profile or integrator state'
+      stop 1
+    endif
+
+    call test_initialize_atmosphere_p_particles(pressure, temperature, edd)
+
+  end subroutine
+
+  subroutine test_initialize_atmosphere_p_particles(pressure, temperature, edd)
+    real(dp), intent(in) :: pressure(:), temperature(:), edd(:)
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp), allocatable :: mix(:,:), particle_radius(:,:)
+    integer :: i, nprofile
+
+    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
+                       '../examples/ModernEarth/settings.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', &
+                       err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    nprofile = size(pressure)
+    allocate(mix(pc%dat%nq,nprofile))
+    allocate(particle_radius(pc%dat%npq,nprofile))
+    do i = 1,nprofile
+      mix(:,i) = pc%wrk%mix(1:pc%dat%nq,1)
+      particle_radius(:,i) = pc%var%particle_radius(:,1)
+    enddo
+
+    call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                    particle_radius, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (pc%var%press_temp_edd_profile%enabled .or. &
+        any(pc%var%particle_radius <= 0.0_dp) .or. &
+        any(pc%var%usol_init(1:pc%dat%npq,:) <= 0.0_dp)) then
+      print *, 'particle-bearing pressure initialization produced invalid state'
+      stop 1
+    endif
+
   end subroutine
 
   subroutine test_initialize_atmosphere_z_particles(z, temperature, edd, surface_pressure)

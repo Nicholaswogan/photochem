@@ -103,6 +103,62 @@ contains
 
   end subroutine
 
+  module subroutine initialize_atmosphere_p(self, pressure, temperature, edd, &
+                                            mix, particle_radius, persistent, &
+                                            trop_p, err)
+    use photochem_input, only: map_atmosphere_p_to_grid
+
+    class(EvoAtmosphere), intent(inout) :: self
+    real(dp), intent(in) :: pressure(:), temperature(:), edd(:)
+    real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
+    logical, optional, intent(in) :: persistent
+    real(dp), optional, intent(in) :: trop_p
+    character(:), allocatable, intent(out) :: err
+
+    type(EvoAtmosphere) :: candidate
+    real(dp), allocatable :: pressure_model(:), density(:), mubar(:)
+    logical :: persistent_
+
+    persistent_ = .false.
+    if (present(persistent)) persistent_ = persistent
+    if (.not. persistent_ .and. present(trop_p)) then
+      err = '"trop_p" can only be specified when "persistent" is true.'
+      return
+    endif
+
+    call create_atmosphere_candidate(self, candidate, err)
+    if (allocated(err)) return
+
+    call reset_press_temp_edd_profile(candidate%var)
+
+    allocate(pressure_model(candidate%var%nz), density(candidate%var%nz), &
+             mubar(candidate%var%nz))
+    call map_atmosphere_p_to_grid(candidate%dat, candidate%var, pressure, &
+                                  temperature, edd, mix, particle_radius, &
+                                  pressure_model, density, mubar, err)
+    if (allocated(err)) return
+
+    candidate%var%top_atmos_from_file = .false.
+    call prepare_atmosphere_candidate(candidate, err)
+    if (allocated(err)) return
+
+    if (persistent_) then
+      if (present(trop_p)) then
+        call candidate%set_press_temp_edd_profile(pressure, temperature, edd, &
+                                                  trop_p=trop_p, &
+                                                  hydro_pressure=.true., err=err)
+      else
+        call candidate%set_press_temp_edd_profile(pressure, temperature, edd, &
+                                                  hydro_pressure=.true., err=err)
+      endif
+      if (allocated(err)) return
+      candidate%var%usol_init = candidate%wrk%usol
+    endif
+
+    call commit_atmosphere_candidate(self, candidate, err)
+
+  end subroutine
+
   subroutine create_atmosphere_candidate(self, candidate, err)
     class(EvoAtmosphere), intent(in) :: self
     type(EvoAtmosphere), intent(out) :: candidate

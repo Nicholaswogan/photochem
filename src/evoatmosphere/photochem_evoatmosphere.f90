@@ -35,6 +35,7 @@ module photochem_evoatmosphere
 
     procedure :: initialize_from_atmosphere_file
     procedure :: initialize_atmosphere_z
+    procedure :: initialize_atmosphere_p
     procedure, private :: require_atmosphere_initialized
 
     !~~ photochem_evoatmosphere_rhs.f90 ~~!
@@ -142,6 +143,44 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: mix(:,:)
       !> Particle radii in mechanism order at `z` (cm).
       real(dp), intent(in) :: particle_radius(:,:)
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Initialize atmosphere-dependent model state from pressure-based profiles.
+    !!
+    !! `pressure` must be strictly decreasing. Its first and last points define
+    !! the lower and upper boundaries of the model domain, respectively, and
+    !! the configured planet radius is interpreted at the lower boundary.
+    !! Altitude is constructed by hydrostatic integration using gas composition
+    !! only. Rows of `mix` follow evolved-species order (`1:dat%nq`), matching
+    !! `usol`: particle species first, followed by evolved gases.
+    !!
+    !! By default, pressure is used only to construct the initial altitude
+    !! grid. If `persistent` is true, temperature and eddy diffusion are also
+    !! retained as functions of hydrostatic pressure and reapplied during every
+    !! subsequent atmospheric preparation. Composition always remains part of
+    !! the evolving ODE state. When gas rainout and persistence are both
+    !! enabled, `trop_p` is required.
+    !!
+    !! On success, any active integrator is destroyed and the replacement
+    !! atmosphere is committed. If mapping or preparation fails, the existing
+    !! atmosphere, persistent profile, and integrator are retained.
+    module subroutine initialize_atmosphere_p(self, pressure, temperature, edd, &
+                                              mix, particle_radius, persistent, &
+                                              trop_p, err)
+      class(EvoAtmosphere), intent(inout) :: self
+      !> Strictly decreasing pressure profile knots (dyn/cm^2), including both domain edges.
+      real(dp), intent(in) :: pressure(:)
+      real(dp), intent(in) :: temperature(:) !! Temperature at `pressure` (K).
+      real(dp), intent(in) :: edd(:) !! Eddy diffusion at `pressure` (cm^2/s).
+      !> Mixing ratios in evolved-species order at `pressure`, matching `usol`.
+      real(dp), intent(in) :: mix(:,:)
+      !> Particle radii in mechanism order at `pressure` (cm).
+      real(dp), intent(in) :: particle_radius(:,:)
+      !> Retain temperature and eddy diffusion as functions of hydrostatic pressure.
+      logical, optional, intent(in) :: persistent
+      !> Tropopause pressure (dyn/cm^2). May be supplied only when `persistent` is true.
+      real(dp), optional, intent(in) :: trop_p
       character(:), allocatable, intent(out) :: err
     end subroutine
 
