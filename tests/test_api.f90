@@ -202,6 +202,7 @@ contains
     type(EvoAtmosphere) :: pc
     character(:), allocatable :: err
     real(dp), allocatable :: temperature_before(:)
+    real(dp) :: profile_pressure(2), profile_temperature(2), profile_edd(2)
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_top_atmospherefile.yaml', &
@@ -267,9 +268,23 @@ contains
       print *, 'explicit atmosphere initialization did not set lifecycle state'
       stop 1
     endif
+    if (any(pc%var%usol_init /= pc%wrk%usol)) then
+      print *, 'legacy-file canonical and prepared initial states differ'
+      stop 1
+    endif
 
     ! Failed reinitialization is atomic: the initialized atmosphere and active
     ! CVODE state are retained.
+    profile_pressure = [2.0_dp*maxval(pc%wrk%pressure_hydro), &
+                        0.5_dp*minval(pc%wrk%pressure_hydro)]
+    profile_temperature = [290.0_dp, 180.0_dp]
+    profile_edd = [1.0e5_dp, 1.0e7_dp]
+    call pc%set_press_temp_edd_profile(profile_pressure, profile_temperature, &
+                                       profile_edd, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
     call pc%initialize_stepper(pc%var%usol_init, err)
     if (allocated(err)) then
       print *, trim(err)
@@ -294,6 +309,10 @@ contains
       print *, 'failed reinitialization destroyed the active stepper'
       stop 1
     endif
+    if (.not. pc%var%press_temp_edd_profile%enabled) then
+      print *, 'failed reinitialization changed the persistent profile'
+      stop 1
+    endif
 
     ! Successful reinitialization commits the replacement atmosphere and
     ! invalidates CVODE state associated with the old atmosphere.
@@ -309,6 +328,10 @@ contains
     endif
     if (c_associated(pc%wrk%sun%cvode_mem)) then
       print *, 'successful reinitialization retained stale CVODE state'
+      stop 1
+    endif
+    if (pc%var%press_temp_edd_profile%enabled) then
+      print *, 'successful legacy-file initialization retained a pressure-based profile'
       stop 1
     endif
   end subroutine

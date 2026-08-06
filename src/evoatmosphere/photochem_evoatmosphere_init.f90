@@ -53,44 +53,19 @@ contains
     character(:), allocatable, intent(out) :: err
 
     type(EvoAtmosphere) :: candidate
-    character(:), allocatable :: destroy_err
 
-    if (.not. allocated(self%dat) .or. .not. allocated(self%var) .or. &
-        .not. allocated(self%wrk)) then
-      err = 'EvoAtmosphere static setup is not complete.'
-      return
-    endif
+    call create_atmosphere_candidate(self, candidate, err)
+    if (allocated(err)) return
 
-    allocate(candidate%dat)
-    allocate(candidate%var)
-    allocate(candidate%wrk)
-    candidate%dat = self%dat
-    candidate%var = self%var
-    call clear_legacy_atmosphere_data(candidate%dat)
-    call candidate%wrk%init(candidate%dat%nsp, candidate%dat%np, candidate%dat%nq, &
-                            candidate%var%nz, candidate%dat%nrT, candidate%dat%kj, &
-                            candidate%dat%nw)
+    call reset_press_temp_edd_profile(candidate%var)
 
     call setup_atmosphere_from_file(atmosphere_txt, candidate%dat, candidate%var, err)
     if (allocated(err)) return
 
-    call candidate%prep_atmosphere_unchecked(candidate%var%usol_init, err)
+    call prepare_atmosphere_candidate(candidate, err)
     if (allocated(err)) return
 
-    candidate%atmosphere_initialized = .true.
-
-    ! Do not disturb the current model or its integrator until the replacement
-    ! atmosphere has been prepared successfully.
-    call self%destroy_stepper(destroy_err)
-    if (allocated(destroy_err)) then
-      err = destroy_err
-      return
-    endif
-
-    call move_alloc(candidate%dat, self%dat)
-    call move_alloc(candidate%var, self%var)
-    call move_alloc(candidate%wrk, self%wrk)
-    self%atmosphere_initialized = .true.
+    call commit_atmosphere_candidate(self, candidate, err)
 
   end subroutine
 
@@ -107,7 +82,31 @@ contains
 
     type(EvoAtmosphere) :: candidate
     real(dp), allocatable :: pressure(:), density(:), mubar(:)
-    character(:), allocatable :: destroy_err
+
+    call create_atmosphere_candidate(self, candidate, err)
+    if (allocated(err)) return
+
+    call reset_press_temp_edd_profile(candidate%var)
+
+    allocate(pressure(candidate%var%nz), density(candidate%var%nz), &
+             mubar(candidate%var%nz))
+    call map_atmosphere_z_to_grid(candidate%dat, candidate%var, z, temperature, &
+                                  edd, surface_pressure, gas_mix, particle_mix, &
+                                  particle_radius, pressure, density, mubar, err)
+    if (allocated(err)) return
+
+    candidate%var%top_atmos_from_file = .false.
+    call prepare_atmosphere_candidate(candidate, err)
+    if (allocated(err)) return
+
+    call commit_atmosphere_candidate(self, candidate, err)
+
+  end subroutine
+
+  subroutine create_atmosphere_candidate(self, candidate, err)
+    class(EvoAtmosphere), intent(in) :: self
+    type(EvoAtmosphere), intent(out) :: candidate
+    character(:), allocatable, intent(out) :: err
 
     if (.not. allocated(self%dat) .or. .not. allocated(self%var) .or. &
         .not. allocated(self%wrk)) then
@@ -121,19 +120,16 @@ contains
     candidate%dat = self%dat
     candidate%var = self%var
     call clear_legacy_atmosphere_data(candidate%dat)
-    call reset_press_temp_edd_profile(candidate%var)
     call candidate%wrk%init(candidate%dat%nsp, candidate%dat%np, candidate%dat%nq, &
                             candidate%var%nz, candidate%dat%nrT, candidate%dat%kj, &
                             candidate%dat%nw)
 
-    allocate(pressure(candidate%var%nz), density(candidate%var%nz), &
-             mubar(candidate%var%nz))
-    call map_atmosphere_z_to_grid(candidate%dat, candidate%var, z, temperature, &
-                                  edd, surface_pressure, gas_mix, particle_mix, &
-                                  particle_radius, pressure, density, mubar, err)
-    if (allocated(err)) return
+  end subroutine
 
-    candidate%var%top_atmos_from_file = .false.
+  subroutine prepare_atmosphere_candidate(candidate, err)
+    type(EvoAtmosphere), intent(inout) :: candidate
+    character(:), allocatable, intent(out) :: err
+
     call candidate%prep_atmosphere_unchecked(candidate%var%usol_init, err)
     if (allocated(err)) return
 
@@ -141,6 +137,15 @@ contains
     ! that prepared state as the canonical initial condition.
     candidate%var%usol_init = candidate%wrk%usol
     candidate%atmosphere_initialized = .true.
+
+  end subroutine
+
+  subroutine commit_atmosphere_candidate(self, candidate, err)
+    class(EvoAtmosphere), intent(inout) :: self
+    type(EvoAtmosphere), intent(inout) :: candidate
+    character(:), allocatable, intent(out) :: err
+
+    character(:), allocatable :: destroy_err
 
     ! Do not disturb the current model or its integrator until the replacement
     ! atmosphere has been prepared successfully.
