@@ -25,12 +25,14 @@
   
   subroutine evoatmosphere_create_wrapper(ptr, mechanism_file, &
                                         settings_file, flux_file, &
-                                        atmosphere_txt, data_dir, err) bind(c)
+                                        atmosphere_txt, atmosphere_txt_present, &
+                                        data_dir, err) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: mechanism_file(*)
     character(kind=c_char), intent(in) :: settings_file(*)
     character(kind=c_char), intent(in) :: flux_file(*)
     character(kind=c_char), intent(in) :: atmosphere_txt(*)
+    logical(c_bool), intent(in) :: atmosphere_txt_present
     character(kind=c_char), intent(in) :: data_dir(*)
     character(kind=c_char), intent(out) :: err(err_len+1)
     
@@ -47,26 +49,36 @@
     allocate(character(len=len_cstring(mechanism_file))::mechanism_file_f)
     allocate(character(len=len_cstring(settings_file))::settings_file_f)
     allocate(character(len=len_cstring(flux_file))::flux_file_f)
-    allocate(character(len=len_cstring(atmosphere_txt))::atmosphere_txt_f)
     allocate(character(len=len_cstring(data_dir))::data_dir_f)
     
     call copy_string_ctof(mechanism_file, mechanism_file_f)
     call copy_string_ctof(settings_file, settings_file_f)
     call copy_string_ctof(flux_file, flux_file_f)
-    call copy_string_ctof(atmosphere_txt, atmosphere_txt_f)
     call copy_string_ctof(data_dir, data_dir_f)
-    
-    pc = EvoAtmosphere(mechanism_file_f, &
-                       settings_file_f, &
-                       flux_file_f, &
-                       atmosphere_txt_f, &
-                       data_dir_f, &
-                       err_f)
+
+    if (atmosphere_txt_present) then
+      allocate(character(len=len_cstring(atmosphere_txt))::atmosphere_txt_f)
+      call copy_string_ctof(atmosphere_txt, atmosphere_txt_f)
+      pc = EvoAtmosphere(mechanism_file_f, settings_file_f, flux_file_f, &
+                         atmosphere_txt_f, data_dir_f, err_f)
+    else
+      pc = EvoAtmosphere(mechanism_file_f, settings_file_f, flux_file_f, &
+                         data_dir_f, err_f)
+    endif
     
     err(1) = c_null_char
     if (allocated(err_f)) then
       call copy_string_ftoc(err_f, err)
     endif
+  end subroutine
+
+  subroutine evoatmosphere_atmosphere_initialized_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    logical(c_bool), intent(out) :: val
+    type(EvoAtmosphere), pointer :: pc
+
+    call c_f_pointer(ptr, pc)
+    val = pc%atmosphere_initialized
   end subroutine
 
   subroutine evoatmosphere_initialize_atmosphere_z_wrapper(ptr, nprofile, z, &

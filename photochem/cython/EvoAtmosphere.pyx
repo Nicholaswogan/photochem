@@ -27,9 +27,13 @@ cdef class EvoAtmosphere:
       raise PhotoException('The "__init__" method of EvoAtmosphere has not been called.')
     PyObject_GenericSetAttr(self, name, value)
 
-  def __init__(self, str mechanism_file, str settings_file, 
-               str flux_file, str atmosphere_txt, data_dir = None):           
-    """Initializes the photochemical model.
+  def __init__(self, str mechanism_file, str settings_file,
+               str flux_file, str atmosphere_txt=None, data_dir=None):
+    """Configure a photochemical model and optionally initialize its atmosphere.
+
+    When ``atmosphere_txt`` is omitted, static model setup is completed but
+    atmospheric operations remain unavailable until one of the explicit
+    atmosphere initialization methods succeeds.
 
     Parameters
     ----------
@@ -39,10 +43,10 @@ cdef class EvoAtmosphere:
         Path to the settings file (yaml format).
     flux_file : str
         Path to the file describing the stellar flux.
-    atmosphere_txt : str
+    atmosphere_txt : str, optional
         Path to the file containing altitude, total number density, temperature, 
         eddy diffusion, initial concentrations of each gas (mixing ratios), 
-        and particle radii.
+        and particle radii. If omitted, the model is left uninitialized.
     data_dir : str, optional
         Path to the data directory containing photolysis cross sections and other data
         needed to run the model
@@ -61,18 +65,30 @@ cdef class EvoAtmosphere:
     cdef char *settings_file_c = settings_file_b
     cdef bytes flux_file_b = pystring2cstring(flux_file)
     cdef char *flux_file_c = flux_file_b
-    cdef bytes atmosphere_txt_b = pystring2cstring(atmosphere_txt)
+    cdef bytes atmosphere_txt_b = b''
     cdef char *atmosphere_txt_c = atmosphere_txt_b
+    cdef bool atmosphere_txt_present = atmosphere_txt is not None
     cdef bytes data_dir_b = pystring2cstring(data_dir_)
     cdef char *data_dir_c = data_dir_b
     cdef char err[ERR_LEN+1]
     
-    # Initialize
-    ea_pxd.evoatmosphere_create_wrapper(self._ptr, mechanism_file_c,
-                                       settings_file_c, flux_file_c,
-                                       atmosphere_txt_c, data_dir_c, err)
+    # Configure static model state and optionally initialize the atmosphere.
+    if atmosphere_txt_present:
+      atmosphere_txt_b = pystring2cstring(atmosphere_txt)
+      atmosphere_txt_c = atmosphere_txt_b
+    ea_pxd.evoatmosphere_create_wrapper(
+      self._ptr, mechanism_file_c, settings_file_c, flux_file_c,
+      atmosphere_txt_c, &atmosphere_txt_present, data_dir_c, err
+    )
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
+
+  property atmosphere_initialized:
+    """Whether atmosphere-dependent model state has been initialized."""
+    def __get__(self):
+      cdef bool val
+      ea_pxd.evoatmosphere_atmosphere_initialized_get(self._ptr, &val)
+      return val
 
   cdef tuple _prepare_atmosphere_composition(self, int nprofile, dict mix,
                                               particle_radius,

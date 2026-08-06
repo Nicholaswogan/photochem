@@ -91,7 +91,8 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
             needed to run the model
         """        
         
-        # First, initialize photochemical model with dummy inputs
+        # Configure the photochemical model. The atmosphere is initialized
+        # later from the supplied pressure-based climate profile.
         sol = yaml.safe_load(SETTINGS_TEMPLATE)
         sol['atmosphere-grid']['number-of-layers'] = int(nz)
         sol['planet']['planet-mass'] = float(planet_mass)
@@ -99,18 +100,15 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         sol['planet']['photon-scale-factor'] = float(photon_scale_factor)
         sol['planet']['solar-zenith-angle'] = float(solar_zenith_angle)
         sol = FormatSettings_main(sol)
-        with NamedTemporaryFile('w',suffix='.txt') as ff:
-            ff.write(ATMOSPHERE_INIT)
-            ff.flush()
-            with NamedTemporaryFile('w',suffix='.yaml') as f:
-                yaml.dump(sol,f,Dumper=MyDumper)
-                super().__init__(
-                    mechanism_file,
-                    f.name,
-                    stellar_flux_file,
-                    ff.name,
-                    data_dir
-                )
+        with NamedTemporaryFile('w',suffix='.yaml') as f:
+            yaml.dump(sol,f,Dumper=MyDumper)
+            f.flush()
+            super().__init__(
+                mechanism_file,
+                f.name,
+                stellar_flux_file,
+                data_dir=data_dir
+            )
 
         if thermo_file is None:
             thermo_file = mechanism_file
@@ -898,12 +896,6 @@ def composition_at_metallicity(gas, T, P, CtoO, metal, rainout_condensed_atoms =
 ###
 ### Template input files for Photochem
 ###
-
-ATMOSPHERE_INIT = \
-"""alt      den        temp       eddy                       
-0.0      1          1000       1e6              
-1.0e3    1          1000       1e6         
-"""
 
 SETTINGS_TEMPLATE = \
 """

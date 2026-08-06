@@ -20,7 +20,9 @@ cdef extern void deallocate_evoatmosphere(EvoAtmosphere *ptr);
 # subroutines
 cdef extern void evoatmosphere_create_wrapper(EvoAtmosphere *ptr, char *mechanism_file,
                                             char *settings_file, char *flux_file,
-                                            char *atmosphere_txt, char *data_dir, char *err);
+                                            char *atmosphere_txt, bool *atmosphere_txt_present,
+                                            char *data_dir, char *err);
+cdef extern void evoatmosphere_atmosphere_initialized_get(EvoAtmosphere *ptr, bool *val)
 cdef extern void evoatmosphere_initialize_atmosphere_z_wrapper(EvoAtmosphere *ptr, int *nprofile,
                                             double *z, double *temperature, double *edd,
                                             double *surface_pressure, int *nq, double *mix,

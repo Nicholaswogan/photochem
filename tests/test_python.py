@@ -2,7 +2,60 @@
 
 import numpy as np
 
-from photochem import EvoAtmosphere, zahnle_earth
+from photochem import EvoAtmosphere, PhotoException, zahnle_earth
+
+
+def test_static_construction():
+    pc = EvoAtmosphere(
+        "no_particle_test.yaml",
+        "test_settings_top_atmospherefile.yaml",
+        "../examples/ModernEarth/Sun_now.txt",
+        data_dir="../data",
+    )
+
+    assert not pc.atmosphere_initialized
+    assert pc.dat.nq > 0
+    assert pc.var.nz > 0
+
+    try:
+        pc.gas_fluxes()
+    except PhotoException as exc:
+        assert "atmosphere is not initialized" in str(exc)
+    else:
+        raise AssertionError("gas_fluxes accepted an uninitialized atmosphere")
+
+    z = np.array([0.0, 5.0e6, 1.0e7])
+    temperature = np.array([300.0, 240.0, 180.0])
+    edd = np.array([1.0e5, 1.0e6, 1.0e7])
+    mix = {"H2": np.ones(z.size)}
+    pc.initialize_atmosphere_z(z, temperature, edd, 1.0e6, mix)
+
+    assert pc.atmosphere_initialized
+
+
+def test_gas_giant_static_construction():
+    from photochem.extensions.gasgiants import EvoAtmosphereGasGiant
+
+    pc = EvoAtmosphereGasGiant(
+        "no_particle_test.yaml",
+        "../examples/ModernEarth/Sun_now.txt",
+        5.972e27,
+        6.371e8,
+        thermo_file="no_particle_test.yaml",
+        data_dir="../data",
+    )
+
+    assert not pc.atmosphere_initialized
+
+    pressure = np.array([1.0e6, 1.0e5, 1.0e4, 1.0e2])
+    temperature = np.array([300.0, 260.0, 220.0, 180.0])
+    edd = np.array([1.0e5, 3.0e5, 1.0e6, 1.0e7])
+    mix = {"H2": np.ones(pressure.size)}
+    pc.initialize_atmosphere_p(
+        pressure, temperature, edd, mix, persistent=True
+    )
+
+    assert pc.atmosphere_initialized
 
 
 def test_initialize_atmosphere_z_no_particles():
@@ -220,6 +273,8 @@ def test_wrapper():
 
 def main():
 
+    test_static_construction()
+    test_gas_giant_static_construction()
     test_wrapper()
     test_initialize_atmosphere_z_particles()
     test_initialize_atmosphere_z_no_particles()
