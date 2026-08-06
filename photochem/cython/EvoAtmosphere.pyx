@@ -74,6 +74,66 @@ cdef class EvoAtmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
+  cdef tuple _prepare_atmosphere_composition(self, int nprofile, dict mix,
+                                              particle_radius,
+                                              double default_mix,
+                                              double default_particle_radius):
+    """Convert species-keyed profiles to arrays in Fortran species order."""
+    cdef int nq = self.dat.nq
+    cdef int nparticles = self.dat.np
+    cdef ndarray mix_ = np.full((nq,nprofile), default_mix, dtype=np.double,
+                                order='F')
+    cdef ndarray particle_radius_ = np.full(
+        (nparticles,nprofile), default_particle_radius, dtype=np.double,
+        order='F'
+    )
+    cdef ndarray explicit_gas_total = np.zeros(nprofile, dtype=np.double)
+    cdef ndarray profile
+    cdef int i
+
+    if not np.isfinite(default_mix) or default_mix < 0.0:
+      raise PhotoException('default_mix must be finite and nonnegative.')
+    if nparticles > 0 and (not np.isfinite(default_particle_radius) or
+                           default_particle_radius <= 0.0):
+      raise PhotoException('default_particle_radius must be finite and positive.')
+
+    species_names = self.dat.species_names[:nq]
+    particle_names = species_names[:nparticles]
+    gas_names = species_names[nparticles:]
+    unknown_mix = set(mix) - set(species_names)
+    if unknown_mix:
+      raise PhotoException('Unknown species in mix: '+', '.join(sorted(unknown_mix)))
+    if not (set(mix) & set(gas_names)):
+      raise PhotoException('mix must explicitly contain at least one gas species.')
+
+    for i, name in enumerate(species_names):
+      if name in mix:
+        profile = np.asarray(mix[name], dtype=np.double)
+        if profile.ndim != 1 or profile.size != nprofile:
+          raise PhotoException("Mixing-ratio profile for '"+name+"' has the wrong shape.")
+        if not np.all(np.isfinite(profile)) or np.any(profile < 0.0):
+          raise PhotoException("Mixing-ratio profile for '"+name+"' must be finite and nonnegative.")
+        mix_[i,:] = profile
+        if i >= nparticles:
+          explicit_gas_total += profile
+    if np.any(explicit_gas_total <= 0.0):
+      raise PhotoException('Explicitly supplied gases must have a positive total mixing ratio at every profile point.')
+
+    if particle_radius is not None:
+      unknown_radii = set(particle_radius) - set(particle_names)
+      if unknown_radii:
+        raise PhotoException('Unknown particles in particle_radius: '+', '.join(sorted(unknown_radii)))
+      for i, name in enumerate(particle_names):
+        if name in particle_radius:
+          profile = np.asarray(particle_radius[name], dtype=np.double)
+          if profile.ndim != 1 or profile.size != nprofile:
+            raise PhotoException("Particle-radius profile for '"+name+"' has the wrong shape.")
+          if not np.all(np.isfinite(profile)) or np.any(profile <= 0.0):
+            raise PhotoException("Particle-radius profile for '"+name+"' must be finite and positive.")
+          particle_radius_[i,:] = profile
+
+    return mix_, particle_radius_
+
   def initialize_atmosphere_z(self, ndarray[double, ndim=1] z,
                               ndarray[double, ndim=1] temperature,
                               ndarray[double, ndim=1] edd,
@@ -129,64 +189,118 @@ cdef class EvoAtmosphere:
     cdef ndarray temperature_ = np.ascontiguousarray(temperature, dtype=np.double)
     cdef ndarray edd_ = np.ascontiguousarray(edd, dtype=np.double)
     cdef int nprofile = z_.size
-    cdef int nq = self.dat.nq
-    cdef int nparticles = self.dat.np
-    cdef ndarray mix_ = np.full((nq,nprofile), default_mix, dtype=np.double, order='F')
-    cdef ndarray particle_radius_ = np.full((nparticles,nprofile), default_particle_radius,
-                                            dtype=np.double, order='F')
-    cdef ndarray explicit_gas_total = np.zeros(nprofile, dtype=np.double)
-    cdef ndarray profile
+    cdef int nq
+    cdef int nparticles
+    cdef ndarray mix_
+    cdef ndarray particle_radius_
     cdef char err[ERR_LEN+1]
-    cdef int i
 
     if temperature_.size != nprofile or edd_.size != nprofile:
       raise PhotoException('z, temperature, and edd must have the same length.')
-    if not np.isfinite(default_mix) or default_mix < 0.0:
-      raise PhotoException('default_mix must be finite and nonnegative.')
-    if nparticles > 0 and (not np.isfinite(default_particle_radius) or
-                           default_particle_radius <= 0.0):
-      raise PhotoException('default_particle_radius must be finite and positive.')
 
-    species_names = self.dat.species_names[:nq]
-    particle_names = species_names[:nparticles]
-    gas_names = species_names[nparticles:]
-    unknown_mix = set(mix) - set(species_names)
-    if unknown_mix:
-      raise PhotoException('Unknown species in mix: '+', '.join(sorted(unknown_mix)))
-    if not (set(mix) & set(gas_names)):
-      raise PhotoException('mix must explicitly contain at least one gas species.')
-
-    for i, name in enumerate(species_names):
-      if name in mix:
-        profile = np.asarray(mix[name], dtype=np.double)
-        if profile.ndim != 1 or profile.size != nprofile:
-          raise PhotoException("Mixing-ratio profile for '"+name+"' has the wrong shape.")
-        if not np.all(np.isfinite(profile)) or np.any(profile < 0.0):
-          raise PhotoException("Mixing-ratio profile for '"+name+"' must be finite and nonnegative.")
-        mix_[i,:] = profile
-        if i >= nparticles:
-          explicit_gas_total += profile
-    if np.any(explicit_gas_total <= 0.0):
-      raise PhotoException('Explicitly supplied gases must have a positive total mixing ratio at every altitude.')
-
-    if particle_radius is not None:
-      unknown_radii = set(particle_radius) - set(particle_names)
-      if unknown_radii:
-        raise PhotoException('Unknown particles in particle_radius: '+', '.join(sorted(unknown_radii)))
-      for i, name in enumerate(particle_names):
-        if name in particle_radius:
-          profile = np.asarray(particle_radius[name], dtype=np.double)
-          if profile.ndim != 1 or profile.size != nprofile:
-            raise PhotoException("Particle-radius profile for '"+name+"' has the wrong shape.")
-          if not np.all(np.isfinite(profile)) or np.any(profile <= 0.0):
-            raise PhotoException("Particle-radius profile for '"+name+"' must be finite and positive.")
-          particle_radius_[i,:] = profile
+    mix_, particle_radius_ = self._prepare_atmosphere_composition(
+      nprofile, mix, particle_radius, default_mix, default_particle_radius
+    )
+    nq = mix_.shape[0]
+    nparticles = particle_radius_.shape[0]
 
     ea_pxd.evoatmosphere_initialize_atmosphere_z_wrapper(
       self._ptr, &nprofile, <double *>z_.data,
       <double *>temperature_.data, <double *>edd_.data, &surface_pressure,
       &nq, <double *>mix_.data, &nparticles,
       <double *>particle_radius_.data, err
+    )
+    if len(err.strip()) > 0:
+      raise PhotoException(err.decode("utf-8").strip())
+
+  def initialize_atmosphere_p(self, ndarray[double, ndim=1] pressure,
+                              ndarray[double, ndim=1] temperature,
+                              ndarray[double, ndim=1] edd, dict mix,
+                              particle_radius=None, bint persistent=False,
+                              tropopause_pressure=None,
+                              double default_mix=1.0e-40,
+                              double default_particle_radius=1.0e-5):
+    """Initialize the atmosphere from pressure-based profiles.
+
+    The pressure profile must be strictly decreasing. Its first and last
+    points define the lower and upper boundaries of the model domain, and the
+    configured planet radius is interpreted at the lower boundary. Altitude
+    is constructed hydrostatically using gas composition only.
+
+    ``mix`` and ``particle_radius`` use the same partial-dictionary convention
+    as :meth:`initialize_atmosphere_z`. Omitted species and particle radii use
+    ``default_mix`` and ``default_particle_radius``, respectively.
+
+    By default, pressure is used only to construct the initial atmosphere. If
+    ``persistent`` is true, temperature and eddy diffusion are retained as
+    functions of hydrostatic pressure and reapplied during every atmospheric
+    preparation. Composition remains part of the evolving ODE state. When gas
+    rainout and persistence are both enabled, ``tropopause_pressure`` is
+    required.
+
+    Successful initialization destroys any active integrator. If
+    initialization fails, the existing atmosphere, persistent profile, and
+    integrator are retained.
+
+    Parameters
+    ----------
+    pressure : ndarray, shape (nprofile,)
+        Strictly decreasing pressure knots in dyn/cm^2, including both domain
+        boundaries.
+    temperature : ndarray, shape (nprofile,)
+        Temperature at each pressure knot in K.
+    edd : ndarray, shape (nprofile,)
+        Eddy diffusion at each pressure knot in cm^2/s.
+    mix : dict[str, ndarray]
+        Mixing-ratio profiles keyed by species name. Unspecified species use
+        ``default_mix``.
+    particle_radius : dict[str, ndarray], optional
+        Particle-radius profiles in cm, keyed by particle name. Unspecified
+        particles use ``default_particle_radius``.
+    persistent : bool, optional
+        Retain temperature and eddy diffusion as functions of hydrostatic
+        pressure. The default is false.
+    tropopause_pressure : float, optional
+        Tropopause pressure in dyn/cm^2. May be supplied only when
+        ``persistent`` is true and is required when gas rainout is enabled.
+    default_mix : float, optional
+        Mixing ratio assigned to species omitted from ``mix``. The default is
+        1.0e-40.
+    default_particle_radius : float, optional
+        Radius in cm assigned to particles omitted from ``particle_radius``.
+        The default is 1.0e-5 cm, matching legacy atmosphere-file behavior.
+    """
+    cdef ndarray pressure_ = np.ascontiguousarray(pressure, dtype=np.double)
+    cdef ndarray temperature_ = np.ascontiguousarray(temperature, dtype=np.double)
+    cdef ndarray edd_ = np.ascontiguousarray(edd, dtype=np.double)
+    cdef int nprofile = pressure_.size
+    cdef int nq
+    cdef int nparticles
+    cdef ndarray mix_
+    cdef ndarray particle_radius_
+    cdef bool persistent_ = persistent
+    cdef double tropopause_pressure_ = 0.0
+    cdef bool tropopause_pressure_present = False
+    cdef char err[ERR_LEN+1]
+
+    if temperature_.size != nprofile or edd_.size != nprofile:
+      raise PhotoException('pressure, temperature, and edd must have the same length.')
+    if tropopause_pressure is not None:
+      tropopause_pressure_present = True
+      tropopause_pressure_ = tropopause_pressure
+
+    mix_, particle_radius_ = self._prepare_atmosphere_composition(
+      nprofile, mix, particle_radius, default_mix, default_particle_radius
+    )
+    nq = mix_.shape[0]
+    nparticles = particle_radius_.shape[0]
+
+    ea_pxd.evoatmosphere_initialize_atmosphere_p_wrapper(
+      self._ptr, &nprofile, <double *>pressure_.data,
+      <double *>temperature_.data, <double *>edd_.data,
+      &nq, <double *>mix_.data, &nparticles,
+      <double *>particle_radius_.data, &persistent_,
+      &tropopause_pressure_, &tropopause_pressure_present, err
     )
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())

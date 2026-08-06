@@ -59,6 +59,62 @@ def test_initialize_atmosphere_z_particles():
     assert np.allclose(pc.var.particle_radius[1:], 1.0e-5)
 
 
+def test_initialize_atmosphere_p_no_particles():
+    pc = EvoAtmosphere(
+        "no_particle_test.yaml",
+        "test_settings_top_atmospherefile.yaml",
+        "../examples/ModernEarth/Sun_now.txt",
+        "../examples/ModernEarth/atmosphere.txt",
+        data_dir="../data",
+    )
+    pressure = np.array([1.0e6, 1.0e5, 1.0e4, 1.0e2])
+    temperature = np.array([300.0, 260.0, 220.0, 180.0])
+    edd = np.array([1.0e5, 3.0e5, 1.0e6, 1.0e7])
+    names = pc.dat.species_names[:pc.dat.nq]
+    dominant_gas = np.argmax(pc.wrk.usol[:, 0])
+    mix = {names[dominant_gas]: np.ones(pressure.size)}
+
+    pc.initialize_atmosphere_p(
+        pressure, temperature, edd, mix, persistent=True
+    )
+
+    assert pc.var.bottom_atmos == 0.0
+    assert pc.var.top_atmos > 0.0
+    assert np.all(np.diff(pc.wrk.pressure_hydro) < 0.0)
+    pc.clear_press_temp_edd_profile()
+
+
+def test_initialize_atmosphere_p_particles():
+    pc = EvoAtmosphere(
+        zahnle_earth,
+        "../examples/ModernEarth/settings.yaml",
+        "../examples/ModernEarth/Sun_now.txt",
+        "../examples/ModernEarth/atmosphere.txt",
+        data_dir="../data",
+    )
+    pressure = np.array([1.0e6, 1.0e5, 1.0e4, 1.0e2])
+    temperature = np.array([300.0, 260.0, 220.0, 180.0])
+    edd = np.array([1.0e5, 3.0e5, 1.0e6, 1.0e7])
+    species_names = pc.dat.species_names[:pc.dat.nq]
+    particle_names = species_names[:pc.dat.np]
+    dominant_gas = pc.dat.np + np.argmax(
+        pc.wrk.usol[pc.dat.np:pc.dat.nq, 0]
+    )
+    mix = {species_names[dominant_gas]: np.ones(pressure.size)}
+    radii = {particle_names[0]: np.full(pressure.size, 2.0e-5)}
+
+    pc.initialize_atmosphere_p(
+        pressure, temperature, edd, mix, particle_radius=radii,
+        persistent=True, tropopause_pressure=1.0e5
+    )
+
+    assert pc.var.top_atmos > 0.0
+    assert np.all(np.isfinite(pc.wrk.usol))
+    assert np.allclose(pc.var.particle_radius[0], 2.0e-5)
+    assert np.allclose(pc.var.particle_radius[1:], 1.0e-5)
+    pc.clear_press_temp_edd_profile()
+
+
 def test_wrapper():
 
     pc = EvoAtmosphere(
@@ -167,6 +223,8 @@ def main():
     test_wrapper()
     test_initialize_atmosphere_z_particles()
     test_initialize_atmosphere_z_no_particles()
+    test_initialize_atmosphere_p_particles()
+    test_initialize_atmosphere_p_no_particles()
 
 if __name__ == "__main__":
     main()

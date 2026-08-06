@@ -94,6 +94,44 @@
     endif
   end subroutine
 
+  subroutine evoatmosphere_initialize_atmosphere_p_wrapper(ptr, nprofile, &
+                                                            pressure, &
+                                                            temperature, edd, &
+                                                            nq, mix, np, &
+                                                            particle_radius, &
+                                                            persistent, trop_p, &
+                                                            trop_p_present, &
+                                                            err) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: nprofile, nq, np
+    real(c_double), intent(in) :: pressure(nprofile), temperature(nprofile)
+    real(c_double), intent(in) :: edd(nprofile)
+    real(c_double), intent(in) :: mix(nq,nprofile), particle_radius(np,nprofile)
+    logical(c_bool), intent(in) :: persistent, trop_p_present
+    real(c_double), intent(in) :: trop_p
+    character(kind=c_char), intent(out) :: err(err_len+1)
+
+    character(:), allocatable :: err_f
+    type(EvoAtmosphere), pointer :: pc
+    logical :: persistent_f
+
+    call c_f_pointer(ptr, pc)
+    persistent_f = persistent
+    if (trop_p_present) then
+      call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                      particle_radius, persistent=persistent_f, &
+                                      trop_p=trop_p, err=err_f)
+    else
+      call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                      particle_radius, persistent=persistent_f, &
+                                      err=err_f)
+    endif
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    endif
+  end subroutine
+
   subroutine evoatmosphere_dat_get(ptr, ptr1) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     type(c_ptr), intent(out) :: ptr1
