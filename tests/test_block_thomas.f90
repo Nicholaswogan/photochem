@@ -18,9 +18,45 @@ program test_block_thomas
   ! solution error near epsilon*condition_number is expected.
   call test_solver(1.0e8_c_double, 5.0e-8_c_double)
   call test_invalid_coupling()
+  call test_cvode_integration()
   print *, 'test_block_thomas passed'
 
 contains
+
+  subroutine test_cvode_integration()
+    use photochem, only: EvoAtmosphere, dp
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp) :: tn
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      error stop 'Unable to initialize the CVODE integration test.'
+    endif
+
+    pc%var%verbose = 0
+    pc%var%use_block_thomas = .true.
+    call pc%initialize_stepper(pc%var%usol_init, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      error stop 'Unable to initialize CVODE with block-Thomas.'
+    endif
+
+    tn = pc%step(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      error stop 'CVODE step with block-Thomas failed.'
+    endif
+    if (.not. (tn > 0.0_dp)) then
+      error stop 'CVODE step with block-Thomas did not advance time.'
+    endif
+
+  end subroutine
 
   subroutine test_solver(scale_range, tolerance)
     integer, parameter :: block_size = 4, nblocks = 6

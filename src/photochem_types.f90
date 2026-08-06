@@ -472,6 +472,9 @@ module photochem_types ! make a giant IO object
     real(c_double) :: max_dt = sqrt(huge(1.0_dp))
     integer(c_int) :: max_err_test_failures = 15 !! CVODE max error test failures
     integer(c_int) :: max_order = 5 !! CVODE max order for BDF method.
+    ! Experimental Fortran-only switch for comparing the structured linear
+    ! solver with SUNDIALS' band solver. The band solver remains the default.
+    logical :: use_block_thomas = .false.
     !> If .true., then the chemistry terms of the Jacobian are computed uses 
     !> foward mode automatic differentiation.
     logical :: autodiff = .true.

@@ -171,6 +171,43 @@ contains
     character(kind=c_char) :: msg(*)
     type(c_ptr), value, intent(in) :: eh_data
   end subroutine
+
+  subroutine setup_cvode_linear_solver(wrk, neqs, block_size, use_block_thomas, err)
+    use, intrinsic :: iso_c_binding, only: c_int, c_int64_t
+    use fcvode_mod, only: FCVodeSetLinearSolver
+    use fsunmatrix_band_mod, only: FSUNBandMatrix
+    use fsunlinsol_band_mod, only: FSUNLinSol_Band
+    use block_thomas_solver, only: FSUNLinSol_BlockThomas
+    type(PhotochemWrkEvo), intent(inout) :: wrk
+    integer(c_int64_t), intent(in) :: neqs
+    integer(c_int64_t), intent(in) :: block_size
+    logical, intent(in) :: use_block_thomas
+    character(:), allocatable, intent(out) :: err
+
+    integer(c_int) :: ierr
+
+    wrk%sun%sunmat => FSUNBandMatrix(neqs, block_size, block_size)
+    if (.not. associated(wrk%sun%sunmat)) then
+      err = "Unable to allocate the CVODE band matrix."
+      return
+    endif
+
+    if (use_block_thomas) then
+      wrk%sun%sunlin => FSUNLinSol_BlockThomas(wrk%sun%sunvec_y, &
+                                               wrk%sun%sunmat, block_size)
+    else
+      wrk%sun%sunlin => FSUNLinSol_Band(wrk%sun%sunvec_y, wrk%sun%sunmat)
+    endif
+    if (.not. associated(wrk%sun%sunlin)) then
+      err = "Unable to allocate the CVODE linear solver."
+      return
+    endif
+
+    ierr = FCVodeSetLinearSolver(wrk%sun%cvode_mem, wrk%sun%sunlin, &
+                                 wrk%sun%sunmat)
+    if (ierr /= 0) err = "CVODE linear solver setup error."
+
+  end subroutine
   
   module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, restart_from_file, err) result(success)
                                    
@@ -213,7 +250,7 @@ contains
     real(c_double) :: usol_new(self%dat%nq,self%var%nz)
     real(c_double), pointer :: yvec_usol(:,:)
     integer(c_int64_t) :: neqs_long
-    integer(c_int64_t) :: mu, ml
+    integer(c_int64_t) :: block_size
     integer(c_long) :: mxsteps_
     real(dp) :: new_atol
     integer :: error_reinit_attempts
@@ -304,8 +341,7 @@ contains
     mxsteps_ = var%mxsteps
     neqs_long = var%neqs
     tcur = tstart
-    mu = dat%nq
-    ml = dat%nq
+    block_size = dat%nq
     new_atol = var%atol
     
     self_ptr => self
@@ -382,14 +418,9 @@ contains
       return
     end if
     
-    wrk%sun%sunmat => FSUNBandMatrix(neqs_long, mu, ml)
-    wrk%sun%sunlin => FSUNLinSol_Band(wrk%sun%sunvec_y, wrk%sun%sunmat)
-    
-    ierr = FCVodeSetLinearSolver(wrk%sun%cvode_mem, wrk%sun%sunlin, wrk%sun%sunmat)
-    if (ierr /= 0) then
-      err = "CVODE setup error."
-      return
-    end if
+    call setup_cvode_linear_solver(wrk, neqs_long, block_size, &
+                                   var%use_block_thomas, err)
+    if (allocated(err)) return
     
     ierr = FCVodeSetJacFn(wrk%sun%cvode_mem, c_funloc(JacFn_evo))
     if (ierr /= 0) then
@@ -782,7 +813,7 @@ contains
     real(c_double) :: tstart
     integer(c_int) :: ierr       ! error flag from C functions
     integer(c_int64_t) :: neqs_long
-    integer(c_int64_t) :: mu, ml
+    integer(c_int64_t) :: block_size
     integer(c_long) :: mxsteps_
     type(c_ptr)    :: user_data
     
@@ -810,8 +841,7 @@ contains
     mxsteps_ = var%mxsteps
     neqs_long = var%neqs
     tstart = 0
-    mu = dat%nq
-    ml = dat%nq
+    block_size = dat%nq
     self_ptr => self
     user_data = c_loc(self_ptr)
 
@@ -896,14 +926,9 @@ contains
       return
     end if
     
-    wrk%sun%sunmat => FSUNBandMatrix(neqs_long, mu, ml)
-    wrk%sun%sunlin => FSUNLinSol_Band(wrk%sun%sunvec_y, wrk%sun%sunmat)
-    
-    ierr = FCVodeSetLinearSolver(wrk%sun%cvode_mem, wrk%sun%sunlin, wrk%sun%sunmat)
-    if (ierr /= 0) then
-      err = "CVODE setup error."
-      return
-    end if
+    call setup_cvode_linear_solver(wrk, neqs_long, block_size, &
+                                   var%use_block_thomas, err)
+    if (allocated(err)) return
     
     ierr = FCVodeSetJacFn(wrk%sun%cvode_mem, c_funloc(JacFn_evo))
     if (ierr /= 0) then
