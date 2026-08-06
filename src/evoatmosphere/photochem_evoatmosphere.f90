@@ -75,13 +75,17 @@ module photochem_evoatmosphere
   end type
   interface EvoAtmosphere
     module procedure :: create_EvoAtmosphere
+    module procedure :: create_EvoAtmosphere_static
   end interface
 
   interface
 
     !~~ photochem_evoatmosphere_init.f90 ~~!
 
-    !> Initializes the photochemical model.
+    !> Construct and initialize a photochemical model from a legacy atmosphere file.
+    !!
+    !! This compatibility constructor performs static model setup and then
+    !! calls [[initialize_from_atmosphere_file]].
     module function create_EvoAtmosphere(mechanism_file, &
                                          settings_file, flux_file, atmosphere_txt, data_dir, err) result(self)
       character(len=*), intent(in) :: mechanism_file !! Path to the reaction mechanism file (yaml format).
@@ -93,6 +97,24 @@ module photochem_evoatmosphere
       character(len=*), intent(in) :: atmosphere_txt
       !> Path to the data directory containing photolysis cross sections and other data
       !> needed to run the model
+      character(len=*), intent(in) :: data_dir
+      character(:), allocatable, intent(out) :: err
+      type(EvoAtmosphere) :: self
+    end function
+
+    !> Construct a photochemical model without initializing an atmosphere.
+    !!
+    !! This reads the mechanism, settings, stellar spectrum, and static optical
+    !! data and allocates arrays whose dimensions are known from those inputs.
+    !! On success, `atmosphere_initialized` is false. Static configuration may
+    !! be inspected or changed, but atmosphere-dependent operations return an
+    !! error until an explicit atmosphere initializer succeeds.
+    module function create_EvoAtmosphere_static(mechanism_file, settings_file, &
+                                                flux_file, data_dir, err) result(self)
+      character(len=*), intent(in) :: mechanism_file !! Path to the reaction mechanism file.
+      character(len=*), intent(in) :: settings_file !! Path to the settings file.
+      character(len=*), intent(in) :: flux_file !! Path to the stellar-flux file.
+      !> Path to the data directory containing photolysis cross sections and other data.
       character(len=*), intent(in) :: data_dir
       character(:), allocatable, intent(out) :: err
       type(EvoAtmosphere) :: self

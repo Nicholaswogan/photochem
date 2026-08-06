@@ -383,9 +383,30 @@ contains
       stop 1
     endif
 
+    ! The static-only constructor succeeds without reading an atmosphere and
+    ! leaves mechanism-sized state available for inspection and configuration.
+    deallocate(err)
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_top_atmospherefile.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../data', &
+                       err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (pc%atmosphere_initialized) then
+      print *, 'static-only construction initialized an atmosphere'
+      stop 1
+    endif
+    if (.not. allocated(pc%dat) .or. .not. allocated(pc%var) .or. &
+        .not. allocated(pc%wrk) .or. pc%dat%nq <= 0 .or. pc%var%nz <= 0) then
+      print *, 'static-only construction did not complete static setup'
+      stop 1
+    endif
+
     ! Static configuration methods remain available before atmosphere
     ! initialization.
-    deallocate(err)
     call pc%set_lower_bc('H2', 'flux', flux=1.0e8_dp, err=err)
     if (allocated(err)) then
       print *, trim(err)
@@ -405,8 +426,7 @@ contains
     call pc%initialize_stepper(pc%var%usol_init, err)
     call check_not_initialized_error(err, 'initialize_stepper')
 
-    ! A configured object can be initialized after construction failed only in
-    ! the atmosphere-dependent phase.
+    ! A statically configured object can be initialized later.
     deallocate(err)
     call pc%initialize_from_atmosphere_file('../examples/ModernEarth/atmosphere.txt', err)
     if (allocated(err)) then
