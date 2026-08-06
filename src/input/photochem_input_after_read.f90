@@ -2,6 +2,178 @@ submodule (photochem_input) photochem_input_after_read
   implicit none
   
 contains
+
+  module subroutine map_atmosphere_z_to_grid(dat, var, z, temperature, &
+                                             edd, surface_pressure, gas_mix, &
+                                             particle_mix, particle_radius, &
+                                             pressure, density, mubar, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use futils, only: interp
+    use photochem_eqns, only: vertical_grid, gravity, press_and_den
+
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    real(dp), intent(in) :: z(:), temperature(:), edd(:)
+    real(dp), intent(in) :: surface_pressure
+    real(dp), intent(in) :: gas_mix(:,:), particle_mix(:,:), particle_radius(:,:)
+    real(dp), intent(out) :: pressure(:), density(:), mubar(:)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), parameter :: mixing_ratio_floor = 1.0e-40_dp
+    real(dp), allocatable :: gas_mix_normalized(:,:), gas_mix_model(:,:), particle_mix_model(:,:)
+    real(dp), allocatable :: interpolation_input(:), interpolation_output(:)
+    real(dp) :: gas_total, z_tolerance
+    integer :: i, j, ierr, nprofile, ngas
+
+    nprofile = size(z)
+    ngas = dat%nq - dat%ng_1 + 1
+
+    if (nprofile < 2) then
+      err = 'Altitude initialization requires at least two profile points.'
+      return
+    endif
+    if (size(temperature) /= nprofile .or. size(edd) /= nprofile) then
+      err = 'Altitude, temperature, and eddy-diffusion profiles must have the same length.'
+      return
+    endif
+    if (size(gas_mix,1) /= ngas .or. size(gas_mix,2) /= nprofile) then
+      err = 'The gas mixing-ratio array has the wrong shape.'
+      return
+    endif
+    if (size(particle_mix,1) /= dat%npq .or. size(particle_mix,2) /= nprofile) then
+      err = 'The particle mixing-ratio array has the wrong shape.'
+      return
+    endif
+    if (size(particle_radius,1) /= dat%npq .or. size(particle_radius,2) /= nprofile) then
+      err = 'The particle-radius array has the wrong shape.'
+      return
+    endif
+
+    if (.not. all(ieee_is_finite(z))) then
+      err = 'Altitude profile contains a nonfinite value.'
+      return
+    endif
+    if (.not. all(ieee_is_finite(temperature)) .or. any(temperature <= 0.0_dp)) then
+      err = 'Temperature profile must contain only finite, positive values.'
+      return
+    endif
+    if (.not. all(ieee_is_finite(edd)) .or. any(edd <= 0.0_dp)) then
+      err = 'Eddy-diffusion profile must contain only finite, positive values.'
+      return
+    endif
+    if (.not. ieee_is_finite(surface_pressure) .or. surface_pressure <= 0.0_dp) then
+      err = 'Surface pressure must be finite and positive.'
+      return
+    endif
+    if (.not. all(ieee_is_finite(gas_mix)) .or. any(gas_mix < 0.0_dp)) then
+      err = 'Gas mixing ratios must contain only finite, nonnegative values.'
+      return
+    endif
+    if (.not. all(ieee_is_finite(particle_mix)) .or. any(particle_mix < 0.0_dp)) then
+      err = 'Particle mixing ratios must contain only finite, nonnegative values.'
+      return
+    endif
+    if (.not. all(ieee_is_finite(particle_radius)) .or. any(particle_radius <= 0.0_dp)) then
+      err = 'Particle radii must contain only finite, positive values.'
+      return
+    endif
+    if (any(z(2:) <= z(:nprofile-1))) then
+      err = 'Altitude profile must be strictly increasing.'
+      return
+    endif
+    z_tolerance = 100.0_dp*epsilon(1.0_dp)*max(1.0_dp, abs(z(nprofile)))
+    if (abs(z(1)) > z_tolerance) then
+      err = 'The first altitude profile point must be zero.'
+      return
+    endif
+    if (dat%gas_rainout .and. var%trop_alt >= z(nprofile)) then
+      err = 'Tropopause altitude must be below the model-top altitude.'
+      return
+    endif
+
+    allocate(gas_mix_normalized(ngas,nprofile))
+    do j = 1,nprofile
+      gas_total = sum(gas_mix(:,j))
+      if (.not. ieee_is_finite(gas_total) .or. gas_total <= 0.0_dp) then
+        err = 'At least one gas mixing ratio must be positive at every altitude.'
+        return
+      endif
+      gas_mix_normalized(:,j) = max(gas_mix(:,j)/gas_total, mixing_ratio_floor)
+      gas_mix_normalized(:,j) = gas_mix_normalized(:,j)/sum(gas_mix_normalized(:,j))
+    enddo
+
+    var%bottom_atmos = 0.0_dp
+    var%top_atmos = z(nprofile)
+    call vertical_grid(var%bottom_atmos, var%top_atmos, var%nz, var%z, var%dz)
+    call gravity(dat%planet_radius, dat%planet_mass, var%nz, var%z, var%grav)
+
+    call interp(var%z, z, temperature, var%temperature, ierr=ierr)
+    if (ierr /= 0) then
+      err = 'Unable to interpolate temperature onto the model grid.'
+      return
+    endif
+
+    allocate(interpolation_input(nprofile), interpolation_output(var%nz))
+    interpolation_input = log10(edd)
+    call interp(var%z, z, interpolation_input, interpolation_output, ierr=ierr)
+    if (ierr /= 0) then
+      err = 'Unable to interpolate eddy diffusion onto the model grid.'
+      return
+    endif
+    var%edd = 10.0_dp**interpolation_output
+
+    allocate(gas_mix_model(ngas,var%nz))
+    do i = 1,ngas
+      interpolation_input = log10(max(gas_mix_normalized(i,:), mixing_ratio_floor))
+      call interp(var%z, z, interpolation_input, interpolation_output, ierr=ierr)
+      if (ierr /= 0) then
+        err = 'Unable to interpolate gas mixing ratios onto the model grid.'
+        return
+      endif
+      gas_mix_model(i,:) = 10.0_dp**interpolation_output
+    enddo
+    do j = 1,var%nz
+      gas_mix_model(:,j) = gas_mix_model(:,j)/sum(gas_mix_model(:,j))
+      mubar(j) = sum(gas_mix_model(:,j)*dat%species_mass(dat%ng_1:dat%nq))
+    enddo
+    call press_and_den(var%nz, var%temperature, var%grav, surface_pressure, &
+                       var%dz, mubar, pressure, density)
+    if (.not. all(ieee_is_finite(pressure)) .or. any(pressure <= 0.0_dp) .or. &
+        .not. all(ieee_is_finite(density)) .or. any(density <= 0.0_dp)) then
+      err = 'Hydrostatic integration produced an invalid pressure or density.'
+      return
+    endif
+
+    var%usol_init = 0.0_dp
+    do i = 1,ngas
+      var%usol_init(dat%ng_1+i-1,:) = gas_mix_model(i,:)*density
+    enddo
+
+    if (dat%npq > 0) then
+      allocate(particle_mix_model(dat%npq,var%nz))
+      do i = 1,dat%npq
+        interpolation_input = log10(max(particle_mix(i,:), mixing_ratio_floor))
+        call interp(var%z, z, interpolation_input, interpolation_output, ierr=ierr)
+        if (ierr /= 0) then
+          err = 'Unable to interpolate particle mixing ratios onto the model grid.'
+          return
+        endif
+        particle_mix_model(i,:) = 10.0_dp**interpolation_output
+        var%usol_init(i,:) = particle_mix_model(i,:)*density
+
+        interpolation_input = log10(particle_radius(i,:))
+        call interp(var%z, z, interpolation_input, interpolation_output, ierr=ierr)
+        if (ierr /= 0) then
+          err = 'Unable to interpolate particle radii onto the model grid.'
+          return
+        endif
+        var%particle_radius(i,:) = 10.0_dp**interpolation_output
+      enddo
+    endif
+
+    var%surface_pressure = surface_pressure/1.0e6_dp
+
+  end subroutine
   
   module subroutine after_read_setup(dat, var, err)
     use photochem_eqns, only: vertical_grid, gravity

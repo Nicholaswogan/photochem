@@ -7,7 +7,7 @@ module photochem_input
   implicit none
   private 
 
-  public :: setup_static, setup_atmosphere_from_file
+  public :: setup_static, setup_atmosphere_from_file, map_atmosphere_z_to_grid
   public :: interp2xsdata, compute_gibbs_energy, interp2particlexsdata, parse_reaction
   
   type, extends(type_list) :: type_list_tmp
@@ -81,6 +81,33 @@ module photochem_input
       use photochem_const, only: smaller_real
       type(PhotochemData), intent(in) :: dat
       type(PhotochemVars), intent(inout) :: var
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Map altitude-based atmospheric inputs onto the model grid and construct
+    !! a hydrostatic initial state. This is an internal initialization kernel;
+    !! species-name handling and transactional model updates are performed by
+    !! EvoAtmosphere.
+    module subroutine map_atmosphere_z_to_grid(dat, var, z, temperature, &
+                                               edd, surface_pressure, gas_mix, &
+                                               particle_mix, particle_radius, &
+                                               pressure, density, mubar, err)
+      type(PhotochemData), intent(in) :: dat
+      type(PhotochemVars), intent(inout) :: var
+      real(dp), intent(in) :: z(:) !! Altitude profile knots (cm), including both domain edges.
+      real(dp), intent(in) :: temperature(:) !! Temperature at `z` (K).
+      real(dp), intent(in) :: edd(:) !! Eddy diffusion at `z` (cm^2/s).
+      real(dp), intent(in) :: surface_pressure !! Pressure at the lower domain edge (dyn/cm^2).
+      !> Evolved-gas mixing ratios in mechanism order
+      !! (`dat%ng_1:dat%nq`) at `z`.
+      real(dp), intent(in) :: gas_mix(:,:)
+      !> Particle mixing ratios in mechanism order (`1:dat%npq`) at `z`.
+      real(dp), intent(in) :: particle_mix(:,:)
+      !> Particle radii in mechanism order (`1:dat%npq`) at `z` (cm).
+      real(dp), intent(in) :: particle_radius(:,:)
+      real(dp), intent(out) :: pressure(:) !! Hydrostatic pressure at model centers (dyn/cm^2).
+      real(dp), intent(out) :: density(:) !! Total gas number density at model centers (molecules/cm^3).
+      real(dp), intent(out) :: mubar(:) !! Gas mean molecular weight at model centers (g/mol).
       character(:), allocatable, intent(out) :: err
     end subroutine
     
