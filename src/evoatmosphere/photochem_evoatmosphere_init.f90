@@ -94,6 +94,69 @@ contains
 
   end subroutine
 
+  module subroutine initialize_atmosphere_z(self, z, temperature, edd, &
+                                            surface_pressure, gas_mix, &
+                                            particle_mix, particle_radius, err)
+    use photochem_input, only: map_atmosphere_z_to_grid
+
+    class(EvoAtmosphere), intent(inout) :: self
+    real(dp), intent(in) :: z(:), temperature(:), edd(:)
+    real(dp), intent(in) :: surface_pressure
+    real(dp), intent(in) :: gas_mix(:,:), particle_mix(:,:), particle_radius(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    type(EvoAtmosphere) :: candidate
+    real(dp), allocatable :: pressure(:), density(:), mubar(:)
+    character(:), allocatable :: destroy_err
+
+    if (.not. allocated(self%dat) .or. .not. allocated(self%var) .or. &
+        .not. allocated(self%wrk)) then
+      err = 'EvoAtmosphere static setup is not complete.'
+      return
+    endif
+
+    allocate(candidate%dat)
+    allocate(candidate%var)
+    allocate(candidate%wrk)
+    candidate%dat = self%dat
+    candidate%var = self%var
+    call clear_legacy_atmosphere_data(candidate%dat)
+    call reset_press_temp_edd_profile(candidate%var)
+    call candidate%wrk%init(candidate%dat%nsp, candidate%dat%np, candidate%dat%nq, &
+                            candidate%var%nz, candidate%dat%nrT, candidate%dat%kj, &
+                            candidate%dat%nw)
+
+    allocate(pressure(candidate%var%nz), density(candidate%var%nz), &
+             mubar(candidate%var%nz))
+    call map_atmosphere_z_to_grid(candidate%dat, candidate%var, z, temperature, &
+                                  edd, surface_pressure, gas_mix, particle_mix, &
+                                  particle_radius, pressure, density, mubar, err)
+    if (allocated(err)) return
+
+    candidate%var%top_atmos_from_file = .false.
+    call candidate%prep_atmosphere_unchecked(candidate%var%usol_init, err)
+    if (allocated(err)) return
+
+    ! Boundary conditions are imposed while preparing the atmosphere. Retain
+    ! that prepared state as the canonical initial condition.
+    candidate%var%usol_init = candidate%wrk%usol
+    candidate%atmosphere_initialized = .true.
+
+    ! Do not disturb the current model or its integrator until the replacement
+    ! atmosphere has been prepared successfully.
+    call self%destroy_stepper(destroy_err)
+    if (allocated(destroy_err)) then
+      err = destroy_err
+      return
+    endif
+
+    call move_alloc(candidate%dat, self%dat)
+    call move_alloc(candidate%var, self%var)
+    call move_alloc(candidate%wrk, self%wrk)
+    self%atmosphere_initialized = .true.
+
+  end subroutine
+
   subroutine clear_legacy_atmosphere_data(dat)
     use photochem_types, only: PhotochemData
 
@@ -105,6 +168,22 @@ contains
     if (allocated(dat%den_file)) deallocate(dat%den_file)
     if (allocated(dat%mix_file)) deallocate(dat%mix_file)
     if (allocated(dat%particle_radius_file)) deallocate(dat%particle_radius_file)
+
+  end subroutine
+
+  module subroutine reset_press_temp_edd_profile(var)
+    type(PhotochemVars), intent(inout) :: var
+
+    var%press_temp_edd_profile%enabled = .false.
+    var%press_temp_edd_profile%hydro_pressure = .true.
+    var%press_temp_edd_profile%has_trop_p = .false.
+    var%press_temp_edd_profile%trop_p = 0.0_dp
+    if (allocated(var%press_temp_edd_profile%pressure)) &
+      deallocate(var%press_temp_edd_profile%pressure)
+    if (allocated(var%press_temp_edd_profile%temperature)) &
+      deallocate(var%press_temp_edd_profile%temperature)
+    if (allocated(var%press_temp_edd_profile%edd)) &
+      deallocate(var%press_temp_edd_profile%edd)
 
   end subroutine
 

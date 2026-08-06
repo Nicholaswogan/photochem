@@ -34,6 +34,7 @@ module photochem_evoatmosphere
   contains
 
     procedure :: initialize_from_atmosphere_file
+    procedure :: initialize_atmosphere_z
     procedure, private :: require_atmosphere_initialized
 
     !~~ photochem_evoatmosphere_rhs.f90 ~~!
@@ -107,6 +108,49 @@ module photochem_evoatmosphere
       class(EvoAtmosphere), intent(inout) :: self
       character(len=*), intent(in) :: atmosphere_txt !! Path to the legacy atmosphere text file.
       character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Initialize atmosphere-dependent model state from altitude-based profiles.
+    !!
+    !! The input altitude points define the lower and upper edges of the model
+    !! domain and must begin at zero. Temperature is interpolated linearly in
+    !! altitude. Eddy diffusion, mixing ratios, and particle radii are
+    !! interpolated in log10 space. Gas mixing ratios are normalized at each
+    !! input point and again on the model grid. Total gas number density is
+    !! derived by hydrostatic integration upward from `surface_pressure`.
+    !!
+    !! Gas and particle rows must follow mechanism order. `gas_mix` contains
+    !! the evolved gases (`dat%ng_1:dat%nq`), while `particle_mix` and
+    !! `particle_radius` contain the particle species (`1:dat%npq`). Fixed
+    !! density and partial-pressure lower boundary conditions override the
+    !! corresponding supplied mixing ratios in the bottom model layer.
+    !!
+    !! This procedure selects altitude-based temperature and eddy-diffusion
+    !! profiles, replacing any persistent pressure-based profile. On success,
+    !! any active integrator is destroyed and the replacement atmosphere is
+    !! committed. If mapping or preparation fails, the existing atmosphere and
+    !! integrator are retained.
+    module subroutine initialize_atmosphere_z(self, z, temperature, edd, &
+                                              surface_pressure, gas_mix, &
+                                              particle_mix, particle_radius, err)
+      class(EvoAtmosphere), intent(inout) :: self
+      real(dp), intent(in) :: z(:) !! Altitude profile knots (cm), including both domain edges.
+      real(dp), intent(in) :: temperature(:) !! Temperature at `z` (K).
+      real(dp), intent(in) :: edd(:) !! Eddy diffusion at `z` (cm^2/s).
+      real(dp), intent(in) :: surface_pressure !! Pressure at the lower domain edge (dyn/cm^2).
+      !> Evolved-gas mixing ratios in mechanism order at `z`.
+      real(dp), intent(in) :: gas_mix(:,:)
+      !> Particle mixing ratios in mechanism order at `z`.
+      real(dp), intent(in) :: particle_mix(:,:)
+      !> Particle radii in mechanism order at `z` (cm).
+      real(dp), intent(in) :: particle_radius(:,:)
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    ! Reset persistent pressure-temperature-eddy profile state without public
+    ! lifecycle or integrator checks.
+    module subroutine reset_press_temp_edd_profile(var)
+      type(PhotochemVars), intent(inout) :: var
     end subroutine
 
     !> Return an error when an operation requires an initialized atmosphere.

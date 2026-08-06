@@ -11,9 +11,190 @@ contains
 
   subroutine test()
     call test_initialization_state()
+    call test_initialize_atmosphere_z()
     call test_top_from_atmosphere_file()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
+  end subroutine
+
+  subroutine test_initialize_atmosphere_z()
+    use iso_c_binding, only: c_associated
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    integer, parameter :: nprofile = 3
+    real(dp), parameter :: surface_pressure = 1.0e6_dp
+    real(dp), parameter :: fixed_H2_density = 2.5e15_dp
+    real(dp) :: z(nprofile), temperature(nprofile), edd(nprofile)
+    real(dp), allocatable :: gas_mix(:,:), particle_mix(:,:), particle_radius(:,:)
+    real(dp), allocatable :: temperature_before(:)
+    real(dp) :: profile_pressure(2), profile_temperature(2), profile_edd(2)
+    real(dp) :: fraction, expected_temperature, expected_log10edd
+    integer :: i, ind_H2, ngas
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_top_atmospherefile.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', &
+                       err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ngas = pc%dat%nq - pc%dat%ng_1 + 1
+    allocate(gas_mix(ngas,nprofile))
+    allocate(particle_mix(pc%dat%npq,nprofile))
+    allocate(particle_radius(pc%dat%npq,nprofile))
+    do i = 1,nprofile
+      gas_mix(:,i) = pc%wrk%mix(pc%dat%ng_1:pc%dat%nq,1)
+    enddo
+
+    z = [0.0_dp, 5.0e6_dp, 1.0e7_dp]
+    temperature = [300.0_dp, 240.0_dp, 180.0_dp]
+    edd = [1.0e5_dp, 1.0e6_dp, 1.0e7_dp]
+
+    ! A failed replacement must retain both atmospheric and CVODE state.
+    profile_pressure = [2.0_dp*maxval(pc%wrk%pressure_hydro), &
+                        0.5_dp*minval(pc%wrk%pressure_hydro)]
+    profile_temperature = [290.0_dp, 180.0_dp]
+    profile_edd = [1.0e5_dp, 1.0e7_dp]
+    call pc%set_press_temp_edd_profile(profile_pressure, profile_temperature, &
+                                       profile_edd, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call pc%initialize_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    temperature_before = pc%var%temperature
+    z(1) = 1.0_dp
+    call pc%initialize_atmosphere_z(z, temperature, edd, surface_pressure, &
+                                    gas_mix, particle_mix, particle_radius, err)
+    if (.not. allocated(err)) then
+      print *, 'invalid altitude initialization did not return an error'
+      stop 1
+    endif
+    if (any(pc%var%temperature /= temperature_before)) then
+      print *, 'failed altitude initialization changed atmospheric state'
+      stop 1
+    endif
+    if (.not. c_associated(pc%wrk%sun%cvode_mem)) then
+      print *, 'failed altitude initialization destroyed the active stepper'
+      stop 1
+    endif
+    if (.not. pc%var%press_temp_edd_profile%enabled) then
+      print *, 'failed altitude initialization changed the persistent profile'
+      stop 1
+    endif
+
+    ! Fixed lower boundary conditions override the supplied bottom mixing
+    ! ratio and are reflected in both prepared and canonical initial state.
+    deallocate(err)
+    call pc%set_lower_bc('H2', 'den', den=fixed_H2_density, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    ind_H2 = findloc(pc%dat%species_names(1:pc%dat%nq), 'H2', 1)
+    z(1) = 0.0_dp
+    call pc%initialize_atmosphere_z(z, temperature, edd, surface_pressure, &
+                                    gas_mix, particle_mix, particle_radius, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    if (.not. pc%atmosphere_initialized) then
+      print *, 'altitude initialization did not set lifecycle state'
+      stop 1
+    endif
+    if (c_associated(pc%wrk%sun%cvode_mem)) then
+      print *, 'successful altitude initialization retained stale CVODE state'
+      stop 1
+    endif
+    if (pc%var%top_atmos_from_file .or. pc%var%top_atmos /= z(nprofile)) then
+      print *, 'altitude initialization did not set the model top'
+      stop 1
+    endif
+    if (pc%var%press_temp_edd_profile%enabled) then
+      print *, 'altitude initialization retained a pressure-based profile'
+      stop 1
+    endif
+    if (pc%wrk%usol(ind_H2,1) /= fixed_H2_density .or. &
+        pc%var%usol_init(ind_H2,1) /= fixed_H2_density) then
+      print *, 'altitude initialization did not apply the fixed-density boundary condition'
+      stop 1
+    endif
+    if (any(pc%var%usol_init /= pc%wrk%usol)) then
+      print *, 'canonical and prepared altitude-initialization states differ'
+      stop 1
+    endif
+    if (any(pc%wrk%pressure_hydro <= 0.0_dp) .or. any(pc%wrk%density_hydro <= 0.0_dp)) then
+      print *, 'altitude initialization produced invalid hydrostatic state'
+      stop 1
+    endif
+
+    do i = 1,pc%var%nz
+      fraction = pc%var%z(i)/z(nprofile)
+      expected_temperature = temperature(1) + fraction*(temperature(nprofile)-temperature(1))
+      expected_log10edd = log10(edd(1)) + fraction*(log10(edd(nprofile))-log10(edd(1)))
+      if (abs(pc%var%temperature(i)-expected_temperature) > 1.0e-10_dp) then
+        print *, 'altitude initialization mapped temperature incorrectly'
+        stop 1
+      endif
+      if (abs(log10(pc%var%edd(i))-expected_log10edd) > 1.0e-10_dp) then
+        print *, 'altitude initialization mapped eddy diffusion incorrectly'
+        stop 1
+      endif
+    enddo
+
+    call test_initialize_atmosphere_z_particles(z, temperature, edd, surface_pressure)
+  end subroutine
+
+  subroutine test_initialize_atmosphere_z_particles(z, temperature, edd, surface_pressure)
+    real(dp), intent(in) :: z(:), temperature(:), edd(:), surface_pressure
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp), allocatable :: gas_mix(:,:), particle_mix(:,:), particle_radius(:,:)
+    integer :: i, ngas, nprofile
+
+    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
+                       '../examples/ModernEarth/settings.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', &
+                       err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    nprofile = size(z)
+    ngas = pc%dat%nq - pc%dat%ng_1 + 1
+    allocate(gas_mix(ngas,nprofile))
+    allocate(particle_mix(pc%dat%npq,nprofile))
+    allocate(particle_radius(pc%dat%npq,nprofile))
+    do i = 1,nprofile
+      gas_mix(:,i) = pc%wrk%mix(pc%dat%ng_1:pc%dat%nq,1)
+      particle_mix(:,i) = pc%wrk%mix(1:pc%dat%npq,1)
+      particle_radius(:,i) = pc%var%particle_radius(:,1)
+    enddo
+
+    call pc%initialize_atmosphere_z(z, temperature, edd, surface_pressure, &
+                                    gas_mix, particle_mix, particle_radius, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (any(pc%var%particle_radius <= 0.0_dp) .or. &
+        any(pc%var%usol_init(1:pc%dat%npq,:) <= 0.0_dp)) then
+      print *, 'particle-bearing altitude initialization produced invalid particle state'
+      stop 1
+    endif
   end subroutine
 
   subroutine test_initialization_state()

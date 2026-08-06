@@ -432,13 +432,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       return
     endif
 
-    self%var%press_temp_edd_profile%enabled = .false.
-    self%var%press_temp_edd_profile%hydro_pressure = .true.
-    self%var%press_temp_edd_profile%has_trop_p = .false.
-    self%var%press_temp_edd_profile%trop_p = 0.0_dp
-    if (allocated(self%var%press_temp_edd_profile%pressure)) deallocate(self%var%press_temp_edd_profile%pressure)
-    if (allocated(self%var%press_temp_edd_profile%temperature)) deallocate(self%var%press_temp_edd_profile%temperature)
-    if (allocated(self%var%press_temp_edd_profile%edd)) deallocate(self%var%press_temp_edd_profile%edd)
+    call reset_press_temp_edd_profile(self%var)
 
   end subroutine
 
