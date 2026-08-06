@@ -15,6 +15,7 @@ set(fppFiles
 fypp_f90("" "${fppFiles}" outFiles)
 
 set(PHOTOCHEM_MODULES
+  block_thomas_solver.f90
   photochem_const.f90
   photochem_radtran.f90 
   photochem_enum.f90
@@ -33,6 +34,7 @@ set(PHOTOCHEM_EVOATMOSPHERE
     evoatmosphere/photochem_evoatmosphere_utils.f90)
 
 set(PHOTOCHEM_SOURCES 
+  block_thomas_solver.c
   ${PHOTOCHEM_MODULES}
   ${PHOTOCHEM_INPUT}
   ${PHOTOCHEM_EVOATMOSPHERE}
@@ -61,7 +63,9 @@ set_property(TARGET photochem PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Add special compiler flags
 if ("${CMAKE_Fortran_COMPILER_ID}" MATCHES "GNU")
-  target_compile_options(photochem PRIVATE -Wunused -Wimplicit-interface -fimplicit-none)
+  target_compile_options(photochem PRIVATE
+    $<$<COMPILE_LANGUAGE:Fortran>:-Wunused;-Wimplicit-interface;-fimplicit-none>
+  )
 endif()
 
 option(BUILD_WITH_OPENMP "Compile with muli-threading" OFF)
