@@ -57,17 +57,8 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!
     dict => root%get_dictionary('atmosphere-grid',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    s%bottom = dict%get_real('bottom',error = io_err)
-    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    s%top = trim(dict%get_string('top',error = io_err))
-    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
     s%nz = dict%get_integer('number-of-layers',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-
-    if (s%bottom /= 0.0_dp) then
-      err = 'The bottom of the atmosphere must be 0.'
-      return
-    endif
 
     if (s%nz < 10) then
       err = "The number of vertical layers must be >= 10"
@@ -196,7 +187,7 @@ contains
         err = "tropopause-altitude must be specified if gas-rainout = true"
         return
       endif
-      if (s%trop_alt < s%bottom) then
+      if (s%trop_alt < 0.0_dp) then
         err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
         return
       endif

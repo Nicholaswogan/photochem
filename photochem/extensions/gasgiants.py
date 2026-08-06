@@ -900,8 +900,6 @@ def composition_at_metallicity(gas, T, P, CtoO, metal, rainout_condensed_atoms =
 SETTINGS_TEMPLATE = \
 """
 atmosphere-grid:
-  bottom: 0.0
-  top: atmospherefile
   number-of-layers: NULL
 
 planet:

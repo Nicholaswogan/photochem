@@ -568,28 +568,13 @@ contains
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
-    integer :: j, i, ind(1), io
+    integer :: j, i, ind(1)
     
     !!!!!!!!!!!!!!!!!!!!!!!
     !!! atmosphere-grid !!!
     !!!!!!!!!!!!!!!!!!!!!!!
-    var%bottom_atmos = s%bottom
-    var%top_atmos_from_file = .false.
-
-    read(s%top,*,iostat = io) var%top_atmos
-    if (io /= 0) then
-      ! it isn't a float
-      if (trim(s%top) == "atmospherefile") then
-        var%top_atmos_from_file = .true.
-      else
-        err = '"top" can only be a number or "atmospherefile". See '//trim(infile)
-        return 
-      endif
-    endif
-    if (.not. var%top_atmos_from_file .and. var%top_atmos < var%bottom_atmos) then
-      err = 'The top of the atmosphere must be bigger than the bottom'
-      return
-    endif
+    var%bottom_atmos = 0.0_dp
+    var%top_atmos = 0.0_dp
     var%nz = s%nz
     
     !!!!!!!!!!!!!!
@@ -2743,9 +2728,9 @@ contains
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
 
-    if (var%top_atmos_from_file) then
-      var%top_atmos = dat%z_file(dat%nzf) + 0.5_dp*(dat%z_file(2) - dat%z_file(1))
-    endif
+    var%bottom_atmos = 0.0_dp
+    var%top_atmos = dat%z_file(dat%nzf) + &
+                    0.5_dp*(dat%z_file(dat%nzf) - dat%z_file(dat%nzf-1))
 
     if (var%top_atmos < var%bottom_atmos) then
       err = 'The top of the atmosphere must be bigger than the bottom'

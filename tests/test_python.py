@@ -8,7 +8,7 @@ from photochem import EvoAtmosphere, PhotoException, zahnle_earth
 def test_static_construction():
     pc = EvoAtmosphere(
         "no_particle_test.yaml",
-        "test_settings_top_atmospherefile.yaml",
+        "test_settings_minimal.yaml",
         "../examples/ModernEarth/Sun_now.txt",
         data_dir="../data",
     )
@@ -61,7 +61,7 @@ def test_gas_giant_static_construction():
 def test_initialize_atmosphere_z_no_particles():
     pc = EvoAtmosphere(
         "no_particle_test.yaml",
-        "test_settings_top_atmospherefile.yaml",
+        "test_settings_minimal.yaml",
         "../examples/ModernEarth/Sun_now.txt",
         "../examples/ModernEarth/atmosphere.txt",
         data_dir="../data",
@@ -115,7 +115,7 @@ def test_initialize_atmosphere_z_particles():
 def test_initialize_atmosphere_p_no_particles():
     pc = EvoAtmosphere(
         "no_particle_test.yaml",
-        "test_settings_top_atmospherefile.yaml",
+        "test_settings_minimal.yaml",
         "../examples/ModernEarth/Sun_now.txt",
         "../examples/ModernEarth/atmosphere.txt",
         data_dir="../data",

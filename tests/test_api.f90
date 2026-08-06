@@ -13,7 +13,7 @@ contains
     call test_initialization_state()
     call test_initialize_atmosphere_z()
     call test_initialize_atmosphere_p()
-    call test_top_from_atmosphere_file()
+    call test_legacy_file_grid()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
   end subroutine
@@ -33,7 +33,7 @@ contains
     integer :: i, ind_H2
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_top_atmospherefile.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
                        '../examples/ModernEarth/Sun_now.txt', &
                        '../examples/ModernEarth/atmosphere.txt', &
                        '../data', &
@@ -115,7 +115,7 @@ contains
       print *, 'successful altitude initialization retained stale CVODE state'
       stop 1
     endif
-    if (pc%var%top_atmos_from_file .or. pc%var%top_atmos /= z(nprofile)) then
+    if (pc%var%top_atmos /= z(nprofile)) then
       print *, 'altitude initialization did not set the model top'
       stop 1
     endif
@@ -167,7 +167,7 @@ contains
     integer :: i
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_top_atmospherefile.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
                        '../examples/ModernEarth/Sun_now.txt', &
                        '../examples/ModernEarth/atmosphere.txt', &
                        '../data', &
@@ -354,7 +354,7 @@ contains
     real(dp) :: profile_pressure(2), profile_temperature(2), profile_edd(2)
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_top_atmospherefile.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
                        '../examples/ModernEarth/Sun_now.txt', &
                        '../examples/ModernEarth/atmosphere.txt', &
                        '../data', &
@@ -369,7 +369,7 @@ contains
     endif
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_top_atmospherefile.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
                        '../examples/ModernEarth/Sun_now.txt', &
                        '../tests/does_not_exist.txt', &
                        '../data', &
@@ -387,7 +387,7 @@ contains
     ! leaves mechanism-sized state available for inspection and configuration.
     deallocate(err)
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_top_atmospherefile.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
                        '../examples/ModernEarth/Sun_now.txt', &
                        '../data', &
                        err)
@@ -520,13 +520,13 @@ contains
     endif
   end subroutine
 
-  subroutine test_top_from_atmosphere_file()
+  subroutine test_legacy_file_grid()
     type(EvoAtmosphere) :: pc
     character(:), allocatable :: err
     real(dp), parameter :: expected_top = 1.0e7_dp
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_top_atmospherefile.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
                        '../examples/ModernEarth/Sun_now.txt', &
                        '../examples/ModernEarth/atmosphere.txt', &
                        '../data', &
@@ -537,16 +537,12 @@ contains
     endif
 
     if (.not. pc%atmosphere_initialized) then
-      print *, 'top: atmospherefile initialization did not set lifecycle state'
+      print *, 'legacy file initialization did not set lifecycle state'
       stop 1
     endif
 
-    if (.not. pc%var%top_atmos_from_file) then
-      print *, 'top: atmospherefile was not retained during static setup'
-      stop 1
-    endif
     if (abs(pc%var%top_atmos - expected_top) > 1.0e-6_dp) then
-      print *, 'top: atmospherefile did not resolve to the atmosphere-file edge'
+      print *, 'legacy file initialization did not use the atmosphere-file edge'
       stop 1
     endif
   end subroutine

@@ -1,6 +1,4 @@
 atmosphere-grid:
-  bottom: 0.0
-  top: 1.0e7
   number-of-layers: 10
 
 planet:

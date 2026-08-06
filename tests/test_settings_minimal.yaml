@@ -1,6 +1,4 @@
 atmosphere-grid:
-  bottom: 0.0
-  top: atmospherefile
   number-of-layers: 20
 
 planet:

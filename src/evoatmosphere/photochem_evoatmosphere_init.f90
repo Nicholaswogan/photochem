@@ -118,7 +118,6 @@ contains
                                   pressure, density, mubar, err)
     if (allocated(err)) return
 
-    candidate%var%top_atmos_from_file = .false.
     call prepare_atmosphere_candidate(candidate, err)
     if (allocated(err)) return
 
@@ -161,7 +160,6 @@ contains
                                   pressure_model, density, mubar, err)
     if (allocated(err)) return
 
-    candidate%var%top_atmos_from_file = .false.
     call prepare_atmosphere_candidate(candidate, err)
     if (allocated(err)) return
 
