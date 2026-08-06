@@ -4,6 +4,30 @@ import numpy as np
 
 from photochem import EvoAtmosphere, zahnle_earth
 
+
+def test_initialize_atmosphere_z_no_particles():
+    pc = EvoAtmosphere(
+        "no_particle_test.yaml",
+        "test_settings_top_atmospherefile.yaml",
+        "../examples/ModernEarth/Sun_now.txt",
+        "../examples/ModernEarth/atmosphere.txt",
+        data_dir="../data",
+    )
+    z = np.array([0.0, 5.0e6, 1.0e7])
+    temperature = np.array([300.0, 240.0, 180.0])
+    edd = np.array([1.0e5, 1.0e6, 1.0e7])
+    names = pc.dat.species_names[:pc.dat.nq]
+    usol = pc.wrk.usol
+    density = np.sum(usol[:, 0])
+    mix = {
+        name: np.full(z.size, usol[i, 0]/density)
+        for i, name in enumerate(names)
+    }
+    pc.initialize_atmosphere_z(z, temperature, edd, 1.0e6, mix)
+    assert pc.dat.np == 0
+    assert pc.var.top_atmos == z[-1]
+    assert np.all(pc.wrk.pressure_hydro > 0.0)
+
 def test_wrapper(pc):
     print(pc.dat.nq)
     print(pc.dat.np)
@@ -68,6 +92,30 @@ def test_wrapper(pc):
     print(pc.wrk.optical_depth[0,0])
     print(pc.wrk.surf_radiance[0])
 
+    # Exercise species-keyed altitude initialization through the Python API.
+    z = np.array([0.0, 5.0e6, 1.0e7])
+    temperature = np.array([300.0, 240.0, 180.0])
+    edd = np.array([1.0e5, 1.0e6, 1.0e7])
+    species_names = pc.dat.species_names[:pc.dat.nq]
+    particle_names = species_names[:pc.dat.np]
+    gas_names = species_names[pc.dat.np:]
+    usol = pc.wrk.usol
+    density = np.sum(usol[pc.dat.np:pc.dat.nq, 0])
+    mix = {
+        name: np.full(z.size, usol[i, 0]/density)
+        for i, name in enumerate(species_names)
+    }
+    radii = {
+        name: np.full(z.size, pc.var.particle_radius[i, 0])
+        for i, name in enumerate(particle_names)
+    }
+    pc.initialize_atmosphere_z(
+        z, temperature, edd, 1.0e6, mix, particle_radius=radii
+    )
+    assert pc.var.top_atmos == z[-1]
+    assert np.all(pc.wrk.pressure_hydro > 0.0)
+    assert set(gas_names).issubset(mix)
+
     pc.prep_atmosphere(pc.wrk.usol)
     pc.out2atmosphere_txt('tmp.txt',overwrite=True)
     pc.gas_fluxes()
@@ -99,6 +147,8 @@ def test_wrapper(pc):
     print(pl.integrated_loss[0])
 
 def main():
+
+    test_initialize_atmosphere_z_no_particles()
 
     pc1 = EvoAtmosphere(zahnle_earth,\
                         "../examples/ModernEarth/settings.yaml",\

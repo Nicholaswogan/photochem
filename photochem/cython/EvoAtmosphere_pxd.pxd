@@ -21,6 +21,11 @@ cdef extern void deallocate_evoatmosphere(EvoAtmosphere *ptr);
 cdef extern void evoatmosphere_create_wrapper(EvoAtmosphere *ptr, char *mechanism_file,
                                             char *settings_file, char *flux_file,
                                             char *atmosphere_txt, char *data_dir, char *err);
+cdef extern void evoatmosphere_initialize_atmosphere_z_wrapper(EvoAtmosphere *ptr, int *nprofile,
+                                            double *z, double *temperature, double *edd,
+                                            double *surface_pressure, int *ngas, double *gas_mix,
+                                            int *np, double *particle_mix, double *particle_radius,
+                                            char *err)
 
 cdef extern void evoatmosphere_dat_get(EvoAtmosphere *ptr, dat_pxd.PhotochemData **ptr1)
 cdef extern void evoatmosphere_var_get(EvoAtmosphere *ptr, var_pxd.PhotochemVars **ptr1)
