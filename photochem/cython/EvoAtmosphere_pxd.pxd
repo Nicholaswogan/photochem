@@ -23,8 +23,8 @@ cdef extern void evoatmosphere_create_wrapper(EvoAtmosphere *ptr, char *mechanis
                                             char *atmosphere_txt, char *data_dir, char *err);
 cdef extern void evoatmosphere_initialize_atmosphere_z_wrapper(EvoAtmosphere *ptr, int *nprofile,
                                             double *z, double *temperature, double *edd,
-                                            double *surface_pressure, int *ngas, double *gas_mix,
-                                            int *np, double *particle_mix, double *particle_radius,
+                                            double *surface_pressure, int *nq, double *mix,
+                                            int *np, double *particle_radius,
                                             char *err)
 
 cdef extern void evoatmosphere_dat_get(EvoAtmosphere *ptr, dat_pxd.PhotochemData **ptr1)

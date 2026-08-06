@@ -70,14 +70,14 @@ contains
   end subroutine
 
   module subroutine initialize_atmosphere_z(self, z, temperature, edd, &
-                                            surface_pressure, gas_mix, &
-                                            particle_mix, particle_radius, err)
+                                            surface_pressure, mix, &
+                                            particle_radius, err)
     use photochem_input, only: map_atmosphere_z_to_grid
 
     class(EvoAtmosphere), intent(inout) :: self
     real(dp), intent(in) :: z(:), temperature(:), edd(:)
     real(dp), intent(in) :: surface_pressure
-    real(dp), intent(in) :: gas_mix(:,:), particle_mix(:,:), particle_radius(:,:)
+    real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
     character(:), allocatable, intent(out) :: err
 
     type(EvoAtmosphere) :: candidate
@@ -91,8 +91,8 @@ contains
     allocate(pressure(candidate%var%nz), density(candidate%var%nz), &
              mubar(candidate%var%nz))
     call map_atmosphere_z_to_grid(candidate%dat, candidate%var, z, temperature, &
-                                  edd, surface_pressure, gas_mix, particle_mix, &
-                                  particle_radius, pressure, density, mubar, err)
+                                  edd, surface_pressure, mix, particle_radius, &
+                                  pressure, density, mubar, err)
     if (allocated(err)) return
 
     candidate%var%top_atmos_from_file = .false.

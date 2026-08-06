@@ -25,11 +25,11 @@ contains
     real(dp), parameter :: surface_pressure = 1.0e6_dp
     real(dp), parameter :: fixed_H2_density = 2.5e15_dp
     real(dp) :: z(nprofile), temperature(nprofile), edd(nprofile)
-    real(dp), allocatable :: gas_mix(:,:), particle_mix(:,:), particle_radius(:,:)
+    real(dp), allocatable :: mix(:,:), particle_radius(:,:)
     real(dp), allocatable :: temperature_before(:)
     real(dp) :: profile_pressure(2), profile_temperature(2), profile_edd(2)
     real(dp) :: fraction, expected_temperature, expected_log10edd
-    integer :: i, ind_H2, ngas
+    integer :: i, ind_H2
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_top_atmospherefile.yaml', &
@@ -42,12 +42,10 @@ contains
       stop 1
     endif
 
-    ngas = pc%dat%nq - pc%dat%ng_1 + 1
-    allocate(gas_mix(ngas,nprofile))
-    allocate(particle_mix(pc%dat%npq,nprofile))
+    allocate(mix(pc%dat%nq,nprofile))
     allocate(particle_radius(pc%dat%npq,nprofile))
     do i = 1,nprofile
-      gas_mix(:,i) = pc%wrk%mix(pc%dat%ng_1:pc%dat%nq,1)
+      mix(:,i) = pc%wrk%mix(1:pc%dat%nq,1)
     enddo
 
     z = [0.0_dp, 5.0e6_dp, 1.0e7_dp]
@@ -73,7 +71,7 @@ contains
     temperature_before = pc%var%temperature
     z(1) = 1.0_dp
     call pc%initialize_atmosphere_z(z, temperature, edd, surface_pressure, &
-                                    gas_mix, particle_mix, particle_radius, err)
+                                    mix, particle_radius, err)
     if (.not. allocated(err)) then
       print *, 'invalid altitude initialization did not return an error'
       stop 1
@@ -102,7 +100,7 @@ contains
     ind_H2 = findloc(pc%dat%species_names(1:pc%dat%nq), 'H2', 1)
     z(1) = 0.0_dp
     call pc%initialize_atmosphere_z(z, temperature, edd, surface_pressure, &
-                                    gas_mix, particle_mix, particle_radius, err)
+                                    mix, particle_radius, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -159,8 +157,8 @@ contains
     real(dp), intent(in) :: z(:), temperature(:), edd(:), surface_pressure
     type(EvoAtmosphere) :: pc
     character(:), allocatable :: err
-    real(dp), allocatable :: gas_mix(:,:), particle_mix(:,:), particle_radius(:,:)
-    integer :: i, ngas, nprofile
+    real(dp), allocatable :: mix(:,:), particle_radius(:,:)
+    integer :: i, nprofile
 
     pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
                        '../examples/ModernEarth/settings.yaml', &
@@ -174,18 +172,15 @@ contains
     endif
 
     nprofile = size(z)
-    ngas = pc%dat%nq - pc%dat%ng_1 + 1
-    allocate(gas_mix(ngas,nprofile))
-    allocate(particle_mix(pc%dat%npq,nprofile))
+    allocate(mix(pc%dat%nq,nprofile))
     allocate(particle_radius(pc%dat%npq,nprofile))
     do i = 1,nprofile
-      gas_mix(:,i) = pc%wrk%mix(pc%dat%ng_1:pc%dat%nq,1)
-      particle_mix(:,i) = pc%wrk%mix(1:pc%dat%npq,1)
+      mix(:,i) = pc%wrk%mix(1:pc%dat%nq,1)
       particle_radius(:,i) = pc%var%particle_radius(:,1)
     enddo
 
     call pc%initialize_atmosphere_z(z, temperature, edd, surface_pressure, &
-                                    gas_mix, particle_mix, particle_radius, err)
+                                    mix, particle_radius, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1

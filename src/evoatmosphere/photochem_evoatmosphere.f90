@@ -119,9 +119,9 @@ module photochem_evoatmosphere
     !! input point and again on the model grid. Total gas number density is
     !! derived by hydrostatic integration upward from `surface_pressure`.
     !!
-    !! Gas and particle rows must follow mechanism order. `gas_mix` contains
-    !! the evolved gases (`dat%ng_1:dat%nq`), while `particle_mix` and
-    !! `particle_radius` contain the particle species (`1:dat%npq`). Fixed
+    !! Rows of `mix` must follow evolved-species order (`1:dat%nq`), matching
+    !! `usol`: particle species first, followed by evolved gases.
+    !! `particle_radius` contains the particle species (`1:dat%npq`). Fixed
     !! density and partial-pressure lower boundary conditions override the
     !! corresponding supplied mixing ratios in the bottom model layer.
     !!
@@ -131,17 +131,15 @@ module photochem_evoatmosphere
     !! committed. If mapping or preparation fails, the existing atmosphere and
     !! integrator are retained.
     module subroutine initialize_atmosphere_z(self, z, temperature, edd, &
-                                              surface_pressure, gas_mix, &
-                                              particle_mix, particle_radius, err)
+                                              surface_pressure, mix, &
+                                              particle_radius, err)
       class(EvoAtmosphere), intent(inout) :: self
       real(dp), intent(in) :: z(:) !! Altitude profile knots (cm), including both domain edges.
       real(dp), intent(in) :: temperature(:) !! Temperature at `z` (K).
       real(dp), intent(in) :: edd(:) !! Eddy diffusion at `z` (cm^2/s).
       real(dp), intent(in) :: surface_pressure !! Pressure at the lower domain edge (dyn/cm^2).
-      !> Evolved-gas mixing ratios in mechanism order at `z`.
-      real(dp), intent(in) :: gas_mix(:,:)
-      !> Particle mixing ratios in mechanism order at `z`.
-      real(dp), intent(in) :: particle_mix(:,:)
+      !> Mixing ratios in evolved-species order at `z`, matching `usol`.
+      real(dp), intent(in) :: mix(:,:)
       !> Particle radii in mechanism order at `z` (cm).
       real(dp), intent(in) :: particle_radius(:,:)
       character(:), allocatable, intent(out) :: err

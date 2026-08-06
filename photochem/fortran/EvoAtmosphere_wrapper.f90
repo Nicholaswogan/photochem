@@ -72,16 +72,14 @@
   subroutine evoatmosphere_initialize_atmosphere_z_wrapper(ptr, nprofile, z, &
                                                             temperature, edd, &
                                                             surface_pressure, &
-                                                            ngas, gas_mix, np, &
-                                                            particle_mix, &
+                                                            nq, mix, np, &
                                                             particle_radius, &
                                                             err) bind(c)
     type(c_ptr), value, intent(in) :: ptr
-    integer(c_int), intent(in) :: nprofile, ngas, np
+    integer(c_int), intent(in) :: nprofile, nq, np
     real(c_double), intent(in) :: z(nprofile), temperature(nprofile), edd(nprofile)
     real(c_double), intent(in) :: surface_pressure
-    real(c_double), intent(in) :: gas_mix(ngas,nprofile)
-    real(c_double), intent(in) :: particle_mix(np,nprofile), particle_radius(np,nprofile)
+    real(c_double), intent(in) :: mix(nq,nprofile), particle_radius(np,nprofile)
     character(kind=c_char), intent(out) :: err(err_len+1)
 
     character(:), allocatable :: err_f
@@ -89,7 +87,7 @@
 
     call c_f_pointer(ptr, pc)
     call pc%initialize_atmosphere_z(z, temperature, edd, surface_pressure, &
-                                    gas_mix, particle_mix, particle_radius, err_f)
+                                    mix, particle_radius, err_f)
     err(1) = c_null_char
     if (allocated(err_f)) then
       call copy_string_ftoc(err_f, err)

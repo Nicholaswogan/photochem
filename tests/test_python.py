@@ -18,11 +18,8 @@ def test_initialize_atmosphere_z_no_particles():
     edd = np.array([1.0e5, 1.0e6, 1.0e7])
     names = pc.dat.species_names[:pc.dat.nq]
     usol = pc.wrk.usol
-    density = np.sum(usol[:, 0])
-    mix = {
-        name: np.full(z.size, usol[i, 0]/density)
-        for i, name in enumerate(names)
-    }
+    dominant_gas = np.argmax(usol[:, 0])
+    mix = {names[dominant_gas]: np.ones(z.size)}
     pc.initialize_atmosphere_z(z, temperature, edd, 1.0e6, mix)
     assert pc.dat.np == 0
     assert pc.var.top_atmos == z[-1]
@@ -98,23 +95,18 @@ def test_wrapper(pc):
     edd = np.array([1.0e5, 1.0e6, 1.0e7])
     species_names = pc.dat.species_names[:pc.dat.nq]
     particle_names = species_names[:pc.dat.np]
-    gas_names = species_names[pc.dat.np:]
     usol = pc.wrk.usol
-    density = np.sum(usol[pc.dat.np:pc.dat.nq, 0])
-    mix = {
-        name: np.full(z.size, usol[i, 0]/density)
-        for i, name in enumerate(species_names)
-    }
-    radii = {
-        name: np.full(z.size, pc.var.particle_radius[i, 0])
-        for i, name in enumerate(particle_names)
-    }
+    dominant_gas = pc.dat.np + np.argmax(usol[pc.dat.np:pc.dat.nq, 0])
+    mix = {species_names[dominant_gas]: np.ones(z.size)}
+    radii = {particle_names[0]: np.full(z.size, 2.0e-5)}
     pc.initialize_atmosphere_z(
         z, temperature, edd, 1.0e6, mix, particle_radius=radii
     )
     assert pc.var.top_atmos == z[-1]
     assert np.all(pc.wrk.pressure_hydro > 0.0)
-    assert set(gas_names).issubset(mix)
+    assert set(mix).isdisjoint(particle_names)
+    assert np.allclose(pc.var.particle_radius[0], 2.0e-5)
+    assert np.allclose(pc.var.particle_radius[1:], 1.0e-5)
 
     pc.prep_atmosphere(pc.wrk.usol)
     pc.out2atmosphere_txt('tmp.txt',overwrite=True)

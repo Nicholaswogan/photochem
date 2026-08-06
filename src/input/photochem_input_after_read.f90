@@ -4,8 +4,8 @@ submodule (photochem_input) photochem_input_after_read
 contains
 
   module subroutine map_atmosphere_z_to_grid(dat, var, z, temperature, &
-                                             edd, surface_pressure, gas_mix, &
-                                             particle_mix, particle_radius, &
+                                             edd, surface_pressure, mix, &
+                                             particle_radius, &
                                              pressure, density, mubar, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use futils, only: interp
@@ -15,7 +15,7 @@ contains
     type(PhotochemVars), intent(inout) :: var
     real(dp), intent(in) :: z(:), temperature(:), edd(:)
     real(dp), intent(in) :: surface_pressure
-    real(dp), intent(in) :: gas_mix(:,:), particle_mix(:,:), particle_radius(:,:)
+    real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
     real(dp), intent(out) :: pressure(:), density(:), mubar(:)
     character(:), allocatable, intent(out) :: err
 
@@ -36,12 +36,8 @@ contains
       err = 'Altitude, temperature, and eddy-diffusion profiles must have the same length.'
       return
     endif
-    if (size(gas_mix,1) /= ngas .or. size(gas_mix,2) /= nprofile) then
-      err = 'The gas mixing-ratio array has the wrong shape.'
-      return
-    endif
-    if (size(particle_mix,1) /= dat%npq .or. size(particle_mix,2) /= nprofile) then
-      err = 'The particle mixing-ratio array has the wrong shape.'
+    if (size(mix,1) /= dat%nq .or. size(mix,2) /= nprofile) then
+      err = 'The mixing-ratio array has the wrong shape.'
       return
     endif
     if (size(particle_radius,1) /= dat%npq .or. size(particle_radius,2) /= nprofile) then
@@ -65,12 +61,8 @@ contains
       err = 'Surface pressure must be finite and positive.'
       return
     endif
-    if (.not. all(ieee_is_finite(gas_mix)) .or. any(gas_mix < 0.0_dp)) then
-      err = 'Gas mixing ratios must contain only finite, nonnegative values.'
-      return
-    endif
-    if (.not. all(ieee_is_finite(particle_mix)) .or. any(particle_mix < 0.0_dp)) then
-      err = 'Particle mixing ratios must contain only finite, nonnegative values.'
+    if (.not. all(ieee_is_finite(mix)) .or. any(mix < 0.0_dp)) then
+      err = 'Mixing ratios must contain only finite, nonnegative values.'
       return
     endif
     if (.not. all(ieee_is_finite(particle_radius)) .or. any(particle_radius <= 0.0_dp)) then
@@ -93,12 +85,12 @@ contains
 
     allocate(gas_mix_normalized(ngas,nprofile))
     do j = 1,nprofile
-      gas_total = sum(gas_mix(:,j))
+      gas_total = sum(mix(dat%ng_1:dat%nq,j))
       if (.not. ieee_is_finite(gas_total) .or. gas_total <= 0.0_dp) then
         err = 'At least one gas mixing ratio must be positive at every altitude.'
         return
       endif
-      gas_mix_normalized(:,j) = max(gas_mix(:,j)/gas_total, mixing_ratio_floor)
+      gas_mix_normalized(:,j) = max(mix(dat%ng_1:dat%nq,j)/gas_total, mixing_ratio_floor)
       gas_mix_normalized(:,j) = gas_mix_normalized(:,j)/sum(gas_mix_normalized(:,j))
     enddo
 
@@ -152,7 +144,7 @@ contains
     if (dat%npq > 0) then
       allocate(particle_mix_model(dat%npq,var%nz))
       do i = 1,dat%npq
-        interpolation_input = log10(max(particle_mix(i,:), mixing_ratio_floor))
+        interpolation_input = log10(max(mix(i,:), mixing_ratio_floor))
         call interp(var%z, z, interpolation_input, interpolation_output, ierr=ierr)
         if (ierr /= 0) then
           err = 'Unable to interpolate particle mixing ratios onto the model grid.'

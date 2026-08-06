@@ -89,8 +89,8 @@ module photochem_input
     !! species-name handling and transactional model updates are performed by
     !! EvoAtmosphere.
     module subroutine map_atmosphere_z_to_grid(dat, var, z, temperature, &
-                                               edd, surface_pressure, gas_mix, &
-                                               particle_mix, particle_radius, &
+                                               edd, surface_pressure, mix, &
+                                               particle_radius, &
                                                pressure, density, mubar, err)
       type(PhotochemData), intent(in) :: dat
       type(PhotochemVars), intent(inout) :: var
@@ -98,11 +98,10 @@ module photochem_input
       real(dp), intent(in) :: temperature(:) !! Temperature at `z` (K).
       real(dp), intent(in) :: edd(:) !! Eddy diffusion at `z` (cm^2/s).
       real(dp), intent(in) :: surface_pressure !! Pressure at the lower domain edge (dyn/cm^2).
-      !> Evolved-gas mixing ratios in mechanism order
-      !! (`dat%ng_1:dat%nq`) at `z`.
-      real(dp), intent(in) :: gas_mix(:,:)
-      !> Particle mixing ratios in mechanism order (`1:dat%npq`) at `z`.
-      real(dp), intent(in) :: particle_mix(:,:)
+      !> Mixing ratios in evolved-species order (`1:dat%nq`) at `z`.
+      !! Particle species precede evolved gases, matching the first dimension
+      !! of `usol`.
+      real(dp), intent(in) :: mix(:,:)
       !> Particle radii in mechanism order (`1:dat%npq`) at `z` (cm).
       real(dp), intent(in) :: particle_radius(:,:)
       real(dp), intent(out) :: pressure(:) !! Hydrostatic pressure at model centers (dyn/cm^2).
