@@ -22,4 +22,8 @@ if (BUILD_EXECUTABLES)
     target_link_libraries(${PHOTOCHEM_TEST} photochem)
     target_include_directories(${PHOTOCHEM_TEST} PUBLIC ${CMAKE_Fortran_MODULE_DIRECTORY})
   endforeach()
+
+  add_executable(benchmark_block_thomas benchmark_block_thomas.f90)
+  target_link_libraries(benchmark_block_thomas photochem)
+  target_include_directories(benchmark_block_thomas PUBLIC ${CMAKE_Fortran_MODULE_DIRECTORY})
 endif()
