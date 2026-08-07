@@ -178,6 +178,8 @@ contains
   subroutine test_toa_pressure_maintenance_settings()
     type(EvoAtmosphere) :: pc
     character(:), allocatable :: err
+    real(dp) :: P(2), T(2), edd(2), P_bad(2)
+    real(dp) :: target_before, target_explicit
 
     pc = make_pressure_test_model(err)
     if (allocated(err)) then
@@ -212,6 +214,90 @@ contains
       stop 1
     endif
     deallocate(err)
+
+    ! Setting a persistent pressure profile enables maintenance by default and
+    ! uses the standard 0.1 dynes/cm^2 target.
+    pc = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    P = [2.0_dp*pc%var%surface_pressure*1.0e6_dp, &
+         0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
+    T = [300.0_dp, 180.0_dp]
+    edd = [3.0e7_dp, 4.0e5_dp]
+    call pc%set_press_temp_edd_profile(P, T, edd, &
+         hydro_pressure=.true., err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    target_before = pc%wrk%pressure(pc%var%nz)
+    if (.not.pc%var%toa_pressure_maintenance%enabled .or. &
+        pc%var%toa_pressure_maintenance%target_pressure /= 0.1_dp) then
+      print *, 'Persistent profile did not initialize default TOA maintenance'
+      stop 1
+    endif
+
+    ! An explicitly supplied target overrides the current pressure baseline.
+    target_explicit = 0.75_dp*target_before
+    call pc%set_press_temp_edd_profile(P, T, edd, &
+         hydro_pressure=.true., target_pressure=target_explicit, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not.pc%var%toa_pressure_maintenance%enabled .or. &
+        pc%var%toa_pressure_maintenance%target_pressure /= target_explicit) then
+      print *, 'Explicit TOA maintenance target was not installed'
+      stop 1
+    endif
+
+    call pc%set_press_temp_edd_profile(P, T, edd, &
+         target_pressure=0.0_dp, err=err)
+    if (.not.allocated(err) .or. .not.pc%var%press_temp_edd_profile%enabled .or. &
+        .not.pc%var%toa_pressure_maintenance%enabled .or. &
+        pc%var%toa_pressure_maintenance%target_pressure /= target_explicit) then
+      print *, 'Invalid TOA maintenance target changed model state'
+      stop 1
+    endif
+    deallocate(err)
+
+    ! A failed profile replacement must preserve the existing profile and
+    ! maintenance state, including its target.
+    P_bad = [P(2), P(1)]
+    call pc%set_press_temp_edd_profile(P_bad, T, edd, &
+         maintain_toa_pressure=.false., err=err)
+    if (.not.allocated(err) .or. .not.pc%var%press_temp_edd_profile%enabled .or. &
+        .not.pc%var%toa_pressure_maintenance%enabled .or. &
+        pc%var%toa_pressure_maintenance%target_pressure /= target_explicit) then
+      print *, 'Failed profile replacement changed TOA maintenance state'
+      stop 1
+    endif
+    deallocate(err)
+
+    ! Explicitly disabling maintenance leaves the persistent profile enabled.
+    call pc%set_press_temp_edd_profile(P, T, edd, &
+         hydro_pressure=.true., maintain_toa_pressure=.false., err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (pc%var%toa_pressure_maintenance%enabled .or. &
+        .not.pc%var%press_temp_edd_profile%enabled) then
+      print *, 'Explicitly disabled TOA maintenance was not honored'
+      stop 1
+    endif
+
+    call pc%clear_press_temp_edd_profile(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (pc%var%toa_pressure_maintenance%enabled) then
+      print *, 'Clearing the persistent profile left TOA maintenance enabled'
+      stop 1
+    endif
 
   end subroutine
 

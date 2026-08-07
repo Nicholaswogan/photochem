@@ -375,17 +375,22 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
   end subroutine
 
-  module subroutine set_press_temp_edd_profile(self, P, T, edd, trop_p, hydro_pressure, err)
+  module subroutine set_press_temp_edd_profile(self, P, T, edd, trop_p, hydro_pressure, &
+                                               maintain_toa_pressure, target_pressure, err)
     use iso_c_binding, only: c_associated
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: P(:)
     real(dp), intent(in) :: T(:)
     real(dp), intent(in) :: edd(:)
     real(dp), optional, intent(in) :: trop_p
     logical, optional, intent(in) :: hydro_pressure
+    logical, optional, intent(in) :: maintain_toa_pressure
+    real(dp), optional, intent(in) :: target_pressure
     character(:), allocatable, intent(out) :: err
 
     type(PhotochemVars) :: var_save
+    logical :: maintain_toa_pressure_
 
     call self%require_atmosphere_initialized('set_press_temp_edd_profile', err)
     if (allocated(err)) return
@@ -394,6 +399,15 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       err = "Can not set a persistent pressure-temperature-eddy profile while "// &
             "a stepper is initialized. Call 'destroy_stepper' first."
       return
+    endif
+
+    maintain_toa_pressure_ = .true.
+    if (present(maintain_toa_pressure)) maintain_toa_pressure_ = maintain_toa_pressure
+    if (present(target_pressure)) then
+      if (.not.ieee_is_finite(target_pressure) .or. target_pressure <= 0.0_dp) then
+        err = '`target_pressure` must be finite and positive.'
+        return
+      endif
     endif
 
     var_save = self%var
@@ -420,6 +434,18 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     if (allocated(err)) then
       self%var = var_save
       return
+    endif
+
+    ! The profile is now committed. Couple TOA maintenance to the same
+    ! successful profile installation, using the requested target or the
+    ! standard default when the caller did not provide one.
+    self%var%toa_pressure_maintenance%enabled = maintain_toa_pressure_
+    if (maintain_toa_pressure_) then
+      if (present(target_pressure)) then
+        self%var%toa_pressure_maintenance%target_pressure = target_pressure
+      else
+        self%var%toa_pressure_maintenance%target_pressure = 0.1_dp
+      endif
     endif
 
   end subroutine

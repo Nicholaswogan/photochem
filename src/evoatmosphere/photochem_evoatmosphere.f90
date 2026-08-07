@@ -625,12 +625,17 @@ module photochem_evoatmosphere
     !! When `trop_p` is supplied, the mapped pressure must decrease strictly
     !! with altitude so the tropopause altitude is unambiguous.
     !!
+    !! A persistent pressure profile enables TOA-pressure maintenance by
+    !! default. Supply `maintain_toa_pressure=.false.` to disable it, or
+    !! supply `target_pressure` (dynes/cm^2) to choose an explicit target;
+    !! when omitted, a target of 0.1 dynes/cm^2 is used.
     !! This procedure cannot be called while a CVODE stepper is initialized.
     !! Call `destroy_stepper` first. While the persistent mode is enabled,
     !! `set_temperature` and `set_press_temp_edd` cannot be used; call
     !! `clear_press_temp_edd_profile` first. Vertical-grid updates preserve and
     !! remap the persistent profiles.
-    module subroutine set_press_temp_edd_profile(self, P, T, edd, trop_p, hydro_pressure, err)
+    module subroutine set_press_temp_edd_profile(self, P, T, edd, trop_p, hydro_pressure, &
+                                                 maintain_toa_pressure, target_pressure, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dynes/cm^2)
       real(dp), intent(in) :: T(:) !! Temperature corresponding to `P` (K)
@@ -640,6 +645,11 @@ module photochem_evoatmosphere
       !> If .true., use hydrostatic pressure. If .false., use actual gas
       !! pressure, `density*k_boltz*T`. Default is .true..
       logical, optional, intent(in) :: hydro_pressure
+      !> Enable automatic TOA-pressure maintenance. Default is .true..
+      logical, optional, intent(in) :: maintain_toa_pressure
+      !> Explicit TOA-pressure maintenance target (dynes/cm^2). If omitted
+      !! while maintenance is enabled, 0.1 dynes/cm^2 is used.
+      real(dp), optional, intent(in) :: target_pressure
       !> Allocated with an error message if the profiles are invalid, cannot be
       !! mapped, or a CVODE stepper is currently initialized.
       character(:), allocatable, intent(out) :: err
