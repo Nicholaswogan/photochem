@@ -6,6 +6,21 @@ module photochem_evoatmosphere
   private
   public :: EvoAtmosphere
 
+  ! Candidate state for a vertical-grid update. Construction of this object
+  ! does not mutate the live model; later passes will extend it to stage all
+  ! derived state needed for an atomic commit.
+  type :: VerticalGridCandidate
+    real(dp) :: top_atmos = 0.0_dp
+    real(dp), allocatable :: z(:)
+    real(dp), allocatable :: dz(:)
+    real(dp), allocatable :: grav(:)
+    real(dp), allocatable :: temperature(:)
+    real(dp), allocatable :: edd(:)
+    real(dp), allocatable :: usol(:,:)
+    real(dp), allocatable :: particle_radius(:,:)
+    real(dp), allocatable :: pressure(:)
+  end type
+
   type :: EvoAtmosphere
     type(PhotochemData), allocatable :: dat
     type(PhotochemVars), allocatable :: var

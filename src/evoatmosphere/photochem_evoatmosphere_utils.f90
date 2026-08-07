@@ -945,56 +945,31 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
   end function
 
   function pressure_at_TOA(self, usol, top_atmos_new, err) result(TOA_pressure)
-    class(EvoAtmosphere), target, intent(inout) :: self
+    class(EvoAtmosphere), target, intent(in) :: self
     real(dp), intent(in) :: usol(:,:)
     real(dp), intent(in) :: top_atmos_new !! cm
     character(:), allocatable, intent(out) :: err
     real(dp) :: TOA_pressure !! dynes/cm^2
 
-    real(dp), allocatable :: usol_new(:,:)
-    real(dp), allocatable :: z_new(:), dz_new(:), grav_new(:)
-    real(dp), allocatable :: temperature_new(:), edd_new(:), particle_radius_new(:,:)
-    real(dp), allocatable :: pressure_new(:)
+    type(VerticalGridCandidate) :: candidate
 
-    type(PhotochemData), pointer :: dat
-    type(PhotochemVars), pointer :: var
-
-    dat => self%dat
-    var => self%var
-
-    ! Allocate
-    allocate(usol_new(dat%nq,var%nz))
-    allocate(z_new(var%nz),dz_new(var%nz),grav_new(var%nz))
-    allocate(temperature_new(var%nz),edd_new(var%nz), particle_radius_new(dat%np,var%nz))
-    allocate(pressure_new(var%nz))
-
-    call properties_for_new_TOA(self, usol, top_atmos_new, &
-      z_new, dz_new, grav_new, temperature_new, edd_new, usol_new, &
-      particle_radius_new, pressure_new, err)
+    call build_vertical_grid_candidate(self, usol, top_atmos_new, candidate, err)
     if (allocated(err)) return
 
-    TOA_pressure = pressure_new(var%nz)
+    TOA_pressure = candidate%pressure(self%var%nz)
 
   end function
 
-  subroutine properties_for_new_TOA(self, usol, top_atmos_new, &
-                              z_new, dz_new, grav_new, temperature_new, edd_new, usol_new, &
-                              particle_radius_new, pressure_new, err)
+  subroutine build_vertical_grid_candidate(self, usol, top_atmos_new, candidate, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use photochem_enum, only: DensityBC, PressureBC
     use futils, only: interp
-    use photochem_eqns, only: vertical_grid, press_and_den, gravity
+    use photochem_eqns, only: vertical_grid, gravity
     use photochem_const, only: small_real, k_boltz
-    class(EvoAtmosphere), target, intent(inout) :: self
+    class(EvoAtmosphere), target, intent(in) :: self
     real(dp), intent(in) :: usol(:,:)
     real(dp), intent(in) :: top_atmos_new !! cm
-    real(dp), intent(out) :: z_new(:)
-    real(dp), intent(out) :: dz_new(:)
-    real(dp), intent(out) :: grav_new(:)
-    real(dp), intent(out) :: temperature_new(:)
-    real(dp), intent(out) :: edd_new(:)
-    real(dp), intent(out) :: usol_new(:,:)
-    real(dp), intent(out) :: particle_radius_new(:,:)
-    real(dp), intent(out) :: pressure_new(:)
+    type(VerticalGridCandidate), intent(out) :: candidate
     character(:), allocatable, intent(out) :: err
 
     real(dp) :: Psat
@@ -1008,102 +983,160 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     dat => self%dat
     var => self%var
 
-    ! Allocate
+    if (.not.ieee_is_finite(top_atmos_new) .or. top_atmos_new <= var%bottom_atmos) then
+      err = 'The candidate TOA altitude must be finite and above the model bottom.'
+      return
+    endif
+    if (size(usol,1) /= dat%nq .or. size(usol,2) /= var%nz) then
+      err = 'The candidate regrid state has the wrong dimensions.'
+      return
+    endif
+    if (.not.all(ieee_is_finite(usol))) then
+      err = 'The candidate regrid state must be finite.'
+      return
+    endif
+
+    candidate%top_atmos = top_atmos_new
+    allocate(candidate%usol(dat%nq,var%nz))
+    allocate(candidate%z(var%nz),candidate%dz(var%nz),candidate%grav(var%nz))
+    allocate(candidate%temperature(var%nz),candidate%edd(var%nz))
+    allocate(candidate%particle_radius(dat%np,var%nz))
+    allocate(candidate%pressure(var%nz))
     allocate(mix(dat%nq,var%nz), mix_new(dat%nq,var%nz))
     allocate(density(var%nz),density_new(var%nz))
 
     ! Remake the vertical grid and gravity
     call vertical_grid(var%bottom_atmos, top_atmos_new, &
-                      var%nz, z_new, dz_new)
+                      var%nz, candidate%z, candidate%dz)
     call gravity(dat%planet_radius, dat%planet_mass, &
-                var%nz, z_new, grav_new)
+                var%nz, candidate%z, candidate%grav)
+    if (.not.all(ieee_is_finite(candidate%z)) .or. &
+        .not.all(ieee_is_finite(candidate%dz)) .or. &
+        .not.all(ieee_is_finite(candidate%grav)) .or. &
+        any(candidate%dz <= 0.0_dp) .or. any(candidate%grav <= 0.0_dp)) then
+      err = 'The candidate TOA altitude produced invalid grid geometry or gravity.'
+      return
+    endif
 
     ! Temperature
-    call interp(var%nz, var%nz, z_new, var%z, var%temperature, temperature_new, ierr)
+    call interp(candidate%z, var%z, var%temperature, candidate%temperature, ierr=ierr)
     if (ierr /= 0) then
-      err = 'Subroutine interp returned an error.'
+      err = 'Temperature interpolation failed while constructing a candidate vertical grid.'
       return
     endif
 
     ! Eddy diffusion
-    call interp(var%nz, var%nz, z_new, var%z, log10(max(var%edd,1.0e-40_dp)), edd_new, ierr)
+    call interp(candidate%z, var%z, log10(max(var%edd,1.0e-40_dp)), &
+                candidate%edd, ierr=ierr)
     if (ierr /= 0) then
-      err = 'Subroutine interp returned an error.'
+      err = 'Eddy-diffusion interpolation failed while constructing a candidate vertical grid.'
       return
     endif
-    edd_new = 10.0_dp**edd_new
+    candidate%edd = 10.0_dp**candidate%edd
+    if (.not.all(ieee_is_finite(candidate%temperature)) .or. &
+        any(candidate%temperature <= 0.0_dp) .or. &
+        .not.all(ieee_is_finite(candidate%edd)) .or. any(candidate%edd <= 0.0_dp)) then
+      err = 'The candidate vertical grid produced invalid temperature or eddy diffusion.'
+      return
+    endif
 
     ! determine mixing ratios and density
     do j = 1,var%nz
       density(j) = sum(usol(dat%ng_1:,j))
+      if (.not.ieee_is_finite(density(j)) .or. density(j) <= 0.0_dp) then
+        err = 'Gas density must be finite and positive to construct a candidate vertical grid.'
+        return
+      endif
       mix(:,j) = usol(:,j)/density(j) ! mixing ratios
     enddo
     ! Interpolate mixing ratios, with constant extrapolation
     do i = 1,dat%nq
-      call interp(z_new, var%z, log10(max(mix(i,:),small_real)), mix_new(i,:), ierr=ierr)
+      call interp(candidate%z, var%z, log10(max(mix(i,:),small_real)), &
+                  mix_new(i,:), ierr=ierr)
       if (ierr /= 0) then
-        err = 'Subroutine interp returned an error.'
+        err = 'Mixing-ratio interpolation failed while constructing a candidate vertical grid.'
         return
       endif
     enddo
     mix_new = 10.0_dp**mix_new
+    if (.not.all(ieee_is_finite(mix_new))) then
+      err = 'The candidate vertical grid produced nonfinite mixing ratios.'
+      return
+    endif
 
     ! Interpolate density, with linear extrapolation
-    call interp(z_new, var%z, log10(density), density_new, linear_extrap=.true., ierr=ierr)
+    call interp(candidate%z, var%z, log10(density), density_new, &
+                linear_extrap=.true., ierr=ierr)
     if (ierr /= 0) then
-      err = 'Subroutine interp returned an error.'
+      err = 'Gas-density interpolation failed while constructing a candidate vertical grid.'
       return
     endif
     density_new = 10.0_dp**density_new
+    if (.not.all(ieee_is_finite(density_new)) .or. any(density_new <= 0.0_dp)) then
+      err = 'The candidate vertical grid produced invalid gas density.'
+      return
+    endif
 
     ! Compute usol_new with mixing ratios and densities
     do i = 1,var%nz
-      usol_new(:,i) = mix_new(:,i)*density_new(i)
+      candidate%usol(:,i) = mix_new(:,i)*density_new(i)
     enddo 
 
     ! Particle radii
     if (dat%there_are_particles) then
       do i = 1,dat%npq
-        call interp(var%nz, var%nz, z_new, var%z, &
-                    log10(max(var%particle_radius(i,:),small_real)), particle_radius_new(i,:), ierr)
+        call interp(candidate%z, var%z, &
+                    log10(max(var%particle_radius(i,:),small_real)), &
+                    candidate%particle_radius(i,:), ierr=ierr)
         if (ierr /= 0) then
-          err = 'Subroutine interp returned an error.'
+          err = 'Particle-radius interpolation failed while constructing a candidate vertical grid.'
           return
         endif
       enddo
-      particle_radius_new = 10.0_dp**particle_radius_new
+      candidate%particle_radius = 10.0_dp**candidate%particle_radius
+      if (.not.all(ieee_is_finite(candidate%particle_radius)) .or. &
+          any(candidate%particle_radius <= 0.0_dp)) then
+        err = 'The candidate vertical grid produced invalid particle radii.'
+        return
+      endif
     endif
 
     ! Account for fixed surface mixing ratios
     do i = 1,dat%nq
       if (var%lowerboundcond(i) == DensityBC) then
-        usol_new(i,1) = var%lower_fix_den(i)
+        candidate%usol(i,1) = var%lower_fix_den(i)
       elseif (var%lowerboundcond(i) == PressureBC) then
         Psat = huge(1.0_dp)
         if (dat%gas_particle_ind(i) /= 0) then
           j = dat%gas_particle_ind(i)
           Psat = dat%particle_sat(j)%sat_pressure(var%temperature(1))*var%cond_params(j)%RHc
         endif
-        usol_new(i,1) = min(var%lower_fix_press(i), Psat)/(k_boltz*temperature_new(1))
+        candidate%usol(i,1) = min(var%lower_fix_press(i), Psat)/ &
+                              (k_boltz*candidate%temperature(1))
       endif
     enddo
 
-    pressure_new = density_new*k_boltz*temperature_new
+    candidate%pressure = density_new*k_boltz*candidate%temperature
+    if (.not.all(ieee_is_finite(candidate%usol)) .or. &
+        .not.all(ieee_is_finite(candidate%pressure)) .or. &
+        any(candidate%pressure <= 0.0_dp)) then
+      err = 'The candidate vertical grid produced invalid composition or pressure.'
+      return
+    endif
 
   end subroutine
 
 
   module subroutine update_vertical_grid(self, TOA_alt, TOA_pressure, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use photochem_input, only: interp2particlexsdata
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), optional, intent(in) :: TOA_alt !! cm
     real(dp), optional, intent(in) :: TOA_pressure !! dynes/cm^2
     character(:), allocatable, intent(out) :: err
 
-    real(dp), allocatable :: usol_new(:,:)
-    real(dp), allocatable :: z_new(:), dz_new(:), grav_new(:)
-    real(dp), allocatable :: temperature_new(:), edd_new(:), particle_radius_new(:,:)
-    real(dp), allocatable :: pressure_new(:)
+    real(dp) :: top_atmos_new
+    type(VerticalGridCandidate) :: candidate
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -1126,48 +1159,40 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     endif
 
     if (present(TOA_alt)) then
-      if (TOA_alt < 0.0_dp) then
-        err = '"TOA_alt" must be positive.'
+      if (.not.ieee_is_finite(TOA_alt) .or. TOA_alt <= var%bottom_atmos) then
+        err = '"TOA_alt" must be finite and greater than the model bottom.'
         return
       endif
     endif
 
     if (present(TOA_pressure)) then
-      if (TOA_pressure < 0.0_dp) then
-        err = '"TOA_pressure" must be positive.'
+      if (.not.ieee_is_finite(TOA_pressure) .or. TOA_pressure <= 0.0_dp) then
+        err = '"TOA_pressure" must be finite and positive.'
         return
       endif
     endif
-
-    ! Allocate
-    allocate(usol_new(dat%nq,var%nz))
-    allocate(z_new(var%nz),dz_new(var%nz),grav_new(var%nz))
-    allocate(temperature_new(var%nz),edd_new(var%nz), particle_radius_new(dat%np,var%nz))
-    allocate(pressure_new(var%nz))
 
     if (present(TOA_alt)) then
-      var%top_atmos = TOA_alt
-    endif
-    if (present(TOA_pressure)) then
+      top_atmos_new = TOA_alt
+    else
       ! Compute new TOA. We use wrk%usol
-      var%top_atmos = TOA_at_pressure(self, wrk%usol, TOA_pressure, err)
+      top_atmos_new = TOA_at_pressure(self, wrk%usol, TOA_pressure, err)
       if (allocated(err)) return
     endif
 
     ! Compute properties associated with new TOA
-    call properties_for_new_TOA(self, wrk%usol, var%top_atmos, &
-        z_new, dz_new, grav_new, temperature_new, edd_new, usol_new, &
-        particle_radius_new, pressure_new, err)
+    call build_vertical_grid_candidate(self, wrk%usol, top_atmos_new, candidate, err)
     if (allocated(err)) return
 
-    var%z = z_new
-    var%dz = dz_new
-    var%grav = grav_new
-    var%temperature = temperature_new
-    var%edd = edd_new
-    wrk%usol = usol_new
-    var%usol_init = usol_new
-    var%particle_radius = particle_radius_new
+    var%top_atmos = candidate%top_atmos
+    var%z = candidate%z
+    var%dz = candidate%dz
+    var%grav = candidate%grav
+    var%temperature = candidate%temperature
+    var%edd = candidate%edd
+    wrk%usol = candidate%usol
+    var%usol_init = candidate%usol
+    var%particle_radius = candidate%particle_radius
 
     ! Get new optical properties associated with new particle radii
     call interp2particlexsdata(dat, var, err)

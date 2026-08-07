@@ -18,8 +18,103 @@ contains
     call test_robust_stepper_restarts()
     call test_robust_stepper_limits()
     call test_set_press_temp_edd_nonmonotonic()
+    call test_update_vertical_grid_inputs()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
+  end subroutine
+
+  subroutine test_update_vertical_grid_inputs()
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, ieee_value
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp), allocatable :: z_before(:), usol_before(:,:)
+    real(dp) :: top_before, invalid_alt
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    top_before = pc%var%top_atmos
+    z_before = pc%var%z
+    usol_before = pc%wrk%usol
+
+    call pc%update_vertical_grid(err=err)
+    if (.not.allocated(err)) then
+      print *, 'A vertical-grid update without a target was accepted'
+      stop 1
+    endif
+    deallocate(err)
+    call pc%update_vertical_grid(TOA_alt=top_before, TOA_pressure=1.0_dp, err=err)
+    if (.not.allocated(err)) then
+      print *, 'A vertical-grid update with two targets was accepted'
+      stop 1
+    endif
+    deallocate(err)
+
+    invalid_alt = ieee_value(0.0_dp, ieee_quiet_nan)
+    call pc%update_vertical_grid(TOA_alt=invalid_alt, err=err)
+    if (.not.allocated(err)) then
+      print *, 'A nonfinite TOA altitude was accepted'
+      stop 1
+    endif
+    deallocate(err)
+    call pc%update_vertical_grid(TOA_alt=pc%var%bottom_atmos, err=err)
+    if (.not.allocated(err)) then
+      print *, 'A TOA altitude at the model bottom was accepted'
+      stop 1
+    endif
+    deallocate(err)
+    call pc%update_vertical_grid(TOA_pressure=0.0_dp, err=err)
+    if (.not.allocated(err)) then
+      print *, 'A zero TOA pressure was accepted'
+      stop 1
+    endif
+    deallocate(err)
+    call pc%update_vertical_grid(TOA_pressure=invalid_alt, err=err)
+    if (.not.allocated(err)) then
+      print *, 'A nonfinite TOA pressure was accepted'
+      stop 1
+    endif
+    deallocate(err)
+
+    if (pc%var%top_atmos /= top_before .or. any(pc%var%z /= z_before) .or. &
+        any(pc%wrk%usol /= usol_before)) then
+      print *, 'A rejected vertical-grid target changed model state'
+      stop 1
+    endif
+
+    ! Characterize both directions through the candidate-remapping path. Pass
+    ! 2 will replace only the above-domain density extrapolation policy.
+    call pc%update_vertical_grid(TOA_alt=1.02_dp*top_before, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (pc%var%top_atmos /= 1.02_dp*top_before .or. &
+        .not.all(ieee_is_finite(pc%var%z)) .or. any(pc%var%dz <= 0.0_dp) .or. &
+        .not.all(ieee_is_finite(pc%wrk%usol)) .or. &
+        any(sum(pc%wrk%usol(pc%dat%ng_1:,:),dim=1) <= 0.0_dp)) then
+      print *, 'Raising the TOA produced an invalid candidate grid'
+      stop 1
+    endif
+    call pc%update_vertical_grid(TOA_alt=0.98_dp*top_before, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (pc%var%top_atmos /= 0.98_dp*top_before .or. &
+        .not.all(ieee_is_finite(pc%var%z)) .or. any(pc%var%dz <= 0.0_dp) .or. &
+        .not.all(ieee_is_finite(pc%wrk%usol))) then
+      print *, 'Lowering the TOA produced an invalid candidate grid'
+      stop 1
+    endif
+
   end subroutine
 
   subroutine test_set_press_temp_edd_nonmonotonic()
