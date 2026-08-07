@@ -16,6 +16,7 @@ contains
     call test_legacy_file_grid()
     call test_robust_stepper_initialization()
     call test_toa_pressure_maintenance_settings()
+    call test_toa_pressure_maintenance()
     call test_robust_stepper_restarts()
     call test_robust_stepper_limits()
     call test_set_press_temp_edd_nonmonotonic()
@@ -194,6 +195,66 @@ contains
       stop 1
     endif
     deallocate(err)
+
+  end subroutine
+
+  subroutine test_toa_pressure_maintenance()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp) :: P(2), T(2), edd(2)
+    real(dp) :: target_pressure, top_before, t_before
+    logical :: give_up, converged
+
+    pc = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    P = [2.0_dp*pc%var%surface_pressure*1.0e6_dp, &
+         0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
+    T = [300.0_dp, 180.0_dp]
+    edd = [3.0e7_dp, 4.0e5_dp]
+    call pc%set_press_temp_edd_profile(P, T, edd, &
+         pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    target_pressure = 0.95_dp*pc%wrk%pressure(pc%var%nz)
+    top_before = pc%var%top_atmos
+    pc%var%toa_pressure_maintenance%enabled = .true.
+    pc%var%toa_pressure_maintenance%target_pressure = target_pressure
+    pc%var%toa_pressure_maintenance%pressure_tolerance = 1.0e-5_dp
+    pc%var%toa_pressure_maintenance%nsteps_between_updates = 1
+    t_before = pc%wrk%tn
+
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (give_up .or. converged .or. &
+        pc%wrk%n_toa_pressure_updates /= 1 .or. &
+        pc%wrk%nsteps_total /= 1 .or. pc%wrk%nsteps /= 0 .or. &
+        pc%wrk%tn <= t_before .or. pc%var%top_atmos == top_before .or. &
+        .not.pc%wrk%robust_stepper_initialized .or. &
+        .not.pc%var%press_temp_edd_profile%enabled .or. &
+        abs(pc%wrk%pressure(pc%var%nz)/target_pressure-1.0_dp) > 2.0e-5_dp) then
+      print *, 'Successful TOA maintenance did not restart and retarget the robust stepper'
+      stop 1
+    endif
+
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
 
   end subroutine
 

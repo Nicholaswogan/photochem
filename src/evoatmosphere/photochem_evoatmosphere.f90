@@ -84,6 +84,7 @@ module photochem_evoatmosphere
     procedure, private :: configure_stepper
     procedure, private :: restart_robust_stepper
     procedure, private :: validate_robust_stepper_settings
+    procedure, private :: maybe_maintain_toa_pressure
     procedure :: step
     procedure :: destroy_stepper
     procedure :: initialize_robust_stepper
@@ -392,6 +393,14 @@ module photochem_evoatmosphere
     ! Validate mutable robust-stepper policy before creating or using a session.
     module subroutine validate_robust_stepper_settings(self, err)
       class(EvoAtmosphere), intent(in) :: self
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    ! Apply one optional pressure-maintenance update after an accepted step.
+    module subroutine maybe_maintain_toa_pressure(self, chemistry_converged, updated, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      logical, intent(in) :: chemistry_converged
+      logical, intent(out) :: updated
       character(:), allocatable, intent(out) :: err
     end subroutine
     
