@@ -17,8 +17,55 @@ contains
     call test_robust_stepper_initialization()
     call test_robust_stepper_restarts()
     call test_robust_stepper_limits()
+    call test_set_press_temp_edd_nonmonotonic()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
+  end subroutine
+
+  subroutine test_set_press_temp_edd_nonmonotonic()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp) :: P(2), T(2), edd(2)
+    real(dp), allocatable :: temperature_before(:), edd_before(:)
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ! Construct a deterministic actual-pressure inversion between the bottom
+    ! two layers. Constant input temperature makes pressure proportional to
+    ! gas density in actual-pressure mode.
+    pc%wrk%usol(:,2) = 2.0_dp*pc%wrk%usol(:,1)
+    P = [1.0e7_dp, 1.0_dp]
+    T = [200.0_dp, 200.0_dp]
+    edd = [1.0e7_dp, 1.0e7_dp]
+    allocate(temperature_before(pc%var%nz), edd_before(pc%var%nz))
+    temperature_before = pc%var%temperature
+    edd_before = pc%var%edd
+
+    call pc%set_press_temp_edd(P, T, edd, 1.0e5_dp, &
+                               hydro_pressure=.false., err=err)
+    if (.not.allocated(err)) then
+      print *, 'A tropopause was mapped through nonmonotonic actual pressure'
+      stop 1
+    endif
+    if (index(err, 'actual pressure is not strictly decreasing between layers 1 and 2') == 0) then
+      print *, 'Nonmonotonic actual pressure returned an unclear error'
+      stop 1
+    endif
+    if (any(pc%var%temperature /= temperature_before) .or. &
+        any(pc%var%edd /= edd_before)) then
+      print *, 'Failed pressure-profile mapping changed model state'
+      stop 1
+    endif
+    deallocate(err)
+
   end subroutine
 
   subroutine test_robust_stepper_limits()
@@ -934,7 +981,7 @@ contains
     character(:), allocatable :: err
 
     pc = EvoAtmosphere(filename, &
-                       "../examples/ModernEarth/settings.yaml", &
+                       "../tests/test_settings_minimal.yaml", &
                        "../examples/ModernEarth/Sun_now.txt", &
                        "../examples/ModernEarth/atmosphere.txt", &
                        "../data", &

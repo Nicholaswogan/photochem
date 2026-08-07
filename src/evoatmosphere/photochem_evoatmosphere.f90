@@ -521,6 +521,8 @@ module photochem_evoatmosphere
     !! By default, the mapping uses hydrostatic pressure and solves for it
     !! sequentially from the bottom of the atmosphere upward. Alternatively,
     !! the mapping can use the actual gas pressure, `density*k_boltz*T`.
+    !! When `trop_p` is supplied, the mapped pressure must decrease strictly
+    !! with altitude so the tropopause altitude is unambiguous.
     !!
     !! On success, this procedure updates the model temperature, eddy
     !! diffusion, and derived atmospheric working state. Atmospheric species
@@ -574,6 +576,8 @@ module photochem_evoatmosphere
     !! must have the same size with at least two elements. If the input profile
     !! does not reach the model surface, its deepest two points are extrapolated
     !! to the surface. Values above the input profile are held constant.
+    !! When `trop_p` is supplied, the mapped pressure must decrease strictly
+    !! with altitude so the tropopause altitude is unambiguous.
     !!
     !! This procedure cannot be called while a CVODE stepper is initialized.
     !! Call `destroy_stepper` first. While the persistent mode is enabled,

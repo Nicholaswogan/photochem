@@ -622,7 +622,8 @@ cdef class EvoAtmosphere:
         positive.
     trop_p : float, optional
         Tropopause pressure in dynes/cm^2. Required when gas rainout is
-        enabled.
+        enabled. When supplied, the mapped pressure must decrease strictly
+        with altitude so the tropopause altitude is unambiguous.
     hydro_pressure : bool, default=True
         Use hydrostatic pressure if True. If False, use the actual gas
         pressure computed from number density and temperature.
@@ -695,7 +696,8 @@ cdef class EvoAtmosphere:
         positive.
     trop_p : float, optional
         Tropopause pressure in dynes/cm^2. Required when gas rainout is
-        enabled.
+        enabled. When supplied, the mapped pressure must decrease strictly
+        with altitude so the tropopause altitude is unambiguous.
     hydro_pressure : bool, default=True
         Use hydrostatic pressure if True. If False, use actual gas pressure,
         ``density * k_boltz * T``.
