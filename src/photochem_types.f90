@@ -484,13 +484,16 @@ module photochem_types ! make a giant IO object
     logical :: upwind_molec_diff = .false.
 
     ! Settings for the `robust_stepper` and `find_steady_state` methods
-    !> Number of integration errors before giving up completely
+    !> Number of failed-step recovery restarts allowed. The next integration
+    !> error ends the robust session.
     integer :: nerrors_before_giveup = 10
-    !> Number of steps to take before checking for convergence
+    !> Number of accepted steps after initialization or restart to take before
+    !> checking the non-time convergence criteria.
     integer :: nsteps_before_conv_check = 300
-    !> Number of steps before reinitializing the integration
+    !> Accepted steps per integration segment. At this count CVODE is restarted
+    !> and the segment-local convergence history is discarded.
     integer :: nsteps_before_reinit = 1000
-    !> Number of total steps to take before giving up.
+    !> Maximum total accepted steps before returning give_up.
     integer :: nsteps_before_giveup = 100000
     !> When the integrator reinitializes, this is the minimum
     !> density allowed (molecules/cm^3)

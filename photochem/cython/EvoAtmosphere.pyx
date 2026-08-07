@@ -889,6 +889,9 @@ cdef class EvoAtmosphere:
   def initialize_robust_stepper(self, ndarray[double, ndim=2] usol_start):
     """Initializes a robust integration starting at `usol_start`.
 
+    The integration begins at time zero and resets the total accepted-step and
+    failed-step counters.
+
     Parameters
     ----------
     usol_start : ndarray[double,ndim=2]
@@ -907,6 +910,10 @@ cdef class EvoAtmosphere:
   def robust_step(self):
     """Takes one internal robust integration step. Function `initialize_robust_stepper`
     must have been called before this.
+
+    A failed step is recovered from the last committed state without advancing
+    logical time. Scheduled CVODE restarts preserve logical time and total
+    counters, but discard segment-local convergence history.
 
     Returns
     -------

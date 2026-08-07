@@ -367,7 +367,7 @@ module photochem_evoatmosphere
     end subroutine
     
     !> Takes one internal integration step. Function `initialize_stepper`
-    !> must have been called befe this
+    !> must have been called before this.
     module function step(self, err) result(tn)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
@@ -380,7 +380,8 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Initializes a robust integration starting at `usol_start`
+    !> Initializes a robust integration starting at `usol_start` and time zero.
+    !> Total accepted-step and failed-step counters are reset.
     module subroutine initialize_robust_stepper(self, usol_start, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
@@ -388,7 +389,10 @@ module photochem_evoatmosphere
     end subroutine
     
     !> Takes one robust integration step. Function `initialize_robust_stepper`
-    !> must have been called before this.
+    !> must have been called before this. Failed steps recover from the last
+    !> committed state without advancing logical time. Scheduled restarts retain
+    !> logical time and total counters but discard segment-local convergence
+    !> history.
     module subroutine robust_step(self, give_up, converged, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       logical, intent(out) :: give_up !! If .true., then the algorithm thinks it is time to give up.

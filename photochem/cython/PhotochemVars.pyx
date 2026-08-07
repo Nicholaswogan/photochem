@@ -397,7 +397,9 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_upwind_molec_diff_set(self._ptr, &val)
 
   property nerrors_before_giveup:
-    "int. Number of integration errors before giving up completely"
+    """int. Number of failed-step recovery restarts allowed. The next
+    integration error makes ``robust_step`` give up.
+    """
     def __get__(self):
       cdef int val
       var_pxd.photochemvars_nerrors_before_giveup_get(self._ptr, &val)
@@ -406,7 +408,9 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_nerrors_before_giveup_set(self._ptr, &val)
 
   property nsteps_before_conv_check:
-    "int. Number of steps to take before checking for convergence"
+    """int. Accepted steps after initialization or restart to take before
+    checking the non-time convergence criteria.
+    """
     def __get__(self):
       cdef int val
       var_pxd.photochemvars_nsteps_before_conv_check_get(self._ptr, &val)
@@ -415,7 +419,9 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_nsteps_before_conv_check_set(self._ptr, &val)
 
   property nsteps_before_reinit:
-    "int. Number of steps before reinitializing the integration"
+    """int. Accepted steps per integration segment. At this count CVODE is
+    restarted and segment-local convergence history is discarded.
+    """
     def __get__(self):
       cdef int val
       var_pxd.photochemvars_nsteps_before_reinit_get(self._ptr, &val)
@@ -424,7 +430,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_nsteps_before_reinit_set(self._ptr, &val)
 
   property nsteps_before_giveup:
-    "int. Number of total steps to take before giving up."
+    "int. Maximum total accepted steps before ``robust_step`` gives up."
     def __get__(self):
       cdef int val
       var_pxd.photochemvars_nsteps_before_giveup_get(self._ptr, &val)

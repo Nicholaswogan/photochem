@@ -1163,19 +1163,21 @@ contains
       if (converged) return
     endif
 
-    ! Reinitialize integrator after some number of steps
+    ! The total-step ceiling counts accepted steps exactly. Check it before a
+    ! scheduled restart so a terminal call does not rebuild/reset CVODE state.
+    if (wrk%nsteps_total >= var%nsteps_before_giveup) then
+      give_up = .true.
+      return
+    endif
+
+    ! Reinitialize after exactly this many accepted steps in the current
+    ! segment. Restarting resets local CVODE and convergence history only.
     if (self%wrk%nsteps >= var%nsteps_before_reinit) then
       call self%restart_robust_stepper(wrk%usol, wrk%t_history(1), err)
       if (allocated(err)) then
         wrk%robust_stepper_initialized = .false.
         return
       endif
-    endif
-
-    ! Give up after a large number of steps
-    if (wrk%nsteps_total > var%nsteps_before_giveup) then
-      give_up = .true.
-      return
     endif
 
   end subroutine

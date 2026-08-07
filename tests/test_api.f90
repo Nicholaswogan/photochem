@@ -16,8 +16,100 @@ contains
     call test_legacy_file_grid()
     call test_robust_stepper_initialization()
     call test_robust_stepper_restarts()
+    call test_robust_stepper_limits()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
+  end subroutine
+
+  subroutine test_robust_stepper_limits()
+    use iso_c_binding, only: c_associated
+    use fcvode_mod, only: FCVodeFree
+    type(EvoAtmosphere) :: pc_errors, pc_steps
+    character(:), allocatable :: err
+    logical :: give_up, converged
+
+    pc_errors = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                              '../tests/test_settings_minimal.yaml', &
+                              '../examples/ModernEarth/Sun_now.txt', &
+                              '../examples/ModernEarth/atmosphere.txt', &
+                              '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ! A limit of one permits one recovery restart and gives up on the next
+    ! failed step. Forced missing CVODE memory makes both failures immediate.
+    pc_errors%var%nerrors_before_giveup = 1
+    call pc_errors%initialize_robust_stepper(pc_errors%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call FCVodeFree(pc_errors%wrk%sun%cvode_mem)
+    call pc_errors%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (give_up .or. converged .or. pc_errors%wrk%nerrors_total /= 1 .or. &
+        .not.pc_errors%wrk%robust_stepper_initialized .or. &
+        .not.c_associated(pc_errors%wrk%sun%cvode_mem)) then
+      print *, 'robust error limit did not permit exactly one recovery'
+      stop 1
+    endif
+    call FCVodeFree(pc_errors%wrk%sun%cvode_mem)
+    call pc_errors%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not.give_up .or. converged .or. &
+        pc_errors%wrk%nerrors_total /= 2 .or. &
+        pc_errors%wrk%robust_stepper_initialized .or. &
+        c_associated(pc_errors%wrk%sun%cvode_mem)) then
+      print *, 'robust error limit did not terminate on the next failure'
+      stop 1
+    endif
+
+    pc_steps = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                             '../tests/test_settings_minimal.yaml', &
+                             '../examples/ModernEarth/Sun_now.txt', &
+                             '../examples/ModernEarth/atmosphere.txt', &
+                             '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ! The accepted-step ceiling is exact and is checked before an otherwise
+    ! coincident scheduled restart.
+    pc_steps%var%nsteps_before_conv_check = 0
+    pc_steps%var%nsteps_before_reinit = 1
+    pc_steps%var%nsteps_before_giveup = 1
+    pc_steps%var%equilibrium_time = huge(1.0_dp)
+    call pc_steps%initialize_robust_stepper(pc_steps%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call pc_steps%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not.give_up .or. converged .or. &
+        pc_steps%wrk%nsteps_total /= 1 .or. pc_steps%wrk%nsteps /= 1) then
+      print *, 'robust accepted-step limit was not exact'
+      stop 1
+    endif
+
+    call pc_steps%destroy_stepper(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
   end subroutine
 
   subroutine test_robust_stepper_initialization()
