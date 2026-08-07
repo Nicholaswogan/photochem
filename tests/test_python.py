@@ -107,6 +107,46 @@ def test_persistent_profile_controls_toa_maintenance():
     pc.clear_press_temp_edd_profile()
 
 
+def test_robust_initial_toa_pressure_preflight():
+    """Robust initialization corrects an out-of-band TOA before CVODE starts."""
+    pc = EvoAtmosphere(
+        "no_particle_test.yaml",
+        "test_settings_minimal.yaml",
+        "../examples/ModernEarth/Sun_now.txt",
+        data_dir="../data",
+    )
+    z = np.array([0.0, 5.0e6, 1.0e7])
+    pc.initialize_atmosphere_z(
+        z,
+        np.array([300.0, 240.0, 180.0]),
+        np.array([1.0e5, 1.0e6, 1.0e7]),
+        1.0e6,
+        {"H2": np.ones(z.size)},
+    )
+    pressure = np.array([
+        2.0 * pc.var.surface_pressure * 1.0e6,
+        0.5 * pc.wrk.pressure_hydro[-1],
+    ])
+    pc.set_press_temp_edd_profile(
+        pressure,
+        np.array([300.0, 180.0]),
+        np.array([3.0e7, 4.0e5]),
+    )
+
+    maintenance = pc.var.toa_pressure_maintenance
+    maintenance.target_pressure = 0.95 * pc.wrk.pressure[-1]
+    maintenance.pressure_factor = 1.01
+    maintenance.nsteps_between_updates = 100
+    pc.initialize_robust_stepper(pc.wrk.usol)
+    assert pc.wrk.nsteps_total == 0
+    assert pc.wrk.n_toa_pressure_updates == 1
+    assert pc.wrk.nsteps_since_toa_pressure_update == 0
+    assert np.isclose(
+        pc.wrk.pressure[-1] / maintenance.target_pressure, 1.0, rtol=0.0, atol=2.0e-5
+    )
+    pc.destroy_stepper()
+
+
 def test_gas_giant_static_construction():
     from photochem.extensions.gasgiants import EvoAtmosphereGasGiant
 

@@ -16,6 +16,7 @@ contains
     call test_legacy_file_grid()
     call test_robust_stepper_initialization()
     call test_toa_pressure_maintenance_settings()
+    call test_toa_pressure_maintenance_initialization()
     call test_toa_pressure_maintenance()
     call test_toa_pressure_maintenance_policy()
     call test_robust_stepper_restarts()
@@ -301,6 +302,60 @@ contains
 
   end subroutine
 
+  subroutine test_toa_pressure_maintenance_initialization()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp) :: P(2), T(2), edd(2)
+    real(dp) :: target_pressure, top_before
+    logical :: maintenance_enabled
+
+    pc = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    P = [2.0_dp*pc%var%surface_pressure*1.0e6_dp, &
+         0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
+    T = [300.0_dp, 180.0_dp]
+    edd = [3.0e7_dp, 4.0e5_dp]
+    call pc%set_press_temp_edd_profile(P, T, edd, hydro_pressure=.true., err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    target_pressure = 0.95_dp*pc%wrk%pressure(pc%var%nz)
+    top_before = pc%var%top_atmos
+    pc%var%toa_pressure_maintenance%enabled = .true.
+    pc%var%toa_pressure_maintenance%target_pressure = target_pressure
+    pc%var%toa_pressure_maintenance%pressure_factor = 1.01_dp
+    pc%var%toa_pressure_maintenance%nsteps_between_updates = 100
+    pc%var%equilibrium_time = huge(1.0_dp)
+
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    maintenance_enabled = pc%wrk%robust_stepper_initialized .and. &
+                          pc%wrk%nsteps_total == 0 .and. &
+                          pc%wrk%n_toa_pressure_updates == 1 .and. &
+                          pc%wrk%nsteps_since_toa_pressure_update == 0 .and. &
+                          pc%var%top_atmos /= top_before .and. &
+                          abs(pc%wrk%pressure(pc%var%nz)/target_pressure-1.0_dp) < 2.0e-5_dp
+    if (.not.maintenance_enabled) then
+      print *, 'Robust initialization did not preflight the TOA pressure'
+      stop 1
+    endif
+
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+  end subroutine
+
   subroutine test_toa_pressure_maintenance()
     type(EvoAtmosphere) :: pc, pc_failure
     character(:), allocatable :: err
@@ -324,7 +379,9 @@ contains
       stop 1
     endif
 
-    target_pressure = 0.95_dp*pc%wrk%pressure(pc%var%nz)
+    ! Start inside the band so this test exercises runtime maintenance after
+    ! initialization rather than the initialization preflight itself.
+    target_pressure = pc%wrk%pressure(pc%var%nz)
     top_before = pc%var%top_atmos
     pc%var%toa_pressure_maintenance%enabled = .true.
     pc%var%toa_pressure_maintenance%target_pressure = target_pressure
@@ -338,6 +395,8 @@ contains
       print *, trim(err)
       stop 1
     endif
+    target_pressure = 0.95_dp*pc%wrk%pressure(pc%var%nz)
+    pc%var%toa_pressure_maintenance%target_pressure = target_pressure
     call pc%robust_step(give_up, converged, err)
     if (allocated(err)) then
       print *, trim(err)
@@ -386,7 +445,10 @@ contains
       stop 1
     endif
     pc_failure%var%toa_pressure_maintenance%enabled = .true.
-    pc_failure%var%toa_pressure_maintenance%target_pressure = 1.0e100_dp
+    ! Keep initialization inside the band; move the target out of reach only
+    ! after the robust session has started so runtime failure handling is tested.
+    pc_failure%var%toa_pressure_maintenance%target_pressure = &
+         pc_failure%wrk%pressure(pc_failure%var%nz)
     pc_failure%var%toa_pressure_maintenance%nsteps_between_updates = 1
     pc_failure%var%toa_pressure_maintenance%max_failures = 1
     pc_failure%var%equilibrium_time = -1.0_dp
@@ -395,6 +457,7 @@ contains
       print *, trim(err)
       stop 1
     endif
+    pc_failure%var%toa_pressure_maintenance%target_pressure = 1.0e100_dp
     call pc_failure%robust_step(give_up, converged, err)
     if (allocated(err) .or. give_up .or. converged .or. &
         pc_failure%wrk%n_toa_pressure_failures /= 1 .or. &
@@ -483,7 +546,9 @@ contains
     endif
 
     ! An out-of-band target is held until the configured cadence is reached.
-    target_pressure = 0.95_dp*pc%wrk%pressure(pc%var%nz)
+    ! Start inside the band so this test exercises the configured runtime
+    ! cadence rather than the initialization preflight.
+    target_pressure = pc%wrk%pressure(pc%var%nz)
     top_before = pc%var%top_atmos
     t_before = pc%wrk%tn
     pc%var%toa_pressure_maintenance%enabled = .true.
@@ -496,6 +561,8 @@ contains
       print *, trim(err)
       stop 1
     endif
+    target_pressure = 0.95_dp*pc%wrk%pressure(pc%var%nz)
+    pc%var%toa_pressure_maintenance%target_pressure = target_pressure
 
     call pc%robust_step(give_up, converged, err)
     if (allocated(err) .or. give_up .or. converged .or. &

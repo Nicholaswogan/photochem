@@ -1078,9 +1078,13 @@ contains
 
   module subroutine initialize_robust_stepper(self, usol_start, err)
     use, intrinsic :: iso_c_binding, only: c_associated
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
     character(:), allocatable, intent(out) :: err
+    real(dp) :: current_pressure, pressure_ratio
+    real(dp), allocatable :: usol_preflight(:,:)
+    logical :: initial_toa_update
 
     call self%require_atmosphere_initialized('initialize_robust_stepper', err)
     if (allocated(err)) return
@@ -1088,7 +1092,51 @@ contains
     call self%validate_robust_stepper_settings(err)
     if (allocated(err)) return
 
-    call self%initialize_stepper_at_time(usol_start, 0.0_dp, err)
+    if (size(usol_start,1) /= self%dat%nq .or. size(usol_start,2) /= self%var%nz) then
+      err = "Input 'usol_start' to 'initialize_robust_stepper' is the wrong dimension"
+      return
+    endif
+
+    ! Prepare the supplied starting composition before checking the TOA. This
+    ! makes the preflight pressure correspond to the state that will actually
+    ! enter CVODE, including persistent-profile and boundary-condition logic.
+    initial_toa_update = .false.
+    if (self%var%toa_pressure_maintenance%enabled) then
+      ! Keep the caller's array independent of the work allocation: a
+      ! successful vertical-grid transaction moves that allocation.
+      usol_preflight = usol_start
+      call self%prep_atmosphere(usol_preflight, err)
+      if (allocated(err)) return
+
+      current_pressure = self%wrk%pressure(self%var%nz)
+      if (.not.ieee_is_finite(current_pressure) .or. current_pressure <= 0.0_dp) then
+        err = 'Initial TOA-pressure maintenance failed: the current TOA pressure '// &
+              'was not finite and positive.'
+        return
+      endif
+      pressure_ratio = current_pressure / &
+                       self%var%toa_pressure_maintenance%target_pressure
+      if (pressure_ratio < 1.0_dp / self%var%toa_pressure_maintenance%pressure_factor .or. &
+          pressure_ratio > self%var%toa_pressure_maintenance%pressure_factor) then
+        call self%update_vertical_grid( &
+             TOA_pressure=self%var%toa_pressure_maintenance%target_pressure, err=err)
+        if (allocated(err)) then
+          err = 'Initial TOA-pressure maintenance failed: '//err
+          return
+        endif
+        initial_toa_update = .true.
+      endif
+    endif
+
+    ! A successful preflight regrid remaps the supplied starting state into
+    ! the new grid and may move the original work allocation. Use the
+    ! committed remapped state in that case; otherwise preserve the caller's
+    ! exact initial array as the CVODE starting state.
+    if (initial_toa_update) then
+      call self%initialize_stepper_at_time(self%wrk%usol, 0.0_dp, err)
+    else
+      call self%initialize_stepper_at_time(usol_start, 0.0_dp, err)
+    endif
     if (allocated(err)) then
       if (.not.c_associated(self%wrk%sun%cvode_mem)) then
         self%wrk%robust_stepper_initialized = .false.
@@ -1098,7 +1146,7 @@ contains
 
     self%wrk%nsteps_total = 0
     self%wrk%nerrors_total = 0
-    self%wrk%n_toa_pressure_updates = 0
+    self%wrk%n_toa_pressure_updates = merge(1, 0, initial_toa_update)
     self%wrk%n_toa_pressure_failures = 0
     self%wrk%nsteps_since_toa_pressure_update = 0
     self%wrk%robust_stepper_initialized = .true.

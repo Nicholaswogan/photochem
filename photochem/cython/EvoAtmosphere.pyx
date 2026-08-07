@@ -919,7 +919,9 @@ cdef class EvoAtmosphere:
     The integration begins at time zero and resets the total accepted-step and
     failed-step counters. Optional approximate TOA-pressure maintenance is
     configured through ``self.var.toa_pressure_maintenance`` and requires a
-    persistent pressure-based temperature/eddy-diffusion profile.
+    persistent pressure-based temperature/eddy-diffusion profile. When it is
+    enabled, the initial composition is prepared and the model top is brought
+    inside the configured pressure band before CVODE starts.
 
     Parameters
     ----------

@@ -420,7 +420,10 @@ module photochem_evoatmosphere
     end subroutine
 
     !> Initializes a robust integration starting at `usol_start` and time zero.
-    !> Total accepted-step and failed-step counters are reset.
+    !> When TOA-pressure maintenance is enabled, the starting composition is
+    !> prepared and the model top is brought inside the configured pressure
+    !> band before CVODE is initialized. Total accepted-step and failed-step
+    !> counters are reset.
     module subroutine initialize_robust_stepper(self, usol_start, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
