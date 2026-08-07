@@ -6,6 +6,8 @@ cdef extern from "<stdbool.h>":
 cdef extern from *:
   struct PhotochemVars:
     pass
+  struct TOAPressureMaintenance:
+    pass
 
 # callback signatures
 ctypedef void (*time_dependent_flux_fcn)(double tn, int nw, double *photon_flux)
@@ -124,3 +126,15 @@ cdef extern void photochemvars_nsteps_before_reinit_set(PhotochemVars *ptr, int 
 
 cdef extern void photochemvars_nsteps_before_giveup_get(PhotochemVars *ptr, int *val)
 cdef extern void photochemvars_nsteps_before_giveup_set(PhotochemVars *ptr, int *val)
+
+cdef extern void photochemvars_toa_pressure_maintenance_get(PhotochemVars *ptr, TOAPressureMaintenance **ptr1)
+cdef extern void taopressuremaintenance_enabled_get(TOAPressureMaintenance *ptr, bool *val)
+cdef extern void taopressuremaintenance_enabled_set(TOAPressureMaintenance *ptr, bool *val)
+cdef extern void taopressuremaintenance_target_pressure_get(TOAPressureMaintenance *ptr, double *val)
+cdef extern void taopressuremaintenance_target_pressure_set(TOAPressureMaintenance *ptr, double *val)
+cdef extern void taopressuremaintenance_pressure_factor_get(TOAPressureMaintenance *ptr, double *val)
+cdef extern void taopressuremaintenance_pressure_factor_set(TOAPressureMaintenance *ptr, double *val)
+cdef extern void taopressuremaintenance_nsteps_get(TOAPressureMaintenance *ptr, int *val)
+cdef extern void taopressuremaintenance_nsteps_set(TOAPressureMaintenance *ptr, int *val)
+cdef extern void taopressuremaintenance_max_failures_get(TOAPressureMaintenance *ptr, int *val)
+cdef extern void taopressuremaintenance_max_failures_set(TOAPressureMaintenance *ptr, int *val)

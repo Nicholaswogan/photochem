@@ -892,7 +892,9 @@ cdef class EvoAtmosphere:
     """Initializes a robust integration starting at `usol_start`.
 
     The integration begins at time zero and resets the total accepted-step and
-    failed-step counters.
+    failed-step counters. Optional approximate TOA-pressure maintenance is
+    configured through ``self.var.toa_pressure_maintenance`` and requires a
+    persistent pressure-based temperature/eddy-diffusion profile.
 
     Parameters
     ----------
@@ -915,7 +917,11 @@ cdef class EvoAtmosphere:
 
     A failed step is recovered from the last committed state without advancing
     logical time. Scheduled CVODE restarts preserve logical time and total
-    counters, but discard segment-local convergence history.
+    counters, but discard segment-local convergence history. When
+    ``self.var.toa_pressure_maintenance.enabled`` is true, accepted steps may
+    trigger a pressure-targeted vertical-grid update after chemistry has
+    converged; successful updates restart CVODE while preserving the total
+    integration counters.
 
     Returns
     -------

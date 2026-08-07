@@ -14,6 +14,7 @@ module photochem_types ! make a giant IO object
   public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
   public :: ProductionLoss, ThermodynamicData, CondensationParameters
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate, PressDependentRate, MultiArrheniusRate
+  public :: TOAPressureMaintenance
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss, ReverseRate
   public :: SundialsDataFinalizer
   public :: time_dependent_flux_fcn, time_dependent_rate_fcn, binary_diffusion_fcn

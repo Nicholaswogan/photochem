@@ -1,5 +1,58 @@
 cimport PhotochemVars_pxd as var_pxd
 
+cdef class TOAPressureMaintenance:
+  """Configuration for optional robust-stepper TOA pressure maintenance."""
+
+  cdef var_pxd.TOAPressureMaintenance *_ptr
+
+  def __cinit__(self):
+    self._ptr = NULL
+
+  property enabled:
+    """bool. Enable automatic TOA pressure maintenance."""
+    def __get__(self):
+      cdef bool val
+      var_pxd.taopressuremaintenance_enabled_get(self._ptr, &val)
+      return val
+    def __set__(self, bool val):
+      var_pxd.taopressuremaintenance_enabled_set(self._ptr, &val)
+
+  property target_pressure:
+    """double. Target TOA pressure in dynes/cm^2."""
+    def __get__(self):
+      cdef double val
+      var_pxd.taopressuremaintenance_target_pressure_get(self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.taopressuremaintenance_target_pressure_set(self._ptr, &val)
+
+  property pressure_factor:
+    """double. Acceptable multiplicative pressure band around the target."""
+    def __get__(self):
+      cdef double val
+      var_pxd.taopressuremaintenance_pressure_factor_get(self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.taopressuremaintenance_pressure_factor_set(self._ptr, &val)
+
+  property nsteps_between_updates:
+    """int. Minimum accepted robust steps between maintenance attempts."""
+    def __get__(self):
+      cdef int val
+      var_pxd.taopressuremaintenance_nsteps_get(self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      var_pxd.taopressuremaintenance_nsteps_set(self._ptr, &val)
+
+  property max_failures:
+    """int. Failed maintenance attempts allowed before integration stops."""
+    def __get__(self):
+      cdef int val
+      var_pxd.taopressuremaintenance_max_failures_get(self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      var_pxd.taopressuremaintenance_max_failures_set(self._ptr, &val)
+
 cdef class PhotochemVars:
   """This class contains data that can change between independent
   model integrations.
@@ -437,3 +490,10 @@ cdef class PhotochemVars:
       return val
     def __set__(self, int val):
       var_pxd.photochemvars_nsteps_before_giveup_set(self._ptr, &val)
+
+  property toa_pressure_maintenance:
+    """TOAPressureMaintenance. Optional automatic TOA pressure maintenance settings."""
+    def __get__(self):
+      cdef TOAPressureMaintenance maintenance = TOAPressureMaintenance()
+      var_pxd.photochemvars_toa_pressure_maintenance_get(self._ptr, &maintenance._ptr)
+      return maintenance

@@ -33,6 +33,38 @@ def test_static_construction():
     assert pc.atmosphere_initialized
 
 
+def test_toa_pressure_maintenance_api():
+    """The optional TOA-maintenance settings and counters are Python-visible."""
+    pc = EvoAtmosphere(
+        "no_particle_test.yaml",
+        "test_settings_minimal.yaml",
+        "../examples/ModernEarth/Sun_now.txt",
+        data_dir="../data",
+    )
+
+    maintenance = pc.var.toa_pressure_maintenance
+    assert maintenance.enabled is False
+    assert maintenance.pressure_factor == 3.0
+
+    maintenance.enabled = True
+    maintenance.target_pressure = 2.5e-4
+    maintenance.pressure_factor = 4.0
+    maintenance.nsteps_between_updates = 7
+    maintenance.max_failures = 2
+
+    assert maintenance.enabled is True
+    assert maintenance.target_pressure == 2.5e-4
+    assert maintenance.pressure_factor == 4.0
+    assert maintenance.nsteps_between_updates == 7
+    assert maintenance.max_failures == 2
+
+    # Counters are available before a robust integration starts and have no
+    # side effects from merely configuring the mode.
+    assert pc.wrk.n_toa_pressure_updates == 0
+    assert pc.wrk.n_toa_pressure_failures == 0
+    assert pc.wrk.nsteps_since_toa_pressure_update == 0
+
+
 def test_gas_giant_static_construction():
     from photochem.extensions.gasgiants import EvoAtmosphereGasGiant
 

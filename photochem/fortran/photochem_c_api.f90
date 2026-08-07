@@ -4,6 +4,7 @@ module photochem_c_api
   use photochem, only: EvoAtmosphere
   use photochem_types, only: PhotochemData
   use photochem_types, only: PhotochemVars
+  use photochem_types, only: TOAPressureMaintenance
   use photochem_types, only: PhotochemWrk, PhotochemWrkEvo
   use photochem_types, only: ProductionLoss
   use photochem_types, only: CondensationParameters

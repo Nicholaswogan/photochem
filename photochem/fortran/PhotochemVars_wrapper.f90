@@ -640,3 +640,91 @@
     call c_f_pointer(ptr, var)
     var%nsteps_before_giveup = val
   end subroutine
+
+  subroutine photochemvars_toa_pressure_maintenance_get(ptr, ptr1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    type(c_ptr), intent(out) :: ptr1
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    ptr1 = c_loc(var%toa_pressure_maintenance)
+  end subroutine
+
+  subroutine taopressuremaintenance_enabled_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    logical(c_bool), intent(out) :: val
+    type(TOAPressureMaintenance), pointer :: maintenance
+    call c_f_pointer(ptr, maintenance)
+    val = maintenance%enabled
+  end subroutine
+
+  subroutine taopressuremaintenance_enabled_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    logical(c_bool), intent(in) :: val
+    type(TOAPressureMaintenance), pointer :: maintenance
+    call c_f_pointer(ptr, maintenance)
+    maintenance%enabled = val
+  end subroutine
+
+  subroutine taopressuremaintenance_target_pressure_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(TOAPressureMaintenance), pointer :: maintenance
+    call c_f_pointer(ptr, maintenance)
+    val = maintenance%target_pressure
+  end subroutine
+
+  subroutine taopressuremaintenance_target_pressure_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(TOAPressureMaintenance), pointer :: maintenance
+    call c_f_pointer(ptr, maintenance)
+    maintenance%target_pressure = val
+  end subroutine
+
+  subroutine taopressuremaintenance_pressure_factor_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(TOAPressureMaintenance), pointer :: maintenance
+    call c_f_pointer(ptr, maintenance)
+    val = maintenance%pressure_factor
+  end subroutine
+
+  subroutine taopressuremaintenance_pressure_factor_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(TOAPressureMaintenance), pointer :: maintenance
+    call c_f_pointer(ptr, maintenance)
+    maintenance%pressure_factor = val
+  end subroutine
+
+  subroutine taopressuremaintenance_nsteps_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(TOAPressureMaintenance), pointer :: maintenance
+    call c_f_pointer(ptr, maintenance)
+    val = maintenance%nsteps_between_updates
+  end subroutine
+
+  subroutine taopressuremaintenance_nsteps_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(TOAPressureMaintenance), pointer :: maintenance
+    call c_f_pointer(ptr, maintenance)
+    maintenance%nsteps_between_updates = val
+  end subroutine
+
+  subroutine taopressuremaintenance_max_failures_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(TOAPressureMaintenance), pointer :: maintenance
+    call c_f_pointer(ptr, maintenance)
+    val = maintenance%max_failures
+  end subroutine
+
+  subroutine taopressuremaintenance_max_failures_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(TOAPressureMaintenance), pointer :: maintenance
+    call c_f_pointer(ptr, maintenance)
+    maintenance%max_failures = val
+  end subroutine

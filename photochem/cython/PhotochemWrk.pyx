@@ -2,6 +2,30 @@ cimport PhotochemWrk_pxd as wrk_pxd
 
 cdef class PhotochemWrkEvo(PhotochemWrk):
 
+  property n_toa_pressure_updates:
+    """int. Number of successful automatic TOA pressure updates."""
+    def __get__(self):
+      cdef int val
+      cdef wrk_pxd.PhotochemWrkEvo *evo_ptr = <wrk_pxd.PhotochemWrkEvo *>self._ptr
+      wrk_pxd.photochemwrkevo_n_toa_pressure_updates_get(evo_ptr, &val)
+      return val
+
+  property n_toa_pressure_failures:
+    """int. Number of failed automatic TOA pressure maintenance attempts."""
+    def __get__(self):
+      cdef int val
+      cdef wrk_pxd.PhotochemWrkEvo *evo_ptr = <wrk_pxd.PhotochemWrkEvo *>self._ptr
+      wrk_pxd.photochemwrkevo_n_toa_pressure_failures_get(evo_ptr, &val)
+      return val
+
+  property nsteps_since_toa_pressure_update:
+    """int. Accepted steps since the last successful TOA pressure update."""
+    def __get__(self):
+      cdef int val
+      cdef wrk_pxd.PhotochemWrkEvo *evo_ptr = <wrk_pxd.PhotochemWrkEvo *>self._ptr
+      wrk_pxd.photochemwrkevo_nsteps_since_toa_pressure_update_get(evo_ptr, &val)
+      return val
+
   property pressure_hydro:
     """ndarray[double,dim=1], shape (nz). The hydrostatic pressure at the center of each 
     atmospheric layer (dynes/cm^2).

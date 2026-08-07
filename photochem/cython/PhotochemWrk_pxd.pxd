@@ -12,6 +12,10 @@ cdef extern void photochemwrk_nsteps_total_get(PhotochemWrk *ptr, int *val)
 
 cdef extern void photochemwrk_nsteps_get(PhotochemWrk *ptr, int *val)
 
+cdef extern void photochemwrkevo_n_toa_pressure_updates_get(PhotochemWrkEvo *ptr, int *val)
+cdef extern void photochemwrkevo_n_toa_pressure_failures_get(PhotochemWrkEvo *ptr, int *val)
+cdef extern void photochemwrkevo_nsteps_since_toa_pressure_update_get(PhotochemWrkEvo *ptr, int *val)
+
 cdef extern void photochemwrk_t_history_get_size(PhotochemWrk *ptr, int *dim1)
 cdef extern void photochemwrk_t_history_get(PhotochemWrk *ptr, int *dim1, double *arr)
 
