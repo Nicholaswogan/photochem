@@ -355,7 +355,10 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     ! also suitable for applying a persistent pressure-based profile to an
     ! arbitrary trial composition during a future RHS evaluation.
     call map_press_temp_edd(self, self%wrk%usol, P, T, edd, trop_p, &
-                            hydro_pressure, T_new, edd_new, log10P_wrk, &
+                            hydro_pressure, self%var%z, self%var%dz, &
+                            self%var%grav, self%var%temperature, &
+                            self%wrk%pressure_hydro, &
+                            T_new, edd_new, log10P_wrk, &
                             trop_alt, err)
     if (allocated(err)) return
 
@@ -455,6 +458,8 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
            self%var%press_temp_edd_profile%edd, &
            self%var%press_temp_edd_profile%trop_p, &
            self%var%press_temp_edd_profile%hydro_pressure, &
+           self%var%z, self%var%dz, self%var%grav, self%var%temperature, &
+           self%wrk%pressure_hydro, &
            T_new, edd_new, log10P_wrk, trop_alt, err)
     else
       call map_press_temp_edd(self, usol_in, &
@@ -462,6 +467,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
            self%var%press_temp_edd_profile%temperature, &
            self%var%press_temp_edd_profile%edd, &
            hydro_pressure=self%var%press_temp_edd_profile%hydro_pressure, &
+           grid_z=self%var%z, grid_dz=self%var%dz, grid_grav=self%var%grav, &
+           temperature_reference=self%var%temperature, &
+           pressure_reference=self%wrk%pressure_hydro, &
            T_new=T_new, edd_new=edd_new, log10P_wrk=log10P_wrk, &
            trop_alt=trop_alt, err=err)
     endif
@@ -498,6 +506,8 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
   end subroutine
 
   module subroutine map_press_temp_edd(self, usol_in, P, T, edd, trop_p, hydro_pressure, &
+                                       grid_z, grid_dz, grid_grav, temperature_reference, &
+                                       pressure_reference, &
                                        T_new, edd_new, log10P_wrk, trop_alt, err)
     use futils, only: interp, brent_class
     use ieee_arithmetic, only: ieee_is_finite
@@ -510,6 +520,8 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     real(dp), intent(in) :: edd(:)
     real(dp), optional, intent(in) :: trop_p
     logical, optional, intent(in) :: hydro_pressure
+    real(dp), intent(in) :: grid_z(:), grid_dz(:), grid_grav(:)
+    real(dp), intent(in) :: temperature_reference(:), pressure_reference(:)
     real(dp), intent(out) :: T_new(:)
     real(dp), intent(out) :: edd_new(:)
     real(dp), intent(out) :: log10P_wrk(:)
@@ -546,6 +558,24 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     if (size(T_new) /= var%nz .or. size(edd_new) /= var%nz .or. &
         size(log10P_wrk) /= var%nz) then
       err = 'Pressure-profile mapping output arrays have the wrong dimensions'
+      return
+    endif
+
+    if (size(grid_z) /= var%nz .or. size(grid_dz) /= var%nz .or. &
+        size(grid_grav) /= var%nz .or. &
+        size(temperature_reference) /= var%nz .or. &
+        size(pressure_reference) /= var%nz) then
+      err = 'Pressure-profile mapping grid arrays have the wrong dimensions'
+      return
+    endif
+    if (.not.all(ieee_is_finite(grid_z)) .or. &
+        .not.all(ieee_is_finite(grid_dz)) .or. any(grid_dz <= 0.0_dp) .or. &
+        .not.all(ieee_is_finite(grid_grav)) .or. any(grid_grav <= 0.0_dp) .or. &
+        .not.all(ieee_is_finite(temperature_reference)) .or. &
+        any(temperature_reference <= 0.0_dp) .or. &
+        .not.all(ieee_is_finite(pressure_reference)) .or. &
+        any(pressure_reference <= 0.0_dp)) then
+      err = 'Pressure-profile mapping requires finite, positive grid reference state'
       return
     endif
     
@@ -629,7 +659,8 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       endif
     enddo
 
-    call bottom_column_state(var%temperature(1), density_base(1), mubar_base(1), Psurf_initial)
+    call bottom_column_state(temperature_reference(1), density_base(1), &
+                             mubar_base(1), Psurf_initial)
     if (.not. ieee_is_finite(density_base(1)) .or. density_base(1) <= 0.0_dp .or. &
         .not. ieee_is_finite(mubar_base(1)) .or. mubar_base(1) <= 0.0_dp .or. &
         .not. ieee_is_finite(Psurf_initial) .or. Psurf_initial <= 0.0_dp) then
@@ -727,7 +758,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     trop_alt = 0.0_dp
     if (present(trop_p)) then
       call interp([log10(trop_p)], log10P_wrk(var%nz:1:-1), &
-                  var%z(var%nz:1:-1), trop_alt_array, ierr=ierr)
+                  grid_z(var%nz:1:-1), trop_alt_array, ierr=ierr)
       if (ierr /= 0) then
         err = 'Subroutine interp returned an error.'
         return
@@ -753,17 +784,18 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
       if (hydro_pressure_) then
         if (layer == 1) then
-          xcenter = log10(max(self%wrk%pressure_hydro(1), small_real))
+          xcenter = log10(max(pressure_reference(1), small_real))
           width = max(abs(log10(Psurf_initial) - xcenter), 1.0e-3_dp)
         else
           xcenter = log10P_previous - &
-                    (mubar_base(layer)*var%grav(layer)*var%dz(layer)*log10e)/ &
+                    (mubar_base(layer)*grid_grav(layer)*grid_dz(layer)*log10e)/ &
                     (N_avo*k_boltz*max(temperature_previous,small_real))
           width = max(abs(log10P_previous - xcenter), 1.0e-3_dp)
         endif
       else
         reference_density = density_base(layer)
-        xcenter = log10(reference_density*k_boltz*max(var%temperature(layer),small_real))
+        xcenter = log10(reference_density*k_boltz* &
+                        max(temperature_reference(layer),small_real))
         width = 1.0e-3_dp
       endif
 
@@ -808,11 +840,12 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
         if (residual_layer == 1) then
           call bottom_column_state(temperature_trial, density_trial, mubar_trial, Psurf_trial)
           residual = x - log10(Psurf_trial) + &
-                     (mubar_trial*var%grav(1)*0.5_dp*var%dz(1)*log10e)/ &
+                     (mubar_trial*grid_grav(1)*0.5_dp*grid_dz(1)*log10e)/ &
                      (N_avo*k_boltz*temperature_trial)
         else
           residual = x - log10P_previous + &
-                     (mubar_base(residual_layer)*var%grav(residual_layer)*var%dz(residual_layer)*log10e)/ &
+                     (mubar_base(residual_layer)*grid_grav(residual_layer)* &
+                      grid_dz(residual_layer)*log10e)/ &
                      (N_avo*k_boltz*0.5_dp*(temperature_previous + temperature_trial))
         endif
       else
@@ -855,10 +888,10 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       mubar_bottom = sum(dat%species_mass(dat%ng_1:dat%nq)* &
                          usol_bottom(dat%ng_1:dat%nq))/density_bottom
 
-      column_mass = density_bottom*mubar_bottom*var%grav(1)*var%dz(1)
+      column_mass = density_bottom*mubar_bottom*grid_grav(1)*grid_dz(1)
       do gas_ind = 2,var%nz
         column_mass = column_mass + density_base(gas_ind)*mubar_base(gas_ind)* &
-                                    var%grav(gas_ind)*var%dz(gas_ind)
+                                    grid_grav(gas_ind)*grid_dz(gas_ind)
       enddo
       surface_pressure = column_mass/N_avo
 
@@ -965,17 +998,23 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     use photochem_enum, only: DensityBC, PressureBC
     use futils, only: interp
     use photochem_eqns, only: vertical_grid, gravity
-    use photochem_const, only: small_real, k_boltz
+    use photochem_const, only: small_real, k_boltz, N_avo
     class(EvoAtmosphere), target, intent(in) :: self
     real(dp), intent(in) :: usol(:,:)
     real(dp), intent(in) :: top_atmos_new !! cm
     type(VerticalGridCandidate), intent(out) :: candidate
     character(:), allocatable, intent(out) :: err
 
-    real(dp) :: Psat
+    real(dp), parameter :: persistent_tolerance = 1.0e-10_dp
+    integer, parameter :: persistent_max_iterations = 50
+    real(dp) :: Psat, gas_mix_total, pressure_previous, temperature_previous
+    real(dp) :: delta_z, mubar
     real(dp), allocatable :: mix(:,:), mix_new(:,:)
     real(dp), allocatable :: density(:), density_new(:)
-    integer :: i, j, ierr
+    real(dp), allocatable :: temperature_mapped(:), edd_mapped(:), log10P_mapped(:)
+    real(dp), allocatable :: pressure_reference_candidate(:)
+    real(dp) :: trop_alt, temperature_change
+    integer :: i, j, ierr, iteration, first_extended
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -1064,9 +1103,38 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       return
     endif
 
-    ! Interpolate density, with linear extrapolation
-    call interp(candidate%z, var%z, log10(density), density_new, &
-                linear_extrap=.true., ierr=ierr)
+    ! Gas mixing ratios define the mean molecular weight used by the
+    ! hydrostatic extension and must sum to exactly one. Particle abundances
+    ! remain ratios relative to total gas density. Beyond the old top model
+    ! center, both are held at their normalized old-top values explicitly.
+    do j = 1,var%nz
+      gas_mix_total = sum(mix_new(dat%ng_1:dat%nq,j))
+      if (.not.ieee_is_finite(gas_mix_total) .or. gas_mix_total <= 0.0_dp) then
+        err = 'The candidate vertical grid produced invalid gas mixing ratios.'
+        return
+      endif
+      mix_new(dat%ng_1:dat%nq,j) = mix_new(dat%ng_1:dat%nq,j)/gas_mix_total
+    enddo
+    first_extended = var%nz + 1
+    do j = 1,var%nz
+      if (candidate%z(j) > var%z(var%nz)) then
+        first_extended = j
+        exit
+      endif
+    enddo
+    if (first_extended <= var%nz) then
+      gas_mix_total = sum(mix(dat%ng_1:dat%nq,var%nz))
+      mix_new(dat%ng_1:dat%nq,first_extended:) = spread( &
+          mix(dat%ng_1:dat%nq,var%nz)/gas_mix_total, 2, var%nz-first_extended+1)
+      if (dat%npq > 0) then
+        mix_new(1:dat%npq,first_extended:) = spread( &
+            max(mix(1:dat%npq,var%nz),small_real), 2, var%nz-first_extended+1)
+      endif
+    endif
+
+    ! Interpolate density inside the old grid. Values above the old top model
+    ! center are replaced below by a hydrostatic continuation.
+    call interp(candidate%z, var%z, log10(density), density_new, ierr=ierr)
     if (ierr /= 0) then
       err = 'Gas-density interpolation failed while constructing a candidate vertical grid.'
       return
@@ -1076,11 +1144,6 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       err = 'The candidate vertical grid produced invalid gas density.'
       return
     endif
-
-    ! Compute usol_new with mixing ratios and densities
-    do i = 1,var%nz
-      candidate%usol(:,i) = mix_new(:,i)*density_new(i)
-    enddo 
 
     ! Particle radii
     if (dat%there_are_particles) then
@@ -1094,12 +1157,72 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
         endif
       enddo
       candidate%particle_radius = 10.0_dp**candidate%particle_radius
+      if (first_extended <= var%nz) then
+        candidate%particle_radius(:,first_extended:) = spread( &
+            var%particle_radius(:,var%nz), 2, var%nz-first_extended+1)
+      endif
       if (.not.all(ieee_is_finite(candidate%particle_radius)) .or. &
           any(candidate%particle_radius <= 0.0_dp)) then
         err = 'The candidate vertical grid produced invalid particle radii.'
         return
       endif
     endif
+
+    ! Reconcile a persistent pressure-based T-Kzz profile with the candidate
+    ! composition before committing anything to the live model. Mapping the
+    ! profile changes temperature, while the hydrostatic continuation depends
+    ! on that temperature, so iterate the two operations to consistency.
+    if (var%press_temp_edd_profile%enabled) then
+      allocate(temperature_mapped(var%nz), edd_mapped(var%nz), &
+               log10P_mapped(var%nz), pressure_reference_candidate(var%nz))
+      pressure_reference_candidate = self%wrk%pressure_hydro
+
+      do iteration = 1,persistent_max_iterations
+        call extend_density_hydrostatically()
+        call fill_candidate_usol()
+
+        if (var%press_temp_edd_profile%has_trop_p) then
+          call map_press_temp_edd(self, candidate%usol, &
+               var%press_temp_edd_profile%pressure, &
+               var%press_temp_edd_profile%temperature, &
+               var%press_temp_edd_profile%edd, &
+               var%press_temp_edd_profile%trop_p, &
+               var%press_temp_edd_profile%hydro_pressure, &
+               candidate%z, candidate%dz, candidate%grav, candidate%temperature, &
+               pressure_reference_candidate, &
+               temperature_mapped, edd_mapped, log10P_mapped, trop_alt, err)
+        else
+          call map_press_temp_edd(self, candidate%usol, &
+               var%press_temp_edd_profile%pressure, &
+               var%press_temp_edd_profile%temperature, &
+               var%press_temp_edd_profile%edd, &
+               hydro_pressure=var%press_temp_edd_profile%hydro_pressure, &
+               grid_z=candidate%z, grid_dz=candidate%dz, &
+               grid_grav=candidate%grav, &
+               temperature_reference=candidate%temperature, &
+               pressure_reference=pressure_reference_candidate, &
+               T_new=temperature_mapped, edd_new=edd_mapped, &
+               log10P_wrk=log10P_mapped, trop_alt=trop_alt, err=err)
+        endif
+        if (allocated(err)) return
+
+        temperature_change = maxval(abs(temperature_mapped-candidate%temperature)/ &
+                                    max(temperature_mapped,1.0_dp))
+        candidate%temperature = temperature_mapped
+        candidate%edd = edd_mapped
+        pressure_reference_candidate = 10.0_dp**log10P_mapped
+        if (temperature_change <= persistent_tolerance) exit
+      enddo
+      if (iteration > persistent_max_iterations) then
+        err = 'The persistent pressure profile did not converge on the candidate vertical grid.'
+        return
+      endif
+    endif
+
+    ! One final continuation uses the converged persistent temperature, or
+    ! the altitude-interpolated temperature when persistence is disabled.
+    call extend_density_hydrostatically()
+    call fill_candidate_usol()
 
     ! Account for fixed surface mixing ratios
     do i = 1,dat%nq
@@ -1116,13 +1239,47 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       endif
     enddo
 
-    candidate%pressure = density_new*k_boltz*candidate%temperature
+    do j = 1,var%nz
+      candidate%pressure(j) = sum(candidate%usol(dat%ng_1:,j))* &
+                              k_boltz*candidate%temperature(j)
+    enddo
     if (.not.all(ieee_is_finite(candidate%usol)) .or. &
         .not.all(ieee_is_finite(candidate%pressure)) .or. &
         any(candidate%pressure <= 0.0_dp)) then
       err = 'The candidate vertical grid produced invalid composition or pressure.'
       return
     endif
+
+  contains
+
+    subroutine fill_candidate_usol()
+      integer :: layer
+
+      do layer = 1,var%nz
+        candidate%usol(:,layer) = mix_new(:,layer)*density_new(layer)
+      enddo
+    end subroutine
+
+    subroutine extend_density_hydrostatically()
+      integer :: layer
+
+      if (first_extended > var%nz) return
+
+      pressure_previous = density(var%nz)*k_boltz*var%temperature(var%nz)
+      temperature_previous = var%temperature(var%nz)
+      delta_z = candidate%z(first_extended)-var%z(var%nz)
+      do layer = first_extended,var%nz
+        if (layer > first_extended) delta_z = candidate%z(layer)-candidate%z(layer-1)
+        mubar = sum(dat%species_mass(dat%ng_1:dat%nq)* &
+                    mix_new(dat%ng_1:dat%nq,layer))
+        pressure_previous = pressure_previous*exp( &
+            -(mubar*candidate%grav(layer)*delta_z)/ &
+             (N_avo*k_boltz*0.5_dp* &
+              (temperature_previous+candidate%temperature(layer))))
+        density_new(layer) = pressure_previous/(k_boltz*candidate%temperature(layer))
+        temperature_previous = candidate%temperature(layer)
+      enddo
+    end subroutine
 
   end subroutine
 

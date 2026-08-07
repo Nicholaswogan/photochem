@@ -562,6 +562,8 @@ module photochem_evoatmosphere
     ! Internal, non-mutating mapping kernel shared by the public setter and
     ! routines that need to map a profile for an arbitrary trial composition.
     module subroutine map_press_temp_edd(self, usol_in, P, T, edd, trop_p, hydro_pressure, &
+                                         grid_z, grid_dz, grid_grav, temperature_reference, &
+                                         pressure_reference, &
                                          T_new, edd_new, log10P_wrk, trop_alt, err)
       class(EvoAtmosphere), target, intent(in) :: self
       real(dp), intent(in) :: usol_in(:,:)
@@ -570,6 +572,11 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: edd(:)
       real(dp), optional, intent(in) :: trop_p
       logical, optional, intent(in) :: hydro_pressure
+      real(dp), intent(in) :: grid_z(:)
+      real(dp), intent(in) :: grid_dz(:)
+      real(dp), intent(in) :: grid_grav(:)
+      real(dp), intent(in) :: temperature_reference(:)
+      real(dp), intent(in) :: pressure_reference(:)
       real(dp), intent(out) :: T_new(:)
       real(dp), intent(out) :: edd_new(:)
       real(dp), intent(out) :: log10P_wrk(:)
@@ -631,10 +638,14 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Re-does the vertical grid so that the pressure at the top of the
-    !> atmosphere is a `TOA_alt` or `TOA_pressure`. If the TOA needs to be raised above the current
-    !> TOA, then the function constantly extrapolates mixing ratios, temperature,
-    !> eddy diffusion, and particle radii.
+    !> Rebuilds the vertical grid for a new `TOA_alt` or `TOA_pressure`.
+    !! Inside the old model domain, atmospheric properties are interpolated.
+    !! Above it, normalized gas mixing ratios, particle abundances relative to
+    !! gas, and particle radii are held constant, while gas density is extended
+    !! hydrostatically. Altitude-based temperature and eddy diffusion are held
+    !! constant above the old domain. If a persistent pressure-based profile is
+    !! enabled, its mapped temperature and eddy diffusion are instead reconciled
+    !! with the hydrostatic extension before the new grid is committed.
     module subroutine update_vertical_grid(self, TOA_alt, TOA_pressure, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), optional, intent(in) :: TOA_alt !! New top of atmosphere altitude (cm)

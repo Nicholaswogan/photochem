@@ -19,16 +19,18 @@ contains
     call test_robust_stepper_limits()
     call test_set_press_temp_edd_nonmonotonic()
     call test_update_vertical_grid_inputs()
+    call test_update_vertical_grid_particles()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
   end subroutine
 
   subroutine test_update_vertical_grid_inputs()
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, ieee_value
+    use photochem_const, only: k_boltz
     type(EvoAtmosphere) :: pc
     character(:), allocatable :: err
-    real(dp), allocatable :: z_before(:), usol_before(:,:)
-    real(dp) :: top_before, invalid_alt
+    real(dp), allocatable :: z_before(:), usol_before(:,:), gas_mix_top(:)
+    real(dp) :: top_before, invalid_alt, z_top, density_top, pressure_top, temperature_top
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
@@ -43,6 +45,11 @@ contains
     top_before = pc%var%top_atmos
     z_before = pc%var%z
     usol_before = pc%wrk%usol
+    z_top = pc%var%z(pc%var%nz)
+    density_top = sum(pc%wrk%usol(pc%dat%ng_1:,pc%var%nz))
+    pressure_top = density_top*k_boltz*pc%var%temperature(pc%var%nz)
+    temperature_top = pc%var%temperature(pc%var%nz)
+    gas_mix_top = pc%wrk%usol(pc%dat%ng_1:,pc%var%nz)/density_top
 
     call pc%update_vertical_grid(err=err)
     if (.not.allocated(err)) then
@@ -89,20 +96,21 @@ contains
       stop 1
     endif
 
-    ! Characterize both directions through the candidate-remapping path. Pass
-    ! 2 will replace only the above-domain density extrapolation policy.
-    call pc%update_vertical_grid(TOA_alt=1.02_dp*top_before, err=err)
+    ! Exercise both directions through the candidate-remapping path and check
+    ! the hydrostatic policy used above the old model domain.
+    call pc%update_vertical_grid(TOA_alt=1.20_dp*top_before, err=err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
     endif
-    if (pc%var%top_atmos /= 1.02_dp*top_before .or. &
+    if (pc%var%top_atmos /= 1.20_dp*top_before .or. &
         .not.all(ieee_is_finite(pc%var%z)) .or. any(pc%var%dz <= 0.0_dp) .or. &
         .not.all(ieee_is_finite(pc%wrk%usol)) .or. &
         any(sum(pc%wrk%usol(pc%dat%ng_1:,:),dim=1) <= 0.0_dp)) then
       print *, 'Raising the TOA produced an invalid candidate grid'
       stop 1
     endif
+    call check_hydrostatic_extension(pc, z_top, pressure_top, temperature_top, gas_mix_top)
     call pc%update_vertical_grid(TOA_alt=0.98_dp*top_before, err=err)
     if (allocated(err)) then
       print *, trim(err)
@@ -114,6 +122,52 @@ contains
       print *, 'Lowering the TOA produced an invalid candidate grid'
       stop 1
     endif
+
+  end subroutine
+
+  subroutine test_update_vertical_grid_particles()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp), allocatable :: particle_mix_top(:), particle_radius_top(:)
+    real(dp) :: top_before, z_top, density_top, density_layer
+    integer :: i, first_extended
+
+    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    top_before = pc%var%top_atmos
+    z_top = pc%var%z(pc%var%nz)
+    density_top = sum(pc%wrk%usol(pc%dat%ng_1:,pc%var%nz))
+    particle_mix_top = pc%wrk%usol(1:pc%dat%npq,pc%var%nz)/density_top
+    particle_radius_top = pc%var%particle_radius(:,pc%var%nz)
+
+    call pc%update_vertical_grid(TOA_alt=1.20_dp*top_before, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    first_extended = findloc(pc%var%z > z_top, .true., dim=1)
+    if (first_extended == 0) then
+      print *, 'Particle regrid test did not extend beyond the old top center'
+      stop 1
+    endif
+    do i = first_extended,pc%var%nz
+      density_layer = sum(pc%wrk%usol(pc%dat%ng_1:,i))
+      if (maxval(abs(pc%wrk%usol(1:pc%dat%npq,i)/density_layer- &
+                     particle_mix_top)) > 1.0e-12_dp .or. &
+          maxval(abs(pc%var%particle_radius(:,i)/particle_radius_top-1.0_dp)) > &
+          1.0e-12_dp) then
+        print *, 'Particle abundance or radius was not constant above the old model top'
+        stop 1
+      endif
+    enddo
 
   end subroutine
 
@@ -1169,6 +1223,7 @@ contains
   end subroutine
 
   subroutine test_press_temp_edd_profile(pc)
+    use photochem_const, only: k_boltz
     type(EvoAtmosphere), intent(inout) :: pc
     character(:), allocatable :: err
     real(dp) :: P(2), T(2), edd(2)
@@ -1179,7 +1234,8 @@ contains
     real(dp) :: rhs(pc%var%neqs)
     real(dp) :: temperature_before(pc%var%nz)
     real(dp) :: temperature_disabled(pc%var%nz)
-    real(dp) :: top_atmos_original
+    real(dp), allocatable :: gas_mix_top(:)
+    real(dp) :: top_atmos_original, z_top, density_top, pressure_top, temperature_top
     real(dp) :: tn
 
     usol_original = pc%wrk%usol
@@ -1286,6 +1342,46 @@ contains
     endif
     call check_press_temp_edd_profile(pc, P, T, edd)
 
+    ! Raising the top while persistence is active must use the mapped
+    ! temperature in the hydrostatic continuation, not a stale altitude-based
+    ! extrapolation.
+    z_top = pc%var%z(pc%var%nz)
+    density_top = sum(pc%wrk%usol(pc%dat%ng_1:,pc%var%nz))
+    pressure_top = density_top*k_boltz*pc%var%temperature(pc%var%nz)
+    temperature_top = pc%var%temperature(pc%var%nz)
+    gas_mix_top = pc%wrk%usol(pc%dat%ng_1:,pc%var%nz)/density_top
+    call pc%initialize_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    call pc%update_vertical_grid(TOA_alt=1.20_dp*top_atmos_original, err=err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    call check_press_temp_edd_profile(pc, P, T, edd)
+    call check_hydrostatic_extension(pc, z_top, pressure_top, temperature_top, gas_mix_top)
+    ! Match the gas-giant maintenance sequence. This must not double-free
+    ! solver resources owned by the live model. Pass 3 may make the successful
+    ! regrid invalidate them before this explicit initialization.
+    call pc%initialize_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    call pc%update_vertical_grid(TOA_alt=top_atmos_original, err=err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    call check_press_temp_edd_profile(pc, P, T, edd)
+
     ! A different trial composition must produce a different altitude-based
     ! temperature while still reproducing the prescribed pressure profiles.
     temperature_before = pc%var%temperature
@@ -1328,6 +1424,51 @@ contains
       print*,trim(err)
       stop 1
     endif
+
+  end subroutine
+
+  subroutine check_hydrostatic_extension(pc, z_anchor, pressure_anchor, &
+                                         temperature_anchor, gas_mix_anchor)
+    use photochem_const, only: k_boltz, N_avo
+    type(EvoAtmosphere), intent(in) :: pc
+    real(dp), intent(in) :: z_anchor, pressure_anchor, temperature_anchor
+    real(dp), intent(in) :: gas_mix_anchor(:)
+    real(dp) :: density_layer, pressure_layer, pressure_expected
+    real(dp) :: pressure_previous, temperature_previous, delta_z, mubar
+    real(dp) :: gas_mix(size(gas_mix_anchor))
+    integer :: i, first_extended
+
+    first_extended = findloc(pc%var%z > z_anchor, .true., dim=1)
+    if (first_extended == 0) then
+      print *, 'Hydrostatic regrid test did not extend beyond the old top center'
+      stop 1
+    endif
+
+    pressure_previous = pressure_anchor
+    temperature_previous = temperature_anchor
+    delta_z = pc%var%z(first_extended)-z_anchor
+    do i = first_extended,pc%var%nz
+      if (i > first_extended) delta_z = pc%var%z(i)-pc%var%z(i-1)
+      density_layer = sum(pc%wrk%usol(pc%dat%ng_1:,i))
+      gas_mix = pc%wrk%usol(pc%dat%ng_1:,i)/density_layer
+      if (abs(sum(gas_mix)-1.0_dp) > 1.0e-14_dp .or. &
+          maxval(abs(gas_mix-gas_mix_anchor)) > 1.0e-12_dp) then
+        print *, 'Gas mixing ratios were not normalized and constant above the old model top'
+        stop 1
+      endif
+      mubar = sum(pc%dat%species_mass(pc%dat%ng_1:pc%dat%nq)*gas_mix)
+      pressure_expected = pressure_previous*exp( &
+          -(mubar*pc%var%grav(i)*delta_z)/ &
+           (N_avo*k_boltz*0.5_dp*(temperature_previous+pc%var%temperature(i))))
+      pressure_layer = density_layer*k_boltz*pc%var%temperature(i)
+      if (pressure_layer >= pressure_previous .or. &
+          abs(pressure_layer/pressure_expected-1.0_dp) > 2.0e-9_dp) then
+        print *, 'Density above the old model top is not a hydrostatic continuation'
+        stop 1
+      endif
+      pressure_previous = pressure_layer
+      temperature_previous = pc%var%temperature(i)
+    enddo
 
   end subroutine
 
