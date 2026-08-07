@@ -397,10 +397,11 @@ module photochem_evoatmosphere
     end subroutine
 
     ! Apply one optional pressure-maintenance update after an accepted step.
-    module subroutine maybe_maintain_toa_pressure(self, chemistry_converged, updated, err)
+    module subroutine maybe_maintain_toa_pressure(self, chemistry_converged, updated, failed, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       logical, intent(in) :: chemistry_converged
       logical, intent(out) :: updated
+      logical, intent(out) :: failed
       character(:), allocatable, intent(out) :: err
     end subroutine
     

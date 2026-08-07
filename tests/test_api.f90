@@ -199,7 +199,7 @@ contains
   end subroutine
 
   subroutine test_toa_pressure_maintenance()
-    type(EvoAtmosphere) :: pc
+    type(EvoAtmosphere) :: pc, pc_failure
     character(:), allocatable :: err
     real(dp) :: P(2), T(2), edd(2)
     real(dp) :: target_pressure, top_before, t_before
@@ -225,7 +225,7 @@ contains
     top_before = pc%var%top_atmos
     pc%var%toa_pressure_maintenance%enabled = .true.
     pc%var%toa_pressure_maintenance%target_pressure = target_pressure
-    pc%var%toa_pressure_maintenance%pressure_tolerance = 1.0e-5_dp
+    pc%var%toa_pressure_maintenance%pressure_factor = 1.01_dp
     pc%var%toa_pressure_maintenance%nsteps_between_updates = 1
     t_before = pc%wrk%tn
 
@@ -251,6 +251,54 @@ contains
     endif
 
     call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ! A bounded maintenance failure permits the configured number of failed
+    ! attempts, then reports the underlying bracketing error visibly.
+    pc_failure = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call pc_failure%set_press_temp_edd_profile(P, T, edd, &
+         pc_failure%wrk%pressure_hydro(pc_failure%var%nz/2), &
+         hydro_pressure=.true., err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    pc_failure%var%toa_pressure_maintenance%enabled = .true.
+    pc_failure%var%toa_pressure_maintenance%target_pressure = 1.0e100_dp
+    pc_failure%var%toa_pressure_maintenance%nsteps_between_updates = 1
+    pc_failure%var%toa_pressure_maintenance%max_failures = 1
+    pc_failure%var%equilibrium_time = -1.0_dp
+    call pc_failure%initialize_robust_stepper(pc_failure%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call pc_failure%robust_step(give_up, converged, err)
+    if (allocated(err) .or. give_up .or. converged .or. &
+        pc_failure%wrk%n_toa_pressure_failures /= 1 .or. &
+        .not.pc_failure%wrk%robust_stepper_initialized) then
+      if (allocated(err)) print *, trim(err)
+      print *, 'A recoverable TOA-maintenance failure was handled incorrectly'
+      stop 1
+    endif
+    call pc_failure%robust_step(give_up, converged, err)
+    if (.not.allocated(err) .or. &
+        index(err, 'failure limit exceeded') == 0 .or. &
+        pc_failure%wrk%n_toa_pressure_failures /= 2 .or. &
+        .not.pc_failure%wrk%robust_stepper_initialized) then
+      if (allocated(err)) print *, trim(err)
+      print *, 'TOA-maintenance failure limit was not enforced visibly'
+      stop 1
+    endif
+    deallocate(err)
+    call pc_failure%destroy_stepper(err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1

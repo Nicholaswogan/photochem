@@ -1063,9 +1063,9 @@ contains
              self%var%toa_pressure_maintenance%target_pressure <= 0.0_dp)) then
       err = "`toa_pressure_maintenance%target_pressure` must be finite and positive"
     elseif (self%var%toa_pressure_maintenance%enabled .and. &
-            (.not.ieee_is_finite(self%var%toa_pressure_maintenance%pressure_tolerance) .or. &
-             self%var%toa_pressure_maintenance%pressure_tolerance <= 0.0_dp)) then
-      err = "`toa_pressure_maintenance%pressure_tolerance` must be finite and positive"
+            (.not.ieee_is_finite(self%var%toa_pressure_maintenance%pressure_factor) .or. &
+             self%var%toa_pressure_maintenance%pressure_factor < 1.0_dp)) then
+      err = "`toa_pressure_maintenance%pressure_factor` must be finite and at least one"
     elseif (self%var%toa_pressure_maintenance%enabled .and. &
             self%var%toa_pressure_maintenance%nsteps_between_updates < 1) then
       err = "`toa_pressure_maintenance%nsteps_between_updates` must be positive"
@@ -1115,7 +1115,7 @@ contains
     real(dp) :: t_committed
     real(dp) :: usol_committed(self%dat%nq,self%var%nz)
     character(:), allocatable :: cleanup_err
-    logical :: chemistry_converged, toa_updated
+    logical :: chemistry_converged, toa_updated, toa_failed
 
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
@@ -1185,8 +1185,9 @@ contains
     ! drifted outside the requested pressure range. Maintenance must happen
     ! before reporting convergence, and a successful regrid starts a fresh
     ! segment-local convergence history.
-    call self%maybe_maintain_toa_pressure(chemistry_converged, toa_updated, err)
+    call self%maybe_maintain_toa_pressure(chemistry_converged, toa_updated, toa_failed, err)
     if (allocated(err)) return
+    if (toa_failed) return
     if (toa_updated) return
     if (chemistry_converged) then
       converged = .true.
@@ -1212,28 +1213,40 @@ contains
 
   end subroutine
 
-  module subroutine maybe_maintain_toa_pressure(self, chemistry_converged, updated, err)
+  module subroutine maybe_maintain_toa_pressure(self, chemistry_converged, updated, failed, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     class(EvoAtmosphere), target, intent(inout) :: self
     logical, intent(in) :: chemistry_converged
     logical, intent(out) :: updated
+    logical, intent(out) :: failed
     character(:), allocatable, intent(out) :: err
 
-    real(dp) :: current_pressure, relative_drift, t_current
+    real(dp) :: current_pressure, pressure_ratio, t_current
+    character(:), allocatable :: failure_message
     integer :: nsteps_total, nerrors_total
     integer :: nupdates, nfailures
 
     updated = .false.
+    failed = .false.
     if (.not.self%var%toa_pressure_maintenance%enabled) return
+
+    nfailures = self%wrk%n_toa_pressure_failures
 
     current_pressure = self%wrk%pressure(self%var%nz)
     if (.not.ieee_is_finite(current_pressure) .or. current_pressure <= 0.0_dp) then
-      err = 'TOA-pressure maintenance could not evaluate a finite positive current pressure.'
+      self%wrk%n_toa_pressure_failures = nfailures + 1
+      failed = .true.
+      if (self%wrk%n_toa_pressure_failures > &
+          self%var%toa_pressure_maintenance%max_failures) then
+        err = 'TOA-pressure maintenance failed (failure limit exceeded): '// &
+              'the current TOA pressure was not finite and positive.'
+      endif
       return
     endif
-    relative_drift = abs(current_pressure/ &
-                         self%var%toa_pressure_maintenance%target_pressure - 1.0_dp)
-    if (relative_drift <= self%var%toa_pressure_maintenance%pressure_tolerance) return
+    pressure_ratio = current_pressure / &
+                     self%var%toa_pressure_maintenance%target_pressure
+    if (pressure_ratio >= 1.0_dp / self%var%toa_pressure_maintenance%pressure_factor .and. &
+        pressure_ratio <= self%var%toa_pressure_maintenance%pressure_factor) return
     if (self%wrk%nsteps_since_toa_pressure_update < &
         self%var%toa_pressure_maintenance%nsteps_between_updates .and. &
         .not.chemistry_converged) return
@@ -1243,7 +1256,6 @@ contains
     nsteps_total = self%wrk%nsteps_total
     nerrors_total = self%wrk%nerrors_total
     nupdates = self%wrk%n_toa_pressure_updates
-    nfailures = self%wrk%n_toa_pressure_failures
     t_current = self%wrk%tn
 
     call self%update_vertical_grid( &
@@ -1252,7 +1264,16 @@ contains
       ! The vertical-grid transaction is failure atomic, so the active solver
       ! and committed state remain available for the caller.
       self%wrk%n_toa_pressure_failures = nfailures + 1
-      err = 'TOA-pressure maintenance failed: '//err
+      failed = .true.
+      if (self%wrk%n_toa_pressure_failures > &
+          self%var%toa_pressure_maintenance%max_failures) then
+        failure_message = err
+        deallocate(err)
+        err = 'TOA-pressure maintenance failed (failure limit exceeded): '// &
+              failure_message
+      else
+        deallocate(err)
+      endif
       return
     endif
 

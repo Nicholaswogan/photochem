@@ -57,7 +57,7 @@ module photochem_types ! make a giant IO object
   type :: TOAPressureMaintenance
     logical :: enabled = .false.
     real(dp) :: target_pressure = 0.0_dp !! Target pressure (dynes/cm^2)
-    real(dp) :: pressure_tolerance = 1.0e-2_dp !! Relative pressure tolerance
+    real(dp) :: pressure_factor = 3.0_dp !! Multiplicative acceptable pressure factor
     integer :: nsteps_between_updates = 100 !! Minimum accepted steps between updates
     integer :: max_failures = 0 !! Failed updates allowed before robust integration stops
   end type
