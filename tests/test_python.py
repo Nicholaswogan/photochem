@@ -248,6 +248,32 @@ def test_initialize_atmosphere_p_no_particles():
     assert pc.var.bottom_atmos == 0.0
     assert pc.var.top_atmos > 0.0
     assert np.all(np.diff(pc.wrk.pressure_hydro) < 0.0)
+    assert pc.var.toa_pressure_maintenance.enabled is True
+    assert pc.var.toa_pressure_maintenance.target_pressure == 0.1
+
+    pc.initialize_atmosphere_p(
+        pressure, temperature, edd, mix,
+        persistent=True, maintain_toa_pressure=False
+    )
+    assert pc.var.toa_pressure_maintenance.enabled is False
+
+    target_pressure = 0.25
+    pc.initialize_atmosphere_p(
+        pressure, temperature, edd, mix,
+        persistent=True, target_pressure=target_pressure
+    )
+    assert pc.var.toa_pressure_maintenance.enabled is True
+    assert pc.var.toa_pressure_maintenance.target_pressure == target_pressure
+
+    try:
+        pc.initialize_atmosphere_p(
+            pressure, temperature, edd, mix, target_pressure=target_pressure
+        )
+    except PhotoException as exc:
+        assert "persistent" in str(exc)
+    else:
+        raise AssertionError("nonpersistent pressure initialization accepted a TOA target")
+
     pc.clear_press_temp_edd_profile()
 
 

@@ -215,14 +215,20 @@ module photochem_evoatmosphere
     !! retained as functions of hydrostatic pressure and reapplied during every
     !! subsequent atmospheric preparation. Composition always remains part of
     !! the evolving ODE state. When gas rainout and persistence are both
-    !! enabled, `trop_p` is required.
+    !! enabled, `trop_p` is required. When `persistent` is enabled, TOA-pressure
+    !! maintenance is enabled by default and may be configured with
+    !! `maintain_toa_pressure` and `target_pressure`.
+    !! The requested initial grid is retained even when its TOA pressure lies
+    !! outside the maintenance band; robust-stepper initialization performs
+    !! the preflight regrid before CVODE starts.
     !!
     !! On success, any active integrator is destroyed and the replacement
     !! atmosphere is committed. If mapping or preparation fails, the existing
     !! atmosphere, persistent profile, and integrator are retained.
     module subroutine initialize_atmosphere_p(self, pressure, temperature, edd, &
                                               mix, particle_radius, persistent, &
-                                              trop_p, err)
+                                              trop_p, maintain_toa_pressure, &
+                                              target_pressure, err)
       class(EvoAtmosphere), intent(inout) :: self
       !> Strictly decreasing pressure profile knots (dyn/cm^2), including both domain edges.
       real(dp), intent(in) :: pressure(:)
@@ -236,6 +242,10 @@ module photochem_evoatmosphere
       logical, optional, intent(in) :: persistent
       !> Tropopause pressure (dyn/cm^2). May be supplied only when `persistent` is true.
       real(dp), optional, intent(in) :: trop_p
+      !> Enable approximate TOA-pressure maintenance when `persistent` is true.
+      logical, optional, intent(in) :: maintain_toa_pressure
+      !> Target TOA pressure for approximate maintenance (dyn/cm^2).
+      real(dp), optional, intent(in) :: target_pressure
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -422,8 +432,9 @@ module photochem_evoatmosphere
     !> Initializes a robust integration starting at `usol_start` and time zero.
     !> When TOA-pressure maintenance is enabled, the starting composition is
     !> prepared and the model top is brought inside the configured pressure
-    !> band before CVODE is initialized. Total accepted-step and failed-step
-    !> counters are reset.
+    !> band before CVODE is initialized. This preflight is performed here so
+    !> pressure-based initialization can retain its requested domain endpoints.
+    !> Total accepted-step and failed-step counters are reset.
     module subroutine initialize_robust_stepper(self, usol_start, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)

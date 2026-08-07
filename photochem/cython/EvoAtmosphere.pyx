@@ -235,7 +235,8 @@ cdef class EvoAtmosphere:
                               particle_radius=None, bint persistent=False,
                               tropopause_pressure=None,
                               double default_mix=1.0e-40,
-                              double default_particle_radius=1.0e-5):
+                              double default_particle_radius=1.0e-5,
+                              maintain_toa_pressure=None, target_pressure=None):
     """Initialize the atmosphere from pressure-based profiles.
 
     The pressure profile must be strictly decreasing. Its first and last
@@ -253,6 +254,15 @@ cdef class EvoAtmosphere:
     preparation. Composition remains part of the evolving ODE state. When gas
     rainout and persistence are both enabled, ``tropopause_pressure`` is
     required.
+
+    Persistent initialization enables approximate TOA-pressure maintenance by
+    default. Use ``maintain_toa_pressure=False`` to disable it, or supply
+    ``target_pressure`` in dyn/cm^2 to select its target. These options are
+    only valid with ``persistent=True``.
+
+    The requested initial pressure grid is retained even when its TOA pressure
+    lies outside the maintenance band. If a robust stepper is initialized,
+    its startup preflight performs any required regrid before CVODE starts.
 
     Successful initialization destroys any active integrator. If
     initialization fails, the existing atmosphere, persistent profile, and
@@ -285,6 +295,12 @@ cdef class EvoAtmosphere:
     default_particle_radius : float, optional
         Radius in cm assigned to particles omitted from ``particle_radius``.
         The default is 1.0e-5 cm, matching legacy atmosphere-file behavior.
+    maintain_toa_pressure : bool, optional
+        Enable approximate TOA-pressure maintenance when ``persistent`` is
+        true. Defaults to true for persistent initialization.
+    target_pressure : float, optional
+        Target TOA pressure for approximate maintenance in dyn/cm^2. The
+        default is 0.1 dyn/cm^2.
     """
     cdef ndarray pressure_ = np.ascontiguousarray(pressure, dtype=np.double)
     cdef ndarray temperature_ = np.ascontiguousarray(temperature, dtype=np.double)
@@ -297,6 +313,10 @@ cdef class EvoAtmosphere:
     cdef bool persistent_ = persistent
     cdef double tropopause_pressure_ = 0.0
     cdef bool tropopause_pressure_present = False
+    cdef bool maintain_toa_pressure_ = True
+    cdef bool maintain_toa_pressure_present = False
+    cdef double target_pressure_ = 0.1
+    cdef bool target_pressure_present = False
     cdef char err[ERR_LEN+1]
 
     if temperature_.size != nprofile or edd_.size != nprofile:
@@ -304,6 +324,12 @@ cdef class EvoAtmosphere:
     if tropopause_pressure is not None:
       tropopause_pressure_present = True
       tropopause_pressure_ = tropopause_pressure
+    if maintain_toa_pressure is not None:
+      maintain_toa_pressure_present = True
+      maintain_toa_pressure_ = maintain_toa_pressure
+    if target_pressure is not None:
+      target_pressure_present = True
+      target_pressure_ = target_pressure
 
     mix_, particle_radius_ = self._prepare_atmosphere_composition(
       nprofile, mix, particle_radius, default_mix, default_particle_radius
@@ -316,7 +342,9 @@ cdef class EvoAtmosphere:
       <double *>temperature_.data, <double *>edd_.data,
       &nq, <double *>mix_.data, &nparticles,
       <double *>particle_radius_.data, &persistent_,
-      &tropopause_pressure_, &tropopause_pressure_present, err
+      &tropopause_pressure_, &tropopause_pressure_present,
+      &maintain_toa_pressure_, &maintain_toa_pressure_present,
+      &target_pressure_, &target_pressure_present, err
     )
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -921,7 +949,9 @@ cdef class EvoAtmosphere:
     configured through ``self.var.toa_pressure_maintenance`` and requires a
     persistent pressure-based temperature/eddy-diffusion profile. When it is
     enabled, the initial composition is prepared and the model top is brought
-    inside the configured pressure band before CVODE starts.
+    inside the configured pressure band before CVODE starts. This preflight is
+    performed here so pressure-based initialization can retain its requested
+    domain endpoints.
 
     Parameters
     ----------

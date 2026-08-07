@@ -325,7 +325,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         try:
             self.initialize_atmosphere_p(
                 np.asarray(P1)[inds], np.asarray(T1)[inds],
-                np.asarray(Kzz1)[inds], mix_profile, persistent=True
+                np.asarray(Kzz1)[inds], mix_profile, persistent=True,
+                maintain_toa_pressure=True,
+                target_pressure=gdat.TOA_pressure_avg
             )
         except Exception:
             self.dat.planet_radius = planet_radius_old

@@ -32,7 +32,11 @@ cdef extern void evoatmosphere_initialize_atmosphere_p_wrapper(EvoAtmosphere *pt
                                             double *pressure, double *temperature, double *edd,
                                             int *nq, double *mix, int *np,
                                             double *particle_radius, bool *persistent,
-                                            double *trop_p, bool *trop_p_present, char *err)
+                                            double *trop_p, bool *trop_p_present,
+                                            bool *maintain_toa_pressure,
+                                            bool *maintain_toa_pressure_present,
+                                            double *target_pressure,
+                                            bool *target_pressure_present, char *err)
 
 cdef extern void evoatmosphere_dat_get(EvoAtmosphere *ptr, dat_pxd.PhotochemData **ptr1)
 cdef extern void evoatmosphere_var_get(EvoAtmosphere *ptr, var_pxd.PhotochemVars **ptr1)

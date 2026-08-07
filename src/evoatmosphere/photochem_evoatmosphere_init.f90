@@ -127,7 +127,8 @@ contains
 
   module subroutine initialize_atmosphere_p(self, pressure, temperature, edd, &
                                             mix, particle_radius, persistent, &
-                                            trop_p, err)
+                                            trop_p, maintain_toa_pressure, &
+                                            target_pressure, err)
     use photochem_input, only: map_atmosphere_p_to_grid
 
     class(EvoAtmosphere), intent(inout) :: self
@@ -135,16 +136,27 @@ contains
     real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
     logical, optional, intent(in) :: persistent
     real(dp), optional, intent(in) :: trop_p
+    logical, optional, intent(in) :: maintain_toa_pressure
+    real(dp), optional, intent(in) :: target_pressure
     character(:), allocatable, intent(out) :: err
 
     type(EvoAtmosphere) :: candidate
     real(dp), allocatable :: pressure_model(:), density(:), mubar(:)
-    logical :: persistent_
+    logical :: persistent_, maintain_toa_pressure_
 
     persistent_ = .false.
     if (present(persistent)) persistent_ = persistent
-    if (.not. persistent_ .and. present(trop_p)) then
-      err = '"trop_p" can only be specified when "persistent" is true.'
+    maintain_toa_pressure_ = .true.
+    if (present(maintain_toa_pressure)) maintain_toa_pressure_ = maintain_toa_pressure
+    if (.not. persistent_ .and. &
+        (present(trop_p) .or. present(target_pressure) .or. &
+         present(maintain_toa_pressure))) then
+      err = '"trop_p", "maintain_toa_pressure", and "target_pressure" '// &
+            'can only be specified when "persistent" is true.'
+      return
+    endif
+    if (persistent_ .and. .not.maintain_toa_pressure_ .and. present(target_pressure)) then
+      err = '"target_pressure" cannot be specified when "maintain_toa_pressure" is false.'
       return
     endif
 
@@ -164,14 +176,14 @@ contains
     if (allocated(err)) return
 
     if (persistent_) then
-      if (present(trop_p)) then
-        call candidate%set_press_temp_edd_profile(pressure, temperature, edd, &
-                                                  trop_p=trop_p, &
-                                                  hydro_pressure=.true., err=err)
-      else
-        call candidate%set_press_temp_edd_profile(pressure, temperature, edd, &
-                                                  hydro_pressure=.true., err=err)
-      endif
+      ! Optional dummy arguments may be forwarded directly to matching
+      ! optional dummies. If either input was omitted, it remains absent in
+      ! set_press_temp_edd_profile and its default behavior applies.
+      call candidate%set_press_temp_edd_profile(pressure, temperature, edd, &
+                                                trop_p=trop_p, &
+                                                hydro_pressure=.true., &
+                                                maintain_toa_pressure=maintain_toa_pressure_, &
+                                                target_pressure=target_pressure, err=err)
       if (allocated(err)) return
       candidate%var%usol_init = candidate%wrk%usol
     endif

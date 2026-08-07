@@ -113,6 +113,10 @@
                                                             particle_radius, &
                                                             persistent, trop_p, &
                                                             trop_p_present, &
+                                                            maintain_toa_pressure, &
+                                                            maintain_toa_pressure_present, &
+                                                            target_pressure, &
+                                                            target_pressure_present, &
                                                             err) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: nprofile, nq, np
@@ -120,19 +124,56 @@
     real(c_double), intent(in) :: edd(nprofile)
     real(c_double), intent(in) :: mix(nq,nprofile), particle_radius(np,nprofile)
     logical(c_bool), intent(in) :: persistent, trop_p_present
-    real(c_double), intent(in) :: trop_p
+    logical(c_bool), intent(in) :: maintain_toa_pressure, maintain_toa_pressure_present
+    logical(c_bool), intent(in) :: target_pressure_present
+    real(c_double), intent(in) :: trop_p, target_pressure
     character(kind=c_char), intent(out) :: err(err_len+1)
 
     character(:), allocatable :: err_f
     type(EvoAtmosphere), pointer :: pc
-    logical :: persistent_f
+    logical :: persistent_f, maintain_toa_pressure_f
 
     call c_f_pointer(ptr, pc)
     persistent_f = persistent
+    maintain_toa_pressure_f = maintain_toa_pressure
+    ! The C ABI carries explicit presence flags for optional Fortran
+    ! arguments. Preserve those flags when forwarding to the public method so
+    ! invalid maintenance options can be diagnosed rather than silently
+    ! ignored.
     if (trop_p_present) then
+      if (target_pressure_present) then
+        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                        particle_radius, persistent=persistent_f, &
+                                        trop_p=trop_p, &
+                                        maintain_toa_pressure=maintain_toa_pressure_f, &
+                                        target_pressure=target_pressure, err=err_f)
+      elseif (maintain_toa_pressure_present) then
+        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                        particle_radius, persistent=persistent_f, &
+                                        trop_p=trop_p, &
+                                        maintain_toa_pressure=maintain_toa_pressure_f, &
+                                        err=err_f)
+      else
+        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                        particle_radius, persistent=persistent_f, &
+                                        trop_p=trop_p, err=err_f)
+      endif
+    elseif (target_pressure_present) then
+      if (maintain_toa_pressure_present) then
+        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                        particle_radius, persistent=persistent_f, &
+                                        maintain_toa_pressure=maintain_toa_pressure_f, &
+                                        target_pressure=target_pressure, err=err_f)
+      else
+        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                        particle_radius, persistent=persistent_f, &
+                                        target_pressure=target_pressure, err=err_f)
+      endif
+    elseif (maintain_toa_pressure_present) then
       call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
                                       particle_radius, persistent=persistent_f, &
-                                      trop_p=trop_p, err=err_f)
+                                      maintain_toa_pressure=maintain_toa_pressure_f, &
+                                      err=err_f)
     else
       call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
                                       particle_radius, persistent=persistent_f, &

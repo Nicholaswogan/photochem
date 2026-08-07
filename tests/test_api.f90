@@ -1423,7 +1423,7 @@ contains
     real(dp) :: temperature(nprofile), edd(nprofile)
     real(dp), allocatable :: mix(:,:), particle_radius(:,:)
     real(dp), allocatable :: temperature_before(:)
-    real(dp) :: top_before
+    real(dp) :: top_before, target_pressure
     integer :: i
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
@@ -1478,6 +1478,40 @@ contains
       print *, 'canonical and prepared pressure-initialization states differ'
       stop 1
     endif
+    if (.not. pc%var%toa_pressure_maintenance%enabled .or. &
+        abs(pc%var%toa_pressure_maintenance%target_pressure - 0.1_dp) > 1.0e-15_dp) then
+      print *, 'persistent pressure initialization did not enable default TOA maintenance'
+      stop 1
+    endif
+
+    ! The initializer exposes the same maintenance controls as the persistent
+    ! profile setter, while retaining the profile itself when maintenance is
+    ! explicitly disabled.
+    call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                    particle_radius, persistent=.true., &
+                                    maintain_toa_pressure=.false., err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not. pc%var%press_temp_edd_profile%enabled .or. &
+        pc%var%toa_pressure_maintenance%enabled) then
+      print *, 'persistent initializer did not honor maintenance disablement'
+      stop 1
+    endif
+    target_pressure = 0.25_dp
+    call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                    particle_radius, persistent=.true., &
+                                    target_pressure=target_pressure, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not. pc%var%toa_pressure_maintenance%enabled .or. &
+        pc%var%toa_pressure_maintenance%target_pressure /= target_pressure) then
+      print *, 'persistent initializer did not retain custom TOA target'
+      stop 1
+    endif
 
     ! A failed pressure reinitialization must retain atmospheric, profile, and
     ! CVODE state. Equal adjacent pressure points violate strict ordering.
@@ -1517,10 +1551,19 @@ contains
       stop 1
     endif
     if (pc%var%press_temp_edd_profile%enabled .or. &
+        pc%var%toa_pressure_maintenance%enabled .or. &
         c_associated(pc%wrk%sun%cvode_mem)) then
       print *, 'default pressure initialization retained profile or integrator state'
       stop 1
     endif
+
+    call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                    particle_radius, target_pressure=target_pressure, err=err)
+    if (.not. allocated(err)) then
+      print *, 'nonpersistent pressure initialization accepted a TOA target'
+      stop 1
+    endif
+    deallocate(err)
 
     call test_initialize_atmosphere_p_particles(pressure, temperature, edd)
 
