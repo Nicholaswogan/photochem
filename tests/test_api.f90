@@ -19,6 +19,7 @@ contains
     call test_robust_stepper_limits()
     call test_set_press_temp_edd_nonmonotonic()
     call test_update_vertical_grid_inputs()
+    call test_update_vertical_grid_pressure()
     call test_update_vertical_grid_particles()
     call test_update_vertical_grid_atomicity()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
@@ -124,6 +125,130 @@ contains
       stop 1
     endif
 
+  end subroutine
+
+  subroutine test_update_vertical_grid_pressure()
+    type(EvoAtmosphere) :: reference_high, reference_low
+    type(EvoAtmosphere) :: pc_endpoint, pc_high, pc_low, pc_failure
+    character(:), allocatable :: err
+    real(dp), allocatable :: z_before(:), usol_before(:,:)
+    real(dp) :: top_initial, top_high, top_low
+    real(dp) :: pressure_initial, pressure_high, pressure_low
+
+    reference_high = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    top_initial = reference_high%var%top_atmos
+    top_high = 1.40_dp*top_initial
+    call reference_high%update_vertical_grid(TOA_alt=top_high, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    pressure_high = reference_high%wrk%pressure(reference_high%var%nz)
+
+    reference_low = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    top_low = 0.80_dp*top_initial
+    call reference_low%update_vertical_grid(TOA_alt=top_low, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    pressure_low = reference_low%wrk%pressure(reference_low%var%nz)
+    if (pressure_high >= pressure_low) then
+      print *, 'Reference TOA pressure was not monotonic with model-top altitude'
+      stop 1
+    endif
+
+    pc_endpoint = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    pressure_initial = pc_endpoint%wrk%pressure(pc_endpoint%var%nz)
+    call pc_endpoint%update_vertical_grid(TOA_pressure=pressure_initial, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call check_pressure_target(pc_endpoint, top_initial, pressure_initial, 'endpoint')
+
+    pc_high = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call pc_high%update_vertical_grid(TOA_pressure=pressure_high, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call check_pressure_target(pc_high, top_high, pressure_high, 'raised top')
+
+    pc_low = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call pc_low%update_vertical_grid(TOA_pressure=pressure_low, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call check_pressure_target(pc_low, top_low, pressure_low, 'lowered top')
+
+    pc_failure = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    z_before = pc_failure%var%z
+    usol_before = pc_failure%wrk%usol
+    call pc_failure%update_vertical_grid(TOA_pressure=1.0e100_dp, err=err)
+    if (.not.allocated(err)) then
+      print *, 'An unreachable TOA pressure was accepted'
+      stop 1
+    endif
+    if (index(err,'maximum reachable pressure') == 0 .or. &
+        any(pc_failure%var%z /= z_before) .or. &
+        any(pc_failure%wrk%usol /= usol_before)) then
+      print *, 'Failed TOA-pressure bracketing was unclear or changed model state'
+      stop 1
+    endif
+    deallocate(err)
+
+  end subroutine
+
+  function make_pressure_test_model(err) result(pc)
+    character(:), allocatable, intent(out) :: err
+    type(EvoAtmosphere) :: pc
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+  end function
+
+  subroutine check_pressure_target(pc, expected_top, target_pressure, label)
+    type(EvoAtmosphere), intent(in) :: pc
+    real(dp), intent(in) :: expected_top, target_pressure
+    character(*), intent(in) :: label
+
+    real(dp) :: pressure_result
+
+    pressure_result = pc%wrk%pressure(pc%var%nz)
+    if (abs(pc%var%top_atmos/expected_top-1.0_dp) > 2.0e-8_dp .or. &
+        abs(log10(pressure_result/target_pressure)) > 2.0e-8_dp) then
+      print *, 'Bracketed TOA-pressure solve missed the ',trim(label),' target'
+      stop 1
+    endif
   end subroutine
 
   subroutine test_update_vertical_grid_particles()
@@ -1458,9 +1583,13 @@ contains
       print*,trim(err)
       stop 1
     endif
-    call pc%update_vertical_grid(TOA_alt=top_atmos_original, err=err)
+    call pc%update_vertical_grid(TOA_pressure=pressure_top, err=err)
     if (allocated(err)) then
       print*,trim(err)
+      stop 1
+    endif
+    if (abs(log10(pc%wrk%pressure(pc%var%nz)/pressure_top)) > 2.0e-8_dp) then
+      print*,'Persistent-profile TOA-pressure solve missed its pressure target'
       stop 1
     endif
     call check_press_temp_edd_profile(pc, P, T, edd)

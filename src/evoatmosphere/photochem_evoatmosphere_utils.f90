@@ -938,43 +938,133 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
   end subroutine
 
   function TOA_at_pressure(self, usol, TOA_pressure, err) result(top_atmos)
-    use minpack_module, only: hybrd1
-    use clima_useful, only: MinpackHybrd1Vars
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, ieee_value
+    use futils, only: brent_class
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol(:,:)
     real(dp), intent(in) :: TOA_pressure !! dynes/cm^2
     character(:), allocatable, intent(out) :: err
     real(dp) :: top_atmos !! cm
 
-    type(MinpackHybrd1Vars) :: mv
+    integer, parameter :: max_bracket_expansions = 60
+    real(dp), parameter :: pressure_residual_tolerance = 1.0e-12_dp
+    real(dp) :: bottom, current_top, minimum_top, span, search_distance
+    real(dp) :: lower, upper, flower, fupper, fcurrent, fnew, fzero
+    real(dp) :: altitude_tolerance
+    integer :: expansion, iflag
+    type(brent_class) :: root_solver
 
-    mv = MinpackHybrd1Vars(1,tol=1.0e-5_dp)
-    mv%x(1) = self%var%z(self%var%nz)
-    call hybrd1(fcn, mv%n, mv%x, mv%fvec, mv%tol, mv%info, mv%wa, mv%lwa)
-    if (mv%info == 0 .or. mv%info > 1) then
-      err = 'hybrd1 root solve failed in TOA_at_pressure.'
+    bottom = self%var%bottom_atmos
+    current_top = self%var%top_atmos
+    span = current_top-bottom
+    minimum_top = bottom + max(100.0_dp*epsilon(1.0_dp)* &
+                               max(abs(bottom),span,1.0_dp), tiny(1.0_dp))
+    altitude_tolerance = max(1.0e-10_dp*span, &
+                             100.0_dp*epsilon(1.0_dp)*max(abs(current_top),1.0_dp))
+    search_distance = max(0.05_dp*span, maxval(self%var%dz))
+
+    call root_solver%set_function(altitude_residual)
+    fcurrent = altitude_residual(root_solver, current_top)
+    if (allocated(err)) then
+      err = 'Could not evaluate TOA pressure at the current model top: '//err
       return
-    elseif (mv%info < 0) then
-      err = 'hybrd1 root solve failed in TOA_at_pressure: '//err
+    endif
+    if (abs(fcurrent) <= pressure_residual_tolerance) then
+      top_atmos = current_top
       return
     endif
 
-    top_atmos = mv%x(1)
-
-  contains
-    subroutine fcn(n_, x_, fvec_, iflag_)
-      integer, intent(in) :: n_
-      real(dp), intent(in) :: x_(n_)
-      real(dp), intent(out) :: fvec_(n_)
-      integer, intent(inout) :: iflag_
-      real(dp) :: TOA_pressure_
-      TOA_pressure_ = pressure_at_TOA(self, usol, x_(1), err)
-      if (allocated(err)) then
-        iflag_ = -1
+    if (fcurrent > 0.0_dp) then
+      ! The requested pressure is lower than the current TOA pressure, so the
+      ! model top must move upward.
+      lower = current_top
+      flower = fcurrent
+      fnew = flower
+      do expansion = 1,max_bracket_expansions
+        upper = current_top+search_distance
+        fupper = altitude_residual(root_solver, upper)
+        if (allocated(err)) then
+          err = 'Could not bracket the requested TOA pressure while raising the model top: '//err
+          return
+        endif
+        if (fupper >= fnew) then
+          err = 'TOA pressure did not decrease while raising the model top; '// &
+                'a monotonic pressure bracket could not be constructed.'
+          return
+        endif
+        if (fupper <= 0.0_dp) exit
+        fnew = fupper
+        search_distance = 2.0_dp*search_distance
+      enddo
+      if (fupper > 0.0_dp) then
+        err = 'Could not bracket the requested TOA pressure above the current model top.'
         return
       endif
-      fvec_(1) = log10(TOA_pressure_) - log10(TOA_pressure)
-    end subroutine
+    else
+      ! The requested pressure is higher than the current TOA pressure, so the
+      ! model top must move downward without crossing the model bottom.
+      upper = current_top
+      fupper = fcurrent
+      fnew = fupper
+      do expansion = 1,max_bracket_expansions
+        lower = max(current_top-search_distance,minimum_top)
+        flower = altitude_residual(root_solver, lower)
+        if (allocated(err)) then
+          err = 'Could not bracket the requested TOA pressure while lowering the model top: '//err
+          return
+        endif
+        if (flower <= fnew) then
+          err = 'TOA pressure did not increase while lowering the model top; '// &
+                'a monotonic pressure bracket could not be constructed.'
+          return
+        endif
+        if (flower >= 0.0_dp) exit
+        if (lower == minimum_top) then
+          err = 'The requested TOA pressure exceeds the maximum reachable pressure '// &
+                'above the model bottom.'
+          return
+        endif
+        fnew = flower
+        search_distance = 2.0_dp*search_distance
+      enddo
+      if (flower < 0.0_dp) then
+        err = 'Could not bracket the requested TOA pressure below the current model top.'
+        return
+      endif
+    endif
+
+    call root_solver%find_zero(lower, upper, altitude_tolerance, top_atmos, &
+                               fzero, iflag, flower, fupper)
+    if (allocated(err)) then
+      err = 'Evaluating the bracketed TOA-pressure solve failed: '//err
+      return
+    endif
+    if (iflag /= 0 .or. .not.ieee_is_finite(top_atmos) .or. &
+        top_atmos <= bottom .or. .not.ieee_is_finite(fzero)) then
+      err = 'The bracketed TOA-pressure solve failed.'
+      return
+    endif
+
+  contains
+    function altitude_residual(me, altitude) result(residual)
+      class(brent_class), intent(inout) :: me
+      real(dp), intent(in) :: altitude
+      real(dp) :: residual
+
+      real(dp) :: pressure
+
+      pressure = pressure_at_TOA(self, usol, altitude, err)
+      if (allocated(err)) then
+        residual = ieee_value(0.0_dp,ieee_quiet_nan)
+        return
+      endif
+      if (.not.ieee_is_finite(pressure) .or. pressure <= 0.0_dp) then
+        err = 'Candidate TOA pressure was not finite and positive.'
+        residual = ieee_value(0.0_dp,ieee_quiet_nan)
+        return
+      endif
+      residual = log10(pressure)-log10(TOA_pressure)
+    end function
   end function
 
   function pressure_at_TOA(self, usol, top_atmos_new, err) result(TOA_pressure)
