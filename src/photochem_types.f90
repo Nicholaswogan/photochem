@@ -527,6 +527,9 @@ module photochem_types ! make a giant IO object
     ! through the course of an integration
 
     ! Total step counter for robust_step method
+    !> True while the CVODE stepper belongs to an initialized robust
+    !> integration session.
+    logical :: robust_stepper_initialized = .false.
     !> Total number of steps in a robust integration.
     integer :: nsteps_total = -1
     !> Total number of errors experienced in the robust integration.
@@ -639,6 +642,10 @@ contains
     use photochem_const, only: nsteps_save
     class(PhotochemWrk), intent(inout) :: self
     integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw
+
+    self%robust_stepper_initialized = .false.
+    self%nsteps_total = -1
+    self%nerrors_total = -1
     
     if (allocated(self%usol)) then
       deallocate(self%t_history)
@@ -716,20 +723,20 @@ contains
 
     integer(c_int) :: ierr
 
-    if (allocated(self%yvec)) then
-      deallocate(self%yvec)
-    endif
     if (associated(self%sunvec_y)) then
       call FN_VDestroy(self%sunvec_y)
       nullify(self%sunvec_y)
     endif
-
-    if (allocated(self%abstol)) then
-      deallocate(self%abstol)
+    if (allocated(self%yvec)) then
+      deallocate(self%yvec)
     endif
+
     if (associated(self%abstol_nvec)) then
       call FN_VDestroy(self%abstol_nvec)
       nullify(self%abstol_nvec)
+    endif
+    if (allocated(self%abstol)) then
+      deallocate(self%abstol)
     endif
 
     if (c_associated(self%cvode_mem)) then

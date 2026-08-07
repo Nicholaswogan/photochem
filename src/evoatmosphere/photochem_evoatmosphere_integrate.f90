@@ -758,7 +758,21 @@ contains
   end function
 
   module subroutine initialize_stepper(self, usol_start, err)
+    use, intrinsic :: iso_c_binding, only: c_associated
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol_start(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    call self%initialize_stepper_at_time(usol_start, 0.0_dp, err)
+    if (.not.allocated(err) .or. .not.c_associated(self%wrk%sun%cvode_mem)) then
+      self%wrk%robust_stepper_initialized = .false.
+    endif
+
+  end subroutine
+
+  module subroutine initialize_stepper_at_time(self, usol_start, tstart, err)
     use, intrinsic :: iso_c_binding
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSVtolerances, &
                           FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
                           FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
@@ -776,10 +790,10 @@ contains
     
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
+    real(dp), intent(in) :: tstart
     character(:), allocatable, intent(out) :: err
     
     real(c_double), pointer :: yvec_usol(:,:)
-    real(c_double) :: tstart
     integer(c_int) :: ierr       ! error flag from C functions
     integer(c_int64_t) :: neqs_long
     integer(c_int64_t) :: mu, ml
@@ -805,17 +819,20 @@ contains
       err = "Input 'usol_start' to 'initialize_stepper' is the wrong dimension"
       return
     endif
+    if (.not.ieee_is_finite(tstart) .or. tstart < 0.0_dp) then
+      err = "Input 'tstart' to the internal stepper initializer must be finite and nonnegative"
+      return
+    endif
 
     ! settings
     mxsteps_ = var%mxsteps
     neqs_long = var%neqs
-    tstart = 0
     mu = dat%nq
     ml = dat%nq
     self_ptr => self
     user_data = c_loc(self_ptr)
 
-    call self%destroy_stepper(err)
+    call wrk%sun%finalize(err)
     if (allocated(err)) return
 
     ! initialize solution vector
@@ -842,7 +859,10 @@ contains
     ! set abstol
     allocate(wrk%sun%abstol(var%neqs))
     call self%set_trop_ind(yvec_usol, err)
-    if (allocated(err)) return
+    if (allocated(err)) then
+      call cleanup_after_setup_failure()
+      return
+    endif
     do j=1,var%nz
       do i=1,dat%nq
         k = i + (j-1)*dat%nq
@@ -852,102 +872,138 @@ contains
 
     ! Load initial conditions into history vector
     wrk%nsteps = 0
+    wrk%nsteps_previous = -10
+    wrk%tn = tstart
     wrk%t_history = -1.0_dp
-    wrk%t_history(1) = 0.0_dp
+    wrk%t_history(1) = tstart
     wrk%mix_history = -1.0_dp
     wrk%mix_history(:,:,1) = wrk%mix ! set by self%set_trop_ind
 
     wrk%sun%abstol_nvec => FN_VMake_Serial(neqs_long, wrk%sun%abstol)
     if (.not. associated(wrk%sun%abstol_nvec)) then
-      err = "CVODE setup error."
+      err = "CVODE setup error while creating the absolute-tolerance vector."
+      call cleanup_after_setup_failure()
       return
     end if
 
     ! create SUNDIALS N_Vector
     wrk%sun%sunvec_y => FN_VMake_Serial(neqs_long, wrk%sun%yvec)
     if (.not. associated(wrk%sun%sunvec_y)) then
-      err = "CVODE setup error."
+      err = "CVODE setup error while creating the solution vector."
+      call cleanup_after_setup_failure()
       return
     end if
 
     ! create CVode memory
     wrk%sun%cvode_mem = FCVodeCreate(CV_BDF)
     if (.not. c_associated(wrk%sun%cvode_mem)) then
-      err = "CVODE setup error."
+      err = "CVODE setup error while creating CVODE memory."
+      call cleanup_after_setup_failure()
       return
     end if
     
     ! set user data
     ierr = FCVodeSetUserData(wrk%sun%cvode_mem, user_data)
     if (ierr /= 0) then
-      err = "CVODE setup error."
+      err = "CVODE setup error while setting user data."
+      call cleanup_after_setup_failure()
       return
     end if
     
     ierr = FCVodeInit(wrk%sun%cvode_mem, c_funloc(RhsFn_evo), tstart, wrk%sun%sunvec_y)
     if (ierr /= 0) then
-      err = "CVODE setup error."
+      err = "CVODE setup error while initializing CVODE."
+      call cleanup_after_setup_failure()
       return
     end if
     
     ierr = FCVodeSVtolerances(wrk%sun%cvode_mem, var%rtol, wrk%sun%abstol_nvec)
     if (ierr /= 0) then
-      err = "CVODE setup error."
+      err = "CVODE setup error while setting tolerances."
+      call cleanup_after_setup_failure()
       return
     end if
     
     wrk%sun%sunmat => FSUNBandMatrix(neqs_long, mu, ml)
+    if (.not.associated(wrk%sun%sunmat)) then
+      err = "CVODE setup error while creating the band matrix."
+      call cleanup_after_setup_failure()
+      return
+    endif
     wrk%sun%sunlin => FSUNLinSol_Band(wrk%sun%sunvec_y, wrk%sun%sunmat)
+    if (.not.associated(wrk%sun%sunlin)) then
+      err = "CVODE setup error while creating the band linear solver."
+      call cleanup_after_setup_failure()
+      return
+    endif
     
     ierr = FCVodeSetLinearSolver(wrk%sun%cvode_mem, wrk%sun%sunlin, wrk%sun%sunmat)
     if (ierr /= 0) then
-      err = "CVODE setup error."
+      err = "CVODE setup error while attaching the linear solver."
+      call cleanup_after_setup_failure()
       return
     end if
     
     ierr = FCVodeSetJacFn(wrk%sun%cvode_mem, c_funloc(JacFn_evo))
     if (ierr /= 0) then
-      err = "CVODE setup error."
+      err = "CVODE setup error while setting the Jacobian function."
+      call cleanup_after_setup_failure()
       return
     end if
     
     ierr = FCVodeSetMaxNumSteps(wrk%sun%cvode_mem, mxsteps_)
     if (ierr /= 0) then
-      err = "CVODE setup error."
+      err = "CVODE setup error while setting the maximum number of steps."
+      call cleanup_after_setup_failure()
       return
     end if
     
     ierr = FCVodeSetInitStep(wrk%sun%cvode_mem, var%initial_dt)
     if (ierr /= 0) then
-      err = "CVODE setup error."
+      err = "CVODE setup error while setting the initial step."
+      call cleanup_after_setup_failure()
       return
     end if
 
     ierr = FCVodeSetMaxStep(wrk%sun%cvode_mem, var%max_dt)
     if (ierr /= 0) then
-      err = "CVODE setup error."
+      err = "CVODE setup error while setting the maximum step."
+      call cleanup_after_setup_failure()
       return
     end if
 
     ierr = FCVodeSetMaxErrTestFails(wrk%sun%cvode_mem, var%max_err_test_failures)
     if (ierr /= 0) then
-      err = "CVODE setup error."
+      err = "CVODE setup error while setting error-test failures."
+      call cleanup_after_setup_failure()
       return
     end if
     
     ierr = FCVodeSetMaxOrd(wrk%sun%cvode_mem, var%max_order)
     if (ierr /= 0) then
-      err = "CVODE setup error."
+      err = "CVODE setup error while setting the maximum order."
+      call cleanup_after_setup_failure()
       return
     end if
 
     if (var%verbose == 0) then
       ierr = FCVodeSetErrHandlerFn(wrk%sun%cvode_mem, c_funloc(ErrHandlerFn_evo), c_null_ptr)
       if (ierr /= 0) then
-        err = "CVODE setup error."
+        err = "CVODE setup error while setting the error handler."
+        call cleanup_after_setup_failure()
         return
       end if
     endif
+
+  contains
+
+    subroutine cleanup_after_setup_failure()
+      character(:), allocatable :: cleanup_err
+      call wrk%sun%finalize(cleanup_err)
+      if (allocated(cleanup_err)) then
+        err = err//" Cleanup also failed: "//cleanup_err
+      endif
+    end subroutine
 
   end subroutine
 
@@ -1023,11 +1079,35 @@ contains
     character(:), allocatable, intent(out) :: err
     
     call self%wrk%sun%finalize(err)
+    self%wrk%robust_stepper_initialized = .false.
     if (allocated(err)) return
     
   end subroutine
 
+  module subroutine validate_robust_stepper_settings(self, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    class(EvoAtmosphere), intent(in) :: self
+    character(:), allocatable, intent(out) :: err
+
+    if (self%var%nerrors_before_giveup < 1) then
+      err = "`nerrors_before_giveup` must be positive"
+    elseif (self%var%nsteps_before_conv_check < 0) then
+      err = "`nsteps_before_conv_check` must be nonnegative"
+    elseif (self%var%nsteps_before_reinit < 1) then
+      err = "`nsteps_before_reinit` must be positive"
+    elseif (self%var%nsteps_before_giveup < 1) then
+      err = "`nsteps_before_giveup` must be positive"
+    elseif (self%var%nsteps_before_conv_check >= self%var%nsteps_before_reinit) then
+      err = "`nsteps_before_conv_check` must be less than `nsteps_before_reinit`"
+    elseif (.not.ieee_is_finite(self%var%reinit_min_density) .or. &
+            self%var%reinit_min_density <= 0.0_dp) then
+      err = "`reinit_min_density` must be finite and positive"
+    endif
+
+  end subroutine
+
   module subroutine initialize_robust_stepper(self, usol_start, err)
+    use, intrinsic :: iso_c_binding, only: c_associated
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
     character(:), allocatable, intent(out) :: err
@@ -1035,10 +1115,20 @@ contains
     call self%require_atmosphere_initialized('initialize_robust_stepper', err)
     if (allocated(err)) return
 
+    call self%validate_robust_stepper_settings(err)
+    if (allocated(err)) return
+
+    call self%initialize_stepper_at_time(usol_start, 0.0_dp, err)
+    if (allocated(err)) then
+      if (.not.c_associated(self%wrk%sun%cvode_mem)) then
+        self%wrk%robust_stepper_initialized = .false.
+      endif
+      return
+    endif
+
     self%wrk%nsteps_total = 0
     self%wrk%nerrors_total = 0
-    call self%initialize_stepper(usol_start, err)
-    if (allocated(err)) return
+    self%wrk%robust_stepper_initialized = .true.
 
   end subroutine
 
@@ -1062,14 +1152,12 @@ contains
     var => self%var
     wrk => self%wrk
 
-    if (wrk%nsteps_total < 0) then
+    if (.not.wrk%robust_stepper_initialized) then
       err = "You must first initialize a robust stepper with 'initialize_robust_stepper'"
       return
     endif
-    if (var%nsteps_before_conv_check >= var%nsteps_before_reinit) then
-      err = "`nsteps_before_conv_check` should be < `nsteps_before_reinit`"
-      return
-    endif
+    call self%validate_robust_stepper_settings(err)
+    if (allocated(err)) return
 
     tn = self%step(err)
     if (.not.allocated(err)) then
@@ -1088,8 +1176,11 @@ contains
 
       ! Trim negative numbers, and reinitialize
       wrk%usol = max(wrk%usol, var%reinit_min_density)
-      call self%initialize_stepper(wrk%usol, err)
-      if (allocated(err)) return
+      call self%initialize_stepper_at_time(wrk%usol, 0.0_dp, err)
+      if (allocated(err)) then
+        wrk%robust_stepper_initialized = .false.
+        return
+      endif
 
     endif
 
@@ -1110,8 +1201,11 @@ contains
     ! Reinitialize integrator after some number of steps
     if (self%wrk%nsteps > var%nsteps_before_reinit) then
       wrk%usol = max(wrk%usol, var%reinit_min_density)
-      call self%initialize_stepper(wrk%usol, err)
-      if (allocated(err)) return
+      call self%initialize_stepper_at_time(wrk%usol, 0.0_dp, err)
+      if (allocated(err)) then
+        wrk%robust_stepper_initialized = .false.
+        return
+      endif
     endif
 
     ! Give up after a large number of steps

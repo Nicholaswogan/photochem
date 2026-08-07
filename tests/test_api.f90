@@ -14,8 +14,183 @@ contains
     call test_initialize_atmosphere_z()
     call test_initialize_atmosphere_p()
     call test_legacy_file_grid()
+    call test_robust_stepper_initialization()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
+  end subroutine
+
+  subroutine test_robust_stepper_initialization()
+    use iso_c_binding, only: c_associated
+    use, intrinsic :: ieee_arithmetic, only: ieee_quiet_nan, ieee_value
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp), allocatable :: usol_wrong(:,:)
+    logical :: give_up, converged
+    integer :: max_order_original
+    real(dp) :: reinit_min_density_original
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', &
+                       err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ! Predictable validation failures must not disturb an existing ordinary
+    ! stepper or claim that a robust session was initialized.
+    call pc%initialize_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    pc%var%nerrors_before_giveup = 0
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (.not.allocated(err)) then
+      print *, 'invalid robust error limit was accepted'
+      stop 1
+    endif
+    if (.not.c_associated(pc%wrk%sun%cvode_mem)) then
+      print *, 'robust-setting validation destroyed the existing stepper'
+      stop 1
+    endif
+    if (pc%wrk%robust_stepper_initialized) then
+      print *, 'failed robust validation initialized a robust session'
+      stop 1
+    endif
+    deallocate(err)
+    pc%var%nerrors_before_giveup = 10
+
+    pc%var%nsteps_before_conv_check = pc%var%nsteps_before_reinit
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (.not.allocated(err)) then
+      print *, 'invalid robust convergence interval was accepted'
+      stop 1
+    endif
+    if (.not.c_associated(pc%wrk%sun%cvode_mem)) then
+      print *, 'robust-interval validation destroyed the existing stepper'
+      stop 1
+    endif
+    deallocate(err)
+    pc%var%nsteps_before_conv_check = 300
+
+    reinit_min_density_original = pc%var%reinit_min_density
+    pc%var%reinit_min_density = ieee_value(0.0_dp, ieee_quiet_nan)
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (.not.allocated(err)) then
+      print *, 'nonfinite robust clipping density was accepted'
+      stop 1
+    endif
+    if (.not.c_associated(pc%wrk%sun%cvode_mem)) then
+      print *, 'robust-density validation destroyed the existing stepper'
+      stop 1
+    endif
+    deallocate(err)
+    pc%var%reinit_min_density = reinit_min_density_original
+
+    allocate(usol_wrong(pc%dat%nq-1,pc%var%nz))
+    call pc%initialize_robust_stepper(usol_wrong, err)
+    if (.not.allocated(err)) then
+      print *, 'wrong-sized robust initial state was accepted'
+      stop 1
+    endif
+    if (.not.c_associated(pc%wrk%sun%cvode_mem)) then
+      print *, 'robust dimension validation destroyed the existing stepper'
+      stop 1
+    endif
+    deallocate(err)
+
+    ! A successful robust initialization commits state and counters together.
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not.pc%wrk%robust_stepper_initialized .or. &
+        pc%wrk%nsteps_total /= 0 .or. pc%wrk%nerrors_total /= 0) then
+      print *, 'robust initialization did not commit its state and counters'
+      stop 1
+    endif
+    if (pc%wrk%nsteps /= 0 .or. pc%wrk%tn /= 0.0_dp .or. &
+        pc%wrk%t_history(1) /= 0.0_dp) then
+      print *, 'public robust initialization did not begin at time zero'
+      stop 1
+    endif
+
+    ! A rejected ordinary initialization retains the robust session, while a
+    ! successful ordinary initialization explicitly replaces it.
+    call pc%initialize_stepper(usol_wrong, err)
+    if (.not.allocated(err)) then
+      print *, 'wrong-sized ordinary initial state was accepted'
+      stop 1
+    endif
+    if (.not.pc%wrk%robust_stepper_initialized .or. &
+        .not.c_associated(pc%wrk%sun%cvode_mem)) then
+      print *, 'rejected ordinary initialization changed the robust session'
+      stop 1
+    endif
+    deallocate(err)
+    call pc%initialize_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (pc%wrk%robust_stepper_initialized) then
+      print *, 'ordinary initialization retained stale robust-session state'
+      stop 1
+    endif
+    call pc%robust_step(give_up, converged, err)
+    if (.not.allocated(err)) then
+      print *, 'robust_step accepted an ordinary stepper'
+      stop 1
+    endif
+    deallocate(err)
+
+    ! An unexpected CVODE setup failure must clean up all partial resources
+    ! and must not reset robust counters as if initialization had succeeded.
+    pc%wrk%nsteps_total = 7
+    pc%wrk%nerrors_total = 8
+    max_order_original = pc%var%max_order
+    pc%var%max_order = 0
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (.not.allocated(err)) then
+      print *, 'invalid CVODE maximum order did not fail setup'
+      stop 1
+    endif
+    if (c_associated(pc%wrk%sun%cvode_mem) .or. &
+        allocated(pc%wrk%sun%yvec) .or. allocated(pc%wrk%sun%abstol) .or. &
+        associated(pc%wrk%sun%sunvec_y) .or. &
+        associated(pc%wrk%sun%abstol_nvec) .or. &
+        associated(pc%wrk%sun%sunmat) .or. associated(pc%wrk%sun%sunlin)) then
+      print *, 'failed CVODE setup retained partial resources'
+      stop 1
+    endif
+    if (pc%wrk%robust_stepper_initialized .or. &
+        pc%wrk%nsteps_total /= 7 .or. pc%wrk%nerrors_total /= 8) then
+      print *, 'failed CVODE setup committed robust-session state'
+      stop 1
+    endif
+    deallocate(err)
+    pc%var%max_order = max_order_original
+
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (pc%wrk%robust_stepper_initialized) then
+      print *, 'destroy_stepper retained robust-session state'
+      stop 1
+    endif
+
   end subroutine
 
   subroutine test_initialize_atmosphere_z()

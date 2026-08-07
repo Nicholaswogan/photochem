@@ -52,6 +52,8 @@ module photochem_evoatmosphere
     procedure :: evolve
     procedure :: check_for_convergence
     procedure :: initialize_stepper
+    procedure, private :: initialize_stepper_at_time
+    procedure, private :: validate_robust_stepper_settings
     procedure :: step
     procedure :: destroy_stepper
     procedure :: initialize_robust_stepper
@@ -319,6 +321,21 @@ module photochem_evoatmosphere
     module subroutine initialize_stepper(self, usol_start, err)      
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    ! Build a fresh CVODE stepper at an explicitly supplied integration time.
+    ! This is private so public initialization continues to begin at time zero.
+    module subroutine initialize_stepper_at_time(self, usol_start, tstart, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), intent(in) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
+      real(dp), intent(in) :: tstart !! Initial integration time (seconds).
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    ! Validate mutable robust-stepper policy before creating or using a session.
+    module subroutine validate_robust_stepper_settings(self, err)
+      class(EvoAtmosphere), intent(in) :: self
       character(:), allocatable, intent(out) :: err
     end subroutine
     
