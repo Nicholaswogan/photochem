@@ -174,22 +174,10 @@ contains
   
   module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, restart_from_file, err) result(success)
                                    
-    use, intrinsic :: iso_c_binding
-    use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSVtolerances, &
-                          FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
-                          FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
-                          FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
-                          FCVodeSetUserData, FCVodeRootInit, FCVodeReInit, FCVodeGetRootInfo, FCVodeSetErrHandlerFn, &
-                          FCVodeSetMaxStep
-    use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
-    use fnvector_serial_mod, only: FN_VMake_Serial   
-    use fsunmatrix_band_mod, only: FSUNBandMatrix
-    use fsundials_matrix_mod, only: SUNMatrix, FSUNMatDestroy
-    use fsundials_linearsolver_mod, only: SUNLinearSolver, FSUNLinSolFree
-    use fsunlinsol_band_mod, only: FSUNLinSol_Band
-    
-    use photochem_enum, only: DensityBC, PressureBC
-    use photochem_const, only: k_boltz
+    use, intrinsic :: iso_c_binding, only: c_double, c_int, c_funloc
+    use fcvode_mod, only: CV_NORMAL, FCVode, FCVodeSVtolerances, &
+                          FCVodeSetInitStep, FCVodeRootInit, FCVodeReInit, &
+                          FCVodeGetRootInfo, FCVodeSetMaxStep
     use photochem_types, only: SundialsDataFinalizer
     
     ! in/out
@@ -212,9 +200,6 @@ contains
     integer(c_int) :: rootsfound(nrtfn)
     real(c_double) :: usol_new(self%dat%nq,self%var%nz)
     real(c_double), pointer :: yvec_usol(:,:)
-    integer(c_int64_t) :: neqs_long
-    integer(c_int64_t) :: mu, ml
-    integer(c_long) :: mxsteps_
     real(dp) :: new_atol
     integer :: error_reinit_attempts
     logical :: reinitialize
@@ -222,14 +207,11 @@ contains
     integer :: i, j, k, ii, io
     integer :: istart
     logical :: overwrite_, restart_from_file_
-    real(dp) :: Psat
     
     type(SundialsDataFinalizer) :: sunfin
-    type(c_ptr)    :: user_data
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
-    type(EvoAtmosphere), pointer :: self_ptr
     
     success = .false.
     call self%require_atmosphere_initialized('evolve', err)
@@ -255,8 +237,9 @@ contains
       restart_from_file_ = .false.
     endif
 
-    ! free memory if possible
-    call wrk%sun%finalize(err)
+    ! An evolution run owns its CVODE session and replaces any ordinary or
+    ! robust stepper that was previously active.
+    call self%destroy_stepper(err)
     if (allocated(err)) return
     
     ! check dimensions
@@ -300,141 +283,15 @@ contains
       istart = 1
     endif
     
-    ! settings
-    mxsteps_ = var%mxsteps
-    neqs_long = var%neqs
+    ! Construct the atmospheric integration state and common CVODE objects
+    ! through the same path used by the ordinary and robust steppers.
     tcur = tstart
-    mu = dat%nq
-    ml = dat%nq
     new_atol = var%atol
-    
-    self_ptr => self
-    user_data = c_loc(self_ptr)
-    
-    ! initialize solution vector
-    allocate(wrk%sun%yvec(var%neqs))
-    yvec_usol(1:dat%nq,1:var%nz) => wrk%sun%yvec
-    do j=1,var%nz
-      do i=1,dat%nq
-        k = i + (j-1)*dat%nq
-        wrk%sun%yvec(k) = usol_start(i,j)
-      enddo
-    enddo
-    do i = 1,dat%nq
-      if (var%lowerboundcond(i) == DensityBC) then
-        wrk%sun%yvec(i) = var%lower_fix_den(i)
-      elseif (var%lowerboundcond(i) == PressureBC) then
-        Psat = huge(1.0_dp)
-        if (dat%gas_particle_ind(i) /= 0) then
-          j = dat%gas_particle_ind(i)
-          Psat = dat%particle_sat(j)%sat_pressure(var%temperature(1))*var%cond_params(j)%RHc
-        endif
-        wrk%sun%yvec(i) = min(var%lower_fix_press(i), Psat)/(k_boltz*var%temperature(1))
-      endif
-    enddo
-    ! set abstol
-    allocate(wrk%sun%abstol(var%neqs))
-    call self%set_trop_ind(yvec_usol, err)
+    call self%initialize_stepper_at_time(usol_start, tstart, err)
     if (allocated(err)) return
-    do j=1,var%nz
-      do i=1,dat%nq
-        k = i + (j-1)*dat%nq
-        wrk%sun%abstol(k) = self%wrk%density_hydro(j)*var%atol
-      enddo
-    enddo
+    yvec_usol(1:dat%nq,1:var%nz) => wrk%sun%yvec
 
-    wrk%sun%abstol_nvec => FN_VMake_Serial(neqs_long, wrk%sun%abstol)
-    if (.not. associated(wrk%sun%abstol_nvec)) then
-      err = "CVODE setup error."
-      return
-    end if
-
-    ! create SUNDIALS N_Vector
-    wrk%sun%sunvec_y => FN_VMake_Serial(neqs_long, wrk%sun%yvec)
-    if (.not. associated(wrk%sun%sunvec_y)) then
-      err = "CVODE setup error."
-      return
-    end if
-    
-    ! create CVode memory
-    wrk%sun%cvode_mem = FCVodeCreate(CV_BDF)
-    if (.not. c_associated(wrk%sun%cvode_mem)) then
-      err = "CVODE setup error."
-      return
-    end if
-    
-    ! set user data
-    ierr = FCVodeSetUserData(wrk%sun%cvode_mem, user_data)
-    if (ierr /= 0) then
-      err = "CVODE setup error."
-      return
-    end if
-    
-    ierr = FCVodeInit(wrk%sun%cvode_mem, c_funloc(RhsFn_evo), tstart, wrk%sun%sunvec_y)
-    if (ierr /= 0) then
-      err = "CVODE setup error."
-      return
-    end if
-    
-    ierr = FCVodeSVtolerances(wrk%sun%cvode_mem, var%rtol, wrk%sun%abstol_nvec)
-    if (ierr /= 0) then
-      err = "CVODE setup error."
-      return
-    end if
-    
-    wrk%sun%sunmat => FSUNBandMatrix(neqs_long, mu, ml)
-    wrk%sun%sunlin => FSUNLinSol_Band(wrk%sun%sunvec_y, wrk%sun%sunmat)
-    
-    ierr = FCVodeSetLinearSolver(wrk%sun%cvode_mem, wrk%sun%sunlin, wrk%sun%sunmat)
-    if (ierr /= 0) then
-      err = "CVODE setup error."
-      return
-    end if
-    
-    ierr = FCVodeSetJacFn(wrk%sun%cvode_mem, c_funloc(JacFn_evo))
-    if (ierr /= 0) then
-      err = "CVODE setup error."
-      return
-    end if
-    
-    ierr = FCVodeSetMaxNumSteps(wrk%sun%cvode_mem, mxsteps_)
-    if (ierr /= 0) then
-      err = "CVODE setup error."
-      return
-    end if
-    
-    ierr = FCVodeSetInitStep(wrk%sun%cvode_mem, var%initial_dt)
-    if (ierr /= 0) then
-      err = "CVODE setup error."
-      return
-    end if
-
-    ierr = FCVodeSetMaxStep(wrk%sun%cvode_mem, var%max_dt)
-    if (ierr /= 0) then
-      err = "CVODE setup error."
-      return
-    end if
-    
-    ierr = FCVodeSetMaxErrTestFails(wrk%sun%cvode_mem, var%max_err_test_failures)
-    if (ierr /= 0) then
-      err = "CVODE setup error."
-      return
-    end if
-    
-    ierr = FCVodeSetMaxOrd(wrk%sun%cvode_mem, var%max_order)
-    if (ierr /= 0) then
-      err = "CVODE setup error."
-      return
-    end if
-
-    if (var%verbose == 0) then
-      ierr = FCVodeSetErrHandlerFn(wrk%sun%cvode_mem, c_funloc(ErrHandlerFn_evo), c_null_ptr)
-      if (ierr /= 0) then
-        err = "CVODE setup error."
-        return
-      end if
-    endif
-
+    ! Root handling is specific to evolve's legacy moving-TOA policy.
     ierr = FCVodeRootInit(wrk%sun%cvode_mem, nrtfn, c_funloc(RootFn))
     if (ierr /= 0) then
       err = "CVODE setup error."
