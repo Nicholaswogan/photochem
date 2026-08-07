@@ -17,6 +17,7 @@ contains
     call test_robust_stepper_initialization()
     call test_toa_pressure_maintenance_settings()
     call test_toa_pressure_maintenance()
+    call test_toa_pressure_maintenance_policy()
     call test_robust_stepper_restarts()
     call test_robust_stepper_limits()
     call test_set_press_temp_edd_nonmonotonic()
@@ -184,6 +185,11 @@ contains
       stop 1
     endif
 
+    if (pc%var%toa_pressure_maintenance%pressure_factor /= 3.0_dp) then
+      print *, 'TOA maintenance default pressure factor changed unexpectedly'
+      stop 1
+    endif
+
     ! Automatic TOA maintenance must not be enabled without a persistent
     ! pressure-based T-Kzz profile.
     pc%var%toa_pressure_maintenance%enabled = .true.
@@ -192,6 +198,17 @@ contains
     if (.not.allocated(err) .or. &
         index(err, 'requires an enabled persistent pressure-based') == 0) then
       print *, 'TOA maintenance was accepted without a persistent profile'
+      stop 1
+    endif
+    deallocate(err)
+
+    ! The multiplicative factor must not be less than one.
+    pc%var%press_temp_edd_profile%enabled = .true.
+    pc%var%toa_pressure_maintenance%pressure_factor = 0.5_dp
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (.not.allocated(err) .or. &
+        index(err, 'pressure_factor') == 0) then
+      print *, 'An invalid TOA maintenance pressure factor was accepted'
       stop 1
     endif
     deallocate(err)
@@ -227,6 +244,7 @@ contains
     pc%var%toa_pressure_maintenance%target_pressure = target_pressure
     pc%var%toa_pressure_maintenance%pressure_factor = 1.01_dp
     pc%var%toa_pressure_maintenance%nsteps_between_updates = 1
+    pc%var%equilibrium_time = -1.0_dp
     t_before = pc%wrk%tn
 
     call pc%initialize_robust_stepper(pc%wrk%usol, err)
@@ -247,6 +265,17 @@ contains
         .not.pc%var%press_temp_edd_profile%enabled .or. &
         abs(pc%wrk%pressure(pc%var%nz)/target_pressure-1.0_dp) > 2.0e-5_dp) then
       print *, 'Successful TOA maintenance did not restart and retarget the robust stepper'
+        stop 1
+    endif
+
+    ! Once the pressure is back within the multiplicative band, chemistry can
+    ! converge on the following step without another regrid.
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err) .or. give_up .or. .not.converged .or. &
+        pc%wrk%n_toa_pressure_updates /= 1 .or. pc%wrk%nsteps_total /= 2 .or. &
+        pc%wrk%nsteps /= 1 .or. pc%wrk%nsteps_since_toa_pressure_update /= 1) then
+      if (allocated(err)) print *, trim(err)
+      print *, 'TOA maintenance did not gate convergence correctly after regridding'
       stop 1
     endif
 
@@ -299,6 +328,109 @@ contains
     endif
     deallocate(err)
     call pc_failure%destroy_stepper(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+  end subroutine
+
+  subroutine test_toa_pressure_maintenance_policy()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp) :: P(2), T(2), edd(2)
+    real(dp) :: target_pressure, top_before, t_before
+    logical :: give_up, converged
+
+    pc = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    P = [2.0_dp*pc%var%surface_pressure*1.0e6_dp, &
+         0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
+    T = [300.0_dp, 180.0_dp]
+    edd = [3.0e7_dp, 4.0e5_dp]
+    call pc%set_press_temp_edd_profile(P, T, edd, &
+         pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ! A target at twice the current pressure is still inside the default
+    ! factor-three band, so a chemically converged step must not regrid.
+    target_pressure = 2.0_dp*pc%wrk%pressure(pc%var%nz)
+    pc%var%toa_pressure_maintenance%enabled = .true.
+    pc%var%toa_pressure_maintenance%target_pressure = target_pressure
+    pc%var%toa_pressure_maintenance%nsteps_between_updates = 1
+    pc%var%equilibrium_time = -1.0_dp
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err) .or. give_up .or. .not.converged .or. &
+        pc%wrk%n_toa_pressure_updates /= 0 .or. pc%wrk%nsteps_total /= 1 .or. &
+        pc%wrk%nsteps /= 1) then
+      if (allocated(err)) print *, trim(err)
+      print *, 'TOA pressure inside the factor band triggered an update'
+      stop 1
+    endif
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    pc = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call pc%set_press_temp_edd_profile(P, T, edd, &
+         pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ! An out-of-band target is held until the configured cadence is reached.
+    target_pressure = 0.95_dp*pc%wrk%pressure(pc%var%nz)
+    top_before = pc%var%top_atmos
+    t_before = pc%wrk%tn
+    pc%var%toa_pressure_maintenance%enabled = .true.
+    pc%var%toa_pressure_maintenance%target_pressure = target_pressure
+    pc%var%toa_pressure_maintenance%pressure_factor = 1.01_dp
+    pc%var%toa_pressure_maintenance%nsteps_between_updates = 2
+    pc%var%equilibrium_time = huge(1.0_dp)
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err) .or. give_up .or. converged .or. &
+        pc%wrk%n_toa_pressure_updates /= 0 .or. pc%wrk%nsteps_total /= 1 .or. &
+        pc%wrk%nsteps_since_toa_pressure_update /= 1) then
+      if (allocated(err)) print *, trim(err)
+      print *, 'TOA maintenance ignored its configured update cadence'
+      stop 1
+    endif
+
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err) .or. give_up .or. converged .or. &
+        pc%wrk%n_toa_pressure_updates /= 1 .or. pc%wrk%nsteps_total /= 2 .or. &
+        pc%wrk%nsteps /= 0 .or. pc%wrk%nsteps_since_toa_pressure_update /= 0 .or. &
+        pc%wrk%tn <= t_before .or. pc%var%top_atmos == top_before) then
+      if (allocated(err)) print *, trim(err)
+      print *, 'TOA maintenance did not trigger at its configured cadence'
+      stop 1
+    endif
+
+    call pc%destroy_stepper(err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
