@@ -663,7 +663,9 @@ cdef class EvoAtmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
-  def set_press_temp_edd_profile(self, ndarray[double, ndim=1] P, ndarray[double, ndim=1] T, ndarray[double, ndim=1] edd, trop_p = None, hydro_pressure = None):
+  def set_press_temp_edd_profile(self, ndarray[double, ndim=1] P, ndarray[double, ndim=1] T, ndarray[double, ndim=1] edd,
+                                 trop_p = None, hydro_pressure = None,
+                                 maintain_toa_pressure = None, target_pressure = None):
     """Prescribe persistent pressure-temperature and pressure-eddy profiles.
 
     The profiles are mapped onto the current altitude grid immediately and
@@ -680,7 +682,9 @@ cdef class EvoAtmosphere:
     This method cannot be called while a stepper is initialized. Call
     :meth:`destroy_stepper` first. While persistent mode is enabled,
     :meth:`set_temperature` and :meth:`set_press_temp_edd` cannot be used;
-    call :meth:`clear_press_temp_edd_profile` first.
+    call :meth:`clear_press_temp_edd_profile` first. Persistent profiles enable
+    approximate TOA-pressure maintenance by default; use
+    ``maintain_toa_pressure=False`` to disable it.
 
     Parameters
     ----------
@@ -701,6 +705,12 @@ cdef class EvoAtmosphere:
     hydro_pressure : bool, default=True
         Use hydrostatic pressure if True. If False, use actual gas pressure,
         ``density * k_boltz * T``.
+    maintain_toa_pressure : bool, default=True
+        Enable approximate TOA-pressure maintenance during robust stepping.
+        This option is only meaningful while the persistent profile is active.
+    target_pressure : float, optional, default=0.1
+        Target TOA pressure for approximate maintenance, in dynes/cm^2. Must
+        be finite and positive when supplied.
     """
     cdef char err[ERR_LEN+1]
     cdef ndarray P_ = np.ascontiguousarray(P)
@@ -722,11 +732,25 @@ cdef class EvoAtmosphere:
       hydro_pressure_present = True
       hydro_pressure_ = hydro_pressure
 
+    cdef bool maintain_toa_pressure_ = True
+    cdef bool maintain_toa_pressure_present = False
+    if maintain_toa_pressure != None:
+      maintain_toa_pressure_present = True
+      maintain_toa_pressure_ = maintain_toa_pressure
+
+    cdef double target_pressure_ = 0.1
+    cdef bool target_pressure_present = False
+    if target_pressure != None:
+      target_pressure_present = True
+      target_pressure_ = target_pressure
+
     ea_pxd.evoatmosphere_set_press_temp_edd_profile_wrapper(
       self._ptr, &P_dim1, <double *>P_.data,
       &T_dim1, <double *>T_.data, &edd_dim1, <double *>edd_.data,
       &trop_p_, &trop_p_present, &hydro_pressure_,
-      &hydro_pressure_present, err
+      &hydro_pressure_present, &maintain_toa_pressure_,
+      &maintain_toa_pressure_present, &target_pressure_,
+      &target_pressure_present, err
     )
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -735,8 +759,9 @@ cdef class EvoAtmosphere:
     """Disable the persistent pressure-temperature-eddy profile.
 
     The most recently mapped altitude-based temperature and eddy-diffusion
-    profiles remain in place. This method cannot be called while a stepper is
-    initialized; call :meth:`destroy_stepper` first.
+    profiles remain in place. This also disables approximate TOA-pressure
+    maintenance. This method cannot be called while a stepper is initialized;
+    call :meth:`destroy_stepper` first.
     """
     cdef char err[ERR_LEN+1]
     ea_pxd.evoatmosphere_clear_press_temp_edd_profile_wrapper(self._ptr, err)

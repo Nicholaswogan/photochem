@@ -400,7 +400,9 @@
 
   subroutine evoatmosphere_set_press_temp_edd_profile_wrapper(ptr, P_dim1, P, T_dim1, T, &
                                                       edd_dim1, edd, trop_p, trop_p_present, &
-                                                      hydro_pressure, hydro_pressure_present, err) bind(c)
+                                                      hydro_pressure, hydro_pressure_present, &
+                                                      maintain_toa_pressure, maintain_toa_pressure_present, &
+                                                      target_pressure, target_pressure_present, err) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: P_dim1
     real(c_double), intent(in) :: P(P_dim1)
@@ -412,25 +414,38 @@
     logical(c_bool), intent(in) :: trop_p_present
     logical(c_bool), intent(in) :: hydro_pressure
     logical(c_bool), intent(in) :: hydro_pressure_present
+    logical(c_bool), intent(in) :: maintain_toa_pressure
+    logical(c_bool), intent(in) :: maintain_toa_pressure_present
+    real(c_double), intent(in) :: target_pressure
+    logical(c_bool), intent(in) :: target_pressure_present
     character(kind=c_char), intent(out) :: err(err_len+1)
 
     character(:), allocatable :: err_f
-    logical :: hydro_pressure_f
+    logical :: hydro_pressure_f, maintain_toa_pressure_f
+    real(c_double) :: target_pressure_f
     type(EvoAtmosphere), pointer :: pc
 
     call c_f_pointer(ptr, pc)
-    hydro_pressure_f = hydro_pressure
+    hydro_pressure_f = .true.
+    if (hydro_pressure_present) hydro_pressure_f = hydro_pressure
+    maintain_toa_pressure_f = .true.
+    if (maintain_toa_pressure_present) maintain_toa_pressure_f = maintain_toa_pressure
+    target_pressure_f = 0.1_c_double
+    if (target_pressure_present) target_pressure_f = target_pressure
 
-    if (trop_p_present .and. hydro_pressure_present) then
+    ! The non-tropopause optionals have explicit defaults, so they can be
+    ! passed uniformly while preserving the meaningful presence semantics of
+    ! trop_p (which controls whether a tropopause is configured).
+    if (trop_p_present) then
       call pc%set_press_temp_edd_profile(P, T, edd, trop_p=trop_p, &
-                                         hydro_pressure=hydro_pressure_f, err=err_f)
-    elseif (trop_p_present) then
-      call pc%set_press_temp_edd_profile(P, T, edd, trop_p=trop_p, err=err_f)
-    elseif (hydro_pressure_present) then
-      call pc%set_press_temp_edd_profile(P, T, edd, &
-                                         hydro_pressure=hydro_pressure_f, err=err_f)
+                                         hydro_pressure=hydro_pressure_f, &
+                                         maintain_toa_pressure=maintain_toa_pressure_f, &
+                                         target_pressure=target_pressure_f, err=err_f)
     else
-      call pc%set_press_temp_edd_profile(P, T, edd, err=err_f)
+      call pc%set_press_temp_edd_profile(P, T, edd, &
+                                         hydro_pressure=hydro_pressure_f, &
+                                         maintain_toa_pressure=maintain_toa_pressure_f, &
+                                         target_pressure=target_pressure_f, err=err_f)
     endif
     err(1) = c_null_char
     if (allocated(err_f)) call copy_string_ftoc(err_f, err)
