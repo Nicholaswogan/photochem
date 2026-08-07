@@ -15,6 +15,7 @@ contains
     call test_initialize_atmosphere_p()
     call test_legacy_file_grid()
     call test_robust_stepper_initialization()
+    call test_robust_stepper_restarts()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
   end subroutine
@@ -188,6 +189,119 @@ contains
     endif
     if (pc%wrk%robust_stepper_initialized) then
       print *, 'destroy_stepper retained robust-session state'
+      stop 1
+    endif
+
+  end subroutine
+
+  subroutine test_robust_stepper_restarts()
+    use iso_c_binding, only: c_associated, c_ptr
+    use fcvode_mod, only: FCVodeFree
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    logical :: give_up, converged
+    real(dp) :: restart_time
+    type(c_ptr) :: cvode_mem_before
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', &
+                       err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ! Force a scheduled restart after one accepted step. The CVODE allocation
+    ! should be reused, while local CVODE/history counters reset at the same
+    ! nonzero logical integration time.
+    pc%var%nsteps_before_conv_check = 0
+    pc%var%nsteps_before_reinit = 1
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    cvode_mem_before = pc%wrk%sun%cvode_mem
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (give_up .or. converged) then
+      print *, 'scheduled robust restart returned a terminal result'
+      stop 1
+    endif
+    if (.not.c_associated(cvode_mem_before, pc%wrk%sun%cvode_mem)) then
+      print *, 'scheduled robust restart rebuilt compatible CVODE memory'
+      stop 1
+    endif
+    if (pc%wrk%nsteps /= 0 .or. pc%wrk%nsteps_total /= 1 .or. &
+        pc%wrk%nerrors_total /= 0 .or. pc%wrk%t_history(1) <= 0.0_dp .or. &
+        pc%wrk%tn /= pc%wrk%t_history(1)) then
+      print *, 'scheduled robust restart did not preserve time and total counters'
+      stop 1
+    endif
+
+    ! The first step after a nonzero-time ReInit must retain the forward
+    ! direction. Keeping the one-step threshold also exercises a second ReInit.
+    restart_time = pc%wrk%t_history(1)
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (give_up .or. converged .or. pc%wrk%nerrors_total /= 0 .or. &
+        pc%wrk%nsteps_total /= 2 .or. pc%wrk%t_history(1) <= restart_time) then
+      print *, 'first step after scheduled robust restart did not advance'
+      stop 1
+    endif
+
+    ! A missing CVODE object forces the same recovery path to reconstruct all
+    ! infrastructure from the last committed state. Recovery itself must not
+    ! run convergence checks, even when the committed time exceeds the limit.
+    restart_time = pc%wrk%t_history(1)
+    pc%var%nsteps_before_reinit = 1000
+    pc%var%equilibrium_time = 0.0_dp
+    call FCVodeFree(pc%wrk%sun%cvode_mem)
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (give_up .or. converged) then
+      print *, 'robust recovery used failed-step convergence state'
+      stop 1
+    endif
+    if (.not.pc%wrk%robust_stepper_initialized .or. &
+        .not.c_associated(pc%wrk%sun%cvode_mem)) then
+      print *, 'robust recovery did not reconstruct missing CVODE memory'
+      stop 1
+    endif
+    if (pc%wrk%nsteps /= 0 .or. pc%wrk%nsteps_total /= 2 .or. &
+        pc%wrk%nerrors_total /= 1 .or. pc%wrk%tn /= restart_time .or. &
+        pc%wrk%t_history(1) /= restart_time) then
+      print *, 'robust recovery changed committed time or counters'
+      stop 1
+    endif
+    ! Full reconstruction at nonzero time must permit the next forward step.
+    pc%var%equilibrium_time = huge(1.0_dp)
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (give_up .or. converged .or. pc%wrk%nerrors_total /= 1 .or. &
+        pc%wrk%nsteps_total /= 3 .or. pc%wrk%t_history(1) <= restart_time) then
+      print *, 'first step after robust fallback reconstruction did not advance'
+      stop 1
+    endif
+
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print *, trim(err)
       stop 1
     endif
 

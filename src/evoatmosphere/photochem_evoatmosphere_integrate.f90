@@ -627,44 +627,32 @@ contains
 
   end subroutine
 
-  module subroutine initialize_stepper_at_time(self, usol_start, tstart, err)
+  module subroutine initialize_stepper_at_time(self, usol_start, tstart, err, initial_step)
     use, intrinsic :: iso_c_binding
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    use fcvode_mod, only: CV_BDF, CV_NORMAL, CV_ONE_STEP, FCVodeInit, FCVodeSVtolerances, &
-                          FCVodeSetLinearSolver, FCVode, FCVodeCreate, FCVodeFree, &
-                          FCVodeSetMaxNumSteps, FCVodeSetJacFn, FCVodeSetInitStep, &
-                          FCVodeGetCurrentStep, FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
-                          FCVodeSetUserData, FCVodeSetErrHandlerFn, FCVodeSetMaxStep
-    use fsundials_nvector_mod, only: N_Vector, FN_VDestroy
+    use fcvode_mod, only: CV_BDF, FCVodeInit, FCVodeSetLinearSolver, &
+                          FCVodeCreate, FCVodeSetJacFn, FCVodeSetUserData
     use fnvector_serial_mod, only: FN_VMake_Serial   
     use fsunmatrix_band_mod, only: FSUNBandMatrix
-    use fsundials_matrix_mod, only: SUNMatrix, FSUNMatDestroy
-    use fsundials_linearsolver_mod, only: SUNLinearSolver, FSUNLinSolFree
     use fsunlinsol_band_mod, only: FSUNLinSol_Band
-    
-    use photochem_enum, only: DensityBC, PressureBC
-    use photochem_const, only: k_boltz
     
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
     real(dp), intent(in) :: tstart
     character(:), allocatable, intent(out) :: err
+    real(dp), optional, intent(in) :: initial_step
     
-    real(c_double), pointer :: yvec_usol(:,:)
     integer(c_int) :: ierr       ! error flag from C functions
     integer(c_int64_t) :: neqs_long
     integer(c_int64_t) :: mu, ml
-    integer(c_long) :: mxsteps_
     type(c_ptr)    :: user_data
     
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
     type(EvoAtmosphere), pointer :: self_ptr
+    real(dp) :: initial_step_
     
-    real(dp) :: Psat
-    integer :: i, j, k
-
     call self%require_atmosphere_initialized('initialize_stepper', err)
     if (allocated(err)) return
 
@@ -682,59 +670,25 @@ contains
     endif
 
     ! settings
-    mxsteps_ = var%mxsteps
     neqs_long = var%neqs
     mu = dat%nq
     ml = dat%nq
     self_ptr => self
     user_data = c_loc(self_ptr)
+    initial_step_ = var%initial_dt
+    if (present(initial_step)) initial_step_ = initial_step
 
     call wrk%sun%finalize(err)
     if (allocated(err)) return
 
-    ! initialize solution vector
+    ! Allocate storage, then prepare the common atmospheric integration state.
     allocate(wrk%sun%yvec(var%neqs))
-    yvec_usol(1:dat%nq,1:var%nz) => wrk%sun%yvec
-    do j=1,var%nz
-      do i=1,dat%nq
-        k = i + (j-1)*dat%nq
-        wrk%sun%yvec(k) = usol_start(i,j)
-      enddo
-    enddo
-    do i = 1,dat%nq
-      if (var%lowerboundcond(i) == DensityBC) then
-        wrk%sun%yvec(i) = var%lower_fix_den(i)
-      elseif (var%lowerboundcond(i) == PressureBC) then
-        Psat = huge(1.0_dp)
-        if (dat%gas_particle_ind(i) /= 0) then
-          j = dat%gas_particle_ind(i)
-          Psat = dat%particle_sat(j)%sat_pressure(var%temperature(1))*var%cond_params(j)%RHc
-        endif
-        wrk%sun%yvec(i) = min(var%lower_fix_press(i), Psat)/(k_boltz*var%temperature(1))
-      endif
-    enddo
-    ! set abstol
     allocate(wrk%sun%abstol(var%neqs))
-    call self%set_trop_ind(yvec_usol, err)
+    call self%prepare_stepper_state(usol_start, tstart, err)
     if (allocated(err)) then
       call cleanup_after_setup_failure()
       return
     endif
-    do j=1,var%nz
-      do i=1,dat%nq
-        k = i + (j-1)*dat%nq
-        wrk%sun%abstol(k) = self%wrk%density_hydro(j)*var%atol
-      enddo
-    enddo
-
-    ! Load initial conditions into history vector
-    wrk%nsteps = 0
-    wrk%nsteps_previous = -10
-    wrk%tn = tstart
-    wrk%t_history = -1.0_dp
-    wrk%t_history(1) = tstart
-    wrk%mix_history = -1.0_dp
-    wrk%mix_history(:,:,1) = wrk%mix ! set by self%set_trop_ind
 
     wrk%sun%abstol_nvec => FN_VMake_Serial(neqs_long, wrk%sun%abstol)
     if (.not. associated(wrk%sun%abstol_nvec)) then
@@ -774,13 +728,6 @@ contains
       return
     end if
     
-    ierr = FCVodeSVtolerances(wrk%sun%cvode_mem, var%rtol, wrk%sun%abstol_nvec)
-    if (ierr /= 0) then
-      err = "CVODE setup error while setting tolerances."
-      call cleanup_after_setup_failure()
-      return
-    end if
-    
     wrk%sun%sunmat => FSUNBandMatrix(neqs_long, mu, ml)
     if (.not.associated(wrk%sun%sunmat)) then
       err = "CVODE setup error while creating the band matrix."
@@ -808,48 +755,10 @@ contains
       return
     end if
     
-    ierr = FCVodeSetMaxNumSteps(wrk%sun%cvode_mem, mxsteps_)
-    if (ierr /= 0) then
-      err = "CVODE setup error while setting the maximum number of steps."
+    call self%configure_stepper(initial_step_, err)
+    if (allocated(err)) then
       call cleanup_after_setup_failure()
       return
-    end if
-    
-    ierr = FCVodeSetInitStep(wrk%sun%cvode_mem, var%initial_dt)
-    if (ierr /= 0) then
-      err = "CVODE setup error while setting the initial step."
-      call cleanup_after_setup_failure()
-      return
-    end if
-
-    ierr = FCVodeSetMaxStep(wrk%sun%cvode_mem, var%max_dt)
-    if (ierr /= 0) then
-      err = "CVODE setup error while setting the maximum step."
-      call cleanup_after_setup_failure()
-      return
-    end if
-
-    ierr = FCVodeSetMaxErrTestFails(wrk%sun%cvode_mem, var%max_err_test_failures)
-    if (ierr /= 0) then
-      err = "CVODE setup error while setting error-test failures."
-      call cleanup_after_setup_failure()
-      return
-    end if
-    
-    ierr = FCVodeSetMaxOrd(wrk%sun%cvode_mem, var%max_order)
-    if (ierr /= 0) then
-      err = "CVODE setup error while setting the maximum order."
-      call cleanup_after_setup_failure()
-      return
-    end if
-
-    if (var%verbose == 0) then
-      ierr = FCVodeSetErrHandlerFn(wrk%sun%cvode_mem, c_funloc(ErrHandlerFn_evo), c_null_ptr)
-      if (ierr /= 0) then
-        err = "CVODE setup error while setting the error handler."
-        call cleanup_after_setup_failure()
-        return
-      end if
     endif
 
   contains
@@ -864,6 +773,182 @@ contains
 
   end subroutine
 
+  module subroutine prepare_stepper_state(self, usol_start, tstart, err)
+    use photochem_enum, only: DensityBC, PressureBC
+    use photochem_const, only: k_boltz
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol_start(:,:)
+    real(dp), intent(in) :: tstart
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), pointer :: yvec_usol(:,:)
+    real(dp) :: Psat
+    integer :: i, j, k
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+
+    if (.not.allocated(wrk%sun%yvec) .or. .not.allocated(wrk%sun%abstol)) then
+      err = "Internal stepper state storage is not allocated."
+      return
+    endif
+    if (size(wrk%sun%yvec) /= var%neqs .or. size(wrk%sun%abstol) /= var%neqs) then
+      err = "Internal stepper state storage has the wrong dimensions."
+      return
+    endif
+
+    yvec_usol(1:dat%nq,1:var%nz) => wrk%sun%yvec
+    yvec_usol = usol_start
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == DensityBC) then
+        yvec_usol(i,1) = var%lower_fix_den(i)
+      elseif (var%lowerboundcond(i) == PressureBC) then
+        Psat = huge(1.0_dp)
+        if (dat%gas_particle_ind(i) /= 0) then
+          j = dat%gas_particle_ind(i)
+          Psat = dat%particle_sat(j)%sat_pressure(var%temperature(1))*var%cond_params(j)%RHc
+        endif
+        yvec_usol(i,1) = min(var%lower_fix_press(i), Psat)/(k_boltz*var%temperature(1))
+      endif
+    enddo
+
+    call self%set_trop_ind(yvec_usol, err)
+    if (allocated(err)) return
+    do j=1,var%nz
+      do i=1,dat%nq
+        k = i + (j-1)*dat%nq
+        wrk%sun%abstol(k) = wrk%density_hydro(j)*var%atol
+      enddo
+    enddo
+
+    ! A restart begins a new CVODE and convergence-history segment without
+    ! changing the integration's logical time or robust-session totals.
+    wrk%nsteps = 0
+    wrk%nsteps_previous = -10
+    wrk%tn = tstart
+    wrk%t_history = -1.0_dp
+    wrk%t_history(1) = tstart
+    wrk%mix_history = -1.0_dp
+    wrk%mix_history(:,:,1) = wrk%mix
+
+  end subroutine
+
+  module subroutine configure_stepper(self, initial_step, err)
+    use, intrinsic :: iso_c_binding, only: c_double, c_int, c_long, &
+                                           c_funloc, c_null_ptr
+    use fcvode_mod, only: FCVodeSVtolerances, FCVodeSetMaxNumSteps, &
+                          FCVodeSetInitStep, FCVodeSetMaxStep, &
+                          FCVodeSetMaxErrTestFails, FCVodeSetMaxOrd, &
+                          FCVodeSetErrHandlerFn
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: initial_step
+    character(:), allocatable, intent(out) :: err
+
+    integer(c_int) :: ierr
+    integer(c_long) :: mxsteps_
+
+    mxsteps_ = self%var%mxsteps
+    ierr = FCVodeSVtolerances(self%wrk%sun%cvode_mem, self%var%rtol, &
+                             self%wrk%sun%abstol_nvec)
+    if (ierr /= 0) then
+      err = "CVODE setup error while setting tolerances."
+      return
+    endif
+    ierr = FCVodeSetMaxNumSteps(self%wrk%sun%cvode_mem, mxsteps_)
+    if (ierr /= 0) then
+      err = "CVODE setup error while setting the maximum number of steps."
+      return
+    endif
+    ierr = FCVodeSetInitStep(self%wrk%sun%cvode_mem, real(initial_step,c_double))
+    if (ierr /= 0) then
+      err = "CVODE setup error while setting the initial step."
+      return
+    endif
+    ierr = FCVodeSetMaxStep(self%wrk%sun%cvode_mem, self%var%max_dt)
+    if (ierr /= 0) then
+      err = "CVODE setup error while setting the maximum step."
+      return
+    endif
+    ierr = FCVodeSetMaxErrTestFails(self%wrk%sun%cvode_mem, self%var%max_err_test_failures)
+    if (ierr /= 0) then
+      err = "CVODE setup error while setting error-test failures."
+      return
+    endif
+    ierr = FCVodeSetMaxOrd(self%wrk%sun%cvode_mem, self%var%max_order)
+    if (ierr /= 0) then
+      err = "CVODE setup error while setting the maximum order."
+      return
+    endif
+
+    if (self%var%verbose == 0) then
+      ierr = FCVodeSetErrHandlerFn(self%wrk%sun%cvode_mem, &
+                                   c_funloc(ErrHandlerFn_evo), c_null_ptr)
+      if (ierr /= 0) then
+        err = "CVODE setup error while setting the error handler."
+        return
+      endif
+    endif
+
+  end subroutine
+
+  module subroutine restart_robust_stepper(self, usol_restart, tstart, err)
+    use, intrinsic :: iso_c_binding, only: c_associated, c_int
+    use fcvode_mod, only: FCVodeReInit
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol_restart(:,:)
+    real(dp), intent(in) :: tstart
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: usol_clipped(:,:)
+    real(dp) :: restart_initial_step
+    character(:), allocatable :: reinit_err
+    integer(c_int) :: ierr
+    logical :: can_reinit, attempted_reinit
+    type(PhotochemWrkEvo), pointer :: wrk
+
+    wrk => self%wrk
+    usol_clipped = max(usol_restart, self%var%reinit_min_density)
+    ! Preserve the configured restart behavior unless initial_dt is too small
+    ! to advance floating-point time at the current absolute time.
+    restart_initial_step = max(self%var%initial_dt, 2.0_dp*spacing(tstart))
+    attempted_reinit = .false.
+    can_reinit = c_associated(wrk%sun%cvode_mem) .and. &
+                 allocated(wrk%sun%yvec) .and. allocated(wrk%sun%abstol) .and. &
+                 associated(wrk%sun%sunvec_y) .and. associated(wrk%sun%abstol_nvec) .and. &
+                 associated(wrk%sun%sunmat) .and. associated(wrk%sun%sunlin)
+    if (can_reinit) then
+      can_reinit = size(wrk%sun%yvec) == self%var%neqs .and. &
+                   size(wrk%sun%abstol) == self%var%neqs
+    endif
+
+    if (can_reinit) then
+      attempted_reinit = .true.
+      call self%prepare_stepper_state(usol_clipped, tstart, err)
+      if (.not.allocated(err)) then
+        ierr = FCVodeReInit(wrk%sun%cvode_mem, tstart, wrk%sun%sunvec_y)
+        if (ierr /= 0) err = "CVodeReInit returned an error."
+      endif
+      if (.not.allocated(err)) call self%configure_stepper(restart_initial_step, err)
+      if (.not.allocated(err)) return
+      reinit_err = err
+      deallocate(err)
+    endif
+
+    ! Missing infrastructure or an unsuccessful in-place restart requires a
+    ! clean reconstruction. The robust-session counters remain untouched.
+    call self%initialize_stepper_at_time(usol_clipped, tstart, err, &
+                                         initial_step=restart_initial_step)
+    if (allocated(err) .and. attempted_reinit) then
+      err = "In-place CVODE restart failed ("//reinit_err// &
+            "); full reconstruction also failed: "//err
+    endif
+
+  end subroutine
+
   module function step(self, err) result(tn)
     use iso_c_binding, only: c_null_ptr, c_int, c_double, c_associated, c_long
     use fcvode_mod, only: CV_ONE_STEP, FCVode, FCVodeGetNumSteps
@@ -874,7 +959,7 @@ contains
     integer(c_int) :: ierr
     integer(c_long) :: nsteps_(1)
     integer :: i, k
-    real(c_double), parameter :: dum = 0.0_dp
+    real(c_double) :: tout
     real(c_double) :: tcur(1)
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -892,27 +977,22 @@ contains
       err = "You must first initialize the stepper with 'initialize_stepper'"
       return 
     endif
-    
-    ierr = FCVode(self%wrk%sun%cvode_mem, dum, self%wrk%sun%sunvec_y, tcur, CV_ONE_STEP)
+
+    ! CV_ONE_STEP still uses tout to establish integration direction on its
+    ! first call after CVodeInit/CVodeReInit. Keep it safely forward of the
+    ! committed time, including after a restart at nonzero time.
+    if (wrk%t_history(1) <= 0.5_dp*huge(1.0_dp)) then
+      tout = wrk%t_history(1) + max(1.0_dp, abs(wrk%t_history(1)))
+    else
+      tout = huge(1.0_dp)
+    endif
+    ierr = FCVode(self%wrk%sun%cvode_mem, tout, self%wrk%sun%sunvec_y, tcur, CV_ONE_STEP)
     if (ierr /= 0) then
       err = "CVODE step failed"
       return
     endif
     tn = tcur(1)
 
-    ! Update nsteps
-    ierr = FCVodeGetNumSteps(wrk%sun%cvode_mem, nsteps_)
-    wrk%nsteps = nsteps_(1)
-
-    ! Move over t and mix history
-    k = min(wrk%nsteps+1,size(wrk%t_history))
-    do i = k,2,-1
-      wrk%t_history(i) = wrk%t_history(i-1)
-      wrk%mix_history(:,:,i) =  wrk%mix_history(:,:,i-1)
-    enddo
-
-    ! Save current t and mix
-    wrk%t_history(1) = tn
     block
       real(c_double), pointer :: usol_tmp(:,:)
       usol_tmp(1:dat%nq,1:var%nz) => wrk%sun%yvec
@@ -920,8 +1000,24 @@ contains
            wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
            wrk%pressure_hydro, wrk%density_hydro, err)
       if (allocated(err)) return
-      wrk%mix_history(:,:,1) = wrk%mix
     endblock
+
+    ! Commit counters and convergence history only after both CVODE and the
+    ! atmospheric-state preparation have succeeded.
+    ierr = FCVodeGetNumSteps(wrk%sun%cvode_mem, nsteps_)
+    if (ierr /= 0) then
+      err = "Unable to obtain the CVODE step count"
+      return
+    endif
+    wrk%nsteps = nsteps_(1)
+    wrk%tn = tn
+    k = min(wrk%nsteps+1,size(wrk%t_history))
+    do i = k,2,-1
+      wrk%t_history(i) = wrk%t_history(i-1)
+      wrk%mix_history(:,:,i) = wrk%mix_history(:,:,i-1)
+    enddo
+    wrk%t_history(1) = tn
+    wrk%mix_history(:,:,1) = wrk%mix
 
   end function
 
@@ -996,6 +1092,9 @@ contains
     character(:), allocatable, intent(out) :: err
 
     real(dp) :: tn
+    real(dp) :: t_committed
+    real(dp) :: usol_committed(self%dat%nq,self%var%nz)
+    character(:), allocatable :: cleanup_err
 
     type(PhotochemVars), pointer :: var
     type(PhotochemWrkEvo), pointer :: wrk
@@ -1016,6 +1115,10 @@ contains
     call self%validate_robust_stepper_settings(err)
     if (allocated(err)) return
 
+    ! RHS and atmospheric preparation use shared workspace, so retain an
+    ! explicit snapshot until the whole attempted step has committed.
+    usol_committed = wrk%usol
+    t_committed = wrk%t_history(1)
     tn = self%step(err)
     if (.not.allocated(err)) then
       ! If step worked, then we add it to counter
@@ -1027,17 +1130,22 @@ contains
 
       ! If there are too many errors, then give up
       if (wrk%nerrors_total > var%nerrors_before_giveup) then
+        wrk%usol = usol_committed
+        wrk%tn = t_committed
+        call self%destroy_stepper(cleanup_err)
+        if (allocated(cleanup_err)) err = cleanup_err
         give_up = .true.
         return
       endif
 
-      ! Trim negative numbers, and reinitialize
-      wrk%usol = max(wrk%usol, var%reinit_min_density)
-      call self%initialize_stepper_at_time(wrk%usol, 0.0_dp, err)
+      ! Recover from the last committed state and time. Do not use the failed
+      ! call's returned time and do not run convergence logic on this call.
+      call self%restart_robust_stepper(usol_committed, t_committed, err)
       if (allocated(err)) then
         wrk%robust_stepper_initialized = .false.
         return
       endif
+      return
 
     endif
 
@@ -1056,9 +1164,8 @@ contains
     endif
 
     ! Reinitialize integrator after some number of steps
-    if (self%wrk%nsteps > var%nsteps_before_reinit) then
-      wrk%usol = max(wrk%usol, var%reinit_min_density)
-      call self%initialize_stepper_at_time(wrk%usol, 0.0_dp, err)
+    if (self%wrk%nsteps >= var%nsteps_before_reinit) then
+      call self%restart_robust_stepper(wrk%usol, wrk%t_history(1), err)
       if (allocated(err)) then
         wrk%robust_stepper_initialized = .false.
         return
