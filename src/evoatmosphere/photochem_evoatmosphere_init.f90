@@ -207,7 +207,7 @@ contains
     type(EvoAtmosphere), intent(inout) :: candidate
     character(:), allocatable, intent(out) :: err
 
-    call candidate%prep_atmosphere_unchecked(candidate%var%usol_init, err)
+    call candidate%prep_atmosphere_unchecked(candidate%var%usol_init, err=err)
     if (allocated(err)) return
 
     ! Boundary conditions are imposed while preparing the atmosphere. Retain

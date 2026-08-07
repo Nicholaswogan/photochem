@@ -151,7 +151,7 @@ contains
     
     call self%prep_atm_evo_gas(usol_in, wrk%usol, &
                                wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
-                               wrk%pressure_hydro, wrk%density_hydro, err)
+                               wrk%pressure_hydro, wrk%density_hydro, err=err)
     if (allocated(err)) then
       ierr = -1
       return
@@ -998,7 +998,7 @@ contains
       usol_tmp(1:dat%nq,1:var%nz) => wrk%sun%yvec
       call self%prep_atm_evo_gas(usol_tmp, wrk%usol, &
            wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
-           wrk%pressure_hydro, wrk%density_hydro, err)
+           wrk%pressure_hydro, wrk%density_hydro, err=err)
       if (allocated(err)) return
     endblock
 

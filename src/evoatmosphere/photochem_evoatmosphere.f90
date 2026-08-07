@@ -6,9 +6,14 @@ module photochem_evoatmosphere
   private
   public :: EvoAtmosphere
 
-  ! Candidate state for a vertical-grid update. Construction of this object
-  ! does not mutate the live model; later passes will extend it to stage all
-  ! derived state needed for an atomic commit.
+  ! Candidate state for a vertical-grid update. It owns all grid-dependent
+  ! variables needed to prepare and atomically commit a replacement state.
+  type :: VerticalGridParticleXsections
+    real(dp), allocatable :: w0(:,:)
+    real(dp), allocatable :: qext(:,:)
+    real(dp), allocatable :: gt(:,:)
+  end type
+
   type :: VerticalGridCandidate
     real(dp) :: top_atmos = 0.0_dp
     real(dp), allocatable :: z(:)
@@ -19,6 +24,13 @@ module photochem_evoatmosphere
     real(dp), allocatable :: usol(:,:)
     real(dp), allocatable :: particle_radius(:,:)
     real(dp), allocatable :: pressure(:)
+    real(dp), allocatable :: xs_x_qy(:,:,:)
+    type(VerticalGridParticleXsections), allocatable :: particle_xs(:)
+    real(dp), allocatable :: gibbs_energy(:,:)
+    real(dp), allocatable :: photon_flux(:)
+    real(dp) :: surface_pressure = 0.0_dp
+    real(dp) :: trop_alt = 0.0_dp
+    integer :: trop_ind = 1
   end type
 
   type :: EvoAtmosphere
@@ -249,13 +261,14 @@ module photochem_evoatmosphere
 
     module subroutine prep_atm_evo_gas(self, usol_in, usol, &
                                       molecules_per_particle, pressure, density, mix, mubar, &
-                                      pressure_hydro, density_hydro, err)
+                                      pressure_hydro, density_hydro, apply_persistent_profile, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:)
       real(dp), intent(out) :: usol(:,:)
       real(dp), intent(out) :: molecules_per_particle(:,:)
       real(dp), intent(out) :: pressure(:), density(:), mix(:,:), mubar(:)
       real(dp), intent(out) :: pressure_hydro(:), density_hydro(:)
+      logical, optional, intent(in) :: apply_persistent_profile
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -263,9 +276,10 @@ module photochem_evoatmosphere
     !> this subroutine calculates reaction rates, photolysis rates, etc.
     !> and puts this information into self.wrk. self.wrk contains all the
     !> information needed for `dochem` to compute chemistry.
-    module subroutine prep_all_evo_gas(self, usol_in, err)
+    module subroutine prep_all_evo_gas(self, usol_in, apply_persistent_profile, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:) !! Number densities (molecules/cm^3)
+      logical, optional, intent(in) :: apply_persistent_profile
       character(:), allocatable, intent(out) :: err
     end subroutine
 

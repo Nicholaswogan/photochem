@@ -453,7 +453,7 @@ contains
 
   module subroutine prep_atm_evo_gas(self, usol_in, usol, &
                                      molecules_per_particle, pressure, density, mix, mubar, &
-                                     pressure_hydro, density_hydro, err)
+                                     pressure_hydro, density_hydro, apply_persistent_profile, err)
     use photochem_eqns, only: press_and_den
     use photochem_common, only: molec_per_particle
     use photochem_const, only: small_real, N_avo, k_boltz
@@ -464,9 +464,11 @@ contains
     real(dp), intent(out) :: molecules_per_particle(:,:)
     real(dp), intent(out) :: pressure(:), density(:), mix(:,:), mubar(:)
     real(dp), intent(out) :: pressure_hydro(:), density_hydro(:)
+    logical, optional, intent(in) :: apply_persistent_profile
     character(:), allocatable, intent(out) :: err
 
     real(dp) :: Psat
+    logical :: apply_profile
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     integer :: i, j
@@ -474,11 +476,16 @@ contains
     dat => self%dat
     var => self%var
 
+    apply_profile = .true.
+    if (present(apply_persistent_profile)) apply_profile = apply_persistent_profile
+
     ! A persistent pressure-based profile depends on the trial composition.
     ! Apply it before boundary conditions, hydrostatics, transport, chemistry,
     ! and saturation quantities are prepared.
-    call apply_press_temp_edd_profile(self, usol_in, err)
-    if (allocated(err)) return
+    if (apply_profile) then
+      call apply_press_temp_edd_profile(self, usol_in, err)
+      if (allocated(err)) return
+    endif
 
     !!! alter input usol
     do j = 1,var%nz
@@ -535,7 +542,7 @@ contains
 
     call prep_atm_evo_gas(self, usol_in, wrk%usol, &
                           wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
-                          wrk%pressure_hydro, wrk%density_hydro, err)
+                          wrk%pressure_hydro, wrk%density_hydro, err=err)
     if (allocated(err)) return
 
     if (self%dat%gas_rainout) then
@@ -554,7 +561,7 @@ contains
 
   end subroutine
 
-  module subroutine prep_all_evo_gas(self, usol_in, err)
+  module subroutine prep_all_evo_gas(self, usol_in, apply_persistent_profile, err)
 
     use photochem_common, only: reaction_rates, rainout, photorates
     use photochem_common, only: gas_saturation_density
@@ -563,6 +570,7 @@ contains
 
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
+    logical, optional, intent(in) :: apply_persistent_profile
     character(:), allocatable, intent(out) :: err
 
     type(PhotochemData), pointer :: dat
@@ -576,7 +584,7 @@ contains
 
     call prep_atm_evo_gas(self, usol_in, wrk%usol, &
                           wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
-                          wrk%pressure_hydro, wrk%density_hydro, err)
+                          wrk%pressure_hydro, wrk%density_hydro, apply_persistent_profile, err)
     if (allocated(err)) return
 
     !!! diffusion and advection coefficients
@@ -648,7 +656,7 @@ contains
     call self%require_atmosphere_initialized('prep_atmosphere', err)
     if (allocated(err)) return
 
-    call prep_all_evo_gas(self, usol_in, err)
+    call prep_all_evo_gas(self, usol_in, err=err)
     if (allocated(err)) return
 
   end subroutine
@@ -693,7 +701,7 @@ contains
     wrk%tn = tn
     
     ! fills self%wrk with data
-    call prep_all_evo_gas(self, usol_in, err)
+    call prep_all_evo_gas(self, usol_in, err=err)
     if (allocated(err)) return
 
     call dochem(self, wrk%usol, wrk%rx_rates, &
@@ -878,7 +886,7 @@ contains
       return 
     endif
   
-    call prep_all_evo_gas(self, usol_in, err)
+    call prep_all_evo_gas(self, usol_in, err=err)
     if (allocated(err)) return
   
     jac = 0.0_dp

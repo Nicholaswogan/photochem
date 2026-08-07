@@ -27,7 +27,7 @@ contains
     ! tested in another test.
 
     ! set_trop_ind : test_step
-    ! prep_atm_evo_gas : test_production_and_loss
+    !  : test_production_and_loss
     ! prep_atmosphere : test_production_and_loss
     ! right_hand_side_chem : gas_fluxes
     call test_production_and_loss(pcs)

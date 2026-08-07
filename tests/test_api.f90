@@ -20,6 +20,7 @@ contains
     call test_set_press_temp_edd_nonmonotonic()
     call test_update_vertical_grid_inputs()
     call test_update_vertical_grid_particles()
+    call test_update_vertical_grid_atomicity()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
   end subroutine
@@ -168,6 +169,83 @@ contains
         stop 1
       endif
     enddo
+
+  end subroutine
+
+  subroutine test_update_vertical_grid_atomicity()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp), allocatable :: z_before(:), usol_before(:,:), temperature_before(:)
+    real(dp), allocatable :: particle_radius_before(:,:)
+    real(dp) :: top_before, surface_pressure_before, tn
+    integer :: i, optical_particle
+
+    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    call pc%initialize_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    optical_particle = 0
+    do i = 1,pc%dat%np
+      if (pc%dat%part_xs_file(i)%ThereIsData) then
+        optical_particle = i
+        exit
+      endif
+    enddo
+    if (optical_particle == 0) then
+      print *, 'Atomic regrid test requires a particle with optical data'
+      stop 1
+    endif
+
+    ! The interpolation contract rejects radii exactly on its tabulated lower
+    ! boundary. Introduce that condition only after CVODE is initialized so
+    ! candidate preparation fails after the original solver has been parked.
+    pc%var%particle_radius(optical_particle,pc%var%nz) = &
+        pc%dat%radii_file(1,optical_particle)
+    top_before = pc%var%top_atmos
+    surface_pressure_before = pc%var%surface_pressure
+    z_before = pc%var%z
+    usol_before = pc%wrk%usol
+    temperature_before = pc%var%temperature
+    particle_radius_before = pc%var%particle_radius
+
+    call pc%update_vertical_grid(TOA_alt=1.20_dp*top_before, err=err)
+    if (.not.allocated(err)) then
+      print *, 'Invalid candidate optical properties were accepted during regridding'
+      stop 1
+    endif
+    deallocate(err)
+    if (pc%var%top_atmos /= top_before .or. &
+        pc%var%surface_pressure /= surface_pressure_before .or. &
+        any(pc%var%z /= z_before) .or. any(pc%wrk%usol /= usol_before) .or. &
+        any(pc%var%temperature /= temperature_before) .or. &
+        any(pc%var%particle_radius /= particle_radius_before)) then
+      print *, 'Failed candidate preparation changed committed model state'
+      stop 1
+    endif
+
+    tn = pc%step(err)
+    if (allocated(err) .or. tn <= 0.0_dp) then
+      if (allocated(err)) print *, trim(err)
+      print *, 'Failed regridding did not preserve the active stepper'
+      stop 1
+    endif
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
 
   end subroutine
 
@@ -1362,9 +1440,14 @@ contains
     endif
     call check_press_temp_edd_profile(pc, P, T, edd)
     call check_hydrostatic_extension(pc, z_top, pressure_top, temperature_top, gas_mix_top)
-    ! Match the gas-giant maintenance sequence. This must not double-free
-    ! solver resources owned by the live model. Pass 3 may make the successful
-    ! regrid invalidate them before this explicit initialization.
+    tn = pc%step(err)
+    if (.not.allocated(err)) then
+      print*,'A successful vertical regrid retained the stale CVODE stepper'
+      stop 1
+    endif
+    deallocate(err)
+    ! Match the gas-giant maintenance sequence after the successful regrid has
+    ! invalidated the old solver resources.
     call pc%initialize_stepper(pc%wrk%usol, err)
     if (allocated(err)) then
       print*,trim(err)

@@ -1036,6 +1036,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     endif
 
     candidate%top_atmos = top_atmos_new
+    candidate%surface_pressure = var%surface_pressure
+    candidate%trop_alt = var%trop_alt
+    candidate%trop_ind = var%trop_ind
     allocate(candidate%usol(dat%nq,var%nz))
     allocate(candidate%z(var%nz),candidate%dz(var%nz),candidate%grav(var%nz))
     allocate(candidate%temperature(var%nz),candidate%edd(var%nz))
@@ -1250,6 +1253,20 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       return
     endif
 
+    if (dat%gas_rainout) then
+      if (var%press_temp_edd_profile%enabled) candidate%trop_alt = trop_alt
+      candidate%trop_ind = max(minloc(abs(candidate%z-candidate%trop_alt), 1)-1, 1)
+      if (candidate%trop_ind < 3) then
+        err = 'The candidate vertical grid places the tropopause too low.'
+        return
+      elseif (candidate%trop_ind > var%nz-2) then
+        err = 'The candidate vertical grid places the tropopause too high.'
+        return
+      endif
+    else
+      candidate%trop_ind = 1
+    endif
+
   contains
 
     subroutine fill_candidate_usol()
@@ -1286,7 +1303,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
   module subroutine update_vertical_grid(self, TOA_alt, TOA_pressure, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    use photochem_input, only: interp2particlexsdata
+    use photochem_input, only: interp2particlexsdata, interp2xsdata, compute_gibbs_energy
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), optional, intent(in) :: TOA_alt !! cm
     real(dp), optional, intent(in) :: TOA_pressure !! dynes/cm^2
@@ -1294,17 +1311,16 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
     real(dp) :: top_atmos_new
     type(VerticalGridCandidate) :: candidate
+    type(PhotochemWrkEvo), allocatable :: original_wrk, prepared_wrk
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
 
     call self%require_atmosphere_initialized('update_vertical_grid', err)
     if (allocated(err)) return
 
     dat => self%dat
     var => self%var
-    wrk => self%wrk
 
     if (present(TOA_alt) .and. present(TOA_pressure)) then
       err = 'Both "TOA_alt" and "TOA_pressure" can not be specified'
@@ -1332,40 +1348,147 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     if (present(TOA_alt)) then
       top_atmos_new = TOA_alt
     else
-      ! Compute new TOA. We use wrk%usol
-      top_atmos_new = TOA_at_pressure(self, wrk%usol, TOA_pressure, err)
+      top_atmos_new = TOA_at_pressure(self, self%wrk%usol, TOA_pressure, err)
       if (allocated(err)) return
     endif
 
     ! Compute properties associated with new TOA
-    call build_vertical_grid_candidate(self, wrk%usol, top_atmos_new, candidate, err)
+    call build_vertical_grid_candidate(self, self%wrk%usol, top_atmos_new, candidate, err)
     if (allocated(err)) return
 
-    var%top_atmos = candidate%top_atmos
-    var%z = candidate%z
-    var%dz = candidate%dz
-    var%grav = candidate%grav
-    var%temperature = candidate%temperature
-    var%edd = candidate%edd
-    wrk%usol = candidate%usol
-    var%usol_init = candidate%usol
-    var%particle_radius = candidate%particle_radius
+    ! Prepare the candidate using a fresh work structure. The original work
+    ! structure, including all CVODE-owned pointers, is parked without copying.
+    call initialize_vertical_grid_candidate_derived(dat, var, candidate)
+    allocate(prepared_wrk)
+    call prepared_wrk%init(dat%nsp, dat%np, dat%nq, var%nz, dat%nrT, dat%kj, dat%nw)
+    prepared_wrk%tn = self%wrk%tn
 
-    ! Get new optical properties associated with new particle radii
+    call swap_vertical_grid_candidate(var, candidate)
+    call move_alloc(self%wrk, original_wrk)
+    call move_alloc(prepared_wrk, self%wrk)
+
     call interp2particlexsdata(dat, var, err)
+    if (.not.allocated(err)) call interp2xsdata(dat, var, err)
+    if (.not.allocated(err) .and. dat%reverse) call compute_gibbs_energy(dat, var, err)
+    if (.not.allocated(err)) then
+      ! The persistent profile was reconciled during candidate construction.
+      call prep_all_evo_gas(self, var%usol_init, &
+                            apply_persistent_profile=.false., err=err)
+    endif
+
+    if (allocated(err)) then
+      ! Restore the exact committed state. original_wrk still owns the active
+      ! stepper, so a failed candidate does not disturb integration.
+      call move_alloc(self%wrk, prepared_wrk)
+      call move_alloc(original_wrk, self%wrk)
+      call swap_vertical_grid_candidate(var, candidate)
+      return
+    endif
+
+    ! Restore the committed state before crossing the ownership boundary.
+    ! A successful regrid always invalidates the old stepper before commit.
+    call move_alloc(self%wrk, prepared_wrk)
+    call move_alloc(original_wrk, self%wrk)
+    call swap_vertical_grid_candidate(var, candidate)
+
+    call self%destroy_stepper(err)
     if (allocated(err)) return
 
-    ! Update variables that depend on temperature. A persistent pressure-based
-    ! profile must be remapped using the composition on the new grid. Otherwise,
-    ! retain the interpolated altitude-based profile.
-    if (var%press_temp_edd_profile%enabled) then
-      call self%prep_atmosphere(wrk%usol, err)
-    elseif (dat%gas_rainout) then
-      call self%set_temperature(var%temperature, var%trop_alt, err)
-    else
-      call self%set_temperature(var%temperature, err=err)
+    call move_alloc(self%wrk, original_wrk)
+    call swap_vertical_grid_candidate(var, candidate)
+    call move_alloc(prepared_wrk, self%wrk)
+
+  end subroutine
+
+  subroutine initialize_vertical_grid_candidate_derived(dat, var, candidate)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    type(VerticalGridCandidate), intent(inout) :: candidate
+
+    integer :: i
+
+    allocate(candidate%xs_x_qy(var%nz,dat%kj,dat%nw))
+    allocate(candidate%particle_xs(dat%np))
+    do i = 1,dat%np
+      if (dat%part_xs_file(i)%ThereIsData) then
+        allocate(candidate%particle_xs(i)%w0(var%nz,dat%nw))
+        allocate(candidate%particle_xs(i)%qext(var%nz,dat%nw))
+        allocate(candidate%particle_xs(i)%gt(var%nz,dat%nw))
+      endif
+    enddo
+    if (dat%reverse) allocate(candidate%gibbs_energy(var%nz,dat%ng))
+    candidate%photon_flux = var%photon_flux
+
+  end subroutine
+
+  subroutine swap_vertical_grid_candidate(var, candidate)
+    type(PhotochemVars), intent(inout) :: var
+    type(VerticalGridCandidate), intent(inout) :: candidate
+
+    real(dp), allocatable :: tmp_1d(:), tmp_2d(:,:), tmp_3d(:,:,:)
+    real(dp) :: tmp_real
+    integer :: tmp_integer, i
+
+    tmp_real = var%top_atmos
+    var%top_atmos = candidate%top_atmos
+    candidate%top_atmos = tmp_real
+    tmp_real = var%surface_pressure
+    var%surface_pressure = candidate%surface_pressure
+    candidate%surface_pressure = tmp_real
+    tmp_real = var%trop_alt
+    var%trop_alt = candidate%trop_alt
+    candidate%trop_alt = tmp_real
+    tmp_integer = var%trop_ind
+    var%trop_ind = candidate%trop_ind
+    candidate%trop_ind = tmp_integer
+
+    call swap_real_1d(var%z, candidate%z)
+    call swap_real_1d(var%dz, candidate%dz)
+    call swap_real_1d(var%grav, candidate%grav)
+    call swap_real_1d(var%temperature, candidate%temperature)
+    call swap_real_1d(var%edd, candidate%edd)
+    call swap_real_1d(var%photon_flux, candidate%photon_flux)
+
+    call move_alloc(var%usol_init, tmp_2d)
+    call move_alloc(candidate%usol, var%usol_init)
+    call move_alloc(tmp_2d, candidate%usol)
+    call move_alloc(var%particle_radius, tmp_2d)
+    call move_alloc(candidate%particle_radius, var%particle_radius)
+    call move_alloc(tmp_2d, candidate%particle_radius)
+    if (allocated(var%gibbs_energy) .or. allocated(candidate%gibbs_energy)) then
+      call move_alloc(var%gibbs_energy, tmp_2d)
+      call move_alloc(candidate%gibbs_energy, var%gibbs_energy)
+      call move_alloc(tmp_2d, candidate%gibbs_energy)
     endif
-    if (allocated(err)) return
+
+    call move_alloc(var%xs_x_qy, tmp_3d)
+    call move_alloc(candidate%xs_x_qy, var%xs_x_qy)
+    call move_alloc(tmp_3d, candidate%xs_x_qy)
+    do i = 1,size(candidate%particle_xs)
+      if (allocated(candidate%particle_xs(i)%w0)) then
+        call swap_real_2d(var%particle_xs(i)%w0, candidate%particle_xs(i)%w0)
+        call swap_real_2d(var%particle_xs(i)%qext, candidate%particle_xs(i)%qext)
+        call swap_real_2d(var%particle_xs(i)%gt, candidate%particle_xs(i)%gt)
+      endif
+    enddo
+
+  contains
+
+    subroutine swap_real_1d(a, b)
+      real(dp), allocatable, intent(inout) :: a(:), b(:)
+
+      call move_alloc(a, tmp_1d)
+      call move_alloc(b, a)
+      call move_alloc(tmp_1d, b)
+    end subroutine
+
+    subroutine swap_real_2d(a, b)
+      real(dp), allocatable, intent(inout) :: a(:,:), b(:,:)
+
+      call move_alloc(a, tmp_2d)
+      call move_alloc(b, a)
+      call move_alloc(tmp_2d, b)
+    end subroutine
 
   end subroutine
 
