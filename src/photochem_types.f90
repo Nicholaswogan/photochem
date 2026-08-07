@@ -50,6 +50,17 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: temperature(:)
     real(dp), allocatable :: edd(:)
   end type
+
+  ! Settings for optional robust-stepper maintenance of the model-top
+  ! pressure. The feature is valid only while a persistent pressure-based
+  ! temperature and eddy-diffusion profile is enabled.
+  type :: TOAPressureMaintenance
+    logical :: enabled = .false.
+    real(dp) :: target_pressure = 0.0_dp !! Target pressure (dynes/cm^2)
+    real(dp) :: pressure_tolerance = 1.0e-2_dp !! Relative pressure tolerance
+    integer :: nsteps_between_updates = 100 !! Minimum accepted steps between updates
+    integer :: max_failures = 0 !! Failed updates allowed before robust integration stops
+  end type
   
   type :: SettingsParticle
     character(:), allocatable :: name
@@ -404,6 +415,11 @@ module photochem_types ! make a giant IO object
 
     ! State for a persistent pressure-based temperature and Kzz profile.
     type(PressureTempEddProfile) :: press_temp_edd_profile
+
+    ! Optional robust-stepper maintenance of the model-top pressure. This mode
+    ! requires press_temp_edd_profile%enabled to preserve the physical T-Kzz
+    ! structure when the vertical grid changes.
+    type(TOAPressureMaintenance) :: toa_pressure_maintenance
     
     ! radiative transfer
     real(dp), allocatable :: photon_flux(:) !! (nw) photon/cm^2/s in each wavelength bin hitting planet.
@@ -616,6 +632,11 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: pressure_hydro(:) !! (nz)
     real(dp), allocatable :: density_hydro(:) !! (nz)
 
+    ! Runtime bookkeeping for optional robust-stepper TOA maintenance.
+    integer :: n_toa_pressure_updates = 0
+    integer :: n_toa_pressure_failures = 0
+    integer :: nsteps_since_toa_pressure_update = 0
+
   contains
     procedure :: init => init_PhotochemWrkEvo
 
@@ -628,6 +649,10 @@ contains
     integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw
 
     call init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw)
+
+    self%n_toa_pressure_updates = 0
+    self%n_toa_pressure_failures = 0
+    self%nsteps_since_toa_pressure_update = 0
 
     if (allocated(self%mix)) then
       deallocate(self%mix)

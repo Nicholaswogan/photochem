@@ -1055,6 +1055,23 @@ contains
     elseif (.not.ieee_is_finite(self%var%reinit_min_density) .or. &
             self%var%reinit_min_density <= 0.0_dp) then
       err = "`reinit_min_density` must be finite and positive"
+    elseif (self%var%toa_pressure_maintenance%enabled .and. &
+            .not.self%var%press_temp_edd_profile%enabled) then
+      err = "TOA-pressure maintenance requires an enabled persistent pressure-based temperature and eddy-diffusion profile"
+    elseif (self%var%toa_pressure_maintenance%enabled .and. &
+            (.not.ieee_is_finite(self%var%toa_pressure_maintenance%target_pressure) .or. &
+             self%var%toa_pressure_maintenance%target_pressure <= 0.0_dp)) then
+      err = "`toa_pressure_maintenance%target_pressure` must be finite and positive"
+    elseif (self%var%toa_pressure_maintenance%enabled .and. &
+            (.not.ieee_is_finite(self%var%toa_pressure_maintenance%pressure_tolerance) .or. &
+             self%var%toa_pressure_maintenance%pressure_tolerance <= 0.0_dp)) then
+      err = "`toa_pressure_maintenance%pressure_tolerance` must be finite and positive"
+    elseif (self%var%toa_pressure_maintenance%enabled .and. &
+            self%var%toa_pressure_maintenance%nsteps_between_updates < 1) then
+      err = "`toa_pressure_maintenance%nsteps_between_updates` must be positive"
+    elseif (self%var%toa_pressure_maintenance%enabled .and. &
+            self%var%toa_pressure_maintenance%max_failures < 0) then
+      err = "`toa_pressure_maintenance%max_failures` must be nonnegative"
     endif
 
   end subroutine

@@ -15,6 +15,7 @@ contains
     call test_initialize_atmosphere_p()
     call test_legacy_file_grid()
     call test_robust_stepper_initialization()
+    call test_toa_pressure_maintenance_settings()
     call test_robust_stepper_restarts()
     call test_robust_stepper_limits()
     call test_set_press_temp_edd_nonmonotonic()
@@ -169,6 +170,30 @@ contains
       endif
       call check_repeated_grid_state(pc)
     enddo
+
+  end subroutine
+
+  subroutine test_toa_pressure_maintenance_settings()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+
+    pc = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ! Automatic TOA maintenance must not be enabled without a persistent
+    ! pressure-based T-Kzz profile.
+    pc%var%toa_pressure_maintenance%enabled = .true.
+    pc%var%toa_pressure_maintenance%target_pressure = 1.0e-7_dp
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (.not.allocated(err) .or. &
+        index(err, 'requires an enabled persistent pressure-based') == 0) then
+      print *, 'TOA maintenance was accepted without a persistent profile'
+      stop 1
+    endif
+    deallocate(err)
 
   end subroutine
 
