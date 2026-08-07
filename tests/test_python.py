@@ -65,6 +65,48 @@ def test_toa_pressure_maintenance_api():
     assert pc.wrk.nsteps_since_toa_pressure_update == 0
 
 
+def test_persistent_profile_controls_toa_maintenance():
+    """Persistent-profile options reach the shared Fortran maintenance state."""
+    pc = EvoAtmosphere(
+        "no_particle_test.yaml",
+        "test_settings_minimal.yaml",
+        "../examples/ModernEarth/Sun_now.txt",
+        data_dir="../data",
+    )
+    z = np.array([0.0, 5.0e6, 1.0e7])
+    pc.initialize_atmosphere_z(
+        z,
+        np.array([300.0, 240.0, 180.0]),
+        np.array([1.0e5, 1.0e6, 1.0e7]),
+        1.0e6,
+        {"H2": np.ones(z.size)},
+    )
+
+    pressure = np.array([
+        2.0 * pc.var.surface_pressure * 1.0e6,
+        0.5 * pc.wrk.pressure_hydro[-1],
+    ])
+    temperature = np.array([300.0, 180.0])
+    edd = np.array([3.0e7, 4.0e5])
+
+    pc.set_press_temp_edd_profile(pressure, temperature, edd)
+    assert pc.var.toa_pressure_maintenance.enabled is True
+    assert pc.var.toa_pressure_maintenance.target_pressure == 0.1
+
+    explicit_target = 2.5e-4
+    pc.set_press_temp_edd_profile(
+        pressure, temperature, edd, target_pressure=explicit_target
+    )
+    assert pc.var.toa_pressure_maintenance.enabled is True
+    assert pc.var.toa_pressure_maintenance.target_pressure == explicit_target
+
+    pc.set_press_temp_edd_profile(
+        pressure, temperature, edd, maintain_toa_pressure=False
+    )
+    assert pc.var.toa_pressure_maintenance.enabled is False
+    pc.clear_press_temp_edd_profile()
+
+
 def test_gas_giant_static_construction():
     from photochem.extensions.gasgiants import EvoAtmosphereGasGiant
 
