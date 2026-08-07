@@ -659,7 +659,14 @@ module photochem_evoatmosphere
     !! hydrostatically. Altitude-based temperature and eddy diffusion are held
     !! constant above the old domain. If a persistent pressure-based profile is
     !! enabled, its mapped temperature and eddy diffusion are instead reconciled
-    !! with the hydrostatic extension before the new grid is committed.
+    !! with the hydrostatic extension before the new grid is committed. This is
+    !! a profile-preserving remap, not a column-conservative remap: gas mixing
+    !! ratios are normalized on the new grid, but integrated species columns
+    !! are not constrained to equal their values on the old grid.
+    !!
+    !! The update is failure atomic. An error leaves both the atmosphere and any
+    !! active CVODE stepper unchanged. A successful update invalidates an active
+    !! stepper, which must be initialized again before integration can continue.
     module subroutine update_vertical_grid(self, TOA_alt, TOA_pressure, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), optional, intent(in) :: TOA_alt !! New top of atmosphere altitude (cm)

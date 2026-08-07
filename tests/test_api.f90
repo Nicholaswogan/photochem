@@ -20,6 +20,7 @@ contains
     call test_set_press_temp_edd_nonmonotonic()
     call test_update_vertical_grid_inputs()
     call test_update_vertical_grid_pressure()
+    call test_update_vertical_grid_repeated()
     call test_update_vertical_grid_particles()
     call test_update_vertical_grid_atomicity()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
@@ -122,6 +123,66 @@ contains
         .not.all(ieee_is_finite(pc%var%z)) .or. any(pc%var%dz <= 0.0_dp) .or. &
         .not.all(ieee_is_finite(pc%wrk%usol))) then
       print *, 'Lowering the TOA produced an invalid candidate grid'
+      stop 1
+    endif
+
+  end subroutine
+
+  subroutine test_update_vertical_grid_repeated()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp) :: top_initial, target_pressure, target_altitude
+    integer :: i
+
+    pc = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    top_initial = pc%var%top_atmos
+    target_pressure = pc%wrk%pressure(pc%var%nz)
+
+    ! Alternate explicit-altitude remaps with pressure-targeted remaps. This
+    ! catches cumulative ownership, allocation, and remapping failures without
+    ! requiring a long integration in routine tests.
+    do i = 1,3
+      if (mod(i,2) == 1) then
+        target_altitude = 1.08_dp*top_initial
+      else
+        target_altitude = 0.94_dp*top_initial
+      endif
+      call pc%update_vertical_grid(TOA_alt=target_altitude, err=err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+      call check_repeated_grid_state(pc)
+
+      call pc%update_vertical_grid(TOA_pressure=target_pressure, err=err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+      if (abs(log10(pc%wrk%pressure(pc%var%nz)/target_pressure)) > 2.0e-8_dp) then
+        print *, 'Repeated regrid missed its TOA pressure target'
+        stop 1
+      endif
+      call check_repeated_grid_state(pc)
+    enddo
+
+  end subroutine
+
+  subroutine check_repeated_grid_state(model)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    type(EvoAtmosphere), intent(in) :: model
+
+    if (.not.all(ieee_is_finite(model%var%z)) .or. &
+        .not.all(ieee_is_finite(model%wrk%usol)) .or. &
+        .not.all(ieee_is_finite(model%wrk%pressure)) .or. &
+        any(model%var%dz <= 0.0_dp) .or. &
+        any(model%wrk%pressure <= 0.0_dp) .or. &
+        any(sum(model%wrk%usol(model%dat%ng_1:,:),dim=1) <= 0.0_dp)) then
+      print *, 'Repeated vertical regridding produced an invalid atmosphere'
       stop 1
     endif
 
