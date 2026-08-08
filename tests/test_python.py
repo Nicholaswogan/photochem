@@ -1,8 +1,55 @@
 """Smoke test for the installed Python wrappers. See README.md."""
 
+import tempfile
+from pathlib import Path
+
 import numpy as np
 
 from photochem import EvoAtmosphere, PhotoException, zahnle_earth
+
+
+def _make_file_atmosphere():
+    pc = EvoAtmosphere(
+        zahnle_earth,
+        "../examples/ModernEarth/settings.yaml",
+        "../examples/ModernEarth/Sun_now.txt",
+        "../examples/ModernEarth/atmosphere.txt",
+        data_dir="../data",
+    )
+    pc.var.verbose = 0
+    return pc
+
+
+def test_evolve_uses_fixed_grid():
+    """Evolution does not move the grid and rejects mismatched restarts."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        filename = Path(tmp_dir) / "evolution.dat"
+        pc = _make_file_atmosphere()
+        initial_usol = pc.wrk.usol.copy()
+
+        assert pc.evolve(
+            str(filename),
+            0.0,
+            initial_usol,
+            np.array([1.0, 2.0]),
+            overwrite=True,
+        )
+        assert pc.var.top_atmos == 1.0e7
+
+        mismatched = _make_file_atmosphere()
+        mismatched.update_vertical_grid(TOA_alt=0.9 * mismatched.var.top_atmos)
+        try:
+            mismatched.evolve(
+                str(filename),
+                0.0,
+                mismatched.wrk.usol.copy(),
+                np.array([3.0]),
+                restart_from_file=True,
+            )
+        except PhotoException as exc:
+            assert "fixed grid" in str(exc)
+        else:
+            raise AssertionError("restart accepted a mismatched fixed grid")
 
 
 def test_static_construction():
@@ -414,6 +461,7 @@ def test_wrapper():
 def main():
 
     test_static_construction()
+    test_evolve_uses_fixed_grid()
     test_gas_giant_static_construction()
     test_wrapper()
     test_initialize_atmosphere_z_particles()

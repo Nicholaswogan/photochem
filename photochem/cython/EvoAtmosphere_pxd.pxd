@@ -64,7 +64,6 @@ cdef extern void evoatmosphere_set_press_temp_edd_profile_wrapper(EvoAtmosphere 
 cdef extern void evoatmosphere_clear_press_temp_edd_profile_wrapper(EvoAtmosphere *ptr, char *err)
 cdef extern void evoatmosphere_update_vertical_grid_wrapper(EvoAtmosphere *ptr, double *toa_alt, bool *toa_alt_present,
                                                          double *toa_pressure, bool *toa_pressure_present, char *err)
-cdef extern void evoatmosphere_regrid_prep_atmosphere_wrapper(EvoAtmosphere *ptr, int *nq, int *nz, double *usol, double *top_atmos, char *err)
 
 cdef extern void evoatmosphere_evolve_wrapper(EvoAtmosphere *ptr, char *filename, 
                 double *tstart, int *nq, int *nz, double *usol, 
@@ -84,13 +83,3 @@ cdef extern void evoatmosphere_robust_step_wrapper(EvoAtmosphere *ptr, bool *giv
 
 cdef extern void evoatmosphere_production_and_loss_wrapper(EvoAtmosphere *ptr, char *species, int *nq, 
                                                         int *nz, double *usol, pl_pxd.ProductionLoss **pl_ptr, char *err)
-
-# getters and setters
-cdef extern void evoatmosphere_p_top_min_get(EvoAtmosphere *ptr, double *val)
-cdef extern void evoatmosphere_p_top_min_set(EvoAtmosphere *ptr, double *val)
-
-cdef extern void evoatmosphere_p_top_max_get(EvoAtmosphere *ptr, double *val)
-cdef extern void evoatmosphere_p_top_max_set(EvoAtmosphere *ptr, double *val)
-
-cdef extern void evoatmosphere_top_atmos_adjust_frac_get(EvoAtmosphere *ptr, double *val)
-cdef extern void evoatmosphere_top_atmos_adjust_frac_set(EvoAtmosphere *ptr, double *val)

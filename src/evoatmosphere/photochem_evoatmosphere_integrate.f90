@@ -123,46 +123,6 @@ contains
   
   end function
 
-  function RootFn(tn, sunvec_y, gvec, user_data) result(ierr) bind(c,name='RootFn')
-    use, intrinsic :: iso_c_binding
-    use fsundials_nvector_mod
-    real(c_double), value :: tn        ! current time
-    type(N_Vector) :: sunvec_y  ! solution N_Vector
-    real(c_double) :: gvec(*)
-    type(c_ptr), value :: user_data ! user-defined data
-    integer(c_int) :: ierr
-
-    real(c_double), pointer :: yvec(:)
-    real(dp), pointer :: usol_in(:,:)
-    type(EvoAtmosphere), pointer :: self
-    character(:), allocatable :: err
-    type(PhotochemData), pointer :: dat
-    type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
-    
-    ierr = 0
-
-    call c_f_pointer(user_data, self)
-    dat => self%dat
-    var => self%var
-    wrk => self%wrk
-    yvec(1:var%neqs) => FN_VGetArrayPointer(sunvec_y)
-    usol_in(1:dat%nq,1:var%nz) => yvec(1:var%neqs)
-    
-    call self%prep_atm_evo_gas(usol_in, wrk%usol, &
-                               wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
-                               wrk%pressure_hydro, wrk%density_hydro, err=err)
-    if (allocated(err)) then
-      ierr = -1
-      return
-    endif
-
-    ! pressure at the top of the atmosphere
-    gvec(1) = wrk%pressure_hydro(var%nz)/1.0e6_dp - self%P_top_min
-    gvec(2) = wrk%pressure_hydro(var%nz)/1.0e6_dp - self%P_top_max
-
-  end function
-
   subroutine ErrHandlerFn_evo(error_code, module_, func, msg, eh_data) bind(c, name='ErrHandlerFn_evo')
     use iso_c_binding
     integer(c_int), value :: error_code
@@ -174,10 +134,9 @@ contains
   
   module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, restart_from_file, err) result(success)
                                    
-    use, intrinsic :: iso_c_binding, only: c_double, c_int, c_funloc
+    use, intrinsic :: iso_c_binding, only: c_double, c_int
     use fcvode_mod, only: CV_NORMAL, FCVode, FCVodeSVtolerances, &
-                          FCVodeSetInitStep, FCVodeRootInit, FCVodeReInit, &
-                          FCVodeGetRootInfo, FCVodeSetMaxStep
+                          FCVodeSetInitStep, FCVodeReInit, FCVodeSetMaxStep
     use photochem_types, only: SundialsDataFinalizer
     
     ! in/out
@@ -195,10 +154,6 @@ contains
     real(c_double) :: tcur(1)    ! current time
     integer(c_int) :: ierr       ! error flag from C functions
     
-    ! solution vector, neq is set in the ode_mod module
-    integer(c_int), parameter :: nrtfn = 2
-    integer(c_int) :: rootsfound(nrtfn)
-    real(c_double) :: usol_new(self%dat%nq,self%var%nz)
     real(c_double), pointer :: yvec_usol(:,:)
     real(dp) :: new_atol
     integer :: error_reinit_attempts
@@ -256,9 +211,6 @@ contains
       call read_end_of_evo_file(self, filename, t_eval, restart_index, tstart, top_atmos, usol_start, err)
       if (allocated(err)) return
 
-      call self%regrid_prep_atmosphere(usol_start, top_atmos, err)
-      if (allocated(err)) return
-
       istart = restart_index
     endblock; else
       ! file prep
@@ -290,13 +242,6 @@ contains
     call self%initialize_stepper_at_time(usol_start, tstart, err)
     if (allocated(err)) return
     yvec_usol(1:dat%nq,1:var%nz) => wrk%sun%yvec
-
-    ! Root handling is specific to evolve's legacy moving-TOA policy.
-    ierr = FCVodeRootInit(wrk%sun%cvode_mem, nrtfn, c_funloc(RootFn))
-    if (ierr /= 0) then
-      err = "CVODE setup error."
-      return
-    end if
 
     error_reinit_attempts = 0
     do ii = istart, size(t_eval)
@@ -342,36 +287,7 @@ contains
         elseif (ierr == 0 .or. ierr == 1 .or. ierr == 99) then
           ! Successful return. Go save the results, and continue integrating.
           exit
-        elseif (ierr == 2) then; block
-          real(dp) :: new_top_atmos
-          ! root was found
-
-          ierr = FCVodeGetRootInfo(wrk%sun%cvode_mem, rootsfound)
-          if (ierr /= 0) then
-            err = 'CVODE roots error.'
-            return
-          endif
-
-          if (rootsfound(1) == -1) then
-            ! pressure at the top of the atmosphere is going down
-            ! we must decrease the top of the atmosphere
-            new_top_atmos = (1.0_dp-self%top_atmos_adjust_frac)*var%top_atmos
-            call self%rebin_update_vertical_grid(yvec_usol, new_top_atmos, usol_new, err)
-            if (allocated(err)) return
-            yvec_usol = usol_new
-
-          elseif (rootsfound(2) == 1) then
-            ! pressure at the top of the atmosphere is going up
-            ! we must increase the top of the atmosphere
-            new_top_atmos = (1.0_dp+self%top_atmos_adjust_frac)*var%top_atmos
-            call self%rebin_update_vertical_grid(yvec_usol, new_top_atmos, usol_new, err)
-            if (allocated(err)) return
-            yvec_usol = usol_new
-
-          endif
-
-          reinitialize = .true.
-        endblock; else
+        else
           ! in case we missed a scenario, then we assume its a failure
           err = 'Unknown CVODE return code'
           return
@@ -433,7 +349,7 @@ contains
 
   subroutine read_end_of_evo_file(self, filename, t_eval, restart_index, tcur, top_atmos, usol, err)
     use photochem_const, only: s_str_len
-    use futils, only: is_close, FileCloser
+    use futils, only: FileCloser
     use iso_c_binding, only: c_double
     type(EvoAtmosphere), target, intent(in) :: self
     character(*), intent(in) :: filename
@@ -449,6 +365,7 @@ contains
     integer :: nt
     real(dp), allocatable :: z(:)
     integer :: i
+    real(dp) :: grid_scale
     type(FileCloser) :: file
     
     open(1, file = filename, status='old', form="unformatted",iostat=io)
@@ -530,6 +447,22 @@ contains
       endif
     enddo
 
+    ! Evolution output is tied to the fixed grid that produced it. A restart
+    ! must therefore use an atmosphere initialized with the same grid rather
+    ! than silently changing the model state while reading the file.
+    if (abs(top_atmos - self%var%top_atmos) > &
+        1.0e-12_dp*max(1.0_dp, abs(self%var%top_atmos))) then
+      err = 'The saved top-of-atmosphere altitude in '//trim(filename)// &
+            ' does not match the initialized fixed grid.'
+      return
+    endif
+    grid_scale = max(1.0_dp, maxval(abs(self%var%z)))
+    if (maxval(abs(z - self%var%z)) > 1.0e-12_dp*grid_scale) then
+      err = 'The saved altitude grid in '//trim(filename)// &
+            ' does not match the initialized fixed grid.'
+      return
+    endif
+
     ! tcur is the end of the file
     restart_index = -1
     do i = 1,size(t_eval)
@@ -540,7 +473,7 @@ contains
     enddo
 
     if (restart_index == -1) then
-      err = 'Was unable to fine a time in t_eval that is greater than tcur in '//filename
+      err = 'Was unable to find a time in t_eval that is greater than tcur in '//filename
       return
     endif
     

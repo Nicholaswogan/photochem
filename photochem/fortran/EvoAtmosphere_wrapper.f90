@@ -538,25 +538,6 @@
     
   end subroutine
 
-  subroutine evoatmosphere_regrid_prep_atmosphere_wrapper(ptr, nq, nz, usol, top_atmos, err) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    integer(c_int), intent(in) :: nq, nz
-    real(c_double), intent(in) :: usol(nq, nz)
-    real(c_double), intent(in) :: top_atmos
-    character(kind=c_char), intent(out) :: err(err_len+1)
-    
-    character(:), allocatable :: err_f
-    type(EvoAtmosphere), pointer :: pc
-    
-    call c_f_pointer(ptr, pc)
-    
-    call pc%regrid_prep_atmosphere(usol, top_atmos, err_f)
-    err(1) = c_null_char
-    if (allocated(err_f)) then
-      call copy_string_ftoc(err_f, err)
-    endif
-  end subroutine
-  
   subroutine evoatmosphere_evolve_wrapper(ptr, filename, tstart, nq, nz, usol, nt, t_eval, overwrite, restart_from_file, &
                                           success, err) bind(c)
     type(c_ptr), value, intent(in) :: ptr
@@ -738,51 +719,3 @@
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! getters and setters !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  subroutine evoatmosphere_p_top_min_get(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(out) :: val
-    type(EvoAtmosphere), pointer :: pc
-    call c_f_pointer(ptr, pc)
-    val = pc%P_top_min
-  end subroutine
-
-  subroutine evoatmosphere_p_top_min_set(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(in) :: val
-    type(EvoAtmosphere), pointer :: pc
-    call c_f_pointer(ptr, pc)
-    pc%P_top_min = val
-  end subroutine
-
-  subroutine evoatmosphere_p_top_max_get(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(out) :: val
-    type(EvoAtmosphere), pointer :: pc
-    call c_f_pointer(ptr, pc)
-    val = pc%P_top_max
-  end subroutine
-
-  subroutine evoatmosphere_p_top_max_set(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(in) :: val
-    type(EvoAtmosphere), pointer :: pc
-    call c_f_pointer(ptr, pc)
-    pc%P_top_max = val
-  end subroutine
-
-  subroutine evoatmosphere_top_atmos_adjust_frac_get(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(out) :: val
-    type(EvoAtmosphere), pointer :: pc
-    call c_f_pointer(ptr, pc)
-    val = pc%top_atmos_adjust_frac
-  end subroutine
-
-  subroutine evoatmosphere_top_atmos_adjust_frac_set(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    real(c_double), intent(in) :: val
-    type(EvoAtmosphere), pointer :: pc
-    call c_f_pointer(ptr, pc)
-    pc%top_atmos_adjust_frac = val
-  end subroutine

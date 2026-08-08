@@ -46,8 +46,6 @@ contains
     ! set_rate_fcn : NOT TESTED
     call test_set_temperature(pcs)
     call test_update_vertical_grid(pcs)
-    ! rebin_update_vertical_grid : NOT TESTED
-    ! regrid_prep_atmosphere : NOT TESTED
     
   end subroutine
 

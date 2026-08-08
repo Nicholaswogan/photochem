@@ -828,33 +828,11 @@ cdef class EvoAtmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
-  def regrid_prep_atmosphere(self, ndarray[double, ndim=2] usol, double top_atmos):
-    """This subroutine calculates re-grids the model so that the top of the model domain 
-    is at `top_atmos` the computes reaction rates, photolysis rates, etc.
-    and puts this information into self.wrk. self.wrk contains all the
-    information needed for `dochem` to compute chemistry.
-
-    Parameters
-    ----------
-    usol : ndarray[double,ndim=2]
-        The number densities (molecules/cm^3)
-    top_atmos : float
-        The top of the model domain (cm)
-    """
-    cdef char err[ERR_LEN+1]
-    cdef int nq = self.dat.nq
-    cdef int nz = self.var.nz
-    cdef ndarray usol_ = np.asfortranarray(usol)
-    if usol_.shape[0] != nq or usol_.shape[1] != nz:
-      raise PhotoException("Input usol is the wrong size.")
-      
-    ea_pxd.evoatmosphere_regrid_prep_atmosphere_wrapper(self._ptr, &nq, &nz, <double *>usol_.data, &top_atmos, err)
-    if len(err.strip()) > 0:
-      raise PhotoException(err.decode("utf-8").strip())
-    
   def evolve(self, str filename, double tstart, ndarray[double, ndim=2] usol, ndarray[double, ndim=1] t_eval, bool overwrite = False, bool restart_from_file = False):
-    """Evolve atmosphere through time, and saves output in a 
-    binary Fortran file.
+    """Evolve atmosphere through time on the current fixed vertical grid,
+    and save output in a binary Fortran file. Grid changes must be requested
+    explicitly with :meth:`update_vertical_grid` or handled by the robust
+    stepper's TOA-maintenance mode.
 
     Parameters
     ----------
@@ -1086,43 +1064,3 @@ cdef class EvoAtmosphere:
     for i in range(self.dat.nsl):
       out[names[nq+i]] = densities[nq+i,:]/density
     return out
-
-  property P_top_min:
-    """double. When running the `evolve` routine, this determines
-    the minimum pressure of the top of the model domain (bars). 
-    If the pressure gets smaller than this value, then the integration will stop
-    and re-grid the model domain before continuing integration, so that the 
-    top of the atmosphere has a bigger pressure than `P_top_min`.
-    """
-    def __get__(self):
-      cdef double val
-      ea_pxd.evoatmosphere_p_top_min_get(self._ptr, &val)
-      return val
-    def __set__(self, double val):
-      ea_pxd.evoatmosphere_p_top_min_set(self._ptr, &val)
-
-  property P_top_max:
-    """double. When running the `evolve` routine, this determines
-    the maximum pressure of the top of the model domain (bars). 
-    If the pressure gets larger than this value, then the integration will stop
-    and re-grid the model domain before continuing integration, so that the 
-    top of the atmosphere has a smaller pressure than `P_top_max`.
-    """
-    def __get__(self):
-      cdef double val
-      ea_pxd.evoatmosphere_p_top_max_get(self._ptr, &val)
-      return val
-    def __set__(self, double val):
-      ea_pxd.evoatmosphere_p_top_max_set(self._ptr, &val)
-
-  property top_atmos_adjust_frac:
-    """Sets the fractional amount that the top of the model domain changes
-    when integration is haulted by `P_top_min` or `P_top_max`
-    """
-    def __get__(self):
-      cdef double val
-      ea_pxd.evoatmosphere_top_atmos_adjust_frac_get(self._ptr, &val)
-      return val
-    def __set__(self, double val):
-      ea_pxd.evoatmosphere_top_atmos_adjust_frac_set(self._ptr, &val)
-    

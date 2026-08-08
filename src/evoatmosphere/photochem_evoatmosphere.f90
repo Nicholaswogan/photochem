@@ -42,22 +42,6 @@ module photochem_evoatmosphere
     !! completed successfully.
     logical :: atmosphere_initialized = .false.
 
-    !> When running the `evolve` routine, this determines
-    !> the minimum pressure of the top of the model domain (bars). 
-    !> If the pressure gets smaller than this value, then the integration will stop
-    !> and re-grid the model domain before continuing integration, so that the 
-    !> top of the atmosphere has a bigger pressure than `P_top_min`.
-    real(dp) :: P_top_min = 1.0e-50_dp
-    !> When running the `evolve` routine, this determines
-    !> the maximum pressure of the top of the model domain (bars). 
-    !> If the pressure gets larger than this value, then the integration will stop
-    !> and re-grid the model domain before continuing integration, so that the 
-    !> top of the atmosphere has a smaller pressure than `P_top_max`.
-    real(dp) :: P_top_max = 1.0e50_dp
-    !> Sets the fractional amount that the top of the model domain changes
-    !> when integration is haulted by `P_top_min` or `P_top_max`
-    real(dp) :: top_atmos_adjust_frac = 0.02
-
   contains
 
     procedure :: initialize_from_atmosphere_file
@@ -102,8 +86,6 @@ module photochem_evoatmosphere
     procedure :: set_press_temp_edd_profile
     procedure :: clear_press_temp_edd_profile
     procedure :: update_vertical_grid
-    procedure :: rebin_update_vertical_grid
-    procedure :: regrid_prep_atmosphere
 
   end type
   interface EvoAtmosphere
@@ -705,27 +687,6 @@ module photochem_evoatmosphere
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), optional, intent(in) :: TOA_alt !! New top of atmosphere altitude (cm)
       real(dp), optional, intent(in) :: TOA_pressure !! New top of atmosphere pressure (dynes/cm^2)
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-
-    ! Both below are needed only for `evolve` routine and probably should not be used most of the time.
-
-    module subroutine rebin_update_vertical_grid(self, usol_old, top_atmos, usol_new, err)
-      class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_old(:,:)
-      real(dp), intent(in) :: top_atmos
-      real(dp), intent(out) :: usol_new(:,:)
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-
-    !> This subroutine calculates re-grids the model so that the top of the model domain 
-    !> is at `top_atmos` the computes reaction rates, photolysis rates, etc.
-    !> and puts this information into self.wrk. self.wrk contains all the
-    !> information needed for `dochem` to compute chemistry.
-    module subroutine regrid_prep_atmosphere(self, usol_new, top_atmos, err)
-      class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_new(:,:) !! The number densities (molecules/cm^3)
-      real(dp), intent(in) :: top_atmos !! The top of the model domain (cm)
       character(:), allocatable, intent(out) :: err
     end subroutine
 
