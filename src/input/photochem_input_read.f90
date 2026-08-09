@@ -2584,11 +2584,11 @@ contains
     
   end subroutine
   
-  module subroutine read_atmosphere_file(atmosphere_txt, dat, var, err)
+  module subroutine read_atmosphere_file(atmosphere_txt, dat, profile, err)
     use futils, only: FileCloser
     character(len=*), intent(in) :: atmosphere_txt
-    type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(inout) :: var
+    type(PhotochemData), intent(in) :: dat
+    type(AtmosphereFileProfile), intent(out) :: profile
     character(:), allocatable, intent(out) :: err
     
     character(len=10000) :: line
@@ -2608,24 +2608,24 @@ contains
     endif
     read(4,'(A)') line
     
-    dat%nzf = -1
+    profile%nlayer = -1
     io = 0
     do while (io == 0)
       read(4,*,iostat=io)
-      dat%nzf = dat%nzf + 1
+      profile%nlayer = profile%nlayer + 1
     enddo
     
-    allocate(dat%z_file(dat%nzf))
-    allocate(dat%T_file(dat%nzf))
-    allocate(dat%edd_file(dat%nzf))
-    allocate(dat%den_file(dat%nzf))
-    allocate(dat%mix_file(dat%nq, dat%nzf))
-    dat%z_file = 0.0_dp
-    dat%T_file = 0.0_dp
-    dat%edd_file = 0.0_dp
-    dat%mix_file = 1.0e-40_dp
+    allocate(profile%z(profile%nlayer))
+    allocate(profile%temperature(profile%nlayer))
+    allocate(profile%edd(profile%nlayer))
+    allocate(profile%density(profile%nlayer))
+    allocate(profile%mix(dat%nq, profile%nlayer))
+    profile%z = 0.0_dp
+    profile%temperature = 0.0_dp
+    profile%edd = 0.0_dp
+    profile%mix = 1.0e-40_dp
     if (dat%there_are_particles) then
-      allocate(dat%particle_radius_file(dat%npq, dat%nzf))
+      allocate(profile%particle_radius(dat%npq, profile%nlayer))
     endif
     
     rewind(4)
@@ -2650,13 +2650,13 @@ contains
     
     ! allocate memory
     allocate(labels(n))
-    allocate(temp(n,dat%nzf))
+    allocate(temp(n,profile%nlayer))
     rewind(4)
     read(4,'(A)') line
     read(line,*) (labels(i),i=1,n)
     
     ! First read in all the data into big array
-    do i = 1,dat%nzf
+    do i = 1,profile%nlayer
       read(4,*,iostat=io) (temp(ii,i),ii=1,n)
       if (io /= 0) then
         err = 'Problem reading in initial atmosphere in '//trim(atmosphere_txt)
@@ -2668,7 +2668,7 @@ contains
     do i=1,dat%nq
       ind = findloc(labels,dat%species_names(i))
       if (ind(1) /= 0) then
-        dat%mix_file(i,:) = temp(ind(1),:)
+        profile%mix(i,:) = temp(ind(1),:)
       endif
     enddo
     
@@ -2676,11 +2676,11 @@ contains
       do i=1,dat%npq
         ind = findloc(labels,trim(dat%species_names(i))//"_r")
         if (ind(1) /= 0) then
-          dat%particle_radius_file(i,:) = temp(ind(1),:)
+          profile%particle_radius(i,:) = temp(ind(1),:)
         else
           ! did not find the data
           ! will set to 0.1 micron
-          dat%particle_radius_file(i,:) = 1.0e-5_dp
+          profile%particle_radius(i,:) = 1.0e-5_dp
         endif
       enddo
     endif
@@ -2688,7 +2688,7 @@ contains
     ! reads in temperature
     ind = findloc(labels,'temp')
     if (ind(1) /= 0) then
-      dat%T_file(:) = temp(ind(1),:)
+      profile%temperature(:) = temp(ind(1),:)
     else
       err = '"temp" was not found in input file '//trim(atmosphere_txt)
       return
@@ -2697,7 +2697,7 @@ contains
     ! reads in alt
     ind = findloc(labels,'alt')
     if (ind(1) /= 0) then
-      dat%z_file(:) = temp(ind(1),:)*1.e5_dp ! conver to cm
+      profile%z(:) = temp(ind(1),:)*1.e5_dp ! convert to cm
     else
       err = '"alt" was not found in input file '//trim(atmosphere_txt)
       return
@@ -2706,7 +2706,7 @@ contains
     ! reads in eddy diffusion
     ind = findloc(labels,'eddy')
     if (ind(1) /= 0) then
-      dat%edd_file(:) = temp(ind(1),:)
+      profile%edd(:) = temp(ind(1),:)
     else
       err = '"eddy" was not found in input file '//trim(atmosphere_txt)
       return
@@ -2715,7 +2715,7 @@ contains
     ! reads in density.
     ind = findloc(labels,'den')
     if (ind(1) /= 0) then
-      dat%den_file(:) = temp(ind(1),:)
+      profile%density(:) = temp(ind(1),:)
     else
       err = '"den" was not found in input file '//trim(atmosphere_txt)
       return
@@ -2723,14 +2723,20 @@ contains
 
   end subroutine
 
-  module subroutine resolve_atmosphere_settings(dat, var, err)
+  module subroutine resolve_atmosphere_settings(profile, dat, var, err)
+    type(AtmosphereFileProfile), intent(in) :: profile
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
 
+    if (profile%nlayer < 2) then
+      err = 'Atmosphere file must contain at least two data rows.'
+      return
+    endif
+
     var%bottom_atmos = 0.0_dp
-    var%top_atmos = dat%z_file(dat%nzf) + &
-                    0.5_dp*(dat%z_file(dat%nzf) - dat%z_file(dat%nzf-1))
+    var%top_atmos = profile%z(profile%nlayer) + &
+                    0.5_dp*(profile%z(profile%nlayer) - profile%z(profile%nlayer-1))
 
     if (var%top_atmos < var%bottom_atmos) then
       err = 'The top of the atmosphere must be bigger than the bottom'

@@ -208,7 +208,6 @@ contains
     allocate(candidate%wrk)
     candidate%dat = self%dat
     candidate%var = self%var
-    call clear_legacy_atmosphere_data(candidate%dat)
     call candidate%wrk%init(candidate%dat%nsp, candidate%dat%np, candidate%dat%nq, &
                             candidate%var%nz, candidate%dat%nrT, candidate%dat%kj, &
                             candidate%dat%nw)
@@ -248,20 +247,6 @@ contains
     call move_alloc(candidate%var, self%var)
     call move_alloc(candidate%wrk, self%wrk)
     self%atmosphere_initialized = .true.
-
-  end subroutine
-
-  subroutine clear_legacy_atmosphere_data(dat)
-    use photochem_types, only: PhotochemData
-
-    type(PhotochemData), intent(inout) :: dat
-
-    if (allocated(dat%z_file)) deallocate(dat%z_file)
-    if (allocated(dat%T_file)) deallocate(dat%T_file)
-    if (allocated(dat%edd_file)) deallocate(dat%edd_file)
-    if (allocated(dat%den_file)) deallocate(dat%den_file)
-    if (allocated(dat%mix_file)) deallocate(dat%mix_file)
-    if (allocated(dat%particle_radius_file)) deallocate(dat%particle_radius_file)
 
   end subroutine
 

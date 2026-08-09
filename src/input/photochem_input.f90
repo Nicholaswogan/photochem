@@ -17,14 +17,27 @@ module photochem_input
   contains
     final :: list_destroy
   end type
+
+  ! Raw atmosphere-file data is initialization-only state. Keep it in a
+  ! short-lived profile object rather than retaining it in PhotochemData.
+  type :: AtmosphereFileProfile
+    integer :: nlayer = 0
+    real(dp), allocatable :: z(:) !! Layer-center altitude (cm)
+    real(dp), allocatable :: temperature(:) !! Layer-center temperature (K)
+    real(dp), allocatable :: edd(:) !! Layer-center eddy diffusion (cm^2/s)
+    real(dp), allocatable :: density(:) !! Layer-center total density (molecules/cm^3)
+    real(dp), allocatable :: mix(:,:) !! Evolved-species mixing ratios
+    real(dp), allocatable :: particle_radius(:,:) !! Particle radii (cm)
+  end type
   
   interface
     !> Construct and prepare atmosphere-dependent state after raw atmospheric
     !! profiles and the static model state have been loaded.
-    module subroutine after_read_setup(dat, var, err)
+    module subroutine after_read_setup(dat, var, profile, err)
       use photochem_eqns, only: vertical_grid, gravity
       type(PhotochemData), intent(inout) :: dat
       type(PhotochemVars), intent(inout) :: var
+      type(AtmosphereFileProfile), intent(in) :: profile
       character(:), allocatable, intent(out) :: err
     end subroutine
     
@@ -39,15 +52,16 @@ module photochem_input
     end subroutine
 
     !> Read raw profiles from a legacy atmosphere text file.
-    module subroutine read_atmosphere_file(atmosphere_txt, dat, var, err)
+    module subroutine read_atmosphere_file(atmosphere_txt, dat, profile, err)
       character(len=*), intent(in) :: atmosphere_txt
-      type(PhotochemData), intent(inout) :: dat
-      type(PhotochemVars), intent(inout) :: var
+      type(PhotochemData), intent(in) :: dat
+      type(AtmosphereFileProfile), intent(out) :: profile
       character(:), allocatable, intent(out) :: err
     end subroutine
 
     !> Resolve and validate settings that depend on raw atmosphere-file data.
-    module subroutine resolve_atmosphere_settings(dat, var, err)
+    module subroutine resolve_atmosphere_settings(profile, dat, var, err)
+      type(AtmosphereFileProfile), intent(in) :: profile
       type(PhotochemData), intent(in) :: dat
       type(PhotochemVars), intent(inout) :: var
       character(:), allocatable, intent(out) :: err
@@ -181,13 +195,15 @@ contains
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
 
-    call read_atmosphere_file(atmosphere_txt, dat, var, err)
+    type(AtmosphereFileProfile) :: profile
+
+    call read_atmosphere_file(atmosphere_txt, dat, profile, err)
     if (allocated(err)) return
 
-    call resolve_atmosphere_settings(dat, var, err)
+    call resolve_atmosphere_settings(profile, dat, var, err)
     if (allocated(err)) return
 
-    call after_read_setup(dat, var, err)
+    call after_read_setup(dat, var, profile, err)
     if (allocated(err)) return
 
   end subroutine

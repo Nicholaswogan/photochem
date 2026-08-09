@@ -354,13 +354,6 @@ module photochem_types ! make a giant IO object
     !> If True, then during initialization, molecules in the atmosphere will
     !> be conserved.
     logical :: conserving_init = .false.
-    integer :: nzf !! number of atmospheric layers in file
-    real(dp), allocatable :: z_file(:) !! (nzf) cm
-    real(dp), allocatable :: T_file(:) !! (nzf) K
-    real(dp), allocatable :: edd_file(:) !! (nzf) cm2/s
-    real(dp), allocatable :: den_file(:) !! (nzf) molecules/cm2
-    real(dp), allocatable :: mix_file(:,:) !! (nq,nzf) mixing ratios
-    real(dp), allocatable :: particle_radius_file(:,:) !! (np,nzf) cm
     
     ! settings
     real(dp) :: planet_mass !! grams

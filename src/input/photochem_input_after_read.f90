@@ -280,10 +280,11 @@ contains
 
   end subroutine
   
-  module subroutine after_read_setup(dat, var, err)
+  module subroutine after_read_setup(dat, var, profile, err)
     use photochem_eqns, only: vertical_grid, gravity
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(inout) :: var
+    type(AtmosphereFileProfile), intent(in) :: profile
     character(:), allocatable, intent(out) :: err
     
     ! set up the atmosphere grid
@@ -291,7 +292,7 @@ contains
                        var%nz, var%z, var%dz)
     call gravity(dat%planet_radius, dat%planet_mass, &
                  var%nz, var%z, var%grav)
-    call interp2atmosfile(dat, var, err)
+    call interp2atmosfile(dat, var, profile, err)
     if (allocated(err)) return
 
     call interp2particlexsdata(dat, var, err)
@@ -323,22 +324,23 @@ contains
     
   end subroutine
   
-  subroutine interp2atmosfile(dat, var, err)
+  subroutine interp2atmosfile(dat, var, profile, err)
     use futils, only: interp, conserving_rebin
     use photochem_const, only: small_real
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
+    type(AtmosphereFileProfile), intent(in) :: profile
     character(:), allocatable, intent(out) :: err
     
     integer :: i, ierr
     
-    call interp(var%nz, dat%nzf, var%z, dat%z_file, dat%T_file, var%Temperature, ierr)
+    call interp(var%nz, profile%nlayer, var%z, profile%z, profile%temperature, var%Temperature, ierr)
     if (ierr /= 0) then
       err = 'Subroutine interp returned an error.'
       return
     endif
     
-    call interp(var%nz, dat%nzf, var%z, dat%z_file, log10(dabs(dat%edd_file)), var%edd, ierr)
+    call interp(var%nz, profile%nlayer, var%z, profile%z, log10(dabs(profile%edd)), var%edd, ierr)
     if (ierr /= 0) then
       err = 'Subroutine interp returned an error.'
       return
@@ -346,17 +348,17 @@ contains
     var%edd = 10.0_dp**var%edd
 
     if (dat%conserving_init) then
-      call interp2atmosfile_mixconserving(dat, var, err)
+      call interp2atmosfile_mixconserving(dat, var, profile, err)
       if (allocated(err)) return
     else
-      call interp2atmosfile_mix(dat, var, err)
+      call interp2atmosfile_mix(dat, var, profile, err)
       if (allocated(err)) return
     endif
     
     if (dat%there_are_particles) then
       do i = 1,dat%npq
-        call interp(var%nz, dat%nzf, var%z, dat%z_file, &
-                    log10(abs(dat%particle_radius_file(i,:))), var%particle_radius(i,:), ierr)
+        call interp(var%nz, profile%nlayer, var%z, profile%z, &
+                    log10(abs(profile%particle_radius(i,:))), var%particle_radius(i,:), ierr)
         if (ierr /= 0) then
           err = 'Subroutine interp returned an error.'
           return
@@ -367,11 +369,12 @@ contains
     
   end subroutine
 
-  subroutine interp2atmosfile_mixconserving(dat, var, err)
+  subroutine interp2atmosfile_mixconserving(dat, var, profile, err)
     use futils, only: interp, conserving_rebin
     use photochem_const, only: small_real
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
+    type(AtmosphereFileProfile), intent(in) :: profile
     character(:), allocatable, intent(out) :: err
 
     integer :: i, ierr
@@ -379,19 +382,19 @@ contains
     real(dp), allocatable :: densities_file(:,:) ! molecules/cm3
     real(dp), allocatable :: ze_file(:), ze(:)
 
-    dz_file = dat%z_file(2)-dat%z_file(1)
+    dz_file = profile%z(2)-profile%z(1)
 
-    allocate(densities_file(dat%nq,dat%nzf))
-    allocate(ze_file(dat%nzf+1))
+    allocate(densities_file(dat%nq,profile%nlayer))
+    allocate(ze_file(profile%nlayer+1))
     allocate(ze(var%nz+1))
 
     do i = 1,dat%nq
-      densities_file(i,:) = dat%mix_file(i,:)*dat%den_file
+      densities_file(i,:) = profile%mix(i,:)*profile%density
     enddo
 
-    ze_file(1) = dat%z_file(1) - 0.5_dp*dz_file
-    do i = 1,dat%nzf
-      ze_file(i+1) = dat%z_file(i) + 0.5_dp*dz_file
+    ze_file(1) = profile%z(1) - 0.5_dp*dz_file
+    do i = 1,profile%nlayer
+      ze_file(i+1) = profile%z(i) + 0.5_dp*dz_file
     enddo
     ze = var%z(1) - 0.5_dp*var%dz(1)
     do i = 1,var%nz
@@ -408,11 +411,12 @@ contains
 
   end subroutine
 
-  subroutine interp2atmosfile_mix(dat, var, err)
+  subroutine interp2atmosfile_mix(dat, var, profile, err)
     use futils, only: interp
     use photochem_const, only: small_real
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
+    type(AtmosphereFileProfile), intent(in) :: profile
     character(:), allocatable, intent(out) :: err
 
     integer :: i, ierr
@@ -421,7 +425,7 @@ contains
     allocate(density(var%nz))
 
     ! Interpolate file density to model grid
-    call interp(var%z, dat%z_file, log10(dat%den_file), density, linear_extrap=.true., ierr=ierr)
+    call interp(var%z, profile%z, log10(profile%density), density, linear_extrap=.true., ierr=ierr)
     if (ierr /= 0) then
       err = 'Subroutine interp returned an error.'
       return
@@ -429,8 +433,8 @@ contains
     density = 10.0_dp**density
 
     do i = 1,dat%nq
-      call interp(var%nz, dat%nzf, var%z, dat%z_file,&
-                  log10(abs(dat%mix_file(i,:))), var%usol_init(i,:), ierr)
+      call interp(var%nz, profile%nlayer, var%z, profile%z,&
+                  log10(abs(profile%mix(i,:))), var%usol_init(i,:), ierr)
       if (ierr /= 0) then
         err = 'Subroutine interp returned an error.'
         return
