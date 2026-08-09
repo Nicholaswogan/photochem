@@ -137,9 +137,12 @@ contains
       return
     endif
 
-    ! Atmosphere initialization
-    s%conserving_init = dict%get_logical('conserving-initialization',default=.false.,error = io_err)
-    if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
+    obsolete_node => dict%get('conserving-initialization')
+    if (associated(obsolete_node)) then
+      err = trim(filename)//': the "conserving-initialization" setting is no longer supported; '// &
+            'file initialization now uses the legacy non-conserving interpolation.'
+      return
+    endif
 
     tmp2 => dict%get_dictionary('water',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif

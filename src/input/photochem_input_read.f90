@@ -625,9 +625,6 @@ contains
     
     ! default-gas-lower-boundary already applied to PhotoSettings
 
-    ! conserving initialization?
-    dat%conserving_init = s%conserving_init
-    
     ! rainout
     dat%gas_rainout = s%gas_rainout
     ind = findloc(dat%species_names,'H2O')

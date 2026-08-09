@@ -83,8 +83,6 @@ module photochem_types ! make a giant IO object
     integer :: H_escape_type
     real(dp), allocatable :: H_escape_S1
     integer :: default_lowerboundcond
-    ! initialization
-    logical :: conserving_init
     ! rainout
     logical :: gas_rainout
     real(dp) :: rainfall_rate
@@ -348,12 +346,6 @@ module photochem_types ! make a giant IO object
     ! to exclude optical properties, but not take up a ton of useless memory.
     ! So some elements of this array have nothing in it.
     type(ParticleXsections), allocatable :: part_xs_file(:) !! np in length
-    
-    ! initial conditions  
-    !> Only used in EVOATMOSPHERE.
-    !> If True, then during initialization, molecules in the atmosphere will
-    !> be conserved.
-    logical :: conserving_init = .false.
     
     ! settings
     real(dp) :: planet_mass !! grams

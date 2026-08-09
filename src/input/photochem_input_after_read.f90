@@ -325,8 +325,7 @@ contains
   end subroutine
   
   subroutine interp2atmosfile(dat, var, profile, err)
-    use futils, only: interp, conserving_rebin
-    use photochem_const, only: small_real
+    use futils, only: interp
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     type(AtmosphereFileProfile), intent(in) :: profile
@@ -347,13 +346,8 @@ contains
     endif
     var%edd = 10.0_dp**var%edd
 
-    if (dat%conserving_init) then
-      call interp2atmosfile_mixconserving(dat, var, profile, err)
-      if (allocated(err)) return
-    else
-      call interp2atmosfile_mix(dat, var, profile, err)
-      if (allocated(err)) return
-    endif
+    call interp2atmosfile_mix(dat, var, profile, err)
+    if (allocated(err)) return
     
     if (dat%there_are_particles) then
       do i = 1,dat%npq
@@ -369,51 +363,8 @@ contains
     
   end subroutine
 
-  subroutine interp2atmosfile_mixconserving(dat, var, profile, err)
-    use futils, only: interp, conserving_rebin
-    use photochem_const, only: small_real
-    type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    type(AtmosphereFileProfile), intent(in) :: profile
-    character(:), allocatable, intent(out) :: err
-
-    integer :: i, ierr
-    real(dp) :: dz_file
-    real(dp), allocatable :: densities_file(:,:) ! molecules/cm3
-    real(dp), allocatable :: ze_file(:), ze(:)
-
-    dz_file = profile%z(2)-profile%z(1)
-
-    allocate(densities_file(dat%nq,profile%nlayer))
-    allocate(ze_file(profile%nlayer+1))
-    allocate(ze(var%nz+1))
-
-    do i = 1,dat%nq
-      densities_file(i,:) = profile%mix(i,:)*profile%density
-    enddo
-
-    ze_file(1) = profile%z(1) - 0.5_dp*dz_file
-    do i = 1,profile%nlayer
-      ze_file(i+1) = profile%z(i) + 0.5_dp*dz_file
-    enddo
-    ze = var%z(1) - 0.5_dp*var%dz(1)
-    do i = 1,var%nz
-      ze(i+1) = var%z(i) + 0.5_dp*var%dz(i)
-    enddo
-
-    do i = 1,dat%nq
-      call conserving_rebin(ze_file, densities_file(i,:), ze, var%usol_init(i,:), ierr)
-      if (ierr /= 0) then
-        err = 'subroutine conserving_rebin returned an error'
-        return
-      endif
-    enddo
-
-  end subroutine
-
   subroutine interp2atmosfile_mix(dat, var, profile, err)
     use futils, only: interp
-    use photochem_const, only: small_real
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     type(AtmosphereFileProfile), intent(in) :: profile

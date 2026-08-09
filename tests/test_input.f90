@@ -3,6 +3,7 @@ program test_input
   implicit none
   call test_parsing()
   call test_removed_evolve_climate_setting()
+  call test_removed_conserving_initialization()
   call test_removed_water_settings()
   print *, 'test_input passed'
 contains
@@ -41,6 +42,20 @@ contains
     endif
     if (index(err, 'evolve-climate') == 0) then
       call fail('Unexpected error for obsolete evolve-climate setting: '//trim(err))
+    endif
+  end subroutine
+
+  subroutine test_removed_conserving_initialization()
+    use photochem_types, only: PhotoSettings
+    type(PhotoSettings) :: settings
+    character(:), allocatable :: err
+
+    settings = PhotoSettings('../tests/test_settings_conserving_init.yaml', err)
+    if (.not. allocated(err)) then
+      call fail('The obsolete conserving-initialization setting was accepted')
+    endif
+    if (index(err, 'conserving-initialization') == 0) then
+      call fail('Unexpected error for obsolete conserving-initialization setting: '//trim(err))
     endif
   end subroutine
 
