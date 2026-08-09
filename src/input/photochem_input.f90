@@ -31,11 +31,19 @@ module photochem_input
   end type
   
   interface
-    !> Construct and prepare atmosphere-dependent state after raw atmospheric
-    !! profiles and the static model state have been loaded.
-    module subroutine after_read_setup(dat, var, profile, err)
-      use photochem_eqns, only: vertical_grid, gravity
+    !> Complete derived atmosphere setup after a profile has been mapped onto
+    !! the model grid and the static model state has been loaded.
+    module subroutine after_read_setup(dat, var, err)
       type(PhotochemData), intent(inout) :: dat
+      type(PhotochemVars), intent(inout) :: var
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Map a temporary legacy atmosphere-file profile onto the common altitude
+    !! grid. File density remains an explicit legacy policy; it is not replaced
+    !! by hydrostatic reconstruction in this adapter.
+    module subroutine map_atmosphere_file_to_grid(dat, var, profile, err)
+      type(PhotochemData), intent(in) :: dat
       type(PhotochemVars), intent(inout) :: var
       type(AtmosphereFileProfile), intent(in) :: profile
       character(:), allocatable, intent(out) :: err
@@ -200,10 +208,10 @@ contains
     call read_atmosphere_file(atmosphere_txt, dat, profile, err)
     if (allocated(err)) return
 
-    call resolve_atmosphere_settings(profile, dat, var, err)
+    call map_atmosphere_file_to_grid(dat, var, profile, err)
     if (allocated(err)) return
 
-    call after_read_setup(dat, var, profile, err)
+    call after_read_setup(dat, var, err)
     if (allocated(err)) return
 
   end subroutine

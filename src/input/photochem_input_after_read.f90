@@ -9,7 +9,7 @@ contains
                                              pressure, density, mubar, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use futils, only: interp
-    use photochem_eqns, only: vertical_grid, gravity, press_and_den
+    use photochem_eqns, only: press_and_den
 
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
@@ -94,25 +94,11 @@ contains
       gas_mix_normalized(:,j) = gas_mix_normalized(:,j)/sum(gas_mix_normalized(:,j))
     enddo
 
-    var%bottom_atmos = 0.0_dp
-    var%top_atmos = z(nprofile)
-    call vertical_grid(var%bottom_atmos, var%top_atmos, var%nz, var%z, var%dz)
-    call gravity(dat%planet_radius, dat%planet_mass, var%nz, var%z, var%grav)
-
-    call interp(var%z, z, temperature, var%temperature, ierr=ierr)
-    if (ierr /= 0) then
-      err = 'Unable to interpolate temperature onto the model grid.'
-      return
-    endif
+    call initialize_altitude_grid(dat, var, z(nprofile))
+    call interpolate_temperature_edd(var, z, temperature, edd, err)
+    if (allocated(err)) return
 
     allocate(interpolation_input(nprofile), interpolation_output(var%nz))
-    interpolation_input = log10(edd)
-    call interp(var%z, z, interpolation_input, interpolation_output, ierr=ierr)
-    if (ierr /= 0) then
-      err = 'Unable to interpolate eddy diffusion onto the model grid.'
-      return
-    endif
-    var%edd = 10.0_dp**interpolation_output
 
     allocate(gas_mix_model(ngas,var%nz))
     do i = 1,ngas
@@ -280,20 +266,75 @@ contains
 
   end subroutine
   
-  module subroutine after_read_setup(dat, var, profile, err)
+  subroutine initialize_altitude_grid(dat, var, top_atmos)
     use photochem_eqns, only: vertical_grid, gravity
-    type(PhotochemData), intent(inout) :: dat
+
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    real(dp), intent(in) :: top_atmos
+
+    var%bottom_atmos = 0.0_dp
+    var%top_atmos = top_atmos
+    call vertical_grid(var%bottom_atmos, var%top_atmos, var%nz, var%z, var%dz)
+    call gravity(dat%planet_radius, dat%planet_mass, var%nz, var%z, var%grav)
+
+  end subroutine
+
+  subroutine interpolate_temperature_edd(var, z, temperature, edd, err, absolute_eddy)
+    use futils, only: interp
+
+    type(PhotochemVars), intent(inout) :: var
+    real(dp), intent(in) :: z(:), temperature(:), edd(:)
+    character(:), allocatable, intent(out) :: err
+    logical, intent(in), optional :: absolute_eddy
+
+    real(dp), allocatable :: interpolation_input(:), interpolation_output(:)
+    logical :: use_absolute_eddy
+    integer :: ierr
+
+    use_absolute_eddy = .false.
+    if (present(absolute_eddy)) use_absolute_eddy = absolute_eddy
+
+    call interp(var%z, z, temperature, var%temperature, ierr=ierr)
+    if (ierr /= 0) then
+      err = 'Unable to interpolate temperature onto the model grid.'
+      return
+    endif
+
+    allocate(interpolation_input(size(z)), interpolation_output(var%nz))
+    if (use_absolute_eddy) then
+      interpolation_input = log10(abs(edd))
+    else
+      interpolation_input = log10(edd)
+    endif
+    call interp(var%z, z, interpolation_input, interpolation_output, ierr=ierr)
+    if (ierr /= 0) then
+      err = 'Unable to interpolate eddy diffusion onto the model grid.'
+      return
+    endif
+    var%edd = 10.0_dp**interpolation_output
+
+  end subroutine
+
+  module subroutine map_atmosphere_file_to_grid(dat, var, profile, err)
+    type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     type(AtmosphereFileProfile), intent(in) :: profile
     character(:), allocatable, intent(out) :: err
-    
-    ! set up the atmosphere grid
-    call vertical_grid(var%bottom_atmos, var%top_atmos, &
-                       var%nz, var%z, var%dz)
-    call gravity(dat%planet_radius, dat%planet_mass, &
-                 var%nz, var%z, var%grav)
+
+    call resolve_atmosphere_settings(profile, dat, var, err)
+    if (allocated(err)) return
+
+    call initialize_altitude_grid(dat, var, var%top_atmos)
     call interp2atmosfile(dat, var, profile, err)
     if (allocated(err)) return
+
+  end subroutine
+
+  module subroutine after_read_setup(dat, var, err)
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    character(:), allocatable, intent(out) :: err
 
     call interp2particlexsdata(dat, var, err)
     if (allocated(err)) return
@@ -332,19 +373,13 @@ contains
     character(:), allocatable, intent(out) :: err
     
     integer :: i, ierr
-    
-    call interp(var%nz, profile%nlayer, var%z, profile%z, profile%temperature, var%Temperature, ierr)
-    if (ierr /= 0) then
-      err = 'Subroutine interp returned an error.'
-      return
-    endif
-    
-    call interp(var%nz, profile%nlayer, var%z, profile%z, log10(dabs(profile%edd)), var%edd, ierr)
-    if (ierr /= 0) then
-      err = 'Subroutine interp returned an error.'
-      return
-    endif
-    var%edd = 10.0_dp**var%edd
+
+    ! Preserve the file initializer's historical absolute-value treatment of
+    ! eddy diffusion while sharing the common temperature/Kzz interpolation
+    ! kernel used by altitude-based initialization.
+    call interpolate_temperature_edd(var, profile%z, profile%temperature, &
+                                     profile%edd, err, absolute_eddy=.true.)
+    if (allocated(err)) return
 
     call interp2atmosfile_mix(dat, var, profile, err)
     if (allocated(err)) return
