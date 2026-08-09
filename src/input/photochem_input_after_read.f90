@@ -331,7 +331,7 @@ contains
 
   end subroutine
 
-  module subroutine after_read_setup(dat, var, err)
+  module subroutine finalize_atmosphere_initialization(dat, var, err)
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err

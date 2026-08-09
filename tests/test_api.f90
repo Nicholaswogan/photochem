@@ -13,6 +13,7 @@ contains
     call test_initialization_state()
     call test_initialize_atmosphere_z()
     call test_initialize_atmosphere_p()
+    call test_initialization_paths_step()
     call test_legacy_file_grid()
     call test_robust_stepper_initialization()
     call test_toa_pressure_maintenance_settings()
@@ -1567,6 +1568,153 @@ contains
 
     call test_initialize_atmosphere_p_particles(pressure, temperature, edd)
 
+  end subroutine
+
+  subroutine test_initialization_paths_step()
+    type(EvoAtmosphere) :: pc_file, pc_z, pc_p
+    character(:), allocatable :: err
+    real(dp), parameter :: z_profile(3) = [0.0_dp, 5.0e6_dp, 1.0e7_dp]
+    real(dp), parameter :: p_profile(4) = [1.0e6_dp, 1.0e5_dp, 1.0e4_dp, 1.0e2_dp]
+    real(dp), parameter :: temperature_z(3) = [300.0_dp, 240.0_dp, 180.0_dp]
+    real(dp), parameter :: temperature_p(4) = [300.0_dp, 260.0_dp, 220.0_dp, 180.0_dp]
+    real(dp), parameter :: edd_z(3) = [1.0e5_dp, 1.0e6_dp, 1.0e7_dp]
+    real(dp), parameter :: edd_p(4) = [1.0e5_dp, 3.0e5_dp, 1.0e6_dp, 1.0e7_dp]
+    real(dp), allocatable :: mix_z(:,:), mix_p(:,:)
+    real(dp), allocatable :: particle_radius_z(:,:), particle_radius_p(:,:)
+    real(dp) :: tn
+
+    ! The legacy file path remains part of this smoke test, while the new z and
+    ! P paths deliberately begin from static-only models.
+    pc_file = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                            '../tests/test_settings_minimal.yaml', &
+                            '../examples/ModernEarth/Sun_now.txt', &
+                            '../examples/ModernEarth/atmosphere.txt', &
+                            '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call check_initialized_step(pc_file, 'legacy file', tn)
+
+    pc_z = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
+                         '../examples/ModernEarth/settings.yaml', &
+                         '../examples/ModernEarth/Sun_now.txt', &
+                         '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    allocate(mix_z(pc_z%dat%nq,size(z_profile)))
+    allocate(particle_radius_z(pc_z%dat%npq,size(z_profile)))
+    call fill_static_profiles(pc_z, mix_z, particle_radius_z)
+    call pc_z%initialize_atmosphere_z(z_profile, temperature_z, edd_z, 1.0e6_dp, &
+                                      mix_z, particle_radius_z, err)
+    if (allocated(err)) then
+      print *, 'static-only altitude initialization failed: '//trim(err)
+      stop 1
+    endif
+    call check_initialized_step(pc_z, 'altitude', tn)
+
+    pc_p = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
+                         '../examples/ModernEarth/settings.yaml', &
+                         '../examples/ModernEarth/Sun_now.txt', &
+                         '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    allocate(mix_p(pc_p%dat%nq,size(p_profile)))
+    allocate(particle_radius_p(pc_p%dat%npq,size(p_profile)))
+    call fill_static_profiles(pc_p, mix_p, particle_radius_p)
+    call pc_p%initialize_atmosphere_p(p_profile, temperature_p, edd_p, mix_p, &
+                                      particle_radius_p, persistent=.true., &
+                                      trop_p=1.0e5_dp, err=err)
+    if (allocated(err)) then
+      print *, 'static-only pressure initialization failed: '//trim(err)
+      stop 1
+    endif
+    call check_initialized_step(pc_p, 'pressure', tn)
+
+  end subroutine
+
+  subroutine fill_static_profiles(pc, mix, particle_radius)
+    type(EvoAtmosphere), intent(in) :: pc
+    real(dp), intent(out) :: mix(:,:), particle_radius(:,:)
+
+    integer :: i, ind_N2
+
+    mix = 0.0_dp
+    particle_radius = 0.0_dp
+    ind_N2 = findloc(pc%dat%species_names(1:pc%dat%nq), 'N2', 1)
+    if (ind_N2 == 0) ind_N2 = pc%dat%ng_1
+    mix(ind_N2,:) = 1.0_dp
+
+    if (pc%dat%npq > 0) then
+      do i = 1,pc%dat%npq
+        mix(i,:) = 1.0e-12_dp
+        if (pc%dat%part_xs_file(i)%ThereIsData) then
+          particle_radius(i,:) = 0.5_dp*(pc%dat%radii_file(1,i) + &
+                                         pc%dat%radii_file(pc%dat%nrad_file,i))
+        else
+          particle_radius(i,:) = 1.0e-5_dp
+        endif
+      enddo
+    endif
+  end subroutine
+
+  subroutine check_initialized_step(pc, label, tn)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+
+    type(EvoAtmosphere), intent(inout) :: pc
+    character(len=*), intent(in) :: label
+    real(dp), intent(out) :: tn
+    character(:), allocatable :: err
+    integer :: i
+
+    if (.not.pc%atmosphere_initialized .or. &
+        .not.all(ieee_is_finite(pc%var%temperature)) .or. &
+        .not.all(ieee_is_finite(pc%var%edd)) .or. &
+        .not.all(ieee_is_finite(pc%var%xs_x_qy)) .or. &
+        .not.all(pc%var%xs_x_qy > 0.0_dp) .or. &
+        .not.all(ieee_is_finite(pc%wrk%usol)) .or. &
+        .not.all(ieee_is_finite(pc%var%usol_init))) then
+      print *, trim(label)//' initialization left invalid derived state'
+      stop 1
+    endif
+    if (pc%dat%reverse .and. &
+        (.not.all(ieee_is_finite(pc%var%gibbs_energy)))) then
+      print *, trim(label)//' initialization left invalid Gibbs data'
+      stop 1
+    endif
+    if (pc%dat%there_are_particles) then
+      do i = 1,pc%dat%np
+        if (pc%var%particle_xs(i)%ThereIsData) then
+          if (.not.all(ieee_is_finite(pc%var%particle_xs(i)%w0)) .or. &
+              .not.all(ieee_is_finite(pc%var%particle_xs(i)%qext)) .or. &
+              .not.all(ieee_is_finite(pc%var%particle_xs(i)%gt))) then
+            print *, trim(label)//' initialization left invalid particle optical data'
+            stop 1
+          endif
+        endif
+      enddo
+    endif
+
+    call pc%initialize_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(label)//' stepper initialization failed: '//trim(err)
+      stop 1
+    endif
+    tn = pc%step(err)
+    if (allocated(err) .or. .not.ieee_is_finite(tn) .or. tn <= 0.0_dp) then
+      if (allocated(err)) print *, trim(err)
+      print *, trim(label)//' initialization did not support one CVODE step'
+      stop 1
+    endif
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print *, trim(label)//' stepper cleanup failed: '//trim(err)
+      stop 1
+    endif
   end subroutine
 
   subroutine test_initialize_atmosphere_p_particles(pressure, temperature, edd)

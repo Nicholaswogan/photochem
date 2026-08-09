@@ -9,6 +9,7 @@ module photochem_input
 
   public :: setup_static, setup_atmosphere_from_file, map_atmosphere_z_to_grid
   public :: map_atmosphere_p_to_grid
+  public :: finalize_atmosphere_initialization
   public :: interp2xsdata, compute_gibbs_energy, interp2particlexsdata, parse_reaction
   
   type, extends(type_list) :: type_list_tmp
@@ -33,7 +34,7 @@ module photochem_input
   interface
     !> Complete derived atmosphere setup after a profile has been mapped onto
     !! the model grid and the static model state has been loaded.
-    module subroutine after_read_setup(dat, var, err)
+    module subroutine finalize_atmosphere_initialization(dat, var, err)
       type(PhotochemData), intent(inout) :: dat
       type(PhotochemVars), intent(inout) :: var
       character(:), allocatable, intent(out) :: err
@@ -189,13 +190,13 @@ contains
 
   end subroutine
 
-  !> Initialize atmosphere-dependent state from a legacy atmosphere text file.
+  !> Read and map a legacy atmosphere text file onto the model grid.
   !!
   !! [[setup_static]] must have completed successfully before this routine is
   !! called. This routine reads the raw atmosphere, resolves grid-dependent
-  !! settings, constructs the grid and gravity, interpolates atmospheric and
-  !! optical properties, computes temperature-dependent data, and validates the
-  !! tropopause. It does not allocate or prepare EvoAtmosphere RHS work arrays.
+  !! settings, constructs the grid and gravity, and interpolates atmospheric
+  !! profiles and particle radii. The caller must invoke
+  !! `finalize_atmosphere_initialization` before preparing the RHS work arrays.
   subroutine setup_atmosphere_from_file(atmosphere_txt, dat, var, err)
 
     character(len=*), intent(in) :: atmosphere_txt
@@ -209,9 +210,6 @@ contains
     if (allocated(err)) return
 
     call map_atmosphere_file_to_grid(dat, var, profile, err)
-    if (allocated(err)) return
-
-    call after_read_setup(dat, var, err)
     if (allocated(err)) return
 
   end subroutine

@@ -69,7 +69,8 @@ contains
   end subroutine
 
   module subroutine initialize_from_atmosphere_file(self, atmosphere_txt, err)
-    use photochem_input, only: setup_atmosphere_from_file
+    use photochem_input, only: finalize_atmosphere_initialization, &
+                               setup_atmosphere_from_file
 
     class(EvoAtmosphere), intent(inout) :: self
     character(len=*), intent(in) :: atmosphere_txt
@@ -85,6 +86,9 @@ contains
     call setup_atmosphere_from_file(atmosphere_txt, candidate%dat, candidate%var, err)
     if (allocated(err)) return
 
+    call finalize_atmosphere_initialization(candidate%dat, candidate%var, err)
+    if (allocated(err)) return
+
     call prepare_atmosphere_candidate(candidate, err)
     if (allocated(err)) return
 
@@ -95,7 +99,8 @@ contains
   module subroutine initialize_atmosphere_z(self, z, temperature, edd, &
                                             surface_pressure, mix, &
                                             particle_radius, err)
-    use photochem_input, only: map_atmosphere_z_to_grid
+    use photochem_input, only: finalize_atmosphere_initialization, &
+                               map_atmosphere_z_to_grid
 
     class(EvoAtmosphere), intent(inout) :: self
     real(dp), intent(in) :: z(:), temperature(:), edd(:)
@@ -118,6 +123,9 @@ contains
                                   pressure, density, mubar, err)
     if (allocated(err)) return
 
+    call finalize_atmosphere_initialization(candidate%dat, candidate%var, err)
+    if (allocated(err)) return
+
     call prepare_atmosphere_candidate(candidate, err)
     if (allocated(err)) return
 
@@ -129,7 +137,8 @@ contains
                                             mix, particle_radius, persistent, &
                                             trop_p, maintain_toa_pressure, &
                                             target_pressure, err)
-    use photochem_input, only: map_atmosphere_p_to_grid
+    use photochem_input, only: finalize_atmosphere_initialization, &
+                               map_atmosphere_p_to_grid
 
     class(EvoAtmosphere), intent(inout) :: self
     real(dp), intent(in) :: pressure(:), temperature(:), edd(:)
@@ -170,6 +179,9 @@ contains
     call map_atmosphere_p_to_grid(candidate%dat, candidate%var, pressure, &
                                   temperature, edd, mix, particle_radius, &
                                   pressure_model, density, mubar, err)
+    if (allocated(err)) return
+
+    call finalize_atmosphere_initialization(candidate%dat, candidate%var, err)
     if (allocated(err)) return
 
     call prepare_atmosphere_candidate(candidate, err)
