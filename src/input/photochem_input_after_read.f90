@@ -563,7 +563,6 @@ contains
     allocate(var%usol_init(dat%nq,var%nz))
     allocate(var%particle_radius(dat%npq,var%nz))
     allocate(var%xs_x_qy(var%nz,dat%kj,dat%nw))
-    allocate(var%usol_out(dat%nq,var%nz))
     
     allocate(var%particle_xs(dat%np))
     do i = 1,dat%np

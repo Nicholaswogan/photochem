@@ -417,16 +417,6 @@ contains
       ADD(j,i) = ADD(j,i) + FF1
     enddo
 
-    ! not going to work. Advection is required to 
-    ! maintain hydrostatic equilibrium
-    ! do i = 1,dat%nq
-    !   if (var%only_eddy(i)) then
-    !     ADL(i,:) = 0.0_dp
-    !     ADU(i,:) = 0.0_dp
-    !     ADD(i,:) = 0.0_dp
-    !   endif
-    ! enddo
-    
     ! H2 escape
     if (dat%H_escape_type == DiffusionLimHydrogenEscape) then
       bx1x2 = binary_diffusion_param(dat%species_mass(dat%LH2), mubar(var%nz), var%temperature(var%nz))

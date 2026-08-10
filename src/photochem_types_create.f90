@@ -263,7 +263,6 @@ contains
     allocate(s%lbcs(size(s%ubcs)))
     allocate(s%sp_types(size(s%ubcs)))
     allocate(s%sp_names(size(s%ubcs)))
-    allocate(s%only_eddy(size(s%ubcs)))
    
     ! default boundary conditions
     do j = 1,size(s%ubcs)
@@ -271,7 +270,6 @@ contains
      s%lbcs(j)%vel = 0.0_dp
      s%ubcs(j)%bc_type = VelocityBC
      s%ubcs(j)%vel = 0.0_dp
-     s%only_eddy(j) = .false.
     enddo
      
     s%nsl = 0
@@ -309,8 +307,6 @@ contains
           call unpack_SettingsBC(dict, "lower", s%sp_names(j), filename, s%lbcs(j), err)
           if (allocated(err)) return
         
-          s%only_eddy(j) = e%get_logical("only-eddy",default=.false., error = io_err)
-          if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
         else
           err = 'IOError: species type '//s%sp_types(j)//' is not a valid.' 
           return
@@ -356,7 +352,6 @@ contains
 
     ! initialize all values
     sbc%vel = -huge(1.0_dp)
-    sbc%mix = -huge(1.0_dp)
     sbc%flux = -huge(1.0_dp)
     sbc%height = -huge(1.0_dp)
     sbc%den = -huge(1.0_dp)

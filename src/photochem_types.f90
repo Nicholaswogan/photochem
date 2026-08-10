@@ -26,7 +26,6 @@ module photochem_types ! make a giant IO object
   type :: SettingsBC
     integer :: bc_type
     real(dp) :: vel
-    real(dp) :: mix
     real(dp) :: flux
     real(dp) :: height
     real(dp) :: den
@@ -97,7 +96,6 @@ module photochem_types ! make a giant IO object
     type(SettingsBC), allocatable :: lbcs(:)
     character(s_str_len), allocatable :: sp_names(:)
     character(s_str_len), allocatable :: sp_types(:)
-    logical, allocatable :: only_eddy(:) 
     
     integer :: nsl
     character(s_str_len), allocatable :: SL_names(:)
@@ -376,14 +374,11 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: lower_vdep(:)
     real(dp), allocatable :: lower_flux(:)
     real(dp), allocatable :: lower_dist_height(:)
-    real(dp), allocatable :: lower_fix_mr(:)
     real(dp), allocatable :: lower_fix_den(:)
     real(dp), allocatable :: lower_fix_press(:)
     integer, allocatable :: upperboundcond(:) ! 0 or 2
     real(dp), allocatable :: upper_veff(:)
     real(dp), allocatable :: upper_flux(:)
-    !> True if only use eddy diffusion.
-    logical, allocatable :: only_eddy(:) 
     !> Functions for settings time-dependent production rates (nq)
     type(time_dependent_rate_fcns), allocatable :: rate_fcns(:)
     
@@ -398,14 +393,6 @@ module photochem_types ! make a giant IO object
     real(dp) :: trop_alt !! cm (only for gas_rainout == true)
     real(dp) :: rainfall_rate !! relative to modern Earth's average rainfall rate of 1.1e17 molecules/cm2/s
     integer :: trop_ind !! index of troposphere (only for gas_rainout == true)
-
-    ! State for a persistent pressure-based temperature and Kzz profile.
-    type(PressureTempEddProfile) :: press_temp_edd_profile
-
-    ! Optional robust-stepper maintenance of the model-top pressure. This mode
-    ! requires press_temp_edd_profile%enabled to preserve the physical T-Kzz
-    ! structure when the vertical grid changes.
-    type(TOAPressureMaintenance) :: toa_pressure_maintenance
     
     ! radiative transfer
     real(dp), allocatable :: photon_flux(:) !! (nw) photon/cm^2/s in each wavelength bin hitting planet.
@@ -428,10 +415,12 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: z(:) !! (nz) cm
     real(dp), allocatable :: dz(:) !! (nz) cm
     real(dp), allocatable :: edd(:) !! (nz) cm2/s
+    !> State for a persistent pressure-based temperature and Kzz profile.
+    type(PressureTempEddProfile) :: press_temp_edd_profile
     !> A function for specifying a custom binary diffusion parameter (b_ij)
     procedure(binary_diffusion_fcn), nopass, pointer :: custom_binary_diffusion_fcn => null()
     real(dp), allocatable :: grav(:) !! (nz) cm/s2
-    real(dp), allocatable :: usol_init(:,:) !! (nq,nz) molecules/cm^3.
+    real(dp), allocatable :: usol_init(:,:) !! (nq,nz) molecules/cm^3. SHOULD BE REMOVED
     real(dp), allocatable :: particle_radius(:,:) !! (np,nz) cm
     real(dp), allocatable :: xs_x_qy(:,:,:) !! (nz,kj,nw) photolysis cross sections times quantum yields (cm2/molecule)
     type(ParticleXsections), allocatable :: particle_xs(:) !! (np)
@@ -441,10 +430,6 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: tauc(:,:) !! (nz,nw) Custom optical depth in each layer
     real(dp), allocatable :: w0c(:,:) !! (nz,nw) Custom single scattering albedo
     real(dp), allocatable :: g0c(:,:) !! (nz,nw) Custom asymetry parameter
-    
-    ! output
-    logical :: at_photo_equilibrium = .false.
-    real(dp), allocatable :: usol_out(:,:)
     
     ! other 
     !> number of times we initialize CVODE when it returns
@@ -500,6 +485,10 @@ module photochem_types ! make a giant IO object
     !> When the integrator reinitializes, this is the minimum
     !> density allowed (molecules/cm^3)
     real(dp) :: reinit_min_density = 1.0e-40_dp
+    !> Optional robust-stepper maintenance of the model-top pressure. This mode
+    !> requires press_temp_edd_profile%enabled to preserve the physical T-Kzz
+    !> structure when the vertical grid changes.
+    type(TOAPressureMaintenance) :: toa_pressure_maintenance
     ! End settings for `robust_stepper` and `find_steady_state`
 
   end type
@@ -595,7 +584,6 @@ module photochem_types ! make a giant IO object
     real(dp) :: VH2_esc
     real(dp) :: VH_esc
     ! other
-    real(dp), allocatable :: sum_usol(:) !! (nz)
     real(dp), allocatable :: scale_height(:)
     real(dp), allocatable :: wfall(:,:)
     real(dp), allocatable :: gas_sat_den(:,:)
@@ -685,7 +673,6 @@ contains
       deallocate(self%ADD)
       deallocate(self%upper_veff_copy)
       deallocate(self%lower_vdep_copy)
-      deallocate(self%sum_usol)
       deallocate(self%scale_height)
       deallocate(self%wfall)
       deallocate(self%gas_sat_den)
@@ -717,7 +704,6 @@ contains
     allocate(self%ADD(nq,nz))
     allocate(self%upper_veff_copy(nq))
     allocate(self%lower_vdep_copy(nq))
-    allocate(self%sum_usol(nz))
     allocate(self%scale_height(nz))
     allocate(self%wfall(np,nz))
     allocate(self%gas_sat_den(np,nz))

@@ -673,7 +673,6 @@ contains
     allocate(var%upper_veff(dat%nq))
     allocate(var%upper_flux(dat%nq))
 
-    allocate(var%only_eddy(dat%nq))
     allocate(var%rate_fcns(dat%nq))
     ! default boundary conditions
     var%lowerboundcond(:dat%np) = VelocityBC ! default particle BC is alway velocity
@@ -681,7 +680,6 @@ contains
     var%lower_vdep = 0.0_dp
     var%upperboundcond = VelocityBC
     var%upper_veff = 0.0_dp
-    var%only_eddy = .false.
     
     do j = 1,size(s%ubcs)
       ! check if in rxmech
@@ -704,8 +702,6 @@ contains
         var%upperboundcond(ind(1)) = s%ubcs(j)%bc_type
         var%upper_veff(ind(1)) = s%ubcs(j)%vel
         var%upper_flux(ind(1)) = s%ubcs(j)%flux
-        
-        var%only_eddy(ind(1)) = s%only_eddy(j)
         
       endif
       
