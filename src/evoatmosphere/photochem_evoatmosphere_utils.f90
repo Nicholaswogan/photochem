@@ -1457,6 +1457,10 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
     real(dp) :: top_atmos_new
     type(VerticalGridCandidate) :: candidate
+    ! The candidate owns proposed grid-dependent arrays.  The work structures
+    ! below deliberately remain separate: original_wrk owns the currently
+    ! committed state (and any live CVODE resources), while prepared_wrk owns
+    ! the replacement state until the commit boundary is crossed.
     type(PhotochemWrkEvo), allocatable :: original_wrk, prepared_wrk
 
     type(PhotochemData), pointer :: dat
@@ -1525,21 +1529,49 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     if (allocated(err)) then
       ! Restore the exact committed state. original_wrk still owns the active
       ! stepper, so a failed candidate does not disturb integration.
-      call move_alloc(self%wrk, prepared_wrk)
-      call move_alloc(original_wrk, self%wrk)
-      call swap_vertical_grid_candidate(var, candidate)
+      call restore_vertical_grid_candidate(self, var, candidate, original_wrk, prepared_wrk)
       return
     endif
 
     ! Restore the committed state before crossing the ownership boundary.
     ! A successful regrid always invalidates the old stepper before commit.
+    call commit_vertical_grid_candidate(self, var, candidate, original_wrk, prepared_wrk, err)
+
+  end subroutine
+
+  subroutine restore_vertical_grid_candidate(self, var, candidate, original_wrk, prepared_wrk)
+    ! Return ownership to the pre-regrid state.  This helper is also used on
+    ! candidate-preparation failure, so no candidate allocation or work-array
+    ! copy can leak into the committed model.
+    class(EvoAtmosphere), target, intent(inout) :: self
+    type(PhotochemVars), intent(inout) :: var
+    type(VerticalGridCandidate), intent(inout) :: candidate
+    type(PhotochemWrkEvo), allocatable, intent(inout) :: original_wrk, prepared_wrk
+
     call move_alloc(self%wrk, prepared_wrk)
     call move_alloc(original_wrk, self%wrk)
     call swap_vertical_grid_candidate(var, candidate)
 
+  end subroutine
+
+  subroutine commit_vertical_grid_candidate(self, var, candidate, original_wrk, prepared_wrk, err)
+    ! Commit a fully prepared candidate without ever exposing its partial work
+    ! arrays as the live state.  The old CVODE state is destroyed only after
+    ! candidate preparation succeeds; if destruction reports an error, the
+    ! original state remains installed and the caller receives that error.
+    class(EvoAtmosphere), target, intent(inout) :: self
+    type(PhotochemVars), intent(inout) :: var
+    type(VerticalGridCandidate), intent(inout) :: candidate
+    type(PhotochemWrkEvo), allocatable, intent(inout) :: original_wrk, prepared_wrk
+    character(:), allocatable, intent(out) :: err
+
+    call restore_vertical_grid_candidate(self, var, candidate, original_wrk, prepared_wrk)
     call self%destroy_stepper(err)
     if (allocated(err)) return
 
+    ! The old work structure is now finalized and can be discarded. Reinstall
+    ! the candidate grid and promote prepared_wrk%usol to the sole committed
+    ! atmospheric state.
     call move_alloc(self%wrk, original_wrk)
     call swap_vertical_grid_candidate(var, candidate)
     call move_alloc(prepared_wrk, self%wrk)

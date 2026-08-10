@@ -792,7 +792,8 @@ contains
     character(:), allocatable :: err
     real(dp), allocatable :: z_before(:), usol_before(:,:), temperature_before(:)
     real(dp), allocatable :: particle_radius_before(:,:)
-    real(dp) :: top_before, surface_pressure_before, tn
+    real(dp) :: top_before, surface_pressure_before, tn, tn_before
+    integer :: nsteps_before
     integer :: i, optical_particle
 
     pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
@@ -834,6 +835,8 @@ contains
     usol_before = pc%wrk%usol
     temperature_before = pc%var%temperature
     particle_radius_before = pc%var%particle_radius
+    tn_before = pc%wrk%tn
+    nsteps_before = pc%wrk%nsteps
 
     call pc%update_vertical_grid(TOA_alt=1.20_dp*top_before, err=err)
     if (.not.allocated(err)) then
@@ -845,7 +848,8 @@ contains
         pc%var%surface_pressure /= surface_pressure_before .or. &
         any(pc%var%z /= z_before) .or. any(pc%wrk%usol /= usol_before) .or. &
         any(pc%var%temperature /= temperature_before) .or. &
-        any(pc%var%particle_radius /= particle_radius_before)) then
+        any(pc%var%particle_radius /= particle_radius_before) .or. &
+        pc%wrk%tn /= tn_before .or. pc%wrk%nsteps /= nsteps_before) then
       print *, 'Failed candidate preparation changed committed model state'
       stop 1
     endif

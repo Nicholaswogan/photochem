@@ -15,6 +15,9 @@ module photochem_evoatmosphere
   end type
 
   type :: VerticalGridCandidate
+    ! Proposed atmospheric densities used while constructing a replacement
+    ! grid.  This is transient candidate state; the committed atmospheric
+    ! densities live only in PhotochemWrkEvo%usol.
     real(dp) :: top_atmos = 0.0_dp
     real(dp), allocatable :: z(:)
     real(dp), allocatable :: dz(:)
