@@ -19,7 +19,6 @@ cdef extern void photochemvars_top_atmos_get(PhotochemVars *ptr, double *val)
 
 cdef extern void photochemvars_bottom_atmos_get(PhotochemVars *ptr, double *val)
 
-cdef extern void photochemvars_at_photo_equilibrium_get(PhotochemVars *ptr, bool *at_photo_equilibrium)
 
 cdef extern void photochemvars_usol_init_get_size(PhotochemVars *ptr, int *dim1, int *dim2)
 cdef extern void photochemvars_usol_init_get(PhotochemVars *ptr, int *dim1, int *dim2, double *usol_init)

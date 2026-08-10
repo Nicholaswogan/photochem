@@ -27,14 +27,6 @@
     val = var%bottom_atmos
   end subroutine
   
-  subroutine photochemvars_at_photo_equilibrium_get(ptr, at_photo_equilibrium) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    logical(c_bool), intent(out) :: at_photo_equilibrium
-    type(PhotochemVars), pointer :: var
-    call c_f_pointer(ptr, var)
-    at_photo_equilibrium = var%at_photo_equilibrium
-  end subroutine
-  
   subroutine photochemvars_usol_init_get_size(ptr, dim1, dim2) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1, dim2

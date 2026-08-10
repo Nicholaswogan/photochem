@@ -243,13 +243,6 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_grav_get(self._ptr, &dim1, <double *>arr.data)
       return arr
       
-  property at_photo_equilibrium:
-    "bool. If True, then the model is at photochemical equilibrium."
-    def __get__(self):
-      cdef bool at_photo_equilibrium
-      var_pxd.photochemvars_at_photo_equilibrium_get(self._ptr, &at_photo_equilibrium)
-      return at_photo_equilibrium
-      
   property surface_pressure:
     "double. The surface pressure in bars."
     def __get__(self):
