@@ -578,7 +578,7 @@ module photochem_evoatmosphere
 
     ! Internal, non-mutating mapping kernel shared by the public setter and
     ! routines that need to map a profile for an arbitrary trial composition.
-    module subroutine map_press_temp_edd(self, usol_in, P, T, edd, trop_p, hydro_pressure, &
+    module subroutine map_press_temp_edd(self, usol_in, P, T, edd, trop_p, has_trop_p, hydro_pressure, &
                                          grid_z, grid_dz, grid_grav, temperature_reference, &
                                          pressure_reference, &
                                          T_new, edd_new, log10P_wrk, trop_alt, err)
@@ -587,7 +587,9 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: P(:)
       real(dp), intent(in) :: T(:)
       real(dp), intent(in) :: edd(:)
-      real(dp), optional, intent(in) :: trop_p
+      real(dp), intent(in) :: trop_p
+      ! Explicitly records whether trop_p was supplied by the caller.
+      logical, intent(in) :: has_trop_p
       logical, optional, intent(in) :: hydro_pressure
       real(dp), intent(in) :: grid_z(:)
       real(dp), intent(in) :: grid_dz(:)
