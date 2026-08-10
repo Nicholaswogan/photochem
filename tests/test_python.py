@@ -396,7 +396,6 @@ def test_wrapper():
     pc.var.custom_binary_diffusion_fcn = None
     print(pc.var.photon_flux[0])
     print(pc.var.grav[0])
-    print(pc.var.at_photo_equilibrium)
     print(pc.var.surface_pressure)
     print(pc.var.max_error_reinit_attempts)
     print(pc.var.rtol)
