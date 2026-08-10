@@ -755,16 +755,18 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
               trim(layer_string)
         return
       endif
-      if (i > 1 .and. P_wrk(i) >= P_wrk(i-1)) then
-        if (hydro_pressure_) then
-          write(layer_string,'(i0)') i
-          err = 'The hydrostatic pressure does not decrease upward at layer '//trim(layer_string)
-          return
-        elseif (present(trop_p)) then
-          write(layer_string,'(i0," and ",i0)') i-1, i
-          err = 'Cannot determine the tropopause altitude because actual pressure is not '// &
-                'strictly decreasing between layers '//trim(layer_string)
-          return
+      if (i > 1) then
+        if (P_wrk(i) >= P_wrk(i-1)) then
+          if (hydro_pressure_) then
+            write(layer_string,'(i0)') i
+            err = 'The hydrostatic pressure does not decrease upward at layer '//trim(layer_string)
+            return
+          elseif (present(trop_p)) then
+            write(layer_string,'(i0," and ",i0)') i-1, i
+            err = 'Cannot determine the tropopause altitude because actual pressure is not '// &
+                  'strictly decreasing between layers '//trim(layer_string)
+            return
+          endif
         endif
       endif
 

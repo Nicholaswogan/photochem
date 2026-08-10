@@ -21,6 +21,8 @@ contains
     ! pointers to data in SUNDIALS vectors
     real(c_double), pointer :: yvec(:)
     real(c_double), pointer :: fvec(:)
+    real(c_double), pointer :: yvec_raw(:)
+    real(c_double), pointer :: fvec_raw(:)
     character(:), allocatable :: err
     integer(c_long) :: nsteps(1)
     integer(c_int) :: loc_ierr
@@ -35,8 +37,15 @@ contains
     call c_f_pointer(user_data, self)
     
     ! get data arrays from SUNDIALS vectors
-    yvec(1:self%var%neqs) => FN_VGetArrayPointer(sunvec_y)
-    fvec(1:self%var%neqs) => FN_VGetArrayPointer(sunvec_f)
+    ! The SUNDIALS Fortran wrapper exposes the C array pointer as a
+    ! one-element assumed-size pointer.  Do not rank-remap that pointer
+    ! directly: bounds checking correctly rejects a remap larger than its
+    ! declared target, and the resulting undefined behavior is compiler
+    ! dependent.  Reconstruct the full view from the C address instead.
+    yvec_raw => FN_VGetArrayPointer(sunvec_y)
+    fvec_raw => FN_VGetArrayPointer(sunvec_f)
+    call c_f_pointer(c_loc(yvec_raw(1)), yvec, [self%var%neqs])
+    call c_f_pointer(c_loc(fvec_raw(1)), fvec, [self%var%neqs])
     
     ! fill RHS vector
     call self%right_hand_side(self%var%neqs, tn, yvec, fvec, err)
@@ -102,7 +111,9 @@ contains
   
     ! pointers to data in SUNDIALS vectors
     real(c_double), pointer :: yvec(:)
+    real(c_double), pointer :: yvec_raw(:)
     real(c_double), pointer :: Jmat(:)
+    real(c_double), pointer :: Jmat_raw(:)
     character(:), allocatable :: err
     
     type(EvoAtmosphere), pointer :: self
@@ -110,8 +121,10 @@ contains
     ierr = 0
     
     call c_f_pointer(user_data, self)
-    yvec(1:self%var%neqs) => FN_VGetArrayPointer(sunvec_y)
-    Jmat(1:self%var%neqs*self%dat%lda) => FSUNBandMatrix_Data(sunmat_J)
+    yvec_raw => FN_VGetArrayPointer(sunvec_y)
+    call c_f_pointer(c_loc(yvec_raw(1)), yvec, [self%var%neqs])
+    Jmat_raw => FSUNBandMatrix_Data(sunmat_J)
+    call c_f_pointer(c_loc(Jmat_raw(1)), Jmat, [self%var%neqs*self%dat%lda])
     call self%jacobian(self%dat%lda*self%var%neqs, self%var%neqs, yvec, Jmat, err)
     if (allocated(err)) then
       if (self%var%verbose > 0) then

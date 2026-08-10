@@ -274,13 +274,15 @@ contains
       do k = 1,var%nz
         n = var%nz+1-k
         gt_1 = 0.0_dp
-        do i = 1,dat%np    
-          if (var%particle_xs(i)%ThereIsData) then
-            gt_1 = gt_1 + var%particle_xs(i)%gt(k,l)*tausp_1(i,n) &
-                    /(tausp(n) + tausg(n) + tausc(n))
-          endif
-        enddo
-        gt_1 = gt_1 + var%g0c(k,l)*tausc(n)/(tausp(n) + tausg(n) + tausc(n)) ! Custom opacity
+        if (tausp(n) + tausg(n) + tausc(n) > 0.0_dp) then
+          do i = 1,dat%np
+            if (var%particle_xs(i)%ThereIsData) then
+              gt_1 = gt_1 + var%particle_xs(i)%gt(k,l)*tausp_1(i,n) &
+                      /(tausp(n) + tausg(n) + tausc(n))
+            endif
+          enddo
+          gt_1 = gt_1 + var%g0c(k,l)*tausc(n)/(tausp(n) + tausg(n) + tausc(n)) ! Custom opacity
+        endif
         gt(n) = min(gt_1,0.999999e0_dp)
       enddo
       
@@ -288,7 +290,12 @@ contains
       tau = tausg + taua + taup + tauc
       optical_depth(:,l) = tau
       do i = 1,var%nz
-        w0(i) = min(0.99999e0_dp,(tausg(i) + tausp(i) + tausc(i))/tau(i))
+        if (tau(i) > 0.0_dp) then
+          w0(i) = min(0.99999e0_dp,(tausg(i) + tausp(i) + tausc(i))/tau(i))
+        else
+          ! A completely transparent layer has no scattering contribution.
+          w0(i) = 0.0_dp
+        endif
       enddo
       
       call two_stream(var%nz, tau, w0, gt, u0, var%surface_albedo, amean, surf_rad, ie)
@@ -332,6 +339,7 @@ contains
   end subroutine
   
   pure subroutine rainout(dat, var, fH2O, den, rainout_rates)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use photochem_const, only: k_boltz, N_avo, small_real
     use photochem_eqns, only: henrys_law
     
@@ -345,6 +353,7 @@ contains
     
     real(dp) :: wH2O(var%trop_ind)
     real(dp) :: total_rainfall ! molecules/cm2/s
+    real(dp) :: rainfall_column
     real(dp) :: slope, intercept
     real(dp) :: denav_p, eddav_p, denav_m, eddav_m
     real(dp) :: scale_factor
@@ -393,7 +402,14 @@ contains
     ! is perscribed in the settings file. This means that distribution of
     ! raining is controlled by H2O vs z, but magnitude is fixed.
     total_rainfall = var%rainfall_rate*earth_rainfall_rate
-    scale_factor = total_rainfall/sum(wH2O*var%dz(1))
+    rainfall_column = sum(wH2O*var%dz(1))
+    ! A dry atmosphere has no rainout column. Avoid the undefined 0*Inf
+    ! result when fH2O is identically zero.
+    if (.not. ieee_is_finite(rainfall_column) .or. rainfall_column <= 0.0_dp) then
+      rainout_rates = 0.0_dp
+      return
+    endif
+    scale_factor = total_rainfall/rainfall_column
     wH2O = wH2O*scale_factor
     !!!!!!! end calculate raining rate !!!!!!!
     
@@ -405,8 +421,16 @@ contains
         k_bar = (C1*k_boltz*var%temperature(j)*H_coeff/ &
                 (1.0_dp+C1*C2*N_avo*LLL*k_boltz*var%temperature(j)*H_coeff)) &
                 * (WH2O(j)*MH2O/rho_H2O) 
+        if (.not. ieee_is_finite(k_bar) .or. k_bar <= 0.0_dp) then
+          rainout_rates(i,j) = 0.0_dp
+          cycle
+        endif
         Q_i = (1.0_dp-fz) + (fz/(gamma*k_bar))*(1.0_dp - exp(-k_bar*gamma))
-        rainout_rates(i,j) = (1.0_dp/(gamma*Q_i)) * (1.0_dp - exp(-k_bar*gamma))
+        if (.not. ieee_is_finite(Q_i) .or. Q_i <= 0.0_dp) then
+          rainout_rates(i,j) = 0.0_dp
+        else
+          rainout_rates(i,j) = (1.0_dp/(gamma*Q_i)) * (1.0_dp - exp(-k_bar*gamma))
+        endif
       enddo
     enddo
     !!!!!!! end dissolve gas in the rain !!!!!!!!!
