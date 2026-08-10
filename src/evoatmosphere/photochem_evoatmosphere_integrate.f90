@@ -64,10 +64,12 @@ contains
         mx = tmp
         k = 1
         do ii = 1,self%var%neqs
-          tmp = abs(fvec(ii)/yvec(ii))
-          if (tmp > mx .and. abs(yvec(ii)) > self%var%atol) then
-            mx = tmp
-            k = ii
+          if (abs(yvec(ii)) > self%var%atol) then
+            tmp = abs(fvec(ii)/yvec(ii))
+            if (tmp > mx) then
+              mx = tmp
+              k = ii
+            endif
           endif
         enddo
         j = k/self%dat%nq

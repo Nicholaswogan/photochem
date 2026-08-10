@@ -231,12 +231,6 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    ! Reset persistent pressure-temperature-eddy profile state without public
-    ! lifecycle or integrator checks.
-    module subroutine reset_press_temp_edd_profile(var)
-      type(PhotochemVars), intent(inout) :: var
-    end subroutine
-
     !> Return an error when an operation requires an initialized atmosphere.
     module subroutine require_atmosphere_initialized(self, operation, err)
       class(EvoAtmosphere), intent(in) :: self
@@ -660,6 +654,12 @@ module photochem_evoatmosphere
       class(EvoAtmosphere), intent(inout) :: self
       !> Allocated with an error message if a CVODE stepper is initialized.
       character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    ! Reset persistent pressure-temperature-eddy profile state without public
+    ! lifecycle or integrator checks.
+    module subroutine reset_press_temp_edd_profile(var)
+      type(PhotochemVars), intent(inout) :: var
     end subroutine
 
     module subroutine apply_press_temp_edd_profile(self, usol_in, err)

@@ -199,8 +199,11 @@ contains
     pc%var%toa_pressure_maintenance%enabled = .true.
     pc%var%toa_pressure_maintenance%target_pressure = 1.0e-7_dp
     call pc%initialize_robust_stepper(pc%wrk%usol, err)
-    if (.not.allocated(err) .or. &
-        index(err, 'requires an enabled persistent pressure-based') == 0) then
+    if (.not.allocated(err)) then
+      print *, 'TOA maintenance was accepted without a persistent profile'
+      stop 1
+    endif
+    if (index(err, 'requires an enabled persistent pressure-based') == 0) then
       print *, 'TOA maintenance was accepted without a persistent profile'
       stop 1
     endif
@@ -210,8 +213,11 @@ contains
     pc%var%press_temp_edd_profile%enabled = .true.
     pc%var%toa_pressure_maintenance%pressure_factor = 0.5_dp
     call pc%initialize_robust_stepper(pc%wrk%usol, err)
-    if (.not.allocated(err) .or. &
-        index(err, 'pressure_factor') == 0) then
+    if (.not.allocated(err)) then
+      print *, 'An invalid TOA maintenance pressure factor was accepted'
+      stop 1
+    endif
+    if (index(err, 'pressure_factor') == 0) then
       print *, 'An invalid TOA maintenance pressure factor was accepted'
       stop 1
     endif
@@ -468,8 +474,11 @@ contains
       stop 1
     endif
     call pc_failure%robust_step(give_up, converged, err)
-    if (.not.allocated(err) .or. &
-        index(err, 'failure limit exceeded') == 0 .or. &
+    if (.not.allocated(err)) then
+      print *, 'TOA-maintenance failure limit was not enforced visibly'
+      stop 1
+    endif
+    if (index(err, 'failure limit exceeded') == 0 .or. &
         pc_failure%wrk%n_toa_pressure_failures /= 2 .or. &
         .not.pc_failure%wrk%robust_stepper_initialized) then
       if (allocated(err)) print *, trim(err)
@@ -1851,7 +1860,11 @@ contains
       stop 1
     endif
     if (.not. allocated(pc%dat) .or. .not. allocated(pc%var) .or. &
-        .not. allocated(pc%wrk) .or. pc%dat%nq <= 0 .or. pc%var%nz <= 0) then
+        .not. allocated(pc%wrk)) then
+      print *, 'static-only construction did not complete static setup'
+      stop 1
+    endif
+    if (pc%dat%nq <= 0 .or. pc%var%nz <= 0) then
       print *, 'static-only construction did not complete static setup'
       stop 1
     endif

@@ -262,27 +262,6 @@ contains
 
   end subroutine
 
-  module subroutine reset_press_temp_edd_profile(var)
-    type(PhotochemVars), intent(inout) :: var
-
-    var%press_temp_edd_profile%enabled = .false.
-    var%press_temp_edd_profile%hydro_pressure = .true.
-    var%press_temp_edd_profile%has_trop_p = .false.
-    var%press_temp_edd_profile%trop_p = 0.0_dp
-    ! A cleared persistent profile cannot support automatic TOA maintenance.
-    ! Preserve the maintenance tuning values, but clear its active state and
-    ! any target that was coupled to the previous profile.
-    var%toa_pressure_maintenance%enabled = .false.
-    var%toa_pressure_maintenance%target_pressure = 0.0_dp
-    if (allocated(var%press_temp_edd_profile%pressure)) &
-      deallocate(var%press_temp_edd_profile%pressure)
-    if (allocated(var%press_temp_edd_profile%temperature)) &
-      deallocate(var%press_temp_edd_profile%temperature)
-    if (allocated(var%press_temp_edd_profile%edd)) &
-      deallocate(var%press_temp_edd_profile%edd)
-
-  end subroutine
-
   module subroutine require_atmosphere_initialized(self, operation, err)
     class(EvoAtmosphere), intent(in) :: self
     character(len=*), intent(in) :: operation
