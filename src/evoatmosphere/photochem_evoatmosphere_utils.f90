@@ -562,7 +562,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
                                        pressure_reference, &
                                        T_new, edd_new, log10P_wrk, trop_alt, err)
     use futils, only: interp, brent_class
-    use ieee_arithmetic, only: ieee_is_finite
+    use ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, ieee_value
     use photochem_const, only: small_real, k_boltz, N_avo
     use photochem_enum, only: DensityBC, PressureBC
     class(EvoAtmosphere), target, intent(in) :: self
@@ -590,6 +590,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     logical :: hydro_pressure_
     integer :: ierr, i, j, residual_layer
     character(32) :: layer_string
+    character(:), allocatable :: residual_error
 
     real(dp), parameter :: log10e = log10(exp(1.0_dp))
     real(dp), parameter :: root_tol = 1.0e-10_dp
@@ -603,17 +604,16 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     dat => self%dat
     var => self%var
 
+    ! Check inputs
     if (size(usol_in,1) /= dat%nq .or. size(usol_in,2) /= var%nz) then
       err = '"usol_in" has the wrong dimensions'
       return
     endif
-
     if (size(T_new) /= var%nz .or. size(edd_new) /= var%nz .or. &
         size(log10P_wrk) /= var%nz) then
       err = 'Pressure-profile mapping output arrays have the wrong dimensions'
       return
     endif
-
     if (size(grid_z) /= var%nz .or. size(grid_dz) /= var%nz .or. &
         size(grid_grav) /= var%nz .or. &
         size(temperature_reference) /= var%nz .or. &
@@ -631,45 +631,37 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       err = 'Pressure-profile mapping requires finite, positive grid reference state'
       return
     endif
-    
     if (size(P) /= size(T)) then
       err = '"P" and "T" not the same size'
       return
     endif
-
     if (size(P) /= size(edd)) then
       err = '"P" and "edd" not the same size'
       return
     endif
-
     if (size(P) < 2) then
       err = 'size(P) must be >= 2'
       return
     endif
-
     if (.not. all(ieee_is_finite(P)) .or. .not. all(ieee_is_finite(T)) .or. &
         .not. all(ieee_is_finite(edd))) then
       err = 'All elements of "P", "T" and "edd" must be finite'
       return
     endif
-
     if (any(P <= 0.0_dp) .or. any(T <= 0.0_dp) .or. any(edd <= 0.0_dp)) then
       err = 'All elements of "P", "T" and "edd" must be positive'
       return
     endif
-
     if (.not. all(P(2:) < P(:size(P)-1))) then
       err = '"P" must be strictly decreasing'
       return
     endif
-
     if (has_trop_p) then
       if (.not. ieee_is_finite(trop_p) .or. trop_p <= 0.0_dp) then
         err = '"trop_p" must be finite and positive'
         return
       endif
     endif
-
     if (dat%gas_rainout .and. .not.has_trop_p) then
       err = '"trop_p" is a required input.'
       return
@@ -682,6 +674,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       hydro_pressure_ = .true. ! default is True
     endif
 
+    ! Allocate work space
     allocate(P_wrk(var%nz), log10edd_new(var%nz))
     allocate(usol_base(dat%nq,var%nz), density_base(var%nz), mubar_base(var%nz))
 
@@ -713,50 +706,16 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     enddo
 
     call bottom_column_state(temperature_reference(1), density_base(1), &
-                             mubar_base(1), Psurf_initial)
-    if (.not. ieee_is_finite(density_base(1)) .or. density_base(1) <= 0.0_dp .or. &
-        .not. ieee_is_finite(mubar_base(1)) .or. mubar_base(1) <= 0.0_dp .or. &
-        .not. ieee_is_finite(Psurf_initial) .or. Psurf_initial <= 0.0_dp) then
-      err = 'Could not compute a finite, positive bottom-layer state'
-      return
-    endif
+                             mubar_base(1), Psurf_initial, err)
+    if (allocated(err)) return
 
-    ! copy over inputs, and covert to log10 space
+    ! Copy the input profiles into log-pressure space. The arrays remain at
+    ! the supplied pressure points; values below the deepest point are
+    ! extrapolated directly from the deepest two points by evaluate_profile.
     allocate(log10P_in(size(P)),T_in(size(P)),log10edd_in(size(P)))
     log10P_in = log10(P)
     T_in = T
     log10edd_in = log10(edd)
-
-    ! if the P-T-edd profile does not extend to the surface,
-    ! then we log-linearly extrapolate to surface
-    if (Psurf_initial > P(1)) then; block
-      real(dp) :: slope, intercept, P_surf, T_surf, edd_surf
-
-      ! log10 surface pressure in dynes/cm^2
-      P_surf = log10(Psurf_initial)
-
-      slope = (T_in(2) - T_in(1))/(log10P_in(2) - log10P_in(1))
-      intercept = T_in(1) - slope*log10P_in(1)
-      T_surf = slope*P_surf + intercept
-      if (.not. ieee_is_finite(T_surf) .or. T_surf <= 0.0_dp) then
-        err = 'Extrapolating the input P-T profile to the surface produced a non-positive temperature'
-        return
-      endif
-
-      slope = (log10edd_in(2) - log10edd_in(1))/(log10P_in(2) - log10P_in(1))
-      intercept = log10edd_in(1) - slope*log10P_in(1)
-      edd_surf = slope*P_surf + intercept
-      if (.not. ieee_is_finite(edd_surf)) then
-        err = 'Extrapolating the input P-Kzz profile to the surface failed'
-        return
-      endif
-
-      log10P_in = [P_surf, log10P_in]
-      T_in = [T_surf, T_in]
-      log10edd_in = [edd_surf, log10edd_in]
-      
-    endblock; endif
-
     ! Flip order for interpolation purposes
     log10P_in = log10P_in(size(log10P_in):1:-1)
     T_in = T_in(size(log10P_in):1:-1)
@@ -768,14 +727,22 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     ! recurrence is triangular, so each solved layer provides the lower
     ! pressure and temperature boundary for the next layer.
     do i = 1,var%nz
+
+      ! Perform the solve
       call solve_layer_pressure(i, xzero, err)
       if (allocated(err)) return
 
+      ! Save the result, and evaluate T and Kzz at the root.
       log10P_wrk(i) = xzero
       P_wrk(i) = 10.0_dp**xzero
-      T_new(i) = profile_value(xzero, log10P_in, T_in)
-      log10edd_new(i) = profile_value(xzero, log10P_in, log10edd_in)
+      call evaluate_profile(xzero, log10P_in, T_in, T_new(i), 'temperature', .true., err)
+      if (allocated(err)) return
 
+      call evaluate_profile(xzero, log10P_in, log10edd_in, log10edd_new(i), &
+                            'eddy-diffusion', .false., err)
+      if (allocated(err)) return
+
+      ! Check for problems
       if (.not. ieee_is_finite(P_wrk(i)) .or. P_wrk(i) <= 0.0_dp) then
         write(layer_string,'(i0)') i
         err = 'The pressure solve produced a non-finite or non-positive pressure in layer '// &
@@ -797,19 +764,37 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
         endif
       endif
 
-      if (i == 1) then
-        call bottom_column_state(T_new(1), density_base(1), mubar_base(1), Psurf_final)
+      if (i == 1) then; block
+        real(dp) :: density_final, mubar_final
+
+        ! Little sanity check to make sure pressure is decreasing.
+
+        call bottom_column_state(T_new(1), density_final, mubar_final, Psurf_final, err)
+        if (allocated(err)) return
         if (hydro_pressure_ .and. P_wrk(1) >= Psurf_final) then
           err = 'The solved bottom-layer pressure is not below the surface pressure'
           return
         endif
-      endif
+      end block; endif
 
+      ! Save the previous solve. This is needed for initial guesses and for the residuals on
+      ! subsequent layers.
       log10P_previous = xzero
       temperature_previous = T_new(i)
     enddo
 
+    ! Ensure eddy diffusion is valid
+    if (.not. all(ieee_is_finite(log10edd_new))) then
+      err = 'The mapped eddy-diffusion profile is not finite'
+      return
+    endif
     edd_new = 10.0_dp**log10edd_new
+    if (.not. all(ieee_is_finite(edd_new)) .or. any(edd_new <= 0.0_dp)) then
+      err = 'The mapped eddy-diffusion profile is not finite and positive'
+      return
+    endif
+
+    ! Compute the tropopause altitude
     trop_alt = 0.0_dp
     if (has_trop_p) then
       call interp([log10(trop_p)], log10P_wrk(var%nz:1:-1), &
@@ -836,35 +821,60 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       ! read-only and consists of the input profiles, atmospheric state, and
       ! the previously solved pressure and temperature in hydrostatic mode.
       residual_layer = layer
+      if (allocated(residual_error)) deallocate(residual_error)
 
+      ! `xcenter` is the root estimate, while `width` is how far above and below
+      ! `xcenter` we will search for a bracket that we can use for the solve.
       if (hydro_pressure_) then
         if (layer == 1) then
+          ! Existing bottom pressure is the root estimate.
           xcenter = log10(max(pressure_reference(1), small_real))
           width = max(abs(log10(Psurf_initial) - xcenter), 1.0e-3_dp)
         else
+          ! Subtract the expected hydrostatic drop from the previous pressure;
+          ! use that drop for the initial bracket.
           xcenter = log10P_previous - &
                     (mubar_base(layer)*grid_grav(layer)*grid_dz(layer)*log10e)/ &
                     (N_avo*k_boltz*max(temperature_previous,small_real))
           width = max(abs(log10P_previous - xcenter), 1.0e-3_dp)
         endif
       else
+        ! Use the ideal-gas pressure from the current density and temperature.
         reference_density = density_base(layer)
         xcenter = log10(reference_density*k_boltz* &
                         max(temperature_reference(layer),small_real))
+        ! Start narrow; the bracket expands if the residual has no sign change.
         width = 1.0e-3_dp
       endif
 
+      ! Now find a bracket that we can solve on.
       xlower = xcenter - width
       xupper = xcenter + width
       flower = pressure_residual(root_solver, xlower)
+      if (allocated(residual_error)) then
+        err_ = residual_error
+        return
+      endif
       fupper = pressure_residual(root_solver, xupper)
+      if (allocated(residual_error)) then
+        err_ = residual_error
+        return
+      endif
       nexpand = 0
       do while (.not. opposite_signs(flower, fupper))
         width = 2.0_dp*width
         xlower = xcenter - width
         xupper = xcenter + width
         flower = pressure_residual(root_solver, xlower)
+        if (allocated(residual_error)) then
+          err_ = residual_error
+          return
+        endif
         fupper = pressure_residual(root_solver, xupper)
+        if (allocated(residual_error)) then
+          err_ = residual_error
+          return
+        endif
         nexpand = nexpand + 1
         if (nexpand >= max_bracket_expansions) then
           write(layer_string,'(i0)') layer
@@ -873,7 +883,12 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
         endif
       enddo
 
+      ! Perform the root solve.
       call root_solver%find_zero(xlower, xupper, root_tol, xzero_, fzero, iflag, flower, fupper)
+      if (allocated(residual_error)) then
+        err_ = residual_error
+        return
+      endif
       if (iflag /= 0 .or. .not. ieee_is_finite(xzero_)) then
         write(layer_string,'(i0)') layer
         err_ = 'The scalar pressure solve failed in layer '//trim(layer_string)
@@ -889,40 +904,82 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
       real(dp) :: temperature_trial, density_trial, mubar_trial, Psurf_trial
 
-      temperature_trial = profile_value(x, log10P_in, T_in)
+      ! Preserve the first invalid evaluation while Brent is unwinding. This
+      ! prevents a later callback from replacing the useful diagnostic.
+      if (allocated(residual_error)) then
+        residual = ieee_value(0.0_dp, ieee_quiet_nan)
+        return
+      endif
+
+      ! For out input log10 pressure `x`, compute the `temperature_trial`
+      call evaluate_profile(x, log10P_in, T_in, temperature_trial, 'temperature', .true., residual_error)
+      if (allocated(residual_error)) then
+        residual = ieee_value(0.0_dp, ieee_quiet_nan)
+        return
+      endif
 
       if (hydro_pressure_) then
+        ! x is trial log10 pressure. Since the input temperature is T(P),
+        ! each trial pressure determines the temperature used in the residual.
         if (residual_layer == 1) then
-          call bottom_column_state(temperature_trial, density_trial, mubar_trial, Psurf_trial)
+          ! Recompute the surface pressure because lower boundary conditions
+          ! can depend on temperature. Enforce balance to the layer center,
+          ! hence the half-layer thickness.
+          call bottom_column_state(temperature_trial, density_trial, mubar_trial, &
+                                   Psurf_trial, residual_error)
+          if (allocated(residual_error)) then
+            residual = ieee_value(0.0_dp, ieee_quiet_nan)
+            return
+          endif
           residual = x - log10(Psurf_trial) + &
                      (mubar_trial*grid_grav(1)*0.5_dp*grid_dz(1)*log10e)/ &
                      (N_avo*k_boltz*temperature_trial)
         else
+          ! For higher layers, enforce the hydrostatic pressure drop from the
+          ! previous layer using the average of the two temperatures.
           residual = x - log10P_previous + &
                      (mubar_base(residual_layer)*grid_grav(residual_layer)* &
                       grid_dz(residual_layer)*log10e)/ &
                      (N_avo*k_boltz*0.5_dp*(temperature_previous + temperature_trial))
         endif
       else
+        ! Without hydrostatic coupling, enforce the local ideal-gas relation
+        ! P = density*k_B*T at the trial pressure.
         if (residual_layer == 1) then
-          call bottom_column_state(temperature_trial, density_trial, mubar_trial, Psurf_trial)
+          call bottom_column_state(temperature_trial, density_trial, mubar_trial, &
+                                   Psurf_trial, residual_error)
+          if (allocated(residual_error)) then
+            residual = ieee_value(0.0_dp, ieee_quiet_nan)
+            return
+          endif
         else
           density_trial = density_base(residual_layer)
         endif
         residual = x - log10(density_trial*k_boltz*temperature_trial)
       endif
 
+      if (.not. ieee_is_finite(residual)) then
+        residual_error = 'The pressure residual became non-finite during the pressure solve'
+        residual = ieee_value(0.0_dp, ieee_quiet_nan)
+      endif
+
     end function
 
-    subroutine bottom_column_state(temperature, density_bottom, mubar_bottom, surface_pressure)
+    subroutine bottom_column_state(temperature, density_bottom, mubar_bottom, surface_pressure, err_)
       real(dp), intent(in) :: temperature
       real(dp), intent(out) :: density_bottom, mubar_bottom, surface_pressure
+      character(:), allocatable, intent(out) :: err_
 
       real(dp) :: usol_bottom(dat%nq), Psat, column_mass
       integer :: gas_ind, particle_ind
 
       ! This helper reads the saved composition and boundary conditions but
       ! applies them to a local bottom-layer copy; it never modifies self.
+      if (.not. ieee_is_finite(temperature) .or. temperature <= 0.0_dp) then
+        err_ = 'The bottom-layer temperature is not finite and positive'
+        return
+      endif
+
       usol_bottom = usol_base(:,1)
       do gas_ind = 1,dat%nq
         if (var%lowerboundcond(gas_ind) == DensityBC) then
@@ -940,8 +997,16 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       enddo
 
       density_bottom = sum(usol_bottom(dat%ng_1:))
+      if (.not. ieee_is_finite(density_bottom) .or. density_bottom <= 0.0_dp) then
+        err_ = 'The bottom-layer number density is not finite and positive'
+        return
+      endif
       mubar_bottom = sum(dat%species_mass(dat%ng_1:dat%nq)* &
                          usol_bottom(dat%ng_1:dat%nq))/density_bottom
+      if (.not. ieee_is_finite(mubar_bottom) .or. mubar_bottom <= 0.0_dp) then
+        err_ = 'The bottom-layer mean molecular weight is not finite and positive'
+        return
+      endif
 
       column_mass = density_bottom*mubar_bottom*grid_grav(1)*grid_dz(1)
       do gas_ind = 2,var%nz
@@ -949,23 +1014,37 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
                                     grid_grav(gas_ind)*grid_dz(gas_ind)
       enddo
       surface_pressure = column_mass/N_avo
+      if (.not. ieee_is_finite(surface_pressure) .or. surface_pressure <= 0.0_dp) then
+        err_ = 'The bottom-layer surface pressure is not finite and positive'
+        return
+      endif
 
     end subroutine
 
-    pure function profile_value(x, pressure_grid, values) result(value)
+    subroutine evaluate_profile(x, pressure_grid, values, value, profile_name, require_positive, err_)
       real(dp), intent(in) :: x
       real(dp), intent(in) :: pressure_grid(:)
       real(dp), intent(in) :: values(:)
-      real(dp) :: value
+      real(dp), intent(out) :: value
+      character(*), intent(in) :: profile_name
+      logical, intent(in) :: require_positive
+      character(:), allocatable, intent(out) :: err_
 
       real(dp) :: fraction
       integer :: low, high, mid
 
       if (x <= pressure_grid(1)) then
+        ! Above the supplied top of the atmosphere, retain the top value.
         value = values(1)
       elseif (x >= pressure_grid(size(pressure_grid))) then
-        value = values(size(values))
+        ! Below the supplied deepest point, continue the deepest two-point
+        ! slope in log-pressure rather than attaching a moving surface knot.
+        fraction = (x-pressure_grid(size(pressure_grid))) / &
+                   (pressure_grid(size(pressure_grid))-pressure_grid(size(pressure_grid)-1))
+        value = values(size(values)) + fraction * &
+                (values(size(values))-values(size(values)-1))
       else
+        ! Otherwise, we perform linear interpolation
         low = 1
         high = size(pressure_grid)
         do while (high-low > 1)
@@ -980,7 +1059,17 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
         value = values(low) + fraction*(values(high)-values(low))
       endif
 
-    end function
+      if (.not. ieee_is_finite(value) .or. (require_positive .and. value <= 0.0_dp)) then
+        if (require_positive) then
+          err_ = 'Linear extrapolation of the input '//trim(profile_name)// &
+                 ' profile produced a non-finite or non-positive value'
+        else
+          err_ = 'Linear extrapolation of the input '//trim(profile_name)// &
+                 ' profile produced a non-finite value'
+        endif
+      endif
+
+    end subroutine
 
     pure function opposite_signs(a, b) result(opposite)
       real(dp), intent(in) :: a, b
@@ -1011,13 +1100,17 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
     bottom = self%var%bottom_atmos
     current_top = self%var%top_atmos
-    span = current_top-bottom
+    span = current_top - bottom
+    ! Lowest trial model top allowed during downward bracket search.
     minimum_top = bottom + max(100.0_dp*epsilon(1.0_dp)* &
                                max(abs(bottom),span,1.0_dp), tiny(1.0_dp))
+    ! Absolute altitude tolerance passed to the Brent root solver.
     altitude_tolerance = max(1.0e-10_dp*span, &
                              100.0_dp*epsilon(1.0_dp)*max(abs(current_top),1.0_dp))
+    ! Initial altitude increment used to expand the pressure bracket.
     search_distance = max(0.05_dp*span, maxval(self%var%dz))
 
+    ! Set the residual function in the root solver.
     call root_solver%set_function(altitude_residual)
     fcurrent = altitude_residual(root_solver, current_top)
     if (allocated(err)) then
@@ -1025,10 +1118,12 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       return
     endif
     if (abs(fcurrent) <= pressure_residual_tolerance) then
+      ! We are at the right pressure, so we can just return
       top_atmos = current_top
       return
     endif
 
+    ! Now determine the bracket for which to do the solve
     if (fcurrent > 0.0_dp) then
       ! The requested pressure is lower than the current TOA pressure, so the
       ! model top must move upward.
@@ -1088,6 +1183,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       endif
     endif
 
+    ! Call the root solver for the determined bracket
     call root_solver%find_zero(lower, upper, altitude_tolerance, top_atmos, &
                                fzero, iflag, flower, fupper)
     if (allocated(err)) then
@@ -1099,6 +1195,8 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       err = 'The bracketed TOA-pressure solve failed.'
       return
     endif
+
+    ! Successful if reached the end of the function.
 
   contains
     function altitude_residual(me, altitude) result(residual)
@@ -1455,11 +1553,12 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
 
-    call self%require_atmosphere_initialized('update_vertical_grid', err)
-    if (allocated(err)) return
-
     dat => self%dat
     var => self%var
+
+    ! Check inputs
+    call self%require_atmosphere_initialized('update_vertical_grid', err)
+    if (allocated(err)) return
 
     if (present(TOA_alt) .and. present(TOA_pressure)) then
       err = 'Both "TOA_alt" and "TOA_pressure" can not be specified'
