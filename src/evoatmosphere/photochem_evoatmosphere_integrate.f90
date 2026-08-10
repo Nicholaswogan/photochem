@@ -722,15 +722,12 @@ contains
   end subroutine
 
   module subroutine prepare_stepper_state(self, usol_start, tstart, err)
-    use photochem_enum, only: DensityBC, PressureBC
-    use photochem_const, only: k_boltz
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
     real(dp), intent(in) :: tstart
     character(:), allocatable, intent(out) :: err
 
     real(dp), pointer :: yvec_usol(:,:)
-    real(dp) :: Psat
     integer :: i, j, k
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -751,18 +748,8 @@ contains
 
     yvec_usol(1:dat%nq,1:var%nz) => wrk%sun%yvec
     yvec_usol = usol_start
-    do i = 1,dat%nq
-      if (var%lowerboundcond(i) == DensityBC) then
-        yvec_usol(i,1) = var%lower_fix_den(i)
-      elseif (var%lowerboundcond(i) == PressureBC) then
-        Psat = huge(1.0_dp)
-        if (dat%gas_particle_ind(i) /= 0) then
-          j = dat%gas_particle_ind(i)
-          Psat = dat%particle_sat(j)%sat_pressure(var%temperature(1))*var%cond_params(j)%RHc
-        endif
-        yvec_usol(i,1) = min(var%lower_fix_press(i), Psat)/(k_boltz*var%temperature(1))
-      endif
-    enddo
+    call self%apply_lower_boundary_conditions(var%temperature(1), yvec_usol(:,1), err)
+    if (allocated(err)) return
 
     call self%set_trop_ind(yvec_usol, err)
     if (allocated(err)) return

@@ -441,13 +441,54 @@ contains
 
   end subroutine
 
+  module subroutine apply_lower_boundary_conditions(self, temperature, usol_bottom, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use photochem_const, only: k_boltz
+    use photochem_enum, only: DensityBC, PressureBC
+    class(EvoAtmosphere), target, intent(in) :: self
+    real(dp), intent(in) :: temperature
+    real(dp), intent(inout) :: usol_bottom(:)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp) :: Psat
+    integer :: i, particle_ind
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+
+    dat => self%dat
+    var => self%var
+
+    if (size(usol_bottom) /= dat%nq) then
+      err = 'The bottom-layer state has the wrong dimensions'
+      return
+    endif
+    if (.not. ieee_is_finite(temperature) .or. temperature <= 0.0_dp) then
+      err = 'The bottom-layer temperature is not finite and positive'
+      return
+    endif
+
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == DensityBC) then
+        usol_bottom(i) = var%lower_fix_den(i)
+      elseif (var%lowerboundcond(i) == PressureBC) then
+        Psat = huge(1.0_dp)
+        if (dat%gas_particle_ind(i) /= 0) then
+          particle_ind = dat%gas_particle_ind(i)
+          Psat = dat%particle_sat(particle_ind)%sat_pressure(temperature)* &
+                 var%cond_params(particle_ind)%RHc
+        endif
+        usol_bottom(i) = min(var%lower_fix_press(i), Psat)/(k_boltz*temperature)
+      endif
+    enddo
+
+  end subroutine
+
   module subroutine prep_atm_evo_gas(self, usol_in, usol, &
                                      molecules_per_particle, pressure, density, mix, mubar, &
                                      pressure_hydro, density_hydro, apply_persistent_profile, err)
     use photochem_eqns, only: press_and_den
     use photochem_common, only: molec_per_particle
     use photochem_const, only: small_real, N_avo, k_boltz
-    use photochem_enum, only: DensityBC, PressureBC
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
     real(dp), intent(out) :: usol(:,:)
@@ -457,7 +498,6 @@ contains
     logical, optional, intent(in) :: apply_persistent_profile
     character(:), allocatable, intent(out) :: err
 
-    real(dp) :: Psat
     logical :: apply_profile
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -488,18 +528,8 @@ contains
       enddo
     enddo
 
-    do i = 1,dat%nq
-      if (var%lowerboundcond(i) == DensityBC) then
-        usol(i,1) = var%lower_fix_den(i)
-      elseif (var%lowerboundcond(i) == PressureBC) then
-        Psat = huge(1.0_dp)
-        if (dat%gas_particle_ind(i) /= 0) then
-          j = dat%gas_particle_ind(i)
-          Psat = dat%particle_sat(j)%sat_pressure(var%temperature(1))*var%cond_params(j)%RHc
-        endif
-        usol(i,1) = min(var%lower_fix_press(i), Psat)/(k_boltz*var%temperature(1))
-      endif
-    enddo
+    call self%apply_lower_boundary_conditions(var%temperature(1), usol(:,1), err)
+    if (allocated(err)) return
 
     !!! molecules/particle
     if (dat%there_are_particles) then

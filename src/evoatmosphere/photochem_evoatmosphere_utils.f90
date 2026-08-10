@@ -970,31 +970,14 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       real(dp), intent(out) :: density_bottom, mubar_bottom, surface_pressure
       character(:), allocatable, intent(out) :: err_
 
-      real(dp) :: usol_bottom(dat%nq), Psat, column_mass
-      integer :: gas_ind, particle_ind
+      real(dp) :: usol_bottom(dat%nq), column_mass
+      integer :: gas_ind
 
-      ! This helper reads the saved composition and boundary conditions but
-      ! applies them to a local bottom-layer copy; it never modifies self.
-      if (.not. ieee_is_finite(temperature) .or. temperature <= 0.0_dp) then
-        err_ = 'The bottom-layer temperature is not finite and positive'
-        return
-      endif
-
+      ! Apply boundary conditions to a local bottom-layer copy; self is never
+      ! modified by this calculation.
       usol_bottom = usol_base(:,1)
-      do gas_ind = 1,dat%nq
-        if (var%lowerboundcond(gas_ind) == DensityBC) then
-          usol_bottom(gas_ind) = var%lower_fix_den(gas_ind)
-        elseif (var%lowerboundcond(gas_ind) == PressureBC) then
-          Psat = huge(1.0_dp)
-          if (dat%gas_particle_ind(gas_ind) /= 0) then
-            particle_ind = dat%gas_particle_ind(gas_ind)
-            Psat = dat%particle_sat(particle_ind)%sat_pressure(temperature)* &
-                   var%cond_params(particle_ind)%RHc
-          endif
-          usol_bottom(gas_ind) = min(var%lower_fix_press(gas_ind),Psat)/ &
-                                   (k_boltz*temperature)
-        endif
-      enddo
+      call self%apply_lower_boundary_conditions(temperature, usol_bottom, err_)
+      if (allocated(err_)) return
 
       density_bottom = sum(usol_bottom(dat%ng_1:))
       if (.not. ieee_is_finite(density_bottom) .or. density_bottom <= 0.0_dp) then
@@ -1238,7 +1221,6 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
   subroutine build_vertical_grid_candidate(self, usol, top_atmos_new, candidate, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    use photochem_enum, only: DensityBC, PressureBC
     use futils, only: interp
     use photochem_eqns, only: vertical_grid, gravity
     use photochem_const, only: small_real, k_boltz, N_avo
@@ -1250,7 +1232,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
     real(dp), parameter :: persistent_tolerance = 1.0e-10_dp
     integer, parameter :: persistent_max_iterations = 50
-    real(dp) :: Psat, gas_mix_total, pressure_previous, temperature_previous
+    real(dp) :: gas_mix_total, pressure_previous, temperature_previous
     real(dp) :: delta_z, mubar
     real(dp), allocatable :: mix(:,:), mix_new(:,:)
     real(dp), allocatable :: density(:), density_new(:)
@@ -1460,20 +1442,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     call extend_density_hydrostatically()
     call fill_candidate_usol()
 
-    ! Account for fixed surface mixing ratios
-    do i = 1,dat%nq
-      if (var%lowerboundcond(i) == DensityBC) then
-        candidate%usol(i,1) = var%lower_fix_den(i)
-      elseif (var%lowerboundcond(i) == PressureBC) then
-        Psat = huge(1.0_dp)
-        if (dat%gas_particle_ind(i) /= 0) then
-          j = dat%gas_particle_ind(i)
-          Psat = dat%particle_sat(j)%sat_pressure(var%temperature(1))*var%cond_params(j)%RHc
-        endif
-        candidate%usol(i,1) = min(var%lower_fix_press(i), Psat)/ &
-                              (k_boltz*candidate%temperature(1))
-      endif
-    enddo
+    ! Account for fixed surface mixing ratios.
+    call self%apply_lower_boundary_conditions(candidate%temperature(1), candidate%usol(:,1), err)
+    if (allocated(err)) return
 
     do j = 1,var%nz
       candidate%pressure(j) = sum(candidate%usol(dat%ng_1:,j))* &
