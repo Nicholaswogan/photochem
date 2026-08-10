@@ -84,17 +84,6 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_bottom_atmos_get(self._ptr, &val)
       return val
       
-  property usol_init:
-    """ndarray[double,dim=2], shape (nq,nz). Contains the initial concentration
-    of atmospheric species (molecules/cm^3).
-    """
-    def __get__(self):
-      cdef int dim1, dim2
-      var_pxd.photochemvars_usol_init_get_size(self._ptr, &dim1, &dim2)
-      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
-      var_pxd.photochemvars_usol_init_get(self._ptr, &dim1, &dim2, <double *>arr.data)
-      return arr
-
   property particle_radius:
     "ndarray[double,dim=2], shape (npq,nz). cm"
     def __get__(self):

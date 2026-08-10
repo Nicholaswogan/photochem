@@ -27,24 +27,6 @@
     val = var%bottom_atmos
   end subroutine
   
-  subroutine photochemvars_usol_init_get_size(ptr, dim1, dim2) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    integer(c_int), intent(out) :: dim1, dim2
-    type(PhotochemVars), pointer :: var
-    call c_f_pointer(ptr, var)
-    dim1 = size(var%usol_init,1)
-    dim2 = size(var%usol_init,2)
-  end subroutine
-  
-  subroutine photochemvars_usol_init_get(ptr, dim1, dim2, usol_init) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    integer(c_int), intent(in) :: dim1, dim2
-    real(c_double), intent(out) :: usol_init(dim1, dim2)
-    type(PhotochemVars), pointer :: var
-    call c_f_pointer(ptr, var)
-    usol_init = var%usol_init
-  end subroutine
-
   subroutine photochemvars_particle_radius_get_size(ptr, dim1, dim2) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1, dim2

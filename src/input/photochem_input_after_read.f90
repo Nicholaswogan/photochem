@@ -6,7 +6,7 @@ contains
   module subroutine map_atmosphere_z_to_grid(dat, var, z, temperature, &
                                              edd, surface_pressure, mix, &
                                              particle_radius, &
-                                             pressure, density, mubar, err)
+                                             pressure, density, mubar, usol, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use futils, only: interp
     use photochem_eqns, only: press_and_den
@@ -17,6 +17,7 @@ contains
     real(dp), intent(in) :: surface_pressure
     real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
     real(dp), intent(out) :: pressure(:), density(:), mubar(:)
+    real(dp), intent(out) :: usol(:,:)
     character(:), allocatable, intent(out) :: err
 
     real(dp), parameter :: mixing_ratio_floor = 1.0e-40_dp
@@ -122,9 +123,13 @@ contains
       return
     endif
 
-    var%usol_init = 0.0_dp
+    if (size(usol,1) /= dat%nq .or. size(usol,2) /= var%nz) then
+      err = 'The initial atmospheric-state array has the wrong shape.'
+      return
+    endif
+    usol = 0.0_dp
     do i = 1,ngas
-      var%usol_init(dat%ng_1+i-1,:) = gas_mix_model(i,:)*density
+      usol(dat%ng_1+i-1,:) = gas_mix_model(i,:)*density
     enddo
 
     if (dat%npq > 0) then
@@ -137,7 +142,7 @@ contains
           return
         endif
         particle_mix_model(i,:) = 10.0_dp**interpolation_output
-        var%usol_init(i,:) = particle_mix_model(i,:)*density
+        usol(i,:) = particle_mix_model(i,:)*density
 
         interpolation_input = log10(particle_radius(i,:))
         call interp(var%z, z, interpolation_input, interpolation_output, ierr=ierr)
@@ -156,7 +161,7 @@ contains
   module subroutine map_atmosphere_p_to_grid(dat, var, profile_pressure, &
                                              temperature, edd, mix, &
                                              particle_radius, pressure, &
-                                             density, mubar, err)
+                                             density, mubar, usol, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use photochem_const, only: k_boltz, N_avo
     use photochem_eqns, only: gravity
@@ -166,6 +171,7 @@ contains
     real(dp), intent(in) :: profile_pressure(:), temperature(:), edd(:)
     real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
     real(dp), intent(out) :: pressure(:), density(:), mubar(:)
+    real(dp), intent(out) :: usol(:,:)
     character(:), allocatable, intent(out) :: err
 
     real(dp), allocatable :: z(:), profile_mubar(:)
@@ -262,7 +268,7 @@ contains
 
     call map_atmosphere_z_to_grid(dat, var, z, temperature, edd, &
                                   profile_pressure(1), mix, particle_radius, &
-                                  pressure, density, mubar, err)
+                                  pressure, density, mubar, usol, err)
 
   end subroutine
   
@@ -316,17 +322,18 @@ contains
 
   end subroutine
 
-  module subroutine map_atmosphere_file_to_grid(dat, var, profile, err)
+  module subroutine map_atmosphere_file_to_grid(dat, var, profile, usol, err)
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     type(AtmosphereFileProfile), intent(in) :: profile
+    real(dp), intent(out) :: usol(:,:)
     character(:), allocatable, intent(out) :: err
 
     call resolve_atmosphere_settings(profile, dat, var, err)
     if (allocated(err)) return
 
     call initialize_altitude_grid(dat, var, var%top_atmos)
-    call interp2atmosfile(dat, var, profile, err)
+    call interp2atmosfile(dat, var, profile, usol, err)
     if (allocated(err)) return
 
   end subroutine
@@ -365,11 +372,12 @@ contains
     
   end subroutine
   
-  subroutine interp2atmosfile(dat, var, profile, err)
+  subroutine interp2atmosfile(dat, var, profile, usol, err)
     use futils, only: interp
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     type(AtmosphereFileProfile), intent(in) :: profile
+    real(dp), intent(out) :: usol(:,:)
     character(:), allocatable, intent(out) :: err
     
     integer :: i, ierr
@@ -381,7 +389,7 @@ contains
                                      profile%edd, err, absolute_eddy=.true.)
     if (allocated(err)) return
 
-    call interp2atmosfile_mix(dat, var, profile, err)
+    call interp2atmosfile_mix(dat, var, profile, usol, err)
     if (allocated(err)) return
     
     if (dat%there_are_particles) then
@@ -398,11 +406,12 @@ contains
     
   end subroutine
 
-  subroutine interp2atmosfile_mix(dat, var, profile, err)
+  subroutine interp2atmosfile_mix(dat, var, profile, usol, err)
     use futils, only: interp
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     type(AtmosphereFileProfile), intent(in) :: profile
+    real(dp), intent(out) :: usol(:,:)
     character(:), allocatable, intent(out) :: err
 
     integer :: i, ierr
@@ -418,18 +427,23 @@ contains
     endif
     density = 10.0_dp**density
 
+    if (size(usol,1) /= dat%nq .or. size(usol,2) /= var%nz) then
+      err = 'The initial atmospheric-state array has the wrong shape.'
+      return
+    endif
+
     do i = 1,dat%nq
       call interp(var%nz, profile%nlayer, var%z, profile%z,&
-                  log10(abs(profile%mix(i,:))), var%usol_init(i,:), ierr)
+                  log10(abs(profile%mix(i,:))), usol(i,:), ierr)
       if (ierr /= 0) then
         err = 'Subroutine interp returned an error.'
         return
       endif
     enddo
-    var%usol_init = 10.0_dp**var%usol_init
+    usol = 10.0_dp**usol
 
     do i = 1,var%nz
-      var%usol_init(:,i) = var%usol_init(:,i)*density(i)
+      usol(:,i) = usol(:,i)*density(i)
     enddo 
 
   end subroutine
@@ -560,7 +574,6 @@ contains
     allocate(var%dz(var%nz))
     allocate(var%edd(var%nz))
     allocate(var%grav(var%nz))
-    allocate(var%usol_init(dat%nq,var%nz))
     allocate(var%particle_radius(dat%npq,var%nz))
     allocate(var%xs_x_qy(var%nz,dat%kj,dat%nw))
     

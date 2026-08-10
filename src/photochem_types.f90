@@ -420,7 +420,6 @@ module photochem_types ! make a giant IO object
     !> A function for specifying a custom binary diffusion parameter (b_ij)
     procedure(binary_diffusion_fcn), nopass, pointer :: custom_binary_diffusion_fcn => null()
     real(dp), allocatable :: grav(:) !! (nz) cm/s2
-    real(dp), allocatable :: usol_init(:,:) !! (nq,nz) molecules/cm^3. SHOULD BE REMOVED
     real(dp), allocatable :: particle_radius(:,:) !! (np,nz) cm
     real(dp), allocatable :: xs_x_qy(:,:,:) !! (nz,kj,nw) photolysis cross sections times quantum yields (cm2/molecule)
     type(ParticleXsections), allocatable :: particle_xs(:) !! (np)

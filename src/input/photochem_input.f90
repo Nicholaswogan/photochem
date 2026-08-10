@@ -43,10 +43,11 @@ module photochem_input
     !> Map a temporary legacy atmosphere-file profile onto the common altitude
     !! grid. File density remains an explicit legacy policy; it is not replaced
     !! by hydrostatic reconstruction in this adapter.
-    module subroutine map_atmosphere_file_to_grid(dat, var, profile, err)
+    module subroutine map_atmosphere_file_to_grid(dat, var, profile, usol, err)
       type(PhotochemData), intent(in) :: dat
       type(PhotochemVars), intent(inout) :: var
       type(AtmosphereFileProfile), intent(in) :: profile
+      real(dp), intent(out) :: usol(:,:)
       character(:), allocatable, intent(out) :: err
     end subroutine
     
@@ -115,7 +116,7 @@ module photochem_input
     module subroutine map_atmosphere_z_to_grid(dat, var, z, temperature, &
                                                edd, surface_pressure, mix, &
                                                particle_radius, &
-                                               pressure, density, mubar, err)
+                                               pressure, density, mubar, usol, err)
       type(PhotochemData), intent(in) :: dat
       type(PhotochemVars), intent(inout) :: var
       real(dp), intent(in) :: z(:) !! Altitude profile knots (cm), including both domain edges.
@@ -131,6 +132,7 @@ module photochem_input
       real(dp), intent(out) :: pressure(:) !! Hydrostatic pressure at model centers (dyn/cm^2).
       real(dp), intent(out) :: density(:) !! Total gas number density at model centers (molecules/cm^3).
       real(dp), intent(out) :: mubar(:) !! Gas mean molecular weight at model centers (g/mol).
+      real(dp), intent(out) :: usol(:,:) !! Initial number densities (molecules/cm^3).
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -142,7 +144,7 @@ module photochem_input
     module subroutine map_atmosphere_p_to_grid(dat, var, profile_pressure, &
                                                temperature, edd, mix, &
                                                particle_radius, pressure, &
-                                               density, mubar, err)
+                                               density, mubar, usol, err)
       type(PhotochemData), intent(in) :: dat
       type(PhotochemVars), intent(inout) :: var
       !> Strictly decreasing pressure profile knots (dyn/cm^2), including both domain edges.
@@ -156,6 +158,7 @@ module photochem_input
       real(dp), intent(out) :: pressure(:) !! Hydrostatic pressure at model centers (dyn/cm^2).
       real(dp), intent(out) :: density(:) !! Total gas number density at model centers (molecules/cm^3).
       real(dp), intent(out) :: mubar(:) !! Gas mean molecular weight at model centers (g/mol).
+      real(dp), intent(out) :: usol(:,:) !! Initial number densities (molecules/cm^3).
       character(:), allocatable, intent(out) :: err
     end subroutine
     
@@ -197,11 +200,12 @@ contains
   !! settings, constructs the grid and gravity, and interpolates atmospheric
   !! profiles and particle radii. The caller must invoke
   !! `finalize_atmosphere_initialization` before preparing the RHS work arrays.
-  subroutine setup_atmosphere_from_file(atmosphere_txt, dat, var, err)
+  subroutine setup_atmosphere_from_file(atmosphere_txt, dat, var, usol, err)
 
     character(len=*), intent(in) :: atmosphere_txt
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(inout) :: var
+    real(dp), intent(out) :: usol(:,:)
     character(:), allocatable, intent(out) :: err
 
     type(AtmosphereFileProfile) :: profile
@@ -209,7 +213,7 @@ contains
     call read_atmosphere_file(atmosphere_txt, dat, profile, err)
     if (allocated(err)) return
 
-    call map_atmosphere_file_to_grid(dat, var, profile, err)
+    call map_atmosphere_file_to_grid(dat, var, profile, usol, err)
     if (allocated(err)) return
 
   end subroutine

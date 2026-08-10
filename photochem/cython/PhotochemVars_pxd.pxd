@@ -20,9 +20,6 @@ cdef extern void photochemvars_top_atmos_get(PhotochemVars *ptr, double *val)
 cdef extern void photochemvars_bottom_atmos_get(PhotochemVars *ptr, double *val)
 
 
-cdef extern void photochemvars_usol_init_get_size(PhotochemVars *ptr, int *dim1, int *dim2)
-cdef extern void photochemvars_usol_init_get(PhotochemVars *ptr, int *dim1, int *dim2, double *usol_init)
-
 cdef extern void photochemvars_particle_radius_get_size(PhotochemVars *ptr, int *dim1, int *dim2)
 cdef extern void photochemvars_particle_radius_get(PhotochemVars *ptr, int *dim1, int *dim2, double *arr)
 cdef extern void photochemvars_particle_radius_set(PhotochemVars *ptr, int *dim1, int *dim2, double *arr)

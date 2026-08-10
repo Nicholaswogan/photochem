@@ -384,7 +384,6 @@ def test_wrapper():
     print(pc.var.nz)
     print(pc.var.top_atmos)
     print(pc.var.bottom_atmos)
-    print(pc.var.usol_init[0,0])
     print(pc.var.trop_alt)
     print(pc.var.trop_ind)
     print(pc.var.z[0])

@@ -77,19 +77,22 @@ contains
     character(:), allocatable, intent(out) :: err
 
     type(EvoAtmosphere) :: candidate
+    real(dp), allocatable :: usol_start(:,:)
 
     call create_atmosphere_candidate(self, candidate, err)
     if (allocated(err)) return
 
     call reset_press_temp_edd_profile(candidate%var)
 
-    call setup_atmosphere_from_file(atmosphere_txt, candidate%dat, candidate%var, err)
+    allocate(usol_start(candidate%dat%nq,candidate%var%nz))
+    call setup_atmosphere_from_file(atmosphere_txt, candidate%dat, candidate%var, &
+                                    usol_start, err)
     if (allocated(err)) return
 
     call finalize_atmosphere_initialization(candidate%dat, candidate%var, err)
     if (allocated(err)) return
 
-    call prepare_atmosphere_candidate(candidate, err)
+    call prepare_atmosphere_candidate(candidate, usol_start, err)
     if (allocated(err)) return
 
     call commit_atmosphere_candidate(self, candidate, err)
@@ -109,7 +112,7 @@ contains
     character(:), allocatable, intent(out) :: err
 
     type(EvoAtmosphere) :: candidate
-    real(dp), allocatable :: pressure(:), density(:), mubar(:)
+    real(dp), allocatable :: pressure(:), density(:), mubar(:), usol_start(:,:)
 
     call create_atmosphere_candidate(self, candidate, err)
     if (allocated(err)) return
@@ -117,16 +120,16 @@ contains
     call reset_press_temp_edd_profile(candidate%var)
 
     allocate(pressure(candidate%var%nz), density(candidate%var%nz), &
-             mubar(candidate%var%nz))
+             mubar(candidate%var%nz), usol_start(candidate%dat%nq,candidate%var%nz))
     call map_atmosphere_z_to_grid(candidate%dat, candidate%var, z, temperature, &
                                   edd, surface_pressure, mix, particle_radius, &
-                                  pressure, density, mubar, err)
+                                  pressure, density, mubar, usol_start, err)
     if (allocated(err)) return
 
     call finalize_atmosphere_initialization(candidate%dat, candidate%var, err)
     if (allocated(err)) return
 
-    call prepare_atmosphere_candidate(candidate, err)
+    call prepare_atmosphere_candidate(candidate, usol_start, err)
     if (allocated(err)) return
 
     call commit_atmosphere_candidate(self, candidate, err)
@@ -150,7 +153,7 @@ contains
     character(:), allocatable, intent(out) :: err
 
     type(EvoAtmosphere) :: candidate
-    real(dp), allocatable :: pressure_model(:), density(:), mubar(:)
+    real(dp), allocatable :: pressure_model(:), density(:), mubar(:), usol_start(:,:)
     logical :: persistent_, maintain_toa_pressure_
 
     persistent_ = .false.
@@ -175,16 +178,16 @@ contains
     call reset_press_temp_edd_profile(candidate%var)
 
     allocate(pressure_model(candidate%var%nz), density(candidate%var%nz), &
-             mubar(candidate%var%nz))
+             mubar(candidate%var%nz), usol_start(candidate%dat%nq,candidate%var%nz))
     call map_atmosphere_p_to_grid(candidate%dat, candidate%var, pressure, &
                                   temperature, edd, mix, particle_radius, &
-                                  pressure_model, density, mubar, err)
+                                  pressure_model, density, mubar, usol_start, err)
     if (allocated(err)) return
 
     call finalize_atmosphere_initialization(candidate%dat, candidate%var, err)
     if (allocated(err)) return
 
-    call prepare_atmosphere_candidate(candidate, err)
+    call prepare_atmosphere_candidate(candidate, usol_start, err)
     if (allocated(err)) return
 
     if (persistent_) then
@@ -197,7 +200,6 @@ contains
                                                 maintain_toa_pressure=maintain_toa_pressure_, &
                                                 target_pressure=target_pressure, err=err)
       if (allocated(err)) return
-      candidate%var%usol_init = candidate%wrk%usol
     endif
 
     call commit_atmosphere_candidate(self, candidate, err)
@@ -226,16 +228,14 @@ contains
 
   end subroutine
 
-  subroutine prepare_atmosphere_candidate(candidate, err)
+  subroutine prepare_atmosphere_candidate(candidate, usol_start, err)
     type(EvoAtmosphere), intent(inout) :: candidate
+    real(dp), intent(in) :: usol_start(:,:)
     character(:), allocatable, intent(out) :: err
 
-    call candidate%prep_atmosphere_unchecked(candidate%var%usol_init, err=err)
+    call candidate%prep_atmosphere_unchecked(usol_start, err=err)
     if (allocated(err)) return
 
-    ! Boundary conditions are imposed while preparing the atmosphere. Retain
-    ! that prepared state as the canonical initial condition.
-    candidate%var%usol_init = candidate%wrk%usol
     candidate%atmosphere_initialized = .true.
 
   end subroutine

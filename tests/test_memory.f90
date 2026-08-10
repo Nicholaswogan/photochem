@@ -67,7 +67,7 @@ contains
       stop 1
     endif
     
-    call pc%initialize_stepper(pc%var%usol_init, err)
+    call pc%initialize_stepper(pc%wrk%usol, err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
@@ -90,7 +90,7 @@ contains
       stop 1
     endif
 
-    call pc%initialize_stepper(pc%var%usol_init, err)
+    call pc%initialize_stepper(pc%wrk%usol, err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
@@ -218,7 +218,7 @@ contains
     pc%var%autodiff = .true.
     pc%var%atol = 1.0e-20_dp
     
-    call pc%initialize_stepper(pc%var%usol_init, err)
+    call pc%initialize_stepper(pc%wrk%usol, err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
@@ -244,7 +244,7 @@ contains
 
     pc%var%autodiff = .false.
     
-    call pc%initialize_stepper(pc%var%usol_init, err)
+    call pc%initialize_stepper(pc%wrk%usol, err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
@@ -276,7 +276,7 @@ contains
     character(:), allocatable :: err
     logical :: give_up, converged
     
-    call pc%initialize_robust_stepper(pc%var%usol_init, err)
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1

@@ -1393,13 +1393,8 @@ contains
       print *, 'altitude initialization retained a pressure-based profile'
       stop 1
     endif
-    if (pc%wrk%usol(ind_H2,1) /= fixed_H2_density .or. &
-        pc%var%usol_init(ind_H2,1) /= fixed_H2_density) then
+    if (pc%wrk%usol(ind_H2,1) /= fixed_H2_density) then
       print *, 'altitude initialization did not apply the fixed-density boundary condition'
-      stop 1
-    endif
-    if (any(pc%var%usol_init /= pc%wrk%usol)) then
-      print *, 'canonical and prepared altitude-initialization states differ'
       stop 1
     endif
     if (any(pc%wrk%pressure_hydro <= 0.0_dp) .or. any(pc%wrk%density_hydro <= 0.0_dp)) then
@@ -1482,10 +1477,6 @@ contains
         any(pc%var%press_temp_edd_profile%temperature /= temperature) .or. &
         any(pc%var%press_temp_edd_profile%edd /= edd)) then
       print *, 'pressure initialization did not retain the persistent profile'
-      stop 1
-    endif
-    if (any(pc%var%usol_init /= pc%wrk%usol)) then
-      print *, 'canonical and prepared pressure-initialization states differ'
       stop 1
     endif
     if (.not. pc%var%toa_pressure_maintenance%enabled .or. &
@@ -1685,8 +1676,7 @@ contains
         .not.all(ieee_is_finite(pc%var%edd)) .or. &
         .not.all(ieee_is_finite(pc%var%xs_x_qy)) .or. &
         .not.all(pc%var%xs_x_qy > 0.0_dp) .or. &
-        .not.all(ieee_is_finite(pc%wrk%usol)) .or. &
-        .not.all(ieee_is_finite(pc%var%usol_init))) then
+        .not.all(ieee_is_finite(pc%wrk%usol))) then
       print *, trim(label)//' initialization left invalid derived state'
       stop 1
     endif
@@ -1760,7 +1750,7 @@ contains
     endif
     if (pc%var%press_temp_edd_profile%enabled .or. &
         any(pc%var%particle_radius <= 0.0_dp) .or. &
-        any(pc%var%usol_init(1:pc%dat%npq,:) <= 0.0_dp)) then
+        any(pc%wrk%usol(1:pc%dat%npq,:) <= 0.0_dp)) then
       print *, 'particle-bearing pressure initialization produced invalid state'
       stop 1
     endif
@@ -1800,7 +1790,7 @@ contains
       stop 1
     endif
     if (any(pc%var%particle_radius <= 0.0_dp) .or. &
-        any(pc%var%usol_init(1:pc%dat%npq,:) <= 0.0_dp)) then
+        any(pc%wrk%usol(1:pc%dat%npq,:) <= 0.0_dp)) then
       print *, 'particle-bearing altitude initialization produced invalid particle state'
       stop 1
     endif
@@ -1879,7 +1869,7 @@ contains
 
     ! Atmosphere-dependent methods consistently reject the same object before
     ! touching uninitialized atmospheric arrays.
-    call pc%prep_atmosphere(pc%var%usol_init, err)
+    call pc%prep_atmosphere(pc%wrk%usol, err)
     call check_not_initialized_error(err, 'prep_atmosphere')
     deallocate(err)
 
@@ -1887,7 +1877,7 @@ contains
     call check_not_initialized_error(err, 'set_temperature')
     deallocate(err)
 
-    call pc%initialize_stepper(pc%var%usol_init, err)
+    call pc%initialize_stepper(pc%wrk%usol, err)
     call check_not_initialized_error(err, 'initialize_stepper')
 
     ! A statically configured object can be initialized later.
@@ -1901,11 +1891,6 @@ contains
       print *, 'explicit atmosphere initialization did not set lifecycle state'
       stop 1
     endif
-    if (any(pc%var%usol_init /= pc%wrk%usol)) then
-      print *, 'legacy-file canonical and prepared initial states differ'
-      stop 1
-    endif
-
     ! Failed reinitialization is atomic: the initialized atmosphere and active
     ! CVODE state are retained.
     profile_pressure = [2.0_dp*maxval(pc%wrk%pressure_hydro), &
@@ -1918,7 +1903,7 @@ contains
       print *, trim(err)
       stop 1
     endif
-    call pc%initialize_stepper(pc%var%usol_init, err)
+    call pc%initialize_stepper(pc%wrk%usol, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1

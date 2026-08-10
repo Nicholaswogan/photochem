@@ -262,6 +262,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemVars) :: var_save
+    real(dp), allocatable :: usol_start(:,:)
     
     call self%require_atmosphere_initialized('set_temperature', err)
     if (allocated(err)) return
@@ -323,8 +324,10 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
     endif
 
-    ! Fill wrk with new values
-    call self%prep_atmosphere(self%wrk%usol, err)
+    ! Fill wrk with new values. Keep the input separate from wrk%usol because
+    ! prep_atmosphere has distinct input and output arrays.
+    usol_start = self%wrk%usol
+    call self%prep_atmosphere(usol_start, err)
     if (allocated(err)) return
     
   end subroutine
@@ -390,6 +393,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     character(:), allocatable, intent(out) :: err
 
     type(PhotochemVars) :: var_save
+    real(dp), allocatable :: usol_start(:,:)
     logical :: maintain_toa_pressure_
 
     call self%require_atmosphere_initialized('set_press_temp_edd_profile', err)
@@ -430,7 +434,10 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
     ! prep_atmosphere validates and applies the stored profile through the
     ! same path used by RHS and Jacobian evaluations.
-    call self%prep_atmosphere(self%wrk%usol, err)
+    ! Keep the input separate from wrk%usol because preparation writes the
+    ! canonical working state through a distinct output argument.
+    usol_start = self%wrk%usol
+    call self%prep_atmosphere(usol_start, err)
     if (allocated(err)) then
       self%var = var_save
       return
@@ -1511,7 +1518,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     if (.not.allocated(err) .and. dat%reverse) call compute_gibbs_energy(dat, var, err)
     if (.not.allocated(err)) then
       ! The persistent profile was reconciled during candidate construction.
-      call prep_all_evo_gas(self, var%usol_init, &
+      call prep_all_evo_gas(self, candidate%usol, &
                             apply_persistent_profile=.false., err=err)
     endif
 
@@ -1588,9 +1595,6 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     call swap_real_1d(var%edd, candidate%edd)
     call swap_real_1d(var%photon_flux, candidate%photon_flux)
 
-    call move_alloc(var%usol_init, tmp_2d)
-    call move_alloc(candidate%usol, var%usol_init)
-    call move_alloc(tmp_2d, candidate%usol)
     call move_alloc(var%particle_radius, tmp_2d)
     call move_alloc(candidate%particle_radius, var%particle_radius)
     call move_alloc(tmp_2d, candidate%particle_radius)
