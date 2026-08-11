@@ -545,8 +545,9 @@ module photochem_evoatmosphere
 
     !> Changes the altitude-based temperature profile.
     !!
-    !! This procedure cannot be used while a persistent pressure-temperature-
-    !! eddy profile is enabled. Call `clear_press_temp_edd_profile` first.
+    !! This procedure cannot be used while a CVODE stepper is initialized or
+    !! while a persistent pressure-temperature-eddy profile is enabled. Call
+    !! `destroy_stepper` or `clear_press_temp_edd_profile` first, respectively.
     module subroutine set_temperature(self, temperature, trop_alt, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: temperature(:) !! new temperature at each atomspheric layer
@@ -575,8 +576,9 @@ module photochem_evoatmosphere
     !! On success, this procedure updates the model temperature, eddy
     !! diffusion, and derived atmospheric working state. Atmospheric species
     !! number densities are not evolved by this procedure. This procedure
-    !! cannot be used while a persistent pressure-temperature-eddy profile is
-    !! enabled; call `clear_press_temp_edd_profile` first.
+    !! cannot be used while a CVODE stepper is initialized or while a
+    !! persistent pressure-temperature-eddy profile is enabled; call
+    !! `destroy_stepper` or `clear_press_temp_edd_profile` first, respectively.
     module subroutine set_press_temp_edd(self, P, T, edd, trop_p, hydro_pressure, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dynes/cm^2)

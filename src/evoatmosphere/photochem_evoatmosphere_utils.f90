@@ -252,6 +252,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
   end subroutine
 
   module subroutine set_temperature(self, temperature, trop_alt, err)
+    use iso_c_binding, only: c_associated
     use photochem_input, only: refresh_temperature_dependent_state
     
     class(EvoAtmosphere), target, intent(inout) :: self
@@ -262,11 +263,17 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     type(PhotochemVars), pointer :: var
     type(PhotochemVars) :: var_save
     real(dp), allocatable :: usol_start(:,:)
+
+    var => self%var
     
     call self%require_atmosphere_initialized('set_temperature', err)
     if (allocated(err)) return
 
-    var => self%var
+    if (c_associated(self%wrk%sun%cvode_mem)) then
+      err = "Can not change the temperature profile while a CVODE stepper "// &
+            "is initialized. Call 'destroy_stepper' first."
+      return
+    endif
 
     if (var%press_temp_edd_profile%enabled) then
       err = "The persistent pressure-temperature-eddy profile is enabled. "// &
@@ -301,6 +308,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
   end subroutine
 
   module subroutine set_press_temp_edd(self, P, T, edd, trop_p, hydro_pressure, err)
+    use iso_c_binding, only: c_associated
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: P(:)
     real(dp), intent(in) :: T(:)
@@ -317,6 +325,12 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
     call self%require_atmosphere_initialized('set_press_temp_edd', err)
     if (allocated(err)) return
+
+    if (c_associated(self%wrk%sun%cvode_mem)) then
+      err = "Can not set a pressure-temperature-eddy profile while a CVODE "// &
+            "stepper is initialized. Call 'destroy_stepper' first."
+      return
+    endif
 
     if (self%var%press_temp_edd_profile%enabled) then
       err = "The persistent pressure-temperature-eddy profile is enabled. "// &

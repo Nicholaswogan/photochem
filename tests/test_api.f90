@@ -2096,6 +2096,31 @@ contains
       stop 1
     endif
 
+    ! Changing temperature or eddy diffusion must be rejected while CVODE
+    ! owns an active integration history.
+    call pc%initialize_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+    call pc%set_temperature(pc%var%temperature, err=err)
+    if (.not.allocated(err)) then
+      print*,'set_temperature was accepted while a stepper was initialized'
+      stop 1
+    endif
+    deallocate(err)
+    call pc%set_press_temp_edd(P, T, edd, err=err)
+    if (.not.allocated(err)) then
+      print*,'set_press_temp_edd was accepted while a stepper was initialized'
+      stop 1
+    endif
+    deallocate(err)
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print*,trim(err)
+      stop 1
+    endif
+
   end subroutine
 
   subroutine test_press_temp_edd_profile(pc)
