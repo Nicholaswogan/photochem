@@ -7,9 +7,9 @@ contains
 
   subroutine main_()
     use photochem, only: EvoAtmosphere, version, dp
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     character(:), allocatable :: err
     type(EvoAtmosphere) :: pc
-    integer :: ind
     logical :: converged
 
     ! Print version
@@ -33,6 +33,25 @@ contains
       print*,trim(err)
       stop 1
     endif
+    if (.not.converged) then
+      print*,'Modern Earth integration did not converge'
+      stop 1
+    endif
+    if (pc%wrk%nsteps_total <= 0) then
+      print*,'Modern Earth integration converged without an accepted step'
+      stop 1
+    endif
+    if (.not.ieee_is_finite(pc%wrk%tn) .or. pc%wrk%tn <= 0.0_dp .or. &
+        .not.ieee_is_finite(pc%wrk%longdy) .or. &
+        .not.ieee_is_finite(pc%wrk%longdydt) .or. &
+        .not.all(ieee_is_finite(pc%wrk%usol))) then
+      print*,'Modern Earth integration produced an invalid final state'
+      stop 1
+    endif
+
+    print*,'Modern Earth converged in accepted steps: ',pc%wrk%nsteps_total
+    print*,'Final integration time: ',pc%wrk%tn
+    print*,'Final longdy and longdydt: ',pc%wrk%longdy,pc%wrk%longdydt
 
   end subroutine
 

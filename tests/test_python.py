@@ -234,9 +234,15 @@ def _make_initialized_gas_giant():
     pc.gdat.verbose = False
 
     # The climate grid extends above the 0.1 dyn/cm^2 photochemical target.
-    pressure = np.array([1.0e6, 1.0e4, 1.0e2, 1.0, 1.0e-2])
-    temperature = np.array([300.0, 260.0, 220.0, 180.0, 150.0])
-    edd = np.array([1.0e5, 3.0e5, 1.0e6, 1.0e7, 3.0e7])
+    pressure = np.array([
+        1.0e7, 1.0e6, 1.0e4, 1.0e2, 1.0, 1.0e-2, 1.0e-3
+    ])
+    temperature = np.array([
+        320.0, 300.0, 260.0, 220.0, 180.0, 150.0, 140.0
+    ])
+    edd = np.array([
+        5.0e4, 1.0e5, 3.0e5, 1.0e6, 1.0e7, 3.0e7, 5.0e7
+    ])
     mix = {"H2": np.ones(pressure.size)}
 
     pc.gdat.P_clima_grid = pressure.copy()
@@ -259,7 +265,7 @@ def test_gas_giant_returns_climate_levels_above_photochemical_grid():
     sol = pc.return_atmosphere_climate_grid()
     above = pc.gdat.P_clima_grid < pc.wrk.pressure_hydro[-1]
 
-    assert np.any(above)
+    assert np.count_nonzero(above) >= 2
     assert np.array_equal(sol['temperature'], pc.gdat.T_clima_grid)
     assert np.array_equal(sol['Kzz'], pc.gdat.Kzz_clima_grid)
 
@@ -269,6 +275,34 @@ def test_gas_giant_returns_climate_levels_above_photochemical_grid():
         pc.wrk.usol[h2_index, -1] / pc.wrk.density[-1]
     )
     assert np.allclose(sol['H2'][above], h2_at_photochemical_top)
+
+
+def test_gas_giant_reinitializes_from_public_climate_grid():
+    pc = _make_initialized_gas_giant()
+    pressure = pc.gdat.P_clima_grid.copy()
+    initial = pc.return_atmosphere_climate_grid()
+    gas_names = pc.dat.species_names[pc.dat.np:(-2-pc.dat.nsl)]
+    mix = {sp: initial[sp].copy() for sp in gas_names}
+    temperature = pc.gdat.T_clima_grid + np.linspace(
+        15.0, 5.0, pressure.size
+    )
+    edd = 2.0 * pc.gdat.Kzz_clima_grid
+
+    pc.reinitialize_to_new_climate_PT(
+        pressure, temperature, edd, mix
+    )
+    sol = pc.return_atmosphere_climate_grid()
+    above = pressure < pc.wrk.pressure_hydro[-1]
+
+    assert np.count_nonzero(above) >= 2
+    assert np.array_equal(pc.gdat.T_clima_grid, temperature)
+    assert np.array_equal(pc.gdat.Kzz_clima_grid, edd)
+    assert np.array_equal(sol['temperature'], temperature)
+    assert np.array_equal(sol['Kzz'], edd)
+    for sp in gas_names:
+        assert np.all(np.isfinite(sol[sp]))
+        assert np.all(sol[sp] >= 0.0)
+        assert np.allclose(sol[sp][above], sol[sp][above][0])
 
 
 def test_gas_giant_uses_shared_robust_stepper():
@@ -566,7 +600,9 @@ def test_wrapper():
     print(pc.wrk.surf_radiance[0])
 
     pc.prep_atmosphere(pc.wrk.usol)
-    pc.out2atmosphere_txt('tmp.txt',overwrite=True)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        atmosphere_path = Path(tmp_dir) / "atmosphere.txt"
+        pc.out2atmosphere_txt(str(atmosphere_path), overwrite=True)
     pc.gas_fluxes()
     pc.set_lower_bc('O',bc_type='vdep',vdep=0)
     pc.set_upper_bc('O',bc_type='veff',veff=0)
@@ -603,6 +639,7 @@ def main():
     test_evolve_uses_fixed_grid()
     test_gas_giant_static_construction()
     test_gas_giant_returns_climate_levels_above_photochemical_grid()
+    test_gas_giant_reinitializes_from_public_climate_grid()
     test_gas_giant_uses_shared_robust_stepper()
     test_gas_giant_shared_limits_and_state_restore()
     test_wrapper()
