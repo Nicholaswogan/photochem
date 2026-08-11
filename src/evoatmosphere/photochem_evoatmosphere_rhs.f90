@@ -882,8 +882,9 @@ contains
     character(:), allocatable, intent(out) :: err
 
     real(dp), allocatable :: density_derivatives(:,:), reaction_derivative(:)
-    real(dp) :: rate_without_reactant
-    integer :: i, j, k, l, m, n, species
+    real(dp), allocatable :: production_derivative(:), loss_derivative(:)
+    real(dp) :: reaction_rate, loss
+    integer :: i, j, k, m, n, species
     logical :: has_condensing_particles
 
     type(PhotochemData), pointer :: dat
@@ -901,8 +902,7 @@ contains
       has_condensing_particles = &
           any(dat%particle_formation_method == CondensingParticle)
     endif
-    if (dat%nsl > 0 .or. dat%gas_rainout .or. &
-        has_condensing_particles) then
+    if (dat%gas_rainout .or. has_condensing_particles) then
       call autodiff_chemistry_jacobian(self, usol, rhs, djac, err)
       return
     endif
@@ -916,6 +916,8 @@ contains
 
     allocate(density_derivatives(dat%nsp+1,dat%nq))
     allocate(reaction_derivative(dat%nq))
+    allocate(production_derivative(dat%nq))
+    allocate(loss_derivative(dat%nq))
     djac = 0.0_dp
 
     do j = 1,var%nz
@@ -933,27 +935,41 @@ contains
       do i = dat%ng_1,dat%nq
         density_derivatives(i,i) = 1.0_dp
       enddo
+
+      ! Algebraically eliminated short-lived species are computed by dochem as
+      ! n_sl = production/loss, where loss is the first-order coefficient with
+      ! n_sl omitted from each loss reaction. Input validation prevents
+      ! dependencies between short-lived species, so this ordered loop does not
+      ! require an implicit solve.
+      do species = dat%nq+1,dat%nq+dat%nsl
+        loss = 0.0_dp
+        production_derivative = 0.0_dp
+        loss_derivative = 0.0_dp
+
+        do k = 1,dat%pl(species)%nump
+          m = dat%pl(species)%iprod(k)
+          call reaction_rate_and_derivative(m, j, 0, reaction_rate, &
+                                            reaction_derivative)
+          production_derivative = production_derivative + &
+                                  reaction_derivative
+        enddo
+        do k = 1,dat%pl(species)%numl
+          m = dat%pl(species)%iloss(k)
+          call reaction_rate_and_derivative(m, j, species, reaction_rate, &
+                                            reaction_derivative)
+          loss = loss + reaction_rate
+          loss_derivative = loss_derivative + reaction_derivative
+        enddo
+
+        density_derivatives(species,:) = &
+            (production_derivative - &
+             wrk%densities(species,j)*loss_derivative)/loss
+      enddo
       n = dat%nq*(j-1) + 1
 
       do m = 1,dat%nrT
-        reaction_derivative = 0.0_dp
-
-        ! Differentiate the mass-action product once for each reactant
-        ! occurrence. Repeated reactants therefore contribute once per
-        ! occurrence, without dividing by a possibly zero density.
-        do k = 1,dat%rx(m)%nreact
-          rate_without_reactant = wrk%rx_rates(j,m)
-          do l = 1,dat%rx(m)%nreact
-            if (l /= k) then
-              species = dat%rx(m)%react_sp_inds(l)
-              rate_without_reactant = rate_without_reactant* &
-                                      wrk%densities(species,j)
-            endif
-          enddo
-          species = dat%rx(m)%react_sp_inds(k)
-          reaction_derivative = reaction_derivative + &
-              rate_without_reactant*density_derivatives(species,:)
-        enddo
+        call reaction_rate_and_derivative(m, j, 0, reaction_rate, &
+                                          reaction_derivative)
 
         ! Scatter the reaction derivative according to stoichiometry. Species
         ! indices are repeated in the reaction metadata for coefficients > 1.
@@ -973,6 +989,45 @@ contains
         enddo
       enddo
     enddo
+
+  contains
+
+    subroutine reaction_rate_and_derivative(reaction, layer, &
+                                            excluded_species, rate, derivative)
+      integer, intent(in) :: reaction, layer, excluded_species
+      real(dp), intent(out) :: rate, derivative(:)
+
+      real(dp) :: rate_without_reactant
+      integer :: reactant, other_reactant, reactant_species
+
+      rate = wrk%rx_rates(layer,reaction)
+      do reactant = 1,dat%rx(reaction)%nreact
+        reactant_species = dat%rx(reaction)%react_sp_inds(reactant)
+        if (reactant_species /= excluded_species) then
+          rate = rate*wrk%densities(reactant_species,layer)
+        endif
+      enddo
+
+      derivative = 0.0_dp
+      do reactant = 1,dat%rx(reaction)%nreact
+        reactant_species = dat%rx(reaction)%react_sp_inds(reactant)
+        if (reactant_species == excluded_species) cycle
+
+        rate_without_reactant = wrk%rx_rates(layer,reaction)
+        do other_reactant = 1,dat%rx(reaction)%nreact
+          if (other_reactant /= reactant .and. &
+              dat%rx(reaction)%react_sp_inds(other_reactant) /= &
+                  excluded_species) then
+            rate_without_reactant = rate_without_reactant* &
+                wrk%densities( &
+                    dat%rx(reaction)%react_sp_inds(other_reactant),layer)
+          endif
+        enddo
+        derivative = derivative + rate_without_reactant* &
+                     density_derivatives(reactant_species,:)
+      enddo
+
+    end subroutine
 
   end subroutine
 

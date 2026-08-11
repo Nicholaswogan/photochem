@@ -78,6 +78,24 @@ contains
     call compare_analytical_jacobian(pc, usol_flat, &
                                      'density-floor repeated-reactant state')
 
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_short_lived.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (pc%dat%nsl /= 2 .or. pc%dat%there_are_particles .or. &
+        pc%dat%gas_rainout) then
+      print *, 'Short-lived Jacobian test has unexpected model features'
+      stop 1
+    endif
+    usol_flat = reshape(pc%wrk%usol, [pc%var%neqs])
+    call compare_analytical_jacobian(pc, usol_flat, &
+                                     'short-lived species state')
+
   end subroutine
 
   subroutine compare_analytical_jacobian(pc, usol_flat, label)
@@ -87,7 +105,9 @@ contains
 
     character(:), allocatable :: err
     real(dp), allocatable :: jac_autodiff(:), jac_analytical(:)
-    real(dp) :: jacobian_scale, relative_error
+    real(dp), allocatable :: chemistry_autodiff(:,:), chemistry_analytical(:,:)
+    real(dp) :: jacobian_scale, chemistry_scale
+    real(dp) :: relative_error, chemistry_relative_error
 
     allocate(jac_autodiff(pc%dat%lda*pc%var%neqs))
     allocate(jac_analytical(pc%dat%lda*pc%var%neqs))
@@ -100,6 +120,7 @@ contains
       print *, trim(err)
       stop 1
     endif
+    chemistry_autodiff = pc%wrk%djac_chem
 
     pc%var%analytical_jacobian = .true.
     call pc%jacobian(size(jac_analytical), pc%var%neqs, usol_flat, &
@@ -108,13 +129,19 @@ contains
       print *, trim(err)
       stop 1
     endif
+    chemistry_analytical = pc%wrk%djac_chem
 
     jacobian_scale = max(1.0_dp, maxval(abs(jac_autodiff)), &
                          maxval(abs(jac_analytical)))
     relative_error = maxval(abs(jac_analytical-jac_autodiff))/jacobian_scale
-    if (relative_error > 1.0e-12_dp) then
+    chemistry_scale = max(1.0_dp, maxval(abs(chemistry_autodiff)), &
+                          maxval(abs(chemistry_analytical)))
+    chemistry_relative_error = &
+        maxval(abs(chemistry_analytical-chemistry_autodiff))/chemistry_scale
+    if (relative_error > 1.0e-12_dp .or. &
+        chemistry_relative_error > 1.0e-12_dp) then
       print *, 'Analytical Jacobian differs from autodiff for ', &
-               trim(label), relative_error
+               trim(label), relative_error, chemistry_relative_error
       stop 1
     endif
 
