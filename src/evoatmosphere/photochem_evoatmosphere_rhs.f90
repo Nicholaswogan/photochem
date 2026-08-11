@@ -483,12 +483,26 @@ contains
 
   end subroutine
 
+  module subroutine clip_usol(usol_in, usol_out)
+    use photochem_const, only: small_real
+    real(dp), intent(in) :: usol_in(:,:)
+    real(dp), intent(out) :: usol_out(:,:)
+
+    usol_out = usol_in
+    where (usol_out >= 0.0_dp)
+      usol_out = max(usol_out, small_real)
+    elsewhere
+      usol_out = min(usol_out, -small_real)
+    endwhere
+
+  end subroutine
+
   module subroutine prep_atm_evo_gas(self, usol_in, usol, &
                                      molecules_per_particle, pressure, density, mix, mubar, &
                                      pressure_hydro, density_hydro, apply_persistent_profile, err)
     use photochem_eqns, only: press_and_den
     use photochem_common, only: molec_per_particle
-    use photochem_const, only: small_real, N_avo, k_boltz
+    use photochem_const, only: N_avo, k_boltz
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
     real(dp), intent(out) :: usol(:,:)
@@ -501,7 +515,7 @@ contains
     logical :: apply_profile
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    integer :: i, j
+    integer :: j
 
     dat => self%dat
     var => self%var
@@ -517,16 +531,7 @@ contains
       if (allocated(err)) return
     endif
 
-    !!! alter input usol
-    do j = 1,var%nz
-      do i = 1,dat%nq
-        if (usol_in(i,j) < 0.0_dp) then
-          usol(i,j) = min(usol_in(i,j),-small_real)
-        else
-          usol(i,j) = max(usol_in(i,j), small_real)
-        endif
-      enddo
-    enddo
+    call clip_usol(usol_in, usol)
 
     call self%apply_lower_boundary_conditions(var%temperature(1), usol(:,1), err)
     if (allocated(err)) return

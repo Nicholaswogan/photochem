@@ -679,12 +679,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     allocate(usol_base(dat%nq,var%nz), density_base(var%nz), mubar_base(var%nz))
 
     ! Copy and clip the current state in the same way as prep_atm_evo_gas.
-    usol_base = usol_in
-    where (usol_base >= 0.0_dp)
-      usol_base = max(usol_base, small_real)
-    elsewhere
-      usol_base = min(usol_base, -small_real)
-    endwhere
+    call clip_usol(usol_in, usol_base)
 
     ! Above the bottom layer, density and mean molecular weight do not
     ! depend on temperature. The bottom layer is handled separately because

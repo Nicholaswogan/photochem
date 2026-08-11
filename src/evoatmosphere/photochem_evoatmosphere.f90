@@ -259,6 +259,12 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    !> Copy a number-density state while applying the signed minimum density.
+    module subroutine clip_usol(usol_in, usol_out)
+      real(dp), intent(in) :: usol_in(:,:)
+      real(dp), intent(out) :: usol_out(:,:)
+    end subroutine
+
     module subroutine prep_atm_evo_gas(self, usol_in, usol, &
                                       molecules_per_particle, pressure, density, mix, mubar, &
                                       pressure_hydro, density_hydro, apply_persistent_profile, err)
