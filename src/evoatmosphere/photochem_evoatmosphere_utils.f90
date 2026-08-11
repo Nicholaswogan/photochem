@@ -263,6 +263,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     type(PhotochemVars), pointer :: var
     type(PhotochemVars) :: var_save
     real(dp), allocatable :: usol_start(:,:)
+    character(:), allocatable :: original_err, rollback_err
 
     var => self%var
     
@@ -303,7 +304,19 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     ! prep_atmosphere has distinct input and output arrays.
     usol_start = self%wrk%usol
     call self%prep_atmosphere(usol_start, err)
-    if (allocated(err)) return
+    if (allocated(err)) then
+      ! Restore both the configuration and derived work state if preparation
+      ! failed after making partial changes.
+      original_err = err
+      var = var_save
+      call self%prep_atmosphere(usol_start, rollback_err)
+      if (allocated(rollback_err)) then
+        err = original_err//' Rollback failed: '//rollback_err
+      else
+        err = original_err
+      endif
+      return
+    endif
     
   end subroutine
 
@@ -317,9 +330,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     logical, optional, intent(in) :: hydro_pressure
     character(:), allocatable, intent(out) :: err
 
-    real(dp) :: T_grid(self%var%nz), edd_grid(self%var%nz)
-    real(dp) :: log10P_grid(self%var%nz), trop_alt
-    real(dp) :: edd_save(self%var%nz)
+    real(dp), allocatable :: T_grid(:), edd_grid(:), log10P_grid(:)
+    real(dp), allocatable :: edd_save(:)
+    real(dp) :: trop_alt
     real(dp) :: trop_p_
     logical :: has_trop_p, hydro_pressure_
 
@@ -346,6 +359,12 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     else
       hydro_pressure_ = .true.
     endif
+
+    ! Allocate only after the lifecycle checks above. In particular, an
+    ! uninitialized object must return the normal API error without using an
+    ! undefined `var%nz` as an automatic-array extent.
+    allocate(T_grid(self%var%nz), edd_grid(self%var%nz), log10P_grid(self%var%nz), &
+             edd_save(self%var%nz))
 
     ! First compute the mapping without changing model state. This kernel is
     ! also suitable for applying a persistent pressure-based profile to an
@@ -401,6 +420,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     type(PhotochemVars) :: var_save
     real(dp), allocatable :: usol_start(:,:)
     logical :: maintain_toa_pressure_
+    character(:), allocatable :: original_err, rollback_err
 
     call self%require_atmosphere_initialized('set_press_temp_edd_profile', err)
     if (allocated(err)) return
@@ -444,7 +464,14 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     usol_start = self%wrk%usol
     call self%prep_atmosphere(usol_start, err)
     if (allocated(err)) then
+      original_err = err
       self%var = var_save
+      call self%prep_atmosphere(usol_start, rollback_err)
+      if (allocated(rollback_err)) then
+        err = original_err//' Rollback failed: '//rollback_err
+      else
+        err = original_err
+      endif
       return
     endif
 
