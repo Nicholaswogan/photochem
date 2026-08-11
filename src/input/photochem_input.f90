@@ -10,6 +10,7 @@ module photochem_input
   public :: setup_static, setup_atmosphere_from_file, map_atmosphere_z_to_grid
   public :: map_atmosphere_p_to_grid
   public :: finalize_atmosphere_initialization
+  public :: refresh_temperature_dependent_state
   public :: interp2xsdata, compute_gibbs_energy, interp2particlexsdata, parse_reaction
   
   type, extends(type_list) :: type_list_tmp
@@ -37,6 +38,17 @@ module photochem_input
     module subroutine finalize_atmosphere_initialization(dat, var, err)
       type(PhotochemData), intent(inout) :: dat
       type(PhotochemVars), intent(inout) :: var
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Refresh state derived from temperature and the current tropopause.
+    !! `var%temperature` must already contain the proposed temperature. If
+    !! `trop_alt` is supplied, it replaces `var%trop_alt` when gas rainout is
+    !! enabled.
+    module subroutine refresh_temperature_dependent_state(dat, var, trop_alt, err)
+      type(PhotochemData), intent(in) :: dat
+      type(PhotochemVars), intent(inout) :: var
+      real(dp), optional, intent(in) :: trop_alt
       character(:), allocatable, intent(out) :: err
     end subroutine
 

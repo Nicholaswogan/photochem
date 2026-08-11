@@ -252,14 +252,13 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
   end subroutine
 
   module subroutine set_temperature(self, temperature, trop_alt, err)
-    use photochem_input, only: interp2xsdata, compute_gibbs_energy
+    use photochem_input, only: refresh_temperature_dependent_state
     
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: temperature(:)
     real(dp), optional, intent(in) :: trop_alt
     character(:), allocatable, intent(out) :: err
     
-    type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemVars) :: var_save
     real(dp), allocatable :: usol_start(:,:)
@@ -267,7 +266,6 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     call self%require_atmosphere_initialized('set_temperature', err)
     if (allocated(err)) return
 
-    dat => self%dat
     var => self%var
 
     if (var%press_temp_edd_profile%enabled) then
@@ -280,48 +278,18 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       err = "temperature has the wrong input dimension"
       return
     endif
-    ! save in case there is an issue
+
+    ! Save in case there is an issue
     var_save = var
     
+    ! Commit the new temperature
     var%temperature = temperature
-    
-    ! xsections and gibbs energy needs updating
-    call interp2xsdata(dat, var, err)
+
+    ! Update temperature-dependent state in `var`
+    call refresh_temperature_dependent_state(self%dat, var, trop_alt, err)
     if (allocated(err)) then
       var = var_save
       return
-    endif
-    if (dat%reverse) then
-      call compute_gibbs_energy(dat, var, err)
-      if (allocated(err)) then
-        var = var_save
-        return
-      endif
-    endif
-    
-    ! If gas rainout is enabled and trop_alt is present, then we need to
-    ! change trop_ind, reallocate some stuff
-    ! in wrk, then we will re-prep the atmosphere
-    if (dat%gas_rainout .and. present(trop_alt)) then
-      if (trop_alt < var%bottom_atmos .or. trop_alt > var%top_atmos) then
-        var = var_save
-        err = "trop_alt is above or bellow the atmosphere!"
-        return
-      endif
-      
-      var%trop_alt = trop_alt
-      var%trop_ind = max(minloc(abs(var%z - var%trop_alt), 1) - 1, 1)
-
-      if (var%trop_ind < 3) then
-        var = var_save
-        err = 'Tropopause is too low.'
-        return
-      elseif (var%trop_ind > var%nz-2) then
-        var = var_save
-        err = 'Tropopause is too high.'
-        return
-      endif
-
     endif
 
     ! Fill wrk with new values. Keep the input separate from wrk%usol because
@@ -502,14 +470,13 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
   end subroutine
 
   module subroutine apply_press_temp_edd_profile(self, usol_in, err)
-    use photochem_input, only: interp2xsdata, compute_gibbs_energy
+    use photochem_input, only: refresh_temperature_dependent_state
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
     character(:), allocatable, intent(out) :: err
 
     real(dp) :: T_new(self%var%nz), edd_new(self%var%nz)
     real(dp) :: log10P_wrk(self%var%nz), trop_alt
-    integer :: trop_ind
 
     if (.not. self%var%press_temp_edd_profile%enabled) return
 
@@ -527,33 +494,12 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
          trop_alt=trop_alt, err=err)
     if (allocated(err)) return
 
-    if (self%dat%gas_rainout) then
-      trop_ind = max(minloc(abs(self%var%z-trop_alt), 1)-1, 1)
-      if (trop_ind < 3) then
-        err = 'Tropopause is too low.'
-        return
-      elseif (trop_ind > self%var%nz-2) then
-        err = 'Tropopause is too high.'
-        return
-      endif
-    else
-      trop_ind = 1
-    endif
-
     ! Commit only after the profile has mapped successfully and the
     ! tropopause has been validated. Do not call set_temperature here: that
     ! routine calls prep_atmosphere and would recurse back into this routine.
     self%var%temperature = T_new
     self%var%edd = edd_new
-    self%var%trop_ind = trop_ind
-    if (self%dat%gas_rainout) self%var%trop_alt = trop_alt
-
-    call interp2xsdata(self%dat, self%var, err)
-    if (allocated(err)) return
-    if (self%dat%reverse) then
-      call compute_gibbs_energy(self%dat, self%var, err)
-      if (allocated(err)) return
-    endif
+    call refresh_temperature_dependent_state(self%dat, self%var, trop_alt=trop_alt, err=err)
 
   end subroutine
 
@@ -1502,7 +1448,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
   module subroutine update_vertical_grid(self, TOA_alt, TOA_pressure, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    use photochem_input, only: interp2particlexsdata, interp2xsdata, compute_gibbs_energy
+    use photochem_input, only: interp2particlexsdata, refresh_temperature_dependent_state
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), optional, intent(in) :: TOA_alt !! cm
     real(dp), optional, intent(in) :: TOA_pressure !! dynes/cm^2
@@ -1572,8 +1518,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     call move_alloc(prepared_wrk, self%wrk)
 
     call interp2particlexsdata(dat, var, err)
-    if (.not.allocated(err)) call interp2xsdata(dat, var, err)
-    if (.not.allocated(err) .and. dat%reverse) call compute_gibbs_energy(dat, var, err)
+    if (.not.allocated(err)) call refresh_temperature_dependent_state(dat, var, err=err)
     if (.not.allocated(err)) then
       ! The persistent profile was reconciled during candidate construction.
       call prep_all_evo_gas(self, candidate%usol, &

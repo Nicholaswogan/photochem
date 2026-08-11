@@ -345,8 +345,42 @@ contains
 
     call interp2particlexsdata(dat, var, err)
     if (allocated(err)) return
-    
-    ! all below depends on Temperature
+
+    call refresh_temperature_dependent_state(dat, var, err=err)
+    if (allocated(err)) return
+
+  end subroutine
+
+  module subroutine refresh_temperature_dependent_state(dat, var, trop_alt, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    real(dp), optional, intent(in) :: trop_alt
+    character(:), allocatable, intent(out) :: err
+
+    real(dp) :: trop_alt_new
+    integer :: trop_ind_new
+
+    trop_ind_new = 1
+    if (dat%gas_rainout) then
+      trop_alt_new = var%trop_alt
+      if (present(trop_alt)) trop_alt_new = trop_alt
+      if (.not. ieee_is_finite(trop_alt_new) .or. &
+          trop_alt_new < var%bottom_atmos .or. trop_alt_new > var%top_atmos) then
+        err = 'trop_alt is above or bellow the atmosphere!'
+        return
+      endif
+
+      trop_ind_new = max(minloc(abs(var%z - trop_alt_new), 1) - 1, 1)
+      if (trop_ind_new < 3) then
+        err = 'Tropopause is too low.'
+        return
+      elseif (trop_ind_new > var%nz-2) then
+        err = 'Tropopause is too high.'
+        return
+      endif
+    endif
+
     call interp2xsdata(dat, var, err)
     if (allocated(err)) return
     
@@ -354,22 +388,14 @@ contains
       call compute_gibbs_energy(dat, var, err)
       if (allocated(err)) return
     endif
-    
-    if (dat%gas_rainout) then
-      ! we have a tropopause
-      var%trop_ind = max(minloc(abs(var%z - var%trop_alt), 1) - 1, 1)
 
-      if (var%trop_ind < 3) then
-        err = 'Tropopause is too low.'
-        return
-      elseif (var%trop_ind > var%nz-2) then
-        err = 'Tropopause is too high.'
-        return
-      endif
+    if (dat%gas_rainout) then
+      if (present(trop_alt)) var%trop_alt = trop_alt_new
+      var%trop_ind = trop_ind_new
     else
       var%trop_ind = 1
     endif
-    
+
   end subroutine
   
   subroutine interp2atmosfile(dat, var, profile, usol, err)
