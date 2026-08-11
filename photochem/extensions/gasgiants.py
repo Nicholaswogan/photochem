@@ -42,6 +42,8 @@ class GasGiantData():
         # Values that will be needed later. All of these set
         # in `initialize_to_climate_equilibrium_PT`
         self.P_clima_grid = None # The climate grid
+        self.T_clima_grid = None # Prescribed temperature on the climate grid
+        self.Kzz_clima_grid = None # Prescribed Kzz on the climate grid
         self.metallicity = None
         self.CtoO = None
         self.P_desired = None
@@ -159,7 +161,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
             raise Exception('Input P and Kzz must have same shape')
 
         # Save inputs
-        gdat.P_clima_grid = P_in
+        gdat.P_clima_grid = P_in.copy()
+        gdat.T_clima_grid = T_in.copy()
+        gdat.Kzz_clima_grid = Kzz_in.copy()
         gdat.metallicity = metallicity
         gdat.CtoO = CtoO
 
@@ -272,6 +276,11 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         # Require all gases be specified. Particles can be ignored.
         if set(list(mix.keys())) != set(self.dat.species_names[self.dat.np:(-2-self.dat.nsl)]):
             raise Exception('Some species are missing from input mix') 
+
+        # Save the newly prescribed climate-grid profiles. The pressure grid
+        # is required to match the one saved during initial initialization.
+        gdat.T_clima_grid = T_in.copy()
+        gdat.Kzz_clima_grid = Kzz_in.copy()
         
         # Compute mubar
         species_names = self.dat.species_names[:(-2-self.dat.nsl)]
@@ -308,12 +317,55 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         gdat = self.gdat
         target_pressure = self._toa_pressure_target()
 
-        # Select the pressure interval used by the photochemical model. The
-        # deeper profile remains in gdat for return_atmosphere.
-        ind_t = np.argmin(np.abs(P1 - target_pressure))
+        # Select the pressure interval used by the photochemical model. If the
+        # climate grid continues above the requested model top, interpolate an
+        # exact endpoint rather than selecting a climate level on an arbitrary
+        # side of the target. The complete climate profile remains in gdat.
+        P1 = np.asarray(P1)
+        T1 = np.asarray(T1)
+        Kzz1 = np.asarray(Kzz1)
+        z1 = np.asarray(z1)
+        top_candidates = np.flatnonzero(P1 <= target_pressure)
+        if top_candidates.size == 0:
+            raise Exception(
+                'The supplied pressure profile does not reach the requested '
+                'photochemical model top.'
+            )
+        ind_t = top_candidates[0]
         if ind_t <= gdat.ind_b:
             raise Exception('The photochemical pressure domain is empty.')
-        inds = slice(gdat.ind_b, ind_t + 1)
+
+        if np.isclose(P1[ind_t], target_pressure, rtol=1.0e-12, atol=0.0):
+            inds = slice(gdat.ind_b, ind_t + 1)
+            pressure_profile = P1[inds]
+            temperature_profile = T1[inds]
+            edd_profile = Kzz1[inds]
+            mix_profile = {
+                sp: np.asarray(values)[inds]
+                for sp, values in mix1.items()
+            }
+        else:
+            inds = slice(gdat.ind_b, ind_t)
+            log_pressure = np.log(P1[::-1])
+            log_target = np.log(target_pressure)
+            pressure_profile = np.append(P1[inds], target_pressure)
+            temperature_profile = np.append(
+                T1[inds], np.interp(log_target, log_pressure, T1[::-1])
+            )
+            edd_profile = np.append(
+                Kzz1[inds],
+                10.0**np.interp(
+                    log_target, log_pressure, np.log10(Kzz1[::-1])
+                )
+            )
+            mix_profile = {}
+            for sp, values in mix1.items():
+                values = np.asarray(values)
+                value_at_top = 10.0**np.interp(
+                    log_target, log_pressure,
+                    np.log10(np.clip(values[::-1], 1.0e-100, np.inf))
+                )
+                mix_profile[sp] = np.append(values[inds], value_at_top)
 
         # The base class interprets planet_radius at the lower pressure
         # boundary. Convert from the gas-giant reference pressure before
@@ -321,16 +373,16 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         planet_radius_new = gdat.planet_radius + z1[gdat.ind_b]
         species_names = self.dat.species_names[:(-2-self.dat.nsl)]
         mix_profile = {
-            sp: np.asarray(mix1[sp])[inds]
-            for sp in mix1 if sp in species_names
+            sp: values for sp, values in mix_profile.items()
+            if sp in species_names
         }
 
         planet_radius_old = self.dat.planet_radius
         self.dat.planet_radius = planet_radius_new
         try:
             self.initialize_atmosphere_p(
-                np.asarray(P1)[inds], np.asarray(T1)[inds],
-                np.asarray(Kzz1)[inds], mix_profile, persistent=True,
+                pressure_profile, temperature_profile, edd_profile,
+                mix_profile, persistent=True,
                 maintain_toa_pressure=True,
                 target_pressure=target_pressure
             )
@@ -379,17 +431,15 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         # return full atmosphere
         out = self.return_atmosphere()
 
-        # Interpolate full atmosphere to clima grid
+        # Temperature and Kzz are prescribed climate-model inputs, so return
+        # them directly. Only the photochemical composition needs mapping to
+        # the climate grid.
         sol = {}
         sol['pressure'] = gdat.P_clima_grid.copy()
+        sol['temperature'] = gdat.T_clima_grid.copy()
+        sol['Kzz'] = gdat.Kzz_clima_grid.copy()
         log10Pclima = np.log10(gdat.P_clima_grid[::-1]).copy()
         log10P = np.log10(out['pressure'][::-1]).copy()
-
-        T = np.interp(log10Pclima, log10P, out['temperature'][::-1].copy())
-        sol['temperature'] = T[::-1].copy()
-
-        Kzz = np.interp(log10Pclima, log10P, np.log10(out['Kzz'][::-1].copy()))
-        sol['Kzz'] = 10.0**Kzz[::-1].copy()
 
         for key in out:
             if key not in ['pressure','temperature','Kzz']:
@@ -499,6 +549,8 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
 
         out = {}
         out['P_clima_grid'] = gdat.P_clima_grid
+        out['T_clima_grid'] = gdat.T_clima_grid
+        out['Kzz_clima_grid'] = gdat.Kzz_clima_grid
         out['metallicity'] = gdat.metallicity
         out['CtoO'] = gdat.CtoO
         out['P_desired'] = gdat.P_desired
@@ -530,6 +582,15 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         self.clear_press_temp_edd_profile()
 
         gdat.P_clima_grid = out['P_clima_grid']
+        # Fall back to the leading prescribed-profile values for states saved
+        # before the climate-grid temperature and Kzz fields were introduced.
+        nclima = gdat.P_clima_grid.shape[0]
+        gdat.T_clima_grid = out.get(
+            'T_clima_grid', out['T_desired'][:nclima]
+        )
+        gdat.Kzz_clima_grid = out.get(
+            'Kzz_clima_grid', out['Kzz_desired'][:nclima]
+        )
         gdat.metallicity = out['metallicity']
         gdat.CtoO = out['CtoO']
         gdat.P_desired = out['P_desired']

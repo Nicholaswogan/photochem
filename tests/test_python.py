@@ -233,13 +233,15 @@ def _make_initialized_gas_giant():
     )
     pc.gdat.verbose = False
 
-    target_pressure = pc.var.toa_pressure_maintenance.target_pressure
-    pressure = np.array([1.0e6, 1.0e4, 1.0e2, target_pressure])
-    temperature = np.array([300.0, 260.0, 220.0, 180.0])
-    edd = np.array([1.0e5, 3.0e5, 1.0e6, 1.0e7])
+    # The climate grid extends above the 0.1 dyn/cm^2 photochemical target.
+    pressure = np.array([1.0e6, 1.0e4, 1.0e2, 1.0, 1.0e-2])
+    temperature = np.array([300.0, 260.0, 220.0, 180.0, 150.0])
+    edd = np.array([1.0e5, 3.0e5, 1.0e6, 1.0e7, 3.0e7])
     mix = {"H2": np.ones(pressure.size)}
 
     pc.gdat.P_clima_grid = pressure.copy()
+    pc.gdat.T_clima_grid = temperature.copy()
+    pc.gdat.Kzz_clima_grid = edd.copy()
     pc.gdat.P_desired = pressure.copy()
     pc.gdat.T_desired = temperature.copy()
     pc.gdat.Kzz_desired = edd.copy()
@@ -250,6 +252,23 @@ def _make_initialized_gas_giant():
         pressure, temperature, edd, np.zeros(pressure.size), mix
     )
     return pc
+
+
+def test_gas_giant_returns_climate_levels_above_photochemical_grid():
+    pc = _make_initialized_gas_giant()
+    sol = pc.return_atmosphere_climate_grid()
+    above = pc.gdat.P_clima_grid < pc.wrk.pressure_hydro[-1]
+
+    assert np.any(above)
+    assert np.array_equal(sol['temperature'], pc.gdat.T_clima_grid)
+    assert np.array_equal(sol['Kzz'], pc.gdat.Kzz_clima_grid)
+
+    species_names = pc.dat.species_names[:(-2-pc.dat.nsl)]
+    h2_index = species_names.index('H2')
+    h2_at_photochemical_top = (
+        pc.wrk.usol[h2_index, -1] / pc.wrk.density[-1]
+    )
+    assert np.allclose(sol['H2'][above], h2_at_photochemical_top)
 
 
 def test_gas_giant_uses_shared_robust_stepper():
@@ -320,6 +339,20 @@ def test_gas_giant_shared_limits_and_state_restore():
     state = pc.model_state_to_dict()
     pc.initialize_from_dict(state)
     assert not pc.wrk.robust_stepper_initialized
+    assert np.array_equal(pc.gdat.T_clima_grid, state['T_clima_grid'])
+    assert np.array_equal(pc.gdat.Kzz_clima_grid, state['Kzz_clima_grid'])
+
+    legacy_state = state.copy()
+    legacy_state.pop('T_clima_grid')
+    legacy_state.pop('Kzz_clima_grid')
+    pc.initialize_from_dict(legacy_state)
+    nclima = pc.gdat.P_clima_grid.size
+    assert np.array_equal(
+        pc.gdat.T_clima_grid, state['T_desired'][:nclima]
+    )
+    assert np.array_equal(
+        pc.gdat.Kzz_clima_grid, state['Kzz_desired'][:nclima]
+    )
     maintenance = pc.var.toa_pressure_maintenance
     assert maintenance.enabled
     assert np.isclose(maintenance.target_pressure, custom_target)
@@ -569,6 +602,7 @@ def main():
     test_static_construction()
     test_evolve_uses_fixed_grid()
     test_gas_giant_static_construction()
+    test_gas_giant_returns_climate_levels_above_photochemical_grid()
     test_gas_giant_uses_shared_robust_stepper()
     test_gas_giant_shared_limits_and_state_restore()
     test_wrapper()
