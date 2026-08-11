@@ -219,6 +219,114 @@ def test_gas_giant_static_construction():
     assert pc.atmosphere_initialized
 
 
+def _make_initialized_gas_giant():
+    from photochem.extensions.gasgiants import EvoAtmosphereGasGiant
+
+    pc = EvoAtmosphereGasGiant(
+        "no_particle_test.yaml",
+        "../examples/ModernEarth/Sun_now.txt",
+        5.972e27,
+        6.371e8,
+        nz=20,
+        thermo_file="no_particle_test.yaml",
+        data_dir="../data",
+    )
+    pc.gdat.verbose = False
+
+    target_pressure = pc.var.toa_pressure_maintenance.target_pressure
+    pressure = np.array([1.0e6, 1.0e4, 1.0e2, target_pressure])
+    temperature = np.array([300.0, 260.0, 220.0, 180.0])
+    edd = np.array([1.0e5, 3.0e5, 1.0e6, 1.0e7])
+    mix = {"H2": np.ones(pressure.size)}
+
+    pc.gdat.P_clima_grid = pressure.copy()
+    pc.gdat.P_desired = pressure.copy()
+    pc.gdat.T_desired = temperature.copy()
+    pc.gdat.Kzz_desired = edd.copy()
+    pc.gdat.metallicity = 1.0
+    pc.gdat.CtoO = 1.0
+    pc.gdat.ind_b = 0
+    pc._initialize_atmosphere(
+        pressure, temperature, edd, np.zeros(pressure.size), mix
+    )
+    return pc
+
+
+def test_gas_giant_uses_shared_robust_stepper():
+    from photochem.extensions.gasgiants import EvoAtmosphereGasGiant
+
+    # Initialization and the steady-state loop are inherited directly. The
+    # remaining robust_step override only adds progress presentation.
+    assert "initialize_robust_stepper" not in EvoAtmosphereGasGiant.__dict__
+    assert "find_steady_state" not in EvoAtmosphereGasGiant.__dict__
+
+    pc = _make_initialized_gas_giant()
+    maintenance = pc.var.toa_pressure_maintenance
+    assert pc.var.nerrors_before_giveup == 10
+    assert pc.var.nsteps_before_conv_check == 300
+    assert pc.var.nsteps_before_reinit == 1000
+    assert pc.var.nsteps_before_giveup == 100_000
+    assert maintenance.enabled
+    assert np.isclose(maintenance.target_pressure, 0.1)
+    assert maintenance.pressure_factor == 3.0
+    assert maintenance.nsteps_between_updates == 1000
+
+    pc.initialize_robust_stepper(pc.wrk.usol)
+    assert pc.wrk.robust_stepper_initialized
+    assert pc.wrk.nsteps_total == 0
+    assert pc.wrk.nerrors_total == 0
+
+    # Exercise the progress wrapper over a shared step with an immediate,
+    # deterministic convergence condition.
+    pc.var.equilibrium_time = 0.0
+    give_up, converged = pc.robust_step()
+    assert not give_up
+    assert converged
+    assert pc.wrk.nsteps_total == 1
+
+    pc.destroy_stepper()
+    assert not pc.wrk.robust_stepper_initialized
+
+    # The inherited steady-state loop dispatches through the shared robust
+    # initializer and the presentation-only step wrapper.
+    assert pc.find_steady_state()
+    assert pc.wrk.robust_stepper_initialized
+    pc.destroy_stepper()
+
+
+def test_gas_giant_shared_limits_and_state_restore():
+    pc = _make_initialized_gas_giant()
+    custom_target = 0.2
+    pc.destroy_stepper()
+    pc.set_press_temp_edd_profile(
+        pc.gdat.P_desired, pc.gdat.T_desired, pc.gdat.Kzz_desired,
+        hydro_pressure=True, target_pressure=custom_target
+    )
+
+    # The exact shared accepted-step ceiling replaces the legacy Python
+    # counter, which allowed one extra step.
+    pc.var.equilibrium_time = 1.0e100
+    pc.var.nsteps_before_conv_check = 0
+    pc.var.nsteps_before_reinit = 2
+    pc.var.nsteps_before_giveup = 1
+    pc.var.conv_longdy = -1.0
+    pc.var.conv_longdydt = -1.0
+    pc.initialize_robust_stepper(pc.wrk.usol)
+    give_up, converged = pc.robust_step()
+    assert give_up
+    assert not converged
+    assert pc.wrk.nsteps_total == 1
+
+    state = pc.model_state_to_dict()
+    pc.initialize_from_dict(state)
+    assert not pc.wrk.robust_stepper_initialized
+    maintenance = pc.var.toa_pressure_maintenance
+    assert maintenance.enabled
+    assert np.isclose(maintenance.target_pressure, custom_target)
+    assert maintenance.pressure_factor == 3.0
+    assert maintenance.nsteps_between_updates == 1000
+
+
 def test_initialize_atmosphere_z_no_particles():
     pc = EvoAtmosphere(
         "no_particle_test.yaml",
@@ -461,6 +569,8 @@ def main():
     test_static_construction()
     test_evolve_uses_fixed_grid()
     test_gas_giant_static_construction()
+    test_gas_giant_uses_shared_robust_stepper()
+    test_gas_giant_shared_limits_and_state_restore()
     test_wrapper()
     test_initialize_atmosphere_z_particles()
     test_initialize_atmosphere_z_no_particles()

@@ -9,6 +9,8 @@ cdef extern from "PhotochemWrk.h":
     pass
 
 cdef extern void photochemwrk_nsteps_total_get(PhotochemWrk *ptr, int *val)
+cdef extern void photochemwrk_nerrors_total_get(PhotochemWrk *ptr, int *val)
+cdef extern void photochemwrk_robust_stepper_initialized_get(PhotochemWrk *ptr, bool *val)
 
 cdef extern void photochemwrk_nsteps_get(PhotochemWrk *ptr, int *val)
 

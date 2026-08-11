@@ -11,6 +11,22 @@
     val = wrk%nsteps_total
   end subroutine
 
+  subroutine photochemwrk_nerrors_total_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    val = wrk%nerrors_total
+  end subroutine
+
+  subroutine photochemwrk_robust_stepper_initialized_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    logical(c_bool), intent(out) :: val
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    val = wrk%robust_stepper_initialized
+  end subroutine
+
   subroutine photochemwrk_nsteps_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val

@@ -54,6 +54,20 @@ cdef class PhotochemWrk:
       wrk_pxd.photochemwrk_nsteps_total_get(self._ptr, &val)
       return val
 
+  property nerrors_total:
+    "int. Total number of failed steps in a robust integration."
+    def __get__(self):
+      cdef int val
+      wrk_pxd.photochemwrk_nerrors_total_get(self._ptr, &val)
+      return val
+
+  property robust_stepper_initialized:
+    "bool. True while the active CVODE stepper belongs to a robust integration."
+    def __get__(self):
+      cdef bool val
+      wrk_pxd.photochemwrk_robust_stepper_initialized_get(self._ptr, &val)
+      return val
+
   property nsteps:
     "int. Number of integration steps excuted. Updated after every successful step."
     def __get__(self):

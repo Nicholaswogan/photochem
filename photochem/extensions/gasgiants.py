@@ -6,7 +6,7 @@ from scipy import integrate
 from tempfile import NamedTemporaryFile
 import copy
 
-from .._photochem import EvoAtmosphere, PhotoException
+from .._photochem import EvoAtmosphere
 from .. import equilibrate
 from ..utils._format import yaml, FormatSettings_main, MyDumper
 
@@ -35,11 +35,7 @@ class GasGiantData():
         # quenching relations as an initial guess
         self.initial_cond_with_quenching = True
 
-        # Parameters for determining steady state
-        self.TOA_pressure_avg = 1.0e-7*1e6 # mean TOA pressure (dynes/cm^2)
-        self.freq_update_TOA = 1000 # Step frequency to adjust the TOA pressure.
-        self.max_total_step = 100_000 # Maximum total allowed steps before giving up
-        self.min_step_conv = 300 # Min internal steps considered before convergence is allowed
+        # Progress-reporting parameters.
         self.verbose = True # print information or not?
         self.freq_print = 100 # Frequency in which to print
 
@@ -53,10 +49,6 @@ class GasGiantData():
         self.Kzz_desired = None
         # Index of climate grid that is bottom of photochemical grid
         self.ind_b = None
-        # information needed during robust stepping
-        self.total_step_counter = None
-        self.nerrors = None
-        self.robust_stepper_initialized = None
 
 class EvoAtmosphereGasGiant(EvoAtmosphere):
     "An extension to the EvoAtmosphere class for modeling gas-rich planets."
@@ -125,6 +117,19 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         self.var.conv_longdy = 0.01 # threshold relative change that determines convergence
         self.var.custom_binary_diffusion_fcn = custom_binary_diffusion_fcn
 
+        # Gas-giant defaults for the shared robust integration policy. These
+        # preserve the extension's established limits while leaving one source
+        # of truth for stepping, recovery, convergence, and TOA maintenance.
+        self.var.nerrors_before_giveup = 10
+        self.var.nsteps_before_conv_check = 300
+        self.var.nsteps_before_reinit = 1000
+        self.var.nsteps_before_giveup = 100_000
+        maintenance = self.var.toa_pressure_maintenance
+        maintenance.target_pressure = 0.1 # dynes/cm^2
+        maintenance.pressure_factor = 3.0
+        maintenance.nsteps_between_updates = 1000
+        maintenance.max_failures = 2
+
     def initialize_to_climate_equilibrium_PT(self, P_in, T_in, Kzz_in, metallicity, CtoO, rainout_condensed_atoms=True):
         """Initialized the photochemical model to a climate model result that assumes chemical equilibrium
         at some metallicity and C/O ratio.
@@ -146,6 +151,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         """
 
         gdat = self.gdat
+        target_pressure = self._toa_pressure_target()
 
         if P_in.shape[0] != T_in.shape[0]:
             raise Exception('Input P and T must have same shape')
@@ -160,11 +166,11 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         # Compute chemical equilibrium along the whole P-T profile
         mix, mubar = composition_at_metallicity(gdat.gas, T_in, P_in, CtoO, metallicity, rainout_condensed_atoms)
 
-        if gdat.TOA_pressure_avg*3 > P_in[-1]:
+        if target_pressure*3 > P_in[-1]:
             raise Exception('The photochemical grid needs to extend above the climate grid')
 
         # Altitude of P-T grid
-        P1, T1, mubar1, z1 = compute_altitude_of_PT(P_in, gdat.P_ref, T_in, mubar, gdat.planet_radius, gdat.planet_mass, gdat.TOA_pressure_avg)
+        P1, T1, mubar1, z1 = compute_altitude_of_PT(P_in, gdat.P_ref, T_in, mubar, gdat.planet_radius, gdat.planet_mass, target_pressure)
         # If needed, extrapolate Kzz and mixing ratios
         if P1.shape[0] != Kzz_in.shape[0]:
             Kzz1 = np.append(Kzz_in,Kzz_in[-1])
@@ -220,7 +226,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
                         mubar1[j] += mix1[sp][j]*self.dat.species_mass[i]
 
             # Update z1 to get a new altitude profile
-            P1, T1, mubar1, z1 = compute_altitude_of_PT(P1, gdat.P_ref, T1, mubar1, gdat.planet_radius, gdat.planet_mass, gdat.TOA_pressure_avg)
+            P1, T1, mubar1, z1 = compute_altitude_of_PT(P1, gdat.P_ref, T1, mubar1, gdat.planet_radius, gdat.planet_mass, target_pressure)
 
         # Save the prescribed P-T-Kzz profile.
         gdat.P_desired = P1.copy()
@@ -253,6 +259,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         """
 
         gdat = self.gdat
+        target_pressure = self._toa_pressure_target()
 
         if gdat.P_clima_grid is None:
             raise Exception('This routine can only be called after `initialize_to_climate_equilibrium_PT`')
@@ -280,7 +287,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
                 mubar = mubar + mix[sp]*species_mass[ind]
 
         # Compute altitude of P-T grid
-        P1, T1, mubar1, z1 = compute_altitude_of_PT(P_in, gdat.P_ref, T_in, mubar, gdat.planet_radius, gdat.planet_mass, gdat.TOA_pressure_avg)
+        P1, T1, mubar1, z1 = compute_altitude_of_PT(P_in, gdat.P_ref, T_in, mubar, gdat.planet_radius, gdat.planet_mass, target_pressure)
         # If needed, extrapolte Kzz and mixing ratios
         if P1.shape[0] != Kzz_in.shape[0]:
             Kzz1 = np.append(Kzz_in,Kzz_in[-1])
@@ -302,10 +309,11 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         "Initialize the shared photochemical model from gas-giant profiles."
 
         gdat = self.gdat
+        target_pressure = self._toa_pressure_target()
 
         # Select the pressure interval used by the photochemical model. The
         # deeper profile remains in gdat for return_atmosphere.
-        ind_t = np.argmin(np.abs(P1 - gdat.TOA_pressure_avg))
+        ind_t = np.argmin(np.abs(P1 - target_pressure))
         if ind_t <= gdat.ind_b:
             raise Exception('The photochemical pressure domain is empty.')
         inds = slice(gdat.ind_b, ind_t + 1)
@@ -327,13 +335,11 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
                 np.asarray(P1)[inds], np.asarray(T1)[inds],
                 np.asarray(Kzz1)[inds], mix_profile, persistent=True,
                 maintain_toa_pressure=True,
-                target_pressure=gdat.TOA_pressure_avg
+                target_pressure=target_pressure
             )
         except Exception:
             self.dat.planet_radius = planet_radius_old
             raise
-        gdat.robust_stepper_initialized = False
-
         # Retain the gas-giant boundary-condition policy. Pressure boundary
         # conditions use the initialized lowest model cell, as before.
         for i,sp in enumerate(species_names):
@@ -348,6 +354,15 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
                 mix_surf = self.wrk.usol[ind,0]/self.wrk.density[0]
                 Pi = self.wrk.pressure_hydro[0]*mix_surf
                 self.set_lower_bc(sp, bc_type='press', press=Pi)
+
+    def _toa_pressure_target(self):
+        "Return the shared, validated gas-giant TOA-pressure target."
+        target_pressure = self.var.toa_pressure_maintenance.target_pressure
+        if not np.isfinite(target_pressure) or target_pressure <= 0.0:
+            raise ValueError(
+                'var.toa_pressure_maintenance.target_pressure must be finite and positive'
+            )
+        return target_pressure
 
     def return_atmosphere_climate_grid(self):
         """Returns a dictionary with temperature, Kzz and mixing ratios
@@ -446,118 +461,34 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
 
         return out
     
-    def initialize_robust_stepper(self, usol):
-        """Initialized a robust integrator.
-
-        Parameters
-        ----------
-        usol : ndarray[double,dim=2]
-            Input number densities
-        """
-        gdat = self.gdat  
-        if gdat.P_clima_grid is None:
-            raise Exception('This routine can only be called after `initialize_to_climate_equilibrium_PT`')
-        
-        gdat.total_step_counter = 0
-        gdat.nerrors = 0
-        self.initialize_stepper(usol)
-        gdat.robust_stepper_initialized = True
-
     def robust_step(self):
-        """Takes a single robust integrator step
+        """Take one shared robust step and optionally report gas-giant progress.
+
+        Stepping, recovery, convergence, restart, limit, and TOA-maintenance
+        policy are implemented by :class:`EvoAtmosphere`. This override only
+        retains the extension's compact progress display.
 
         Returns
         -------
         tuple
-            The tuple contains two bools `give_up, reached_steady_state`. If give_up is True
-            then the algorithm things it is time to give up on reaching a steady state. If
-            reached_steady_state then the algorithm has reached a steady state within
-            tolerance.
+            Two booleans ``give_up, reached_steady_state`` from the shared
+            robust stepper.
         """
+        nsteps_before = self.wrk.nsteps_total
+        give_up, reached_steady_state = super().robust_step()
 
-        gdat = self.gdat
-
-        if gdat.P_clima_grid is None:
-            raise Exception('This routine can only be called after `initialize_to_climate_equilibrium_PT`')
-
-        if not gdat.robust_stepper_initialized:
-            raise Exception('This routine can only be called after `initialize_robust_stepper`')
-
-        give_up = False
-        reached_steady_state = False
-
-        for i in range(1):
-            try:
-                self.step()
-                gdat.total_step_counter += 1
-            except PhotoException as e:
-                # If there is an error, lets reinitialize, but get rid of any
-                # negative numbers
-                usol = np.clip(self.wrk.usol.copy(),a_min=1.0e-40,a_max=np.inf)
-                self.initialize_stepper(usol)
-                gdat.nerrors += 1
-
-                if gdat.nerrors > 10:
-                    give_up = True
-                    break
-
-            # convergence checking
-            converged = self.check_for_convergence()
-
-            # TOA pressure
+        nsteps = self.wrk.nsteps_total
+        accepted_step = nsteps > nsteps_before
+        report_interval = max(int(self.gdat.freq_print), 1)
+        if self.gdat.verbose and (
+            reached_steady_state or give_up or
+            (accepted_step and not (nsteps % report_interval))
+        ):
             TOA_pressure = self.wrk.pressure_hydro[-1]
+            print('nsteps = %i  longdy = %.1e  TOA_pressure = %.1e' %
+                  (nsteps, self.wrk.longdy, TOA_pressure/1e6))
 
-            chemistry_converged = (
-                converged and self.wrk.nsteps > gdat.min_step_conv
-            ) or self.wrk.tn > self.var.equilibrium_time
-            TOA_in_range = gdat.TOA_pressure_avg/3 < TOA_pressure < gdat.TOA_pressure_avg*3
-
-            if chemistry_converged and TOA_in_range:
-                if gdat.verbose:
-                    print('nsteps = %i  longdy = %.1e  TOA_pressure = %.1e'% \
-                        (gdat.total_step_counter, self.wrk.longdy, TOA_pressure/1e6))
-                # success!
-                reached_steady_state = True
-                break
-
-            if not (self.wrk.nsteps % gdat.freq_update_TOA) or (chemistry_converged and not TOA_in_range):
-                # Periodically keep the TOA near the desired pressure. The
-                # persistent profile is automatically remapped on the new grid.
-                try:
-                    self.update_vertical_grid(TOA_pressure=gdat.TOA_pressure_avg)
-                except PhotoException:
-                    pass
-                self.initialize_stepper(self.wrk.usol)
-
-            if gdat.total_step_counter > gdat.max_total_step:
-                give_up = True
-                break
-
-            if not (self.wrk.nsteps % gdat.freq_print) and gdat.verbose:
-                print('nsteps = %i  longdy = %.1e  TOA_pressure = %.1e'% \
-                    (gdat.total_step_counter, self.wrk.longdy, TOA_pressure/1e6))
-                
         return give_up, reached_steady_state
-    
-    def find_steady_state(self):
-        """Attempts to find a photochemical steady state.
-
-        Returns
-        -------
-        bool
-            If True, then the routine was successful.
-        """    
-
-        self.initialize_robust_stepper(self.wrk.usol)
-        success = True
-        while True:
-            give_up, reached_steady_state = self.robust_step()
-            if reached_steady_state:
-                break
-            if give_up:
-                success = False
-                break
-        return success
     
     def model_state_to_dict(self):
         """Returns a dictionary containing all information needed to reinitialize the atmospheric
@@ -576,6 +507,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         out['P_desired'] = gdat.P_desired
         out['T_desired'] = gdat.T_desired
         out['Kzz_desired'] = gdat.Kzz_desired
+        out['toa_pressure_target'] = self._toa_pressure_target()
         out['ind_b'] = gdat.ind_b
         out['planet_radius_new'] = self.dat.planet_radius
         out['top_atmos'] = self.var.top_atmos
@@ -591,12 +523,14 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         """
 
         gdat = self.gdat
+        target_pressure = out.get('toa_pressure_target', 0.1)
+        if not np.isfinite(target_pressure) or target_pressure <= 0.0:
+            raise ValueError('Saved TOA-pressure target must be finite and positive')
 
         # The saved state replaces any current integration and prescribed
         # pressure profile.
         self.destroy_stepper()
         self.clear_press_temp_edd_profile()
-        gdat.robust_stepper_initialized = False
 
         gdat.P_clima_grid = out['P_clima_grid']
         gdat.metallicity = out['metallicity']
@@ -624,7 +558,8 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
 
         self.set_press_temp_edd_profile(
             gdat.P_desired, gdat.T_desired, gdat.Kzz_desired,
-            hydro_pressure=True
+            hydro_pressure=True, maintain_toa_pressure=True,
+            target_pressure=target_pressure
         )
 
 ###
