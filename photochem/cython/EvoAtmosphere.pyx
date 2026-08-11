@@ -287,9 +287,9 @@ cdef class EvoAtmosphere:
         Retain temperature and eddy diffusion as functions of hydrostatic
         pressure. The default is false.
     tropopause_pressure : float, optional
-        Tropopause pressure in dyn/cm^2. May be supplied only when
-        ``persistent`` and gas rainout are enabled; it is required when
-        gas rainout is enabled.
+        Tropopause pressure in dyn/cm^2. May be supplied when gas rainout is
+        enabled and overrides the settings-file tropopause for the initial
+        state. It is required when ``persistent`` and gas rainout are enabled.
     default_mix : float, optional
         Mixing ratio assigned to species omitted from ``mix``. The default is
         1.0e-40.
