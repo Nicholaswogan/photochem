@@ -1654,14 +1654,16 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     character(:), allocatable, intent(out) :: err
 
     real(dp) :: top_atmos_new
-    type(VerticalGridCandidate) :: candidate
+    type(VerticalGridCandidate) :: candidate, candidate_copy
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemVars) :: var_save
+    type(PhotochemWrkEvo), pointer :: wrk
+    character(:), allocatable :: original_err
 
     dat => self%dat
     var => self%var
+    wrk => self%wrk
 
     ! Check inputs
     call self%require_atmosphere_initialized('update_vertical_grid', err)
@@ -1691,21 +1693,74 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     endif
 
     call VerticalGridCandidate_allocate(candidate, dat%np, dat%nq, var%nz)
+    call VerticalGridCandidate_allocate(candidate_copy, dat%np, dat%nq, var%nz)
+
+    ! Snapshot the committed state before refreshing any derived work arrays.
+    ! The hydrostatic pressure used by candidate construction must be derived
+    ! from the canonical atmospheric state, not a possibly stale work cache.
+    call copy_var_to_candidate(var, candidate_copy)
+    candidate_copy%usol = wrk%usol
+
+    ! Refresh all atmospheric work state from the committed composition. When
+    ! enabled, the persistent profile is applied before pressure and
+    ! hydrostatic quantities are recomputed.
+    call self%prep_atm_evo_gas(candidate_copy%usol, wrk%usol, &
+                               wrk%molecules_per_particle, wrk%pressure, &
+                               wrk%density, wrk%mix, wrk%mubar, &
+                               wrk%pressure_hydro, wrk%density_hydro, &
+                               var%press_temp_edd_profile%enabled, err)
+    if (allocated(err)) then
+      original_err = err
+      call rollback_vertical_grid(self, candidate_copy, original_err, err)
+      return
+    endif
 
     if (present(TOA_alt)) then
       top_atmos_new = TOA_alt
     else
       top_atmos_new = TOA_at_pressure(self, self%wrk%usol, TOA_pressure, candidate, err)
-      if (allocated(err)) return
+      if (allocated(err)) then
+        original_err = err
+        call rollback_vertical_grid(self, candidate_copy, original_err, err)
+        return
+      endif
     endif
 
     ! Compute properties associated with new TOA
     call build_vertical_grid_candidate(self, self%wrk%usol, top_atmos_new, candidate, err)
-    if (allocated(err)) return
-
-    var_save = var
+    if (allocated(err)) then
+      original_err = err
+      call rollback_vertical_grid(self, candidate_copy, original_err, err)
+      return
+    endif
 
     ! Now commit
+    call copy_candidate_to_var(candidate, var)
+    call finalize_atmosphere_initialization(dat, var, err)
+    if (allocated(err)) then
+      original_err = err
+      call rollback_vertical_grid(self, candidate_copy, original_err, err)
+      return
+    endif
+    call self%prep_atmosphere(candidate%usol, err)
+    if (allocated(err)) then
+      original_err = err
+      call rollback_vertical_grid(self, candidate_copy, original_err, err)
+      return
+    endif
+    call self%destroy_stepper(err)
+    if (allocated(err)) then
+      original_err = err
+      call rollback_vertical_grid(self, candidate_copy, original_err, err)
+      return
+    endif
+
+  end subroutine
+
+  subroutine copy_candidate_to_var(candidate, var)
+    type(VerticalGridCandidate), intent(in) :: candidate
+    type(PhotochemVars), intent(inout) :: var
+
     var%trop_alt = candidate%trop_alt
     var%top_atmos = candidate%top_atmos
     var%z = candidate%z
@@ -1714,15 +1769,45 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     var%temperature = candidate%temperature
     var%edd = candidate%edd
     var%particle_radius = candidate%particle_radius
-    call finalize_atmosphere_initialization(dat, var, err)
-    if (allocated(err)) then
-      var = var_save
-      return
+
+  end subroutine
+
+  subroutine copy_var_to_candidate(var, candidate)
+    type(PhotochemVars), intent(in) :: var
+    type(VerticalGridCandidate), intent(inout) :: candidate
+
+    candidate%trop_alt = var%trop_alt
+    candidate%top_atmos = var%top_atmos
+    candidate%z = var%z
+    candidate%dz = var%dz
+    candidate%grav = var%grav
+    candidate%temperature = var%temperature
+    candidate%edd = var%edd
+    candidate%particle_radius = var%particle_radius
+
+  end subroutine
+
+  subroutine rollback_vertical_grid(self, candidate, original_err, err)
+    use photochem_input, only: finalize_atmosphere_initialization
+    class(EvoAtmosphere), target, intent(inout) :: self
+    type(VerticalGridCandidate), intent(in) :: candidate
+    character(:), allocatable, intent(in) :: original_err
+    character(:), allocatable, intent(out) :: err
+
+    character(:), allocatable :: rollback_err
+
+    call copy_candidate_to_var(candidate, self%var)
+
+    call finalize_atmosphere_initialization(self%dat, self%var, rollback_err)
+    if (.not.allocated(rollback_err)) then
+      call self%prep_atmosphere(candidate%usol, rollback_err)
     endif
-    call self%prep_atmosphere(candidate%usol, err)
-    if (allocated(err)) return
-    call self%destroy_stepper(err)
-    if (allocated(err)) return
+
+    if (allocated(rollback_err)) then
+      err = original_err//' Rollback failed: '//rollback_err
+    else
+      err = original_err
+    endif
 
   end subroutine
 
