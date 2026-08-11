@@ -895,14 +895,14 @@ contains
     var => self%var
     wrk => self%wrk
 
-    ! These dochem terms are added in later passes. Never return a partial
-    ! analytical Jacobian for a mechanism that uses one of them.
+    ! Condensation and evaporation derivatives are added in a later pass.
+    ! Never return a partial analytical Jacobian for a mechanism that uses them.
     has_condensing_particles = .false.
     if (dat%there_are_particles) then
       has_condensing_particles = &
           any(dat%particle_formation_method == CondensingParticle)
     endif
-    if (dat%gas_rainout .or. has_condensing_particles) then
+    if (has_condensing_particles) then
       call autodiff_chemistry_jacobian(self, usol, rhs, djac, err)
       return
     endif
@@ -988,6 +988,15 @@ contains
           endif
         enddo
       enddo
+
+      ! Rainout rates are prepared before the Jacobian calculation and are
+      ! therefore fixed coefficients in both the autodiff and analytical
+      ! chemistry paths. Match d(-k_rain*n)/dn = -k_rain below the tropopause.
+      if (dat%gas_rainout .and. j <= var%trop_ind) then
+        do i = 1,dat%nq
+          djac(i,n+i-1) = djac(i,n+i-1) - wrk%rainout_rates(i,j)
+        enddo
+      endif
     enddo
 
   contains
