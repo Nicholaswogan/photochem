@@ -565,6 +565,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     real(dp), allocatable :: log10P_in(:), T_in(:), log10edd_in(:)
     real(dp), allocatable :: P_wrk(:), log10edd_new(:)
     real(dp), allocatable :: usol_base(:,:), density_base(:), mubar_base(:)
+    real(dp), allocatable :: usol_bottom(:)
     real(dp) :: xzero, Psurf_initial, Psurf_final
     real(dp) :: log10P_previous, temperature_previous
     real(dp) :: trop_alt_array(1)
@@ -650,6 +651,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     ! Allocate work space
     allocate(P_wrk(var%nz), log10edd_new(var%nz))
     allocate(usol_base(dat%nq,var%nz), density_base(var%nz), mubar_base(var%nz))
+    allocate(usol_bottom(dat%nq))
 
     ! Copy and clip the current state in the same way as prep_atm_evo_gas.
     call clip_usol(usol, usol_base)
@@ -938,7 +940,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       real(dp), intent(out) :: density_bottom, mubar_bottom, surface_pressure
       character(:), allocatable, intent(out) :: err_
 
-      real(dp) :: usol_bottom(dat%nq), column_mass
+      real(dp) :: column_mass
       integer :: gas_ind
 
       ! Apply boundary conditions to a local bottom-layer copy; self is never
