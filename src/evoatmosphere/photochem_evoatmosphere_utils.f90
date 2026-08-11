@@ -1721,6 +1721,8 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     endif
     call self%prep_atmosphere(candidate%usol, err)
     if (allocated(err)) return
+    call self%destroy_stepper(err)
+    if (allocated(err)) return
 
   end subroutine
 

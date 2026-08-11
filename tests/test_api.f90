@@ -790,7 +790,7 @@ contains
     type(EvoAtmosphere) :: pc
     character(:), allocatable :: err
     real(dp), allocatable :: z_before(:), usol_before(:,:), temperature_before(:)
-    real(dp), allocatable :: particle_radius_before(:,:)
+    real(dp), allocatable :: particle_radius_before(:,:), particle_radius_valid(:,:)
     real(dp) :: top_before, surface_pressure_before, tn, tn_before
     integer :: nsteps_before
     integer :: i, optical_particle
@@ -823,11 +823,14 @@ contains
       stop 1
     endif
 
-    ! The interpolation contract rejects radii exactly on its tabulated lower
-    ! boundary. Introduce that condition only after CVODE is initialized so
-    ! candidate preparation fails after the original solver has been parked.
+    ! Keep a valid copy so the active stepper can be checked after the
+    ! intentionally invalid candidate input has been tested.
+    particle_radius_valid = pc%var%particle_radius
+
+    ! Optical cross-section data require radii strictly inside their tabulated
+    ! interval. Use a clearly out-of-range value after CVODE is active.
     pc%var%particle_radius(optical_particle,pc%var%nz) = &
-        pc%dat%radii_file(1,optical_particle)
+        0.5_dp*pc%dat%radii_file(1,optical_particle)
     top_before = pc%var%top_atmos
     surface_pressure_before = pc%var%surface_pressure
     z_before = pc%var%z
@@ -852,6 +855,10 @@ contains
       stop 1
     endif
 
+    ! Directly changing a live radius is outside the normal public API and
+    ! makes the model invalid independently of the failed update. Restore the
+    ! valid pre-injection state before checking that CVODE itself survived.
+    pc%var%particle_radius = particle_radius_valid
     tn = pc%step(err)
     if (allocated(err) .or. tn <= 0.0_dp) then
       if (allocated(err)) print *, trim(err)
