@@ -1037,12 +1037,13 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     end function
   end subroutine
 
-  function TOA_at_pressure(self, usol, TOA_pressure, err) result(top_atmos)
+  function TOA_at_pressure(self, usol, TOA_pressure, candidate, err) result(top_atmos)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, ieee_value
     use futils, only: brent_class
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol(:,:)
     real(dp), intent(in) :: TOA_pressure !! dynes/cm^2
+    type(VerticalGridCandidate), intent(inout) :: candidate
     character(:), allocatable, intent(out) :: err
     real(dp) :: top_atmos !! cm
 
@@ -1162,7 +1163,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
       real(dp) :: pressure
 
-      pressure = pressure_at_TOA(self, usol, altitude, err)
+      pressure = pressure_at_TOA(self, usol, altitude, candidate, err)
       if (allocated(err)) then
         residual = ieee_value(0.0_dp,ieee_quiet_nan)
         return
@@ -1176,14 +1177,13 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     end function
   end function
 
-  function pressure_at_TOA(self, usol, top_atmos_new, err) result(TOA_pressure)
+  function pressure_at_TOA(self, usol, top_atmos_new, candidate, err) result(TOA_pressure)
     class(EvoAtmosphere), target, intent(in) :: self
     real(dp), intent(in) :: usol(:,:)
     real(dp), intent(in) :: top_atmos_new !! cm
+    type(VerticalGridCandidate), intent(inout) :: candidate
     character(:), allocatable, intent(out) :: err
     real(dp) :: TOA_pressure !! dynes/cm^2
-
-    type(VerticalGridCandidate) :: candidate
 
     call build_vertical_grid_candidate(self, usol, top_atmos_new, candidate, err)
     if (allocated(err)) return
@@ -1194,25 +1194,11 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
   subroutine build_vertical_grid_candidate(self, usol, top_atmos_new, candidate, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    use futils, only: interp
-    use photochem_eqns, only: vertical_grid, gravity
-    use photochem_const, only: small_real, k_boltz, N_avo
     class(EvoAtmosphere), target, intent(in) :: self
     real(dp), intent(in) :: usol(:,:)
     real(dp), intent(in) :: top_atmos_new !! cm
-    type(VerticalGridCandidate), intent(out) :: candidate
+    type(VerticalGridCandidate), intent(inout) :: candidate
     character(:), allocatable, intent(out) :: err
-
-    real(dp), parameter :: persistent_tolerance = 1.0e-10_dp
-    integer, parameter :: persistent_max_iterations = 50
-    real(dp) :: gas_mix_total, pressure_previous, temperature_previous
-    real(dp) :: delta_z, mubar
-    real(dp), allocatable :: mix(:,:), mix_new(:,:)
-    real(dp), allocatable :: density(:), density_new(:)
-    real(dp), allocatable :: temperature_mapped(:), edd_mapped(:), log10P_mapped(:)
-    real(dp), allocatable :: pressure_reference_candidate(:)
-    real(dp) :: trop_alt, temperature_change
-    integer :: i, j, ierr, iteration, first_extended
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -1233,23 +1219,35 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       return
     endif
 
-    candidate%top_atmos = top_atmos_new
-    candidate%surface_pressure = var%surface_pressure
-    candidate%trop_alt = var%trop_alt
-    candidate%trop_ind = var%trop_ind
-    allocate(candidate%usol(dat%nq,var%nz))
-    allocate(candidate%z(var%nz),candidate%dz(var%nz),candidate%grav(var%nz))
-    allocate(candidate%temperature(var%nz),candidate%edd(var%nz))
-    allocate(candidate%particle_radius(dat%np,var%nz))
-    allocate(candidate%pressure(var%nz))
-    allocate(mix(dat%nq,var%nz), mix_new(dat%nq,var%nz))
-    allocate(density(var%nz),density_new(var%nz))
+    if (var%press_temp_edd_profile%enabled) then
+      call build_vertical_grid_candidate_p(self, usol, top_atmos_new, candidate, err)
+    else
+      call build_vertical_grid_candidate_z(self, usol, top_atmos_new, candidate, err)
+    endif
 
-    ! Remake the vertical grid and gravity
-    call vertical_grid(var%bottom_atmos, top_atmos_new, &
-                      var%nz, candidate%z, candidate%dz)
-    call gravity(dat%planet_radius, dat%planet_mass, &
-                var%nz, candidate%z, candidate%grav)
+  end subroutine
+
+  subroutine initialize_candidate_grid(self, top_atmos_new, candidate, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use photochem_eqns, only: vertical_grid, gravity
+    class(EvoAtmosphere), target, intent(in) :: self
+    real(dp), intent(in) :: top_atmos_new !! cm
+    type(VerticalGridCandidate), intent(inout) :: candidate
+    character(:), allocatable, intent(out) :: err
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+
+    dat => self%dat
+    var => self%var
+
+    candidate%top_atmos = top_atmos_new
+    candidate%trop_alt = var%trop_alt
+
+    call vertical_grid(var%bottom_atmos, top_atmos_new, var%nz, &
+                       candidate%z, candidate%dz)
+    call gravity(dat%planet_radius, dat%planet_mass, var%nz, &
+                 candidate%z, candidate%grav)
     if (.not.all(ieee_is_finite(candidate%z)) .or. &
         .not.all(ieee_is_finite(candidate%dz)) .or. &
         .not.all(ieee_is_finite(candidate%grav)) .or. &
@@ -1258,14 +1256,26 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       return
     endif
 
-    ! Temperature
+  end subroutine
+
+  subroutine seed_candidate_temperature_edd(self, candidate, err)
+    use futils, only: interp
+    class(EvoAtmosphere), target, intent(in) :: self
+    type(VerticalGridCandidate), intent(inout) :: candidate
+    character(:), allocatable, intent(out) :: err
+
+    type(PhotochemVars), pointer :: var
+    integer :: ierr
+
+    var => self%var
+
+    ! Map the altitude-based profiles. This is the final profile mapping for
+    ! the altitude path and an initial guess for the pressure-profile path.
     call interp(candidate%z, var%z, var%temperature, candidate%temperature, ierr=ierr)
     if (ierr /= 0) then
       err = 'Temperature interpolation failed while constructing a candidate vertical grid.'
       return
     endif
-
-    ! Eddy diffusion
     call interp(candidate%z, var%z, log10(max(var%edd,1.0e-40_dp)), &
                 candidate%edd, ierr=ierr)
     if (ierr /= 0) then
@@ -1273,49 +1283,119 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       return
     endif
     candidate%edd = 10.0_dp**candidate%edd
+    call validate_candidate_temperature_edd(candidate, err)
+    if (allocated(err)) return
+
+  end subroutine
+
+  subroutine validate_candidate_temperature_edd(candidate, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    type(VerticalGridCandidate), intent(in) :: candidate
+    character(:), allocatable, intent(out) :: err
+
     if (.not.all(ieee_is_finite(candidate%temperature)) .or. &
         any(candidate%temperature <= 0.0_dp) .or. &
-        .not.all(ieee_is_finite(candidate%edd)) .or. any(candidate%edd <= 0.0_dp)) then
+        .not.all(ieee_is_finite(candidate%edd)) .or. &
+        any(candidate%edd <= 0.0_dp)) then
       err = 'The candidate vertical grid produced invalid temperature or eddy diffusion.'
       return
     endif
 
-    ! determine mixing ratios and density
+  end subroutine
+
+  subroutine prepare_candidate_composition(self, usol, candidate, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use futils, only: interp
+    use photochem_const, only: small_real
+    class(EvoAtmosphere), target, intent(in) :: self
+    real(dp), intent(in) :: usol(:,:)
+    type(VerticalGridCandidate), intent(inout) :: candidate
+    character(:), allocatable, intent(out) :: err
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    real(dp) :: gas_mix_total
+    integer :: i, j, ierr
+
+    dat => self%dat
+    var => self%var
+
+    ! Convert the input atmosphere to mixing ratios and total gas density.
     do j = 1,var%nz
-      density(j) = sum(usol(dat%ng_1:,j))
-      if (.not.ieee_is_finite(density(j)) .or. density(j) <= 0.0_dp) then
+      candidate%density(j) = sum(usol(dat%ng_1:,j))
+      if (.not.ieee_is_finite(candidate%density(j)) .or. &
+          candidate%density(j) <= 0.0_dp) then
         err = 'Gas density must be finite and positive to construct a candidate vertical grid.'
         return
       endif
-      mix(:,j) = usol(:,j)/density(j) ! mixing ratios
+      candidate%mix(:,j) = usol(:,j)/candidate%density(j)
     enddo
-    ! Interpolate mixing ratios, with constant extrapolation
+
+    ! Interpolate mixing ratios in log-space. Gas mixing ratios are
+    ! normalized below; particle abundances remain ratios to total gas.
     do i = 1,dat%nq
-      call interp(candidate%z, var%z, log10(max(mix(i,:),small_real)), &
-                  mix_new(i,:), ierr=ierr)
+      call interp(candidate%z, var%z, &
+                  log10(max(candidate%mix(i,:),small_real)), &
+                  candidate%mix_new(i,:), ierr=ierr)
       if (ierr /= 0) then
         err = 'Mixing-ratio interpolation failed while constructing a candidate vertical grid.'
         return
       endif
     enddo
-    mix_new = 10.0_dp**mix_new
-    if (.not.all(ieee_is_finite(mix_new))) then
+    candidate%mix_new = 10.0_dp**candidate%mix_new
+    if (.not.all(ieee_is_finite(candidate%mix_new))) then
       err = 'The candidate vertical grid produced nonfinite mixing ratios.'
       return
     endif
 
-    ! Gas mixing ratios define the mean molecular weight used by the
-    ! hydrostatic extension and must sum to exactly one. Particle abundances
-    ! remain ratios relative to total gas density. Beyond the old top model
-    ! center, both are held at their normalized old-top values explicitly.
+    ! Normalize gas mixing ratios so they sum to one. Particle abundances
+    ! remain ratios relative to total gas density.
     do j = 1,var%nz
-      gas_mix_total = sum(mix_new(dat%ng_1:dat%nq,j))
+      gas_mix_total = sum(candidate%mix_new(dat%ng_1:dat%nq,j))
       if (.not.ieee_is_finite(gas_mix_total) .or. gas_mix_total <= 0.0_dp) then
         err = 'The candidate vertical grid produced invalid gas mixing ratios.'
         return
       endif
-      mix_new(dat%ng_1:dat%nq,j) = mix_new(dat%ng_1:dat%nq,j)/gas_mix_total
+      candidate%mix_new(dat%ng_1:dat%nq,j) = &
+          candidate%mix_new(dat%ng_1:dat%nq,j)/gas_mix_total
     enddo
+
+  end subroutine
+
+  subroutine extend_candidate_density(self, candidate, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use futils, only: interp
+    use photochem_const, only: k_boltz, N_avo
+    class(EvoAtmosphere), target, intent(in) :: self
+    type(VerticalGridCandidate), intent(inout) :: candidate
+    character(:), allocatable, intent(out) :: err
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    real(dp) :: pressure_previous, temperature_previous
+    real(dp) :: delta_z, mubar
+    integer :: j, ierr, first_extended
+
+    dat => self%dat
+    var => self%var
+
+    ! Interpolate density inside the old grid. Above the old top, replace the
+    ! interpolation with a hydrostatic continuation using candidate T and z.
+    call interp(candidate%z, var%z, log10(candidate%density), &
+                candidate%density_new, ierr=ierr)
+    if (ierr /= 0) then
+      err = 'Gas-density interpolation failed while constructing a candidate vertical grid.'
+      return
+    endif
+    candidate%density_new = 10.0_dp**candidate%density_new
+    if (.not.all(ieee_is_finite(candidate%density_new)) .or. &
+        any(candidate%density_new <= 0.0_dp)) then
+      err = 'The candidate vertical grid produced invalid gas density.'
+      return
+    endif
+
+    ! If the model was extended upward, replace the extrapolation above the
+    ! old top with a hydrostatic continuation.
     first_extended = var%nz + 1
     do j = 1,var%nz
       if (candidate%z(j) > var%z(var%nz)) then
@@ -1323,106 +1403,80 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
         exit
       endif
     enddo
-    if (first_extended <= var%nz) then
-      gas_mix_total = sum(mix(dat%ng_1:dat%nq,var%nz))
-      mix_new(dat%ng_1:dat%nq,first_extended:) = spread( &
-          mix(dat%ng_1:dat%nq,var%nz)/gas_mix_total, 2, var%nz-first_extended+1)
-      if (dat%npq > 0) then
-        mix_new(1:dat%npq,first_extended:) = spread( &
-            max(mix(1:dat%npq,var%nz),small_real), 2, var%nz-first_extended+1)
-      endif
-    endif
+    if (first_extended > var%nz) return
 
-    ! Interpolate density inside the old grid. Values above the old top model
-    ! center are replaced below by a hydrostatic continuation.
-    call interp(candidate%z, var%z, log10(density), density_new, ierr=ierr)
-    if (ierr /= 0) then
-      err = 'Gas-density interpolation failed while constructing a candidate vertical grid.'
-      return
-    endif
-    density_new = 10.0_dp**density_new
-    if (.not.all(ieee_is_finite(density_new)) .or. any(density_new <= 0.0_dp)) then
-      err = 'The candidate vertical grid produced invalid gas density.'
-      return
-    endif
+    pressure_previous = candidate%density(var%nz)*k_boltz*var%temperature(var%nz)
+    temperature_previous = var%temperature(var%nz)
+    delta_z = candidate%z(first_extended)-var%z(var%nz)
+    do j = first_extended,var%nz
+      if (j > first_extended) delta_z = candidate%z(j)-candidate%z(j-1)
+      mubar = sum(dat%species_mass(dat%ng_1:dat%nq)* &
+                  candidate%mix_new(dat%ng_1:dat%nq,j))
+      pressure_previous = pressure_previous*exp( &
+          -(mubar*candidate%grav(j)*delta_z)/ &
+           (N_avo*k_boltz*0.5_dp* &
+            (temperature_previous+candidate%temperature(j))))
+      candidate%density_new(j) = pressure_previous/(k_boltz*candidate%temperature(j))
+      temperature_previous = candidate%temperature(j)
+    enddo
 
-    ! Particle radii
-    if (dat%there_are_particles) then
-      do i = 1,dat%npq
-        call interp(candidate%z, var%z, &
-                    log10(max(var%particle_radius(i,:),small_real)), &
-                    candidate%particle_radius(i,:), ierr=ierr)
-        if (ierr /= 0) then
-          err = 'Particle-radius interpolation failed while constructing a candidate vertical grid.'
-          return
-        endif
-      enddo
-      candidate%particle_radius = 10.0_dp**candidate%particle_radius
-      if (first_extended <= var%nz) then
-        candidate%particle_radius(:,first_extended:) = spread( &
-            var%particle_radius(:,var%nz), 2, var%nz-first_extended+1)
-      endif
-      if (.not.all(ieee_is_finite(candidate%particle_radius)) .or. &
-          any(candidate%particle_radius <= 0.0_dp)) then
-        err = 'The candidate vertical grid produced invalid particle radii.'
+  end subroutine
+
+  subroutine map_candidate_particle_radii(self, candidate, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use futils, only: interp
+    use photochem_const, only: small_real
+    class(EvoAtmosphere), target, intent(in) :: self
+    type(VerticalGridCandidate), intent(inout) :: candidate
+    character(:), allocatable, intent(out) :: err
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    integer :: i, ierr
+
+    dat => self%dat
+    var => self%var
+
+    if (.not.dat%there_are_particles) return
+
+    do i = 1,dat%npq
+      call interp(candidate%z, var%z, &
+                  log10(max(var%particle_radius(i,:),small_real)), &
+                  candidate%particle_radius(i,:), ierr=ierr)
+      if (ierr /= 0) then
+        err = 'Particle-radius interpolation failed while constructing a candidate vertical grid.'
         return
       endif
+    enddo
+    candidate%particle_radius = 10.0_dp**candidate%particle_radius
+    if (.not.all(ieee_is_finite(candidate%particle_radius)) .or. &
+        any(candidate%particle_radius <= 0.0_dp)) then
+      err = 'The candidate vertical grid produced invalid particle radii.'
+      return
     endif
 
-    ! Reconcile a persistent pressure-based T-Kzz profile with the candidate
-    ! composition before committing anything to the live model. Mapping the
-    ! profile changes temperature, while the hydrostatic continuation depends
-    ! on that temperature, so iterate the two operations to consistency.
-    if (var%press_temp_edd_profile%enabled) then
-      allocate(temperature_mapped(var%nz), edd_mapped(var%nz), &
-               log10P_mapped(var%nz), pressure_reference_candidate(var%nz))
-      pressure_reference_candidate = self%wrk%pressure_hydro
+  end subroutine
 
-      do iteration = 1,persistent_max_iterations
-        call extend_density_hydrostatically()
-        call fill_candidate_usol()
+  subroutine assemble_candidate_atmosphere(self, candidate, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use photochem_const, only: k_boltz
+    class(EvoAtmosphere), target, intent(in) :: self
+    type(VerticalGridCandidate), intent(inout) :: candidate
+    character(:), allocatable, intent(out) :: err
 
-        call map_press_temp_edd( &
-          self, &
-          candidate%usol, &
-          var%press_temp_edd_profile%pressure, &
-          var%press_temp_edd_profile%temperature, &
-          var%press_temp_edd_profile%edd, &
-          trop_p=var%press_temp_edd_profile%trop_p, &
-          hydro_pressure=var%press_temp_edd_profile%hydro_pressure, &
-          grid_z=candidate%z, &
-          grid_dz=candidate%dz, &
-          grid_grav=candidate%grav, &
-          temperature_reference=candidate%temperature, &
-          pressure_reference=pressure_reference_candidate, &
-          T_grid=temperature_mapped, &
-          edd_grid=edd_mapped, &
-          log10P_grid=log10P_mapped, &
-          trop_alt=trop_alt, &
-          err=err &
-        )
-        if (allocated(err)) return
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    integer :: j
 
-        temperature_change = maxval(abs(temperature_mapped-candidate%temperature)/ &
-                                    max(temperature_mapped,1.0_dp))
-        candidate%temperature = temperature_mapped
-        candidate%edd = edd_mapped
-        pressure_reference_candidate = 10.0_dp**log10P_mapped
-        if (temperature_change <= persistent_tolerance) exit
-      enddo
-      if (iteration > persistent_max_iterations) then
-        err = 'The persistent pressure profile did not converge on the candidate vertical grid.'
-        return
-      endif
-    endif
+    dat => self%dat
+    var => self%var
 
-    ! One final continuation uses the converged persistent temperature, or
-    ! the altitude-interpolated temperature when persistence is disabled.
-    call extend_density_hydrostatically()
-    call fill_candidate_usol()
-
-    ! Account for fixed surface mixing ratios.
-    call self%apply_lower_boundary_conditions(candidate%temperature(1), candidate%usol(:,1), err)
+    ! Construct the candidate atmospheric state and enforce the lower BCs.
+    do j = 1,var%nz
+      candidate%usol(:,j) = candidate%mix_new(:,j)*candidate%density_new(j)
+    enddo
+    call self%apply_lower_boundary_conditions(candidate%temperature(1), &
+                                              candidate%usol(:,1), err)
     if (allocated(err)) return
 
     do j = 1,var%nz
@@ -1436,57 +1490,164 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       return
     endif
 
-    if (dat%gas_rainout) then
-      if (var%press_temp_edd_profile%enabled) candidate%trop_alt = trop_alt
-      candidate%trop_ind = max(minloc(abs(candidate%z-candidate%trop_alt), 1)-1, 1)
-      if (candidate%trop_ind < 3) then
-        err = 'The candidate vertical grid places the tropopause too low.'
-        return
-      elseif (candidate%trop_ind > var%nz-2) then
-        err = 'The candidate vertical grid places the tropopause too high.'
-        return
-      endif
-    else
-      candidate%trop_ind = 1
-    endif
+  end subroutine
 
-  contains
+  subroutine build_vertical_grid_candidate_z(self, usol, top_atmos_new, candidate, err)
+    class(EvoAtmosphere), target, intent(in) :: self
+    real(dp), intent(in) :: usol(:,:)
+    real(dp), intent(in) :: top_atmos_new !! cm
+    type(VerticalGridCandidate), intent(inout) :: candidate
+    character(:), allocatable, intent(out) :: err
 
-    subroutine fill_candidate_usol()
-      integer :: layer
+    call initialize_candidate_grid(self, top_atmos_new, candidate, err)
+    if (allocated(err)) return
 
-      do layer = 1,var%nz
-        candidate%usol(:,layer) = mix_new(:,layer)*density_new(layer)
-      enddo
-    end subroutine
+    call seed_candidate_temperature_edd(self, candidate, err)
+    if (allocated(err)) return
 
-    subroutine extend_density_hydrostatically()
-      integer :: layer
+    call prepare_candidate_composition(self, usol, candidate, err)
+    if (allocated(err)) return
 
-      if (first_extended > var%nz) return
+    call extend_candidate_density(self, candidate, err)
+    if (allocated(err)) return
 
-      pressure_previous = density(var%nz)*k_boltz*var%temperature(var%nz)
-      temperature_previous = var%temperature(var%nz)
-      delta_z = candidate%z(first_extended)-var%z(var%nz)
-      do layer = first_extended,var%nz
-        if (layer > first_extended) delta_z = candidate%z(layer)-candidate%z(layer-1)
-        mubar = sum(dat%species_mass(dat%ng_1:dat%nq)* &
-                    mix_new(dat%ng_1:dat%nq,layer))
-        pressure_previous = pressure_previous*exp( &
-            -(mubar*candidate%grav(layer)*delta_z)/ &
-             (N_avo*k_boltz*0.5_dp* &
-              (temperature_previous+candidate%temperature(layer))))
-        density_new(layer) = pressure_previous/(k_boltz*candidate%temperature(layer))
-        temperature_previous = candidate%temperature(layer)
-      enddo
-    end subroutine
+    call map_candidate_particle_radii(self, candidate, err)
+    if (allocated(err)) return
+
+    call assemble_candidate_atmosphere(self, candidate, err)
 
   end subroutine
 
+  subroutine build_vertical_grid_candidate_p(self, usol, top_atmos_new, candidate, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    class(EvoAtmosphere), target, intent(in) :: self
+    real(dp), intent(in) :: usol(:,:)
+    real(dp), intent(in) :: top_atmos_new !! cm
+    type(VerticalGridCandidate), intent(inout) :: candidate
+    character(:), allocatable, intent(out) :: err
+
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+    real(dp), parameter :: persistent_tolerance = 1.0e-10_dp
+    integer, parameter :: persistent_max_iterations = 50
+    real(dp) :: temperature_change
+    integer :: iteration
+    logical :: converged
+
+    var => self%var
+    wrk => self%wrk
+
+    ! Build an initial candidate using the shared altitude-based seed. The
+    ! pressure-profile mapping replaces that seed during the fixed-point loop.
+    call initialize_candidate_grid(self, top_atmos_new, candidate, err)
+    if (allocated(err)) return
+    call seed_candidate_temperature_edd(self, candidate, err)
+    if (allocated(err)) return
+    call prepare_candidate_composition(self, usol, candidate, err)
+    if (allocated(err)) return
+    call extend_candidate_density(self, candidate, err)
+    if (allocated(err)) return
+    call assemble_candidate_atmosphere(self, candidate, err)
+    if (allocated(err)) return
+
+    ! Use the current hydrostatic pressure as the initial reference for the
+    ! pressure-profile solve. Each later iteration uses the pressure profile
+    ! produced by the preceding mapping pass.
+    candidate%pressure_reference = wrk%pressure_hydro
+    converged = .false.
+    do iteration = 1,persistent_max_iterations
+      candidate%temperature_reference = candidate%temperature
+      call map_press_temp_edd( &
+        self, &
+        candidate%usol, &
+        var%press_temp_edd_profile%pressure, &
+        var%press_temp_edd_profile%temperature, &
+        var%press_temp_edd_profile%edd, &
+        trop_p=var%press_temp_edd_profile%trop_p, &
+        hydro_pressure=var%press_temp_edd_profile%hydro_pressure, &
+        grid_z=candidate%z, &
+        grid_dz=candidate%dz, &
+        grid_grav=candidate%grav, &
+        temperature_reference=candidate%temperature_reference, &
+        pressure_reference=candidate%pressure_reference, &
+        T_grid=candidate%temperature, &
+        edd_grid=candidate%edd, &
+        log10P_grid=candidate%log10P, &
+        trop_alt=candidate%trop_alt, &
+        err=err &
+      )
+      if (allocated(err)) return
+
+      call validate_candidate_temperature_edd(candidate, err)
+      if (allocated(err)) return
+      if (.not.all(ieee_is_finite(candidate%log10P))) then
+        err = 'The pressure-profile mapping produced nonfinite log-pressure values.'
+        return
+      endif
+
+      temperature_change = maxval(abs(candidate%temperature - &
+                                      candidate%temperature_reference)/ &
+                                  max(candidate%temperature,1.0_dp))
+      candidate%pressure_reference = 10.0_dp**candidate%log10P
+      if (.not.all(ieee_is_finite(candidate%pressure_reference)) .or. &
+          any(candidate%pressure_reference <= 0.0_dp)) then
+        err = 'The pressure-profile mapping produced invalid pressure values.'
+        return
+      endif
+
+      if (temperature_change <= persistent_tolerance) then
+        converged = .true.
+        exit
+      endif
+      if (iteration == persistent_max_iterations) exit
+
+      ! Rebuild the state used by the next mapping pass from the updated
+      ! pressure-profile temperature.
+      call extend_candidate_density(self, candidate, err)
+      if (allocated(err)) return
+      call assemble_candidate_atmosphere(self, candidate, err)
+      if (allocated(err)) return
+    enddo
+
+    if (.not.converged) then
+      err = 'The persistent pressure profile did not converge on the candidate vertical grid.'
+      return
+    endif
+
+    ! Rebuild the final candidate state using the converged temperature.
+    call extend_candidate_density(self, candidate, err)
+    if (allocated(err)) return
+    call map_candidate_particle_radii(self, candidate, err)
+    if (allocated(err)) return
+    call assemble_candidate_atmosphere(self, candidate, err)
+
+  end subroutine
+
+  subroutine VerticalGridCandidate_allocate(candidate, np, nq, nz)
+    type(VerticalGridCandidate), intent(inout) :: candidate
+    integer, intent(in) :: np, nq, nz
+
+    allocate(candidate%usol(nq,nz))
+    allocate(candidate%pressure(nz))
+    allocate(candidate%z(nz))
+    allocate(candidate%dz(nz))
+    allocate(candidate%grav(nz))
+    allocate(candidate%temperature(nz))
+    allocate(candidate%edd(nz))
+    allocate(candidate%particle_radius(np, nz))
+    allocate(candidate%mix(nq, nz))
+    allocate(candidate%mix_new(nq, nz))
+    allocate(candidate%density(nz))
+    allocate(candidate%density_new(nz))
+    allocate(candidate%temperature_reference(nz))
+    allocate(candidate%pressure_reference(nz))
+    allocate(candidate%log10P(nz))
+
+  end subroutine
 
   module subroutine update_vertical_grid(self, TOA_alt, TOA_pressure, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    use photochem_input, only: interp2particlexsdata, refresh_temperature_dependent_state
+    use photochem_input, only: finalize_atmosphere_initialization
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), optional, intent(in) :: TOA_alt !! cm
     real(dp), optional, intent(in) :: TOA_pressure !! dynes/cm^2
@@ -1494,14 +1655,10 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
     real(dp) :: top_atmos_new
     type(VerticalGridCandidate) :: candidate
-    ! The candidate owns proposed grid-dependent arrays.  The work structures
-    ! below deliberately remain separate: original_wrk owns the currently
-    ! committed state (and any live CVODE resources), while prepared_wrk owns
-    ! the replacement state until the commit boundary is crossed.
-    type(PhotochemWrkEvo), allocatable :: original_wrk, prepared_wrk
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
+    type(PhotochemVars) :: var_save
 
     dat => self%dat
     var => self%var
@@ -1533,10 +1690,12 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       endif
     endif
 
+    call VerticalGridCandidate_allocate(candidate, dat%np, dat%nq, var%nz)
+
     if (present(TOA_alt)) then
       top_atmos_new = TOA_alt
     else
-      top_atmos_new = TOA_at_pressure(self, self%wrk%usol, TOA_pressure, err)
+      top_atmos_new = TOA_at_pressure(self, self%wrk%usol, TOA_pressure, candidate, err)
       if (allocated(err)) return
     endif
 
@@ -1544,163 +1703,24 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     call build_vertical_grid_candidate(self, self%wrk%usol, top_atmos_new, candidate, err)
     if (allocated(err)) return
 
-    ! Prepare the candidate using a fresh work structure. The original work
-    ! structure, including all CVODE-owned pointers, is parked without copying.
-    call initialize_vertical_grid_candidate_derived(dat, var, candidate)
-    allocate(prepared_wrk)
-    call prepared_wrk%init(dat%nsp, dat%np, dat%nq, var%nz, dat%nrT, dat%kj, dat%nw)
-    prepared_wrk%tn = self%wrk%tn
+    var_save = var
 
-    call swap_vertical_grid_candidate(var, candidate)
-    call move_alloc(self%wrk, original_wrk)
-    call move_alloc(prepared_wrk, self%wrk)
-
-    call interp2particlexsdata(dat, var, err)
-    if (.not.allocated(err)) call refresh_temperature_dependent_state(dat, var, err=err)
-    if (.not.allocated(err)) then
-      ! The persistent profile was reconciled during candidate construction.
-      call prep_all_evo_gas(self, candidate%usol, &
-                            apply_persistent_profile=.false., err=err)
-    endif
-
+    ! Now commit
+    var%trop_alt = candidate%trop_alt
+    var%top_atmos = candidate%top_atmos
+    var%z = candidate%z
+    var%dz = candidate%dz
+    var%grav = candidate%grav
+    var%temperature = candidate%temperature
+    var%edd = candidate%edd
+    var%particle_radius = candidate%particle_radius
+    call finalize_atmosphere_initialization(dat, var, err)
     if (allocated(err)) then
-      ! Restore the exact committed state. original_wrk still owns the active
-      ! stepper, so a failed candidate does not disturb integration.
-      call restore_vertical_grid_candidate(self, var, candidate, original_wrk, prepared_wrk)
+      var = var_save
       return
     endif
-
-    ! Restore the committed state before crossing the ownership boundary.
-    ! A successful regrid always invalidates the old stepper before commit.
-    call commit_vertical_grid_candidate(self, var, candidate, original_wrk, prepared_wrk, err)
-
-  end subroutine
-
-  subroutine restore_vertical_grid_candidate(self, var, candidate, original_wrk, prepared_wrk)
-    ! Return ownership to the pre-regrid state.  This helper is also used on
-    ! candidate-preparation failure, so no candidate allocation or work-array
-    ! copy can leak into the committed model.
-    class(EvoAtmosphere), target, intent(inout) :: self
-    type(PhotochemVars), intent(inout) :: var
-    type(VerticalGridCandidate), intent(inout) :: candidate
-    type(PhotochemWrkEvo), allocatable, intent(inout) :: original_wrk, prepared_wrk
-
-    call move_alloc(self%wrk, prepared_wrk)
-    call move_alloc(original_wrk, self%wrk)
-    call swap_vertical_grid_candidate(var, candidate)
-
-  end subroutine
-
-  subroutine commit_vertical_grid_candidate(self, var, candidate, original_wrk, prepared_wrk, err)
-    ! Commit a fully prepared candidate without ever exposing its partial work
-    ! arrays as the live state.  The old CVODE state is destroyed only after
-    ! candidate preparation succeeds; if destruction reports an error, the
-    ! original state remains installed and the caller receives that error.
-    class(EvoAtmosphere), target, intent(inout) :: self
-    type(PhotochemVars), intent(inout) :: var
-    type(VerticalGridCandidate), intent(inout) :: candidate
-    type(PhotochemWrkEvo), allocatable, intent(inout) :: original_wrk, prepared_wrk
-    character(:), allocatable, intent(out) :: err
-
-    call restore_vertical_grid_candidate(self, var, candidate, original_wrk, prepared_wrk)
-    call self%destroy_stepper(err)
+    call self%prep_atmosphere(candidate%usol, err)
     if (allocated(err)) return
-
-    ! The old work structure is now finalized and can be discarded. Reinstall
-    ! the candidate grid and promote prepared_wrk%usol to the sole committed
-    ! atmospheric state.
-    call move_alloc(self%wrk, original_wrk)
-    call swap_vertical_grid_candidate(var, candidate)
-    call move_alloc(prepared_wrk, self%wrk)
-
-  end subroutine
-
-  subroutine initialize_vertical_grid_candidate_derived(dat, var, candidate)
-    type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(in) :: var
-    type(VerticalGridCandidate), intent(inout) :: candidate
-
-    integer :: i
-
-    allocate(candidate%xs_x_qy(var%nz,dat%kj,dat%nw))
-    allocate(candidate%particle_xs(dat%np))
-    do i = 1,dat%np
-      if (dat%part_xs_file(i)%ThereIsData) then
-        allocate(candidate%particle_xs(i)%w0(var%nz,dat%nw))
-        allocate(candidate%particle_xs(i)%qext(var%nz,dat%nw))
-        allocate(candidate%particle_xs(i)%gt(var%nz,dat%nw))
-      endif
-    enddo
-    if (dat%reverse) allocate(candidate%gibbs_energy(var%nz,dat%ng))
-    candidate%photon_flux = var%photon_flux
-
-  end subroutine
-
-  subroutine swap_vertical_grid_candidate(var, candidate)
-    type(PhotochemVars), intent(inout) :: var
-    type(VerticalGridCandidate), intent(inout) :: candidate
-
-    real(dp), allocatable :: tmp_1d(:), tmp_2d(:,:), tmp_3d(:,:,:)
-    real(dp) :: tmp_real
-    integer :: tmp_integer, i
-
-    tmp_real = var%top_atmos
-    var%top_atmos = candidate%top_atmos
-    candidate%top_atmos = tmp_real
-    tmp_real = var%surface_pressure
-    var%surface_pressure = candidate%surface_pressure
-    candidate%surface_pressure = tmp_real
-    tmp_real = var%trop_alt
-    var%trop_alt = candidate%trop_alt
-    candidate%trop_alt = tmp_real
-    tmp_integer = var%trop_ind
-    var%trop_ind = candidate%trop_ind
-    candidate%trop_ind = tmp_integer
-
-    call swap_real_1d(var%z, candidate%z)
-    call swap_real_1d(var%dz, candidate%dz)
-    call swap_real_1d(var%grav, candidate%grav)
-    call swap_real_1d(var%temperature, candidate%temperature)
-    call swap_real_1d(var%edd, candidate%edd)
-    call swap_real_1d(var%photon_flux, candidate%photon_flux)
-
-    call move_alloc(var%particle_radius, tmp_2d)
-    call move_alloc(candidate%particle_radius, var%particle_radius)
-    call move_alloc(tmp_2d, candidate%particle_radius)
-    if (allocated(var%gibbs_energy) .or. allocated(candidate%gibbs_energy)) then
-      call move_alloc(var%gibbs_energy, tmp_2d)
-      call move_alloc(candidate%gibbs_energy, var%gibbs_energy)
-      call move_alloc(tmp_2d, candidate%gibbs_energy)
-    endif
-
-    call move_alloc(var%xs_x_qy, tmp_3d)
-    call move_alloc(candidate%xs_x_qy, var%xs_x_qy)
-    call move_alloc(tmp_3d, candidate%xs_x_qy)
-    do i = 1,size(candidate%particle_xs)
-      if (allocated(candidate%particle_xs(i)%w0)) then
-        call swap_real_2d(var%particle_xs(i)%w0, candidate%particle_xs(i)%w0)
-        call swap_real_2d(var%particle_xs(i)%qext, candidate%particle_xs(i)%qext)
-        call swap_real_2d(var%particle_xs(i)%gt, candidate%particle_xs(i)%gt)
-      endif
-    enddo
-
-  contains
-
-    subroutine swap_real_1d(a, b)
-      real(dp), allocatable, intent(inout) :: a(:), b(:)
-
-      call move_alloc(a, tmp_1d)
-      call move_alloc(b, a)
-      call move_alloc(tmp_1d, b)
-    end subroutine
-
-    subroutine swap_real_2d(a, b)
-      real(dp), allocatable, intent(inout) :: a(:,:), b(:,:)
-
-      call move_alloc(a, tmp_2d)
-      call move_alloc(b, a)
-      call move_alloc(tmp_2d, b)
-    end subroutine
 
   end subroutine
 

@@ -6,34 +6,26 @@ module photochem_evoatmosphere
   private
   public :: EvoAtmosphere
 
-  ! Candidate state for a vertical-grid update. It owns all grid-dependent
-  ! variables needed to prepare and atomically commit a replacement state.
-  type :: VerticalGridParticleXsections
-    real(dp), allocatable :: w0(:,:)
-    real(dp), allocatable :: qext(:,:)
-    real(dp), allocatable :: gt(:,:)
-  end type
-
   type :: VerticalGridCandidate
-    ! Proposed atmospheric densities used while constructing a replacement
-    ! grid.  This is transient candidate state; the committed atmospheric
-    ! densities live only in PhotochemWrkEvo%usol.
-    real(dp) :: top_atmos = 0.0_dp
+    real(dp) :: trop_alt
+    real(dp) :: top_atmos
+    real(dp), allocatable :: usol(:,:)
+    real(dp), allocatable :: pressure(:)
     real(dp), allocatable :: z(:)
     real(dp), allocatable :: dz(:)
     real(dp), allocatable :: grav(:)
     real(dp), allocatable :: temperature(:)
     real(dp), allocatable :: edd(:)
-    real(dp), allocatable :: usol(:,:)
     real(dp), allocatable :: particle_radius(:,:)
-    real(dp), allocatable :: pressure(:)
-    real(dp), allocatable :: xs_x_qy(:,:,:)
-    type(VerticalGridParticleXsections), allocatable :: particle_xs(:)
-    real(dp), allocatable :: gibbs_energy(:,:)
-    real(dp), allocatable :: photon_flux(:)
-    real(dp) :: surface_pressure = 0.0_dp
-    real(dp) :: trop_alt = 0.0_dp
-    integer :: trop_ind = 1
+
+    ! Reusable scratch arrays; overwritten on every candidate construction.
+    real(dp), allocatable :: mix(:,:), mix_new(:,:)
+    real(dp), allocatable :: density(:), density_new(:)
+
+    ! Pressure-profile mapping workspace; overwritten on every fixed-point pass.
+    real(dp), allocatable :: temperature_reference(:)
+    real(dp), allocatable :: pressure_reference(:)
+    real(dp), allocatable :: log10P(:)
   end type
 
   type :: EvoAtmosphere
