@@ -10,6 +10,7 @@ program test_api
 contains
 
   subroutine test()
+    call test_analytical_jacobian_switch()
     call test_initialization_state()
     call test_initialize_atmosphere_z()
     call test_initialize_atmosphere_p()
@@ -29,7 +30,6 @@ contains
     call test_update_vertical_grid_repeated()
     call test_update_vertical_grid_particles()
     call test_update_vertical_grid_atomicity()
-    call test_analytical_jacobian_switch()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
   end subroutine
@@ -37,7 +37,8 @@ contains
   subroutine test_analytical_jacobian_switch()
     type(EvoAtmosphere) :: pc
     character(:), allocatable :: err
-    real(dp), allocatable :: usol_flat(:), jac_autodiff(:), jac_analytical(:)
+    real(dp), allocatable :: usol_flat(:)
+    integer :: h_index, j
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
@@ -53,11 +54,46 @@ contains
       print *, 'Analytical Jacobian should be disabled by default'
       stop 1
     endif
+    if (pc%dat%nsl /= 0 .or. pc%dat%there_are_particles .or. &
+        pc%dat%gas_rainout) then
+      print *, 'Analytical Jacobian test unexpectedly requires an AD fallback'
+      stop 1
+    endif
 
     usol_flat = reshape(pc%wrk%usol, [pc%var%neqs])
+    call compare_analytical_jacobian(pc, usol_flat, &
+                                     'ordinary reaction state')
+
+    ! H participates in the repeated-reactant reaction H + H (+ M). Supplying
+    ! zero exercises the model density floor and the leave-one-reactant-out
+    ! derivative without any division by the H density.
+    h_index = findloc(pc%dat%species_names, 'H', dim=1)
+    if (h_index < pc%dat%ng_1 .or. h_index > pc%dat%nq) then
+      print *, 'Could not locate evolved H for analytical Jacobian test'
+      stop 1
+    endif
+    do j = 1,pc%var%nz
+      usol_flat(h_index+pc%dat%nq*(j-1)) = 0.0_dp
+    enddo
+    call compare_analytical_jacobian(pc, usol_flat, &
+                                     'density-floor repeated-reactant state')
+
+  end subroutine
+
+  subroutine compare_analytical_jacobian(pc, usol_flat, label)
+    type(EvoAtmosphere), intent(inout) :: pc
+    real(dp), intent(in) :: usol_flat(:)
+    character(*), intent(in) :: label
+
+    character(:), allocatable :: err
+    real(dp), allocatable :: jac_autodiff(:), jac_analytical(:)
+    real(dp) :: jacobian_scale, relative_error
+
     allocate(jac_autodiff(pc%dat%lda*pc%var%neqs))
     allocate(jac_analytical(pc%dat%lda*pc%var%neqs))
 
+    pc%var%autodiff = .true.
+    pc%var%analytical_jacobian = .false.
     call pc%jacobian(size(jac_autodiff), pc%var%neqs, usol_flat, &
                      jac_autodiff, err)
     if (allocated(err)) then
@@ -73,8 +109,12 @@ contains
       stop 1
     endif
 
-    if (any(jac_analytical /= jac_autodiff)) then
-      print *, 'Experimental analytical Jacobian fallback differs from autodiff'
+    jacobian_scale = max(1.0_dp, maxval(abs(jac_autodiff)), &
+                         maxval(abs(jac_analytical)))
+    relative_error = maxval(abs(jac_analytical-jac_autodiff))/jacobian_scale
+    if (relative_error > 1.0e-12_dp) then
+      print *, 'Analytical Jacobian differs from autodiff for ', &
+               trim(label), relative_error
       stop 1
     endif
 

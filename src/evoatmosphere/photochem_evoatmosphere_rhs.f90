@@ -874,14 +874,105 @@ contains
   end subroutine
 
   subroutine analytical_chemistry_jacobian(self, usol, rhs, djac, err)
+    use photochem_const, only: small_real
+    use photochem_enum, only: CondensingParticle
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), target, contiguous, intent(in) :: usol(:,:)
     real(dp), intent(out) :: rhs(:), djac(:,:)
     character(:), allocatable, intent(out) :: err
 
-    ! The analytical implementation is added incrementally. Until it is
-    ! complete, preserve exact behavior by using autodiff as the fallback.
-    call autodiff_chemistry_jacobian(self, usol, rhs, djac, err)
+    real(dp), allocatable :: density_derivatives(:,:), reaction_derivative(:)
+    real(dp) :: rate_without_reactant
+    integer :: i, j, k, l, m, n, species
+    logical :: has_condensing_particles
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrkEvo), pointer :: wrk
+
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+
+    ! These dochem terms are added in later passes. Never return a partial
+    ! analytical Jacobian for a mechanism that uses one of them.
+    has_condensing_particles = .false.
+    if (dat%there_are_particles) then
+      has_condensing_particles = &
+          any(dat%particle_formation_method == CondensingParticle)
+    endif
+    if (dat%nsl > 0 .or. dat%gas_rainout .or. &
+        has_condensing_particles) then
+      call autodiff_chemistry_jacobian(self, usol, rhs, djac, err)
+      return
+    endif
+
+    ! Use dochem for the authoritative RHS. The analytical code below only
+    ! replaces differentiation of the chemistry terms.
+    call dochem(self, usol, wrk%rx_rates, &
+                wrk%gas_sat_den, wrk%molecules_per_particle, &
+                wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
+                wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs)
+
+    allocate(density_derivatives(dat%nsp+1,dat%nq))
+    allocate(reaction_derivative(dat%nq))
+    djac = 0.0_dp
+
+    do j = 1,var%nz
+      density_derivatives = 0.0_dp
+
+      ! Evolved particles are stored as molecules/cm^3 in usol but enter
+      ! chemistry as particles/cm^3. Match the max in dochem,
+      ! including its zero derivative while the lower clamp is active.
+      do i = 1,dat%npq
+        if (usol(i,j)/wrk%molecules_per_particle(i,j) > small_real) then
+          density_derivatives(i,i) = &
+              1.0_dp/wrk%molecules_per_particle(i,j)
+        endif
+      enddo
+      do i = dat%ng_1,dat%nq
+        density_derivatives(i,i) = 1.0_dp
+      enddo
+      n = dat%nq*(j-1) + 1
+
+      do m = 1,dat%nrT
+        reaction_derivative = 0.0_dp
+
+        ! Differentiate the mass-action product once for each reactant
+        ! occurrence. Repeated reactants therefore contribute once per
+        ! occurrence, without dividing by a possibly zero density.
+        do k = 1,dat%rx(m)%nreact
+          rate_without_reactant = wrk%rx_rates(j,m)
+          do l = 1,dat%rx(m)%nreact
+            if (l /= k) then
+              species = dat%rx(m)%react_sp_inds(l)
+              rate_without_reactant = rate_without_reactant* &
+                                      wrk%densities(species,j)
+            endif
+          enddo
+          species = dat%rx(m)%react_sp_inds(k)
+          reaction_derivative = reaction_derivative + &
+              rate_without_reactant*density_derivatives(species,:)
+        enddo
+
+        ! Scatter the reaction derivative according to stoichiometry. Species
+        ! indices are repeated in the reaction metadata for coefficients > 1.
+        do k = 1,dat%rx(m)%nprod
+          species = dat%rx(m)%prod_sp_inds(k)
+          if (species <= dat%nq) then
+            djac(species,n:n+dat%nq-1) = &
+                djac(species,n:n+dat%nq-1) + reaction_derivative
+          endif
+        enddo
+        do k = 1,dat%rx(m)%nreact
+          species = dat%rx(m)%react_sp_inds(k)
+          if (species <= dat%nq) then
+            djac(species,n:n+dat%nq-1) = &
+                djac(species,n:n+dat%nq-1) - reaction_derivative
+          endif
+        enddo
+      enddo
+    enddo
 
   end subroutine
 
