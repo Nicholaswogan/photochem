@@ -226,7 +226,8 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: particle_radius(:,:)
       !> Retain temperature and eddy diffusion as functions of hydrostatic pressure.
       logical, optional, intent(in) :: persistent
-      !> Tropopause pressure (dyn/cm^2). May be supplied only when `persistent` is true.
+      !> Tropopause pressure (dyn/cm^2). May be supplied only when `persistent`
+      !! is true and gas rainout is enabled; it is required when rainout is enabled.
       real(dp), optional, intent(in) :: trop_p
       !> Enable approximate TOA-pressure maintenance when `persistent` is true.
       logical, optional, intent(in) :: maintain_toa_pressure
@@ -570,8 +571,9 @@ module photochem_evoatmosphere
     !! By default, the mapping uses hydrostatic pressure and solves for it
     !! sequentially from the bottom of the atmosphere upward. Alternatively,
     !! the mapping can use the actual gas pressure, `density*k_boltz*T`.
-    !! When `trop_p` is supplied, the mapped pressure must decrease strictly
-    !! with altitude so the tropopause altitude is unambiguous.
+    !! `trop_p` is valid only when gas rainout is enabled; when supplied, the
+    !! mapped pressure must decrease strictly with altitude so the tropopause
+    !! altitude is unambiguous.
     !!
     !! On success, this procedure updates the model temperature, eddy
     !! diffusion, and derived atmospheric working state. Atmospheric species
@@ -584,7 +586,8 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dynes/cm^2)
       real(dp), intent(in) :: T(:) !! Temperature corresponding to `P` (K)
       real(dp), intent(in) :: edd(:) !! Eddy diffusion corresponding to `P` (cm^2/s)
-      !> Tropopause pressure (dynes/cm^2). Required when gas rainout is enabled.
+      !> Tropopause pressure (dynes/cm^2). Only valid and required when gas
+      !! rainout is enabled; omit it otherwise.
       real(dp), optional, intent(in) :: trop_p
       !> If .true., then use hydrostatic pressure. If .false. then use the
       !> actual gas pressure in the atmosphere. Default is .true..
@@ -633,8 +636,9 @@ module photochem_evoatmosphere
     !! must have the same size with at least two elements. If the input profile
     !! does not reach the model surface, its deepest two points are extrapolated
     !! to the surface. Values above the input profile are held constant.
-    !! When `trop_p` is supplied, the mapped pressure must decrease strictly
-    !! with altitude so the tropopause altitude is unambiguous.
+    !! `trop_p` is valid only when gas rainout is enabled; when supplied, the
+    !! mapped pressure must decrease strictly with altitude so the tropopause
+    !! altitude is unambiguous.
     !!
     !! A persistent pressure profile enables TOA-pressure maintenance by
     !! default. Supply `maintain_toa_pressure=.false.` to disable it, or
@@ -651,7 +655,8 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dynes/cm^2)
       real(dp), intent(in) :: T(:) !! Temperature corresponding to `P` (K)
       real(dp), intent(in) :: edd(:) !! Eddy diffusion corresponding to `P` (cm^2/s)
-      !> Tropopause pressure (dynes/cm^2). Required when gas rainout is enabled.
+      !> Tropopause pressure (dynes/cm^2). Only valid and required when gas
+      !! rainout is enabled; omit it otherwise.
       real(dp), optional, intent(in) :: trop_p
       !> If .true., use hydrostatic pressure. If .false., use actual gas
       !! pressure, `density*k_boltz*T`. Default is .true..

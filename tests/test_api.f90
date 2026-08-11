@@ -380,7 +380,7 @@ contains
     T = [300.0_dp, 180.0_dp]
     edd = [3.0e7_dp, 4.0e5_dp]
     call pc%set_press_temp_edd_profile(P, T, edd, &
-         pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
+         hydro_pressure=.true., err=err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -445,7 +445,6 @@ contains
       stop 1
     endif
     call pc_failure%set_press_temp_edd_profile(P, T, edd, &
-         pc_failure%wrk%pressure_hydro(pc_failure%var%nz/2), &
          hydro_pressure=.true., err=err)
     if (allocated(err)) then
       print *, trim(err)
@@ -511,7 +510,7 @@ contains
     T = [300.0_dp, 180.0_dp]
     edd = [3.0e7_dp, 4.0e5_dp]
     call pc%set_press_temp_edd_profile(P, T, edd, &
-         pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
+         hydro_pressure=.true., err=err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -549,7 +548,7 @@ contains
       stop 1
     endif
     call pc%set_press_temp_edd_profile(P, T, edd, &
-         pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
+         hydro_pressure=.true., err=err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -837,7 +836,6 @@ contains
     particle_radius_before = pc%var%particle_radius
     tn_before = pc%wrk%tn
     nsteps_before = pc%wrk%nsteps
-
     call pc%update_vertical_grid(TOA_alt=1.20_dp*top_before, err=err)
     if (.not.allocated(err)) then
       print *, 'Invalid candidate optical properties were accepted during regridding'
@@ -895,6 +893,22 @@ contains
     temperature_before = pc%var%temperature
     edd_before = pc%var%edd
 
+    ! A positive tropopause pressure is invalid when gas rainout is disabled.
+    call pc%set_press_temp_edd(P, T, edd, 1.0e5_dp, &
+                               hydro_pressure=.false., err=err)
+    if (.not.allocated(err)) then
+      print *, 'A tropopause was accepted while gas rainout was disabled'
+      stop 1
+    endif
+    if (index(err, 'only be supplied when gas rainout is enabled') == 0) then
+      print *, 'Disabled-rainout tropopause returned an unclear error'
+      stop 1
+    endif
+    deallocate(err)
+
+    ! With rainout enabled, the same input must still reject nonmonotonic
+    ! actual pressure because the tropopause altitude would be ambiguous.
+    pc%dat%gas_rainout = .true.
     call pc%set_press_temp_edd(P, T, edd, 1.0e5_dp, &
                                hydro_pressure=.false., err=err)
     if (.not.allocated(err)) then
@@ -2044,8 +2058,7 @@ contains
     T = [310.0_dp, 160.0_dp]
     edd = [1.0e7_dp, 2.0e5_dp]
 
-    call pc%set_press_temp_edd(P, T, edd, pc%wrk%pressure_hydro(10), &
-                               hydro_pressure=.true., err=err)
+    call pc%set_press_temp_edd(P, T, edd, hydro_pressure=.true., err=err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
@@ -2073,8 +2086,7 @@ contains
     T = [280.0_dp, 140.0_dp]
     edd = [2.0e8_dp, 8.0e4_dp]
 
-    call pc%set_press_temp_edd(P, T, edd, pc%wrk%pressure(10), &
-                               hydro_pressure=.false., err=err)
+    call pc%set_press_temp_edd(P, T, edd, hydro_pressure=.false., err=err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
@@ -2148,7 +2160,7 @@ contains
     ! Invalid input must fail without enabling or otherwise changing the mode.
     P_bad = [P(2), P(1)]
     call pc%set_press_temp_edd_profile(P_bad, T, edd, &
-         pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
+         hydro_pressure=.true., err=err)
     if (.not.allocated(err)) then
       print*,'An increasing persistent pressure profile was accepted'
       stop 1
@@ -2160,7 +2172,7 @@ contains
     endif
 
     call pc%set_press_temp_edd_profile(P, T, edd, &
-         pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
+         hydro_pressure=.true., err=err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
@@ -2175,8 +2187,7 @@ contains
       stop 1
     endif
     deallocate(err)
-    call pc%set_press_temp_edd(P, T, edd, &
-         pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
+    call pc%set_press_temp_edd(P, T, edd, hydro_pressure=.true., err=err)
     if (.not.allocated(err)) then
       print*,'set_press_temp_edd was accepted while a persistent profile was enabled'
       stop 1
@@ -2194,7 +2205,7 @@ contains
     ! Changing persistent mode would invalidate CVODE's current history and
     ! must therefore require an explicit stepper destruction/reinitialization.
     call pc%set_press_temp_edd_profile(P, T, edd, &
-         pc%wrk%pressure_hydro(pc%var%nz/2), hydro_pressure=.true., err=err)
+         hydro_pressure=.true., err=err)
     if (.not.allocated(err)) then
       print*,'Persistent profile was replaced while a stepper was initialized'
       stop 1

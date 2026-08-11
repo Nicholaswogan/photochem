@@ -288,7 +288,8 @@ cdef class EvoAtmosphere:
         pressure. The default is false.
     tropopause_pressure : float, optional
         Tropopause pressure in dyn/cm^2. May be supplied only when
-        ``persistent`` is true and is required when gas rainout is enabled.
+        ``persistent`` and gas rainout are enabled; it is required when
+        gas rainout is enabled.
     default_mix : float, optional
         Mixing ratio assigned to species omitted from ``mix``. The default is
         1.0e-40.
@@ -653,8 +654,9 @@ cdef class EvoAtmosphere:
         positive.
     trop_p : float, optional
         Tropopause pressure in dynes/cm^2. Required when gas rainout is
-        enabled. When supplied, the mapped pressure must decrease strictly
-        with altitude so the tropopause altitude is unambiguous.
+        enabled and invalid otherwise. Omit it when rainout is disabled. When
+        supplied, the mapped pressure must decrease strictly with altitude so
+        the tropopause altitude is unambiguous.
     hydro_pressure : bool, default=True
         Use hydrostatic pressure if True. If False, use the actual gas
         pressure computed from number density and temperature.
@@ -673,7 +675,7 @@ cdef class EvoAtmosphere:
     cdef int T_dim1 = T_.size
     cdef int edd_dim1 = edd_.size
     
-    cdef double trop_p_ = 0.0
+    cdef double trop_p_ = -1.0
     cdef bool trop_p_present = False
     if trop_p != None:
       trop_p_present = True
@@ -731,8 +733,9 @@ cdef class EvoAtmosphere:
         positive.
     trop_p : float, optional
         Tropopause pressure in dynes/cm^2. Required when gas rainout is
-        enabled. When supplied, the mapped pressure must decrease strictly
-        with altitude so the tropopause altitude is unambiguous.
+        enabled and invalid otherwise. Omit it when rainout is disabled. When
+        supplied, the mapped pressure must decrease strictly with altitude so
+        the tropopause altitude is unambiguous.
     hydro_pressure : bool, default=True
         Use hydrostatic pressure if True. If False, use actual gas pressure,
         ``density * k_boltz * T``.
@@ -751,7 +754,7 @@ cdef class EvoAtmosphere:
     cdef int T_dim1 = T_.size
     cdef int edd_dim1 = edd_.size
 
-    cdef double trop_p_ = 0.0
+    cdef double trop_p_ = -1.0
     cdef bool trop_p_present = False
     if trop_p != None:
       trop_p_present = True

@@ -320,7 +320,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     real(dp) :: T_grid(self%var%nz), edd_grid(self%var%nz)
     real(dp) :: log10P_grid(self%var%nz), trop_alt
     real(dp) :: edd_save(self%var%nz)
-    real(dp) :: trop_p_ = 0.0_dp
+    real(dp) :: trop_p_
     logical :: has_trop_p, hydro_pressure_
 
     call self%require_atmosphere_initialized('set_press_temp_edd', err)
@@ -338,6 +338,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       return
     endif
 
+    trop_p_ = -1.0_dp
     if (present(trop_p)) trop_p_ = trop_p
     has_trop_p = trop_p_ > 0.0_dp
     if (present(hydro_pressure)) then
@@ -424,11 +425,10 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     self%var%press_temp_edd_profile%pressure = P
     self%var%press_temp_edd_profile%temperature = T
     self%var%press_temp_edd_profile%edd = edd
-    self%var%press_temp_edd_profile%has_trop_p = present(trop_p)
     if (present(trop_p)) then
       self%var%press_temp_edd_profile%trop_p = trop_p
     else
-      self%var%press_temp_edd_profile%trop_p = 0.0_dp
+      self%var%press_temp_edd_profile%trop_p = -1.0_dp
     endif
     if (present(hydro_pressure)) then
       self%var%press_temp_edd_profile%hydro_pressure = hydro_pressure
@@ -482,8 +482,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
     var%press_temp_edd_profile%enabled = .false.
     var%press_temp_edd_profile%hydro_pressure = .true.
-    var%press_temp_edd_profile%has_trop_p = .false.
-    var%press_temp_edd_profile%trop_p = 0.0_dp
+    var%press_temp_edd_profile%trop_p = -1.0_dp
     ! A cleared persistent profile cannot support automatic TOA maintenance.
     ! Preserve the maintenance tuning values, but clear its active state and
     ! any target that was coupled to the previous profile.
@@ -643,6 +642,10 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       return
     endif
     has_trop_p = trop_p > 0.0_dp
+    if (has_trop_p .and. .not.dat%gas_rainout) then
+      err = '"trop_p" can only be supplied when gas rainout is enabled.'
+      return
+    endif
     if (dat%gas_rainout .and. .not.has_trop_p) then
       err = '"trop_p" is a required input.'
       return

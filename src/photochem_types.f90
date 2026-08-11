@@ -44,8 +44,7 @@ module photochem_types ! make a giant IO object
   type :: PressureTempEddProfile
     logical :: enabled = .false.
     logical :: hydro_pressure = .true.
-    logical :: has_trop_p = .false.
-    real(dp) :: trop_p = 0.0_dp
+    real(dp) :: trop_p = -1.0_dp !! Non-positive values disable the tropopause pressure.
     real(dp), allocatable :: pressure(:)
     real(dp), allocatable :: temperature(:)
     real(dp), allocatable :: edd(:)
