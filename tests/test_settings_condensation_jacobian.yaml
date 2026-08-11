@@ -1,0 +1,14 @@
+atmosphere-grid:
+  number-of-layers: 20
+
+planet:
+  planet-mass: 5.972e27
+  planet-radius: 6.371e8
+  surface-albedo: 0.25
+  solar-zenith-angle: 60.0
+  hydrogen-escape:
+    type: none
+  water:
+    gas-rainout: false
+
+boundary-conditions: []

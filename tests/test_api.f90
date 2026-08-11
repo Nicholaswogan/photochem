@@ -119,18 +119,70 @@ contains
                                      'gas-rainout state')
     call check_analytical_rainout_contribution(pc, usol_flat)
 
+    call test_analytical_condensation_jacobian()
+
   end subroutine
 
-  subroutine compare_analytical_jacobian(pc, usol_flat, label)
+  subroutine test_analytical_condensation_jacobian()
+    use photochem_enum, only: CondensingParticle
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp), allocatable :: usol_flat(:)
+    integer :: gas_index, j, k
+
+    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
+                       '../tests/test_settings_condensation_jacobian.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not.pc%dat%there_are_particles .or. pc%dat%np < 1 .or. &
+        pc%dat%particle_formation_method(1) /= CondensingParticle) then
+      print *, 'Condensation Jacobian test lacks a condensing particle'
+      stop 1
+    endif
+
+    gas_index = pc%dat%particle_gas_phase_ind(1)
+    usol_flat = reshape(pc%wrk%usol, [pc%var%neqs])
+    do j = 1,pc%var%nz
+      k = gas_index + pc%dat%nq*(j-1)
+      usol_flat(k) = 1.25_dp*pc%var%cond_params(1)%RHc* &
+                     pc%wrk%gas_sat_den(1,j)
+    enddo
+    call compare_analytical_jacobian(pc, usol_flat, &
+                                     'particle-condensation state', 1)
+
+    do j = 1,pc%var%nz
+      k = gas_index + pc%dat%nq*(j-1)
+      usol_flat(k) = 0.75_dp*pc%var%cond_params(1)%RHc* &
+                     pc%wrk%gas_sat_den(1,j)
+    enddo
+    call compare_analytical_jacobian(pc, usol_flat, &
+                                     'particle-evaporation state', 1)
+
+    pc%var%evaporation = .false.
+    call compare_analytical_jacobian(pc, usol_flat, &
+                                     'evaporation-disabled state')
+
+  end subroutine
+
+  subroutine compare_analytical_jacobian(pc, usol_flat, label, &
+                                         condensing_particle)
     type(EvoAtmosphere), intent(inout) :: pc
     real(dp), intent(in) :: usol_flat(:)
     character(*), intent(in) :: label
+    integer, optional, intent(in) :: condensing_particle
 
     character(:), allocatable :: err
     real(dp), allocatable :: jac_autodiff(:), jac_analytical(:)
     real(dp), allocatable :: chemistry_autodiff(:,:), chemistry_analytical(:,:)
     real(dp) :: jacobian_scale, chemistry_scale
     real(dp) :: relative_error, chemistry_relative_error
+    real(dp) :: condensation_scale, condensation_error
+    integer :: gas_index, j, k
 
     allocate(jac_autodiff(pc%dat%lda*pc%var%neqs))
     allocate(jac_analytical(pc%dat%lda*pc%var%neqs))
@@ -166,6 +218,29 @@ contains
       print *, 'Analytical Jacobian differs from autodiff for ', &
                trim(label), relative_error, chemistry_relative_error
       stop 1
+    endif
+
+    if (present(condensing_particle)) then
+      gas_index = pc%dat%particle_gas_phase_ind(condensing_particle)
+      condensation_scale = 0.0_dp
+      condensation_error = 0.0_dp
+      do j = 1,pc%var%nz
+        k = pc%dat%nq*(j-1)
+        condensation_scale = max(condensation_scale, &
+            abs(chemistry_autodiff(condensing_particle,k+gas_index)), &
+            abs(chemistry_autodiff(gas_index,k+condensing_particle)))
+        condensation_error = max(condensation_error, &
+            abs(chemistry_analytical(condensing_particle,k+gas_index)- &
+                chemistry_autodiff(condensing_particle,k+gas_index)), &
+            abs(chemistry_analytical(gas_index,k+condensing_particle)- &
+                chemistry_autodiff(gas_index,k+condensing_particle)))
+      enddo
+      if (condensation_scale <= 0.0_dp .or. &
+          condensation_error/condensation_scale > 1.0e-12_dp) then
+        print *, 'Analytical gas-particle coupling differs from autodiff for ', &
+                 trim(label), condensation_error, condensation_scale
+        stop 1
+      endif
     endif
 
   end subroutine

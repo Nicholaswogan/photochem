@@ -874,8 +874,9 @@ contains
   end subroutine
 
   subroutine analytical_chemistry_jacobian(self, usol, rhs, djac, err)
-    use photochem_const, only: small_real
+    use photochem_const, only: small_real, pi
     use photochem_enum, only: CondensingParticle
+    use photochem_eqns, only: damp_condensation_rate
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), target, contiguous, intent(in) :: usol(:,:)
     real(dp), intent(out) :: rhs(:), djac(:,:)
@@ -884,8 +885,9 @@ contains
     real(dp), allocatable :: density_derivatives(:,:), reaction_derivative(:)
     real(dp), allocatable :: production_derivative(:), loss_derivative(:)
     real(dp) :: reaction_rate, loss
-    integer :: i, j, k, m, n, species
-    logical :: has_condensing_particles
+    real(dp) :: rh, rh_derivative, cond_rate0, cond_rate
+    real(dp) :: rate_derivative, transfer_derivative
+    integer :: i, ii, j, k, m, n, species
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -894,18 +896,6 @@ contains
     dat => self%dat
     var => self%var
     wrk => self%wrk
-
-    ! Condensation and evaporation derivatives are added in a later pass.
-    ! Never return a partial analytical Jacobian for a mechanism that uses them.
-    has_condensing_particles = .false.
-    if (dat%there_are_particles) then
-      has_condensing_particles = &
-          any(dat%particle_formation_method == CondensingParticle)
-    endif
-    if (has_condensing_particles) then
-      call autodiff_chemistry_jacobian(self, usol, rhs, djac, err)
-      return
-    endif
 
     ! Use dochem for the authoritative RHS. The analytical code below only
     ! replaces differentiation of the chemistry terms.
@@ -997,6 +987,51 @@ contains
           djac(i,n+i-1) = djac(i,n+i-1) - wrk%rainout_rates(i,j)
         enddo
       endif
+
+      do i = 1,dat%np
+        if (dat%particle_formation_method(i) /= CondensingParticle) cycle
+
+        ii = dat%particle_gas_phase_ind(i)
+        rh = max(usol(ii,j)/wrk%gas_sat_den(i,j),small_real)
+        rh_derivative = 0.0_dp
+        if (usol(ii,j)/wrk%gas_sat_den(i,j) > small_real) then
+          rh_derivative = 1.0_dp/wrk%gas_sat_den(i,j)
+        endif
+
+        if (rh > var%cond_params(i)%RHc) then
+          cond_rate0 = var%cond_params(i)%k_cond* &
+                       (var%edd(j)/wrk%scale_height(j)**2.0_dp)
+          cond_rate = damp_condensation_rate( &
+              cond_rate0, var%cond_params(i)%RHc, &
+              (1.0_dp + var%cond_params(i)%smooth_factor)* &
+                  var%cond_params(i)%RHc, rh)
+          rate_derivative = damp_condensation_rate_derivative( &
+              cond_rate0, var%cond_params(i)%RHc, &
+              (1.0_dp + var%cond_params(i)%smooth_factor)* &
+                  var%cond_params(i)%RHc, rh)*rh_derivative
+          transfer_derivative = cond_rate + usol(ii,j)*rate_derivative
+
+          djac(ii,n+ii-1) = djac(ii,n+ii-1) - transfer_derivative
+          djac(i,n+ii-1) = djac(i,n+ii-1) + transfer_derivative
+
+        elseif (var%evaporation) then
+          cond_rate0 = var%cond_params(i)%k_evap* &
+                       (wrk%wfall(i,j)/wrk%scale_height(j))
+          cond_rate = damp_condensation_rate( &
+              cond_rate0, 1.0_dp/var%cond_params(i)%RHc, &
+              (1.0_dp + var%cond_params(i)%smooth_factor)/ &
+                  var%cond_params(i)%RHc, 1.0_dp/rh)
+          rate_derivative = damp_inverse_rh_rate_derivative( &
+              cond_rate0, var%cond_params(i)%RHc, &
+              var%cond_params(i)%smooth_factor, rh)*rh_derivative
+          transfer_derivative = usol(i,j)*rate_derivative
+
+          djac(ii,n+ii-1) = djac(ii,n+ii-1) + transfer_derivative
+          djac(i,n+ii-1) = djac(i,n+ii-1) - transfer_derivative
+          djac(ii,n+i-1) = djac(ii,n+i-1) + cond_rate
+          djac(i,n+i-1) = djac(i,n+i-1) - cond_rate
+        endif
+      enddo
     enddo
 
   contains
@@ -1037,6 +1072,28 @@ contains
       enddo
 
     end subroutine
+
+    pure function damp_condensation_rate_derivative(A, rhc, rh0, rh) &
+        result(derivative)
+      real(dp), intent(in) :: A, rhc, rh0, rh
+      real(dp) :: derivative, argument
+
+      argument = (rh-rhc)/(rh0-rhc)
+      derivative = A*(2.0_dp/pi)/((rh0-rhc)*(1.0_dp+argument**2))
+
+    end function
+
+    pure function damp_inverse_rh_rate_derivative(A, rhc, smooth_factor, &
+                                                   rh) result(derivative)
+      real(dp), intent(in) :: A, rhc, smooth_factor, rh
+      real(dp) :: derivative, inverse_rhc, width
+
+      inverse_rhc = 1.0_dp/rhc
+      width = smooth_factor/rhc
+      derivative = -A*(2.0_dp/pi)*width/ &
+                   ((width*rh)**2 + (1.0_dp-inverse_rhc*rh)**2)
+
+    end function
 
   end subroutine
 
