@@ -166,9 +166,6 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         # Compute chemical equilibrium along the whole P-T profile
         mix, mubar = composition_at_metallicity(gdat.gas, T_in, P_in, CtoO, metallicity, rainout_condensed_atoms)
 
-        if target_pressure*3 > P_in[-1]:
-            raise Exception('The photochemical grid needs to extend above the climate grid')
-
         # Altitude of P-T grid
         P1, T1, mubar1, z1 = compute_altitude_of_PT(P_in, gdat.P_ref, T_in, mubar, gdat.planet_radius, gdat.planet_mass, target_pressure)
         # If needed, extrapolate Kzz and mixing ratios
