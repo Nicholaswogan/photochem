@@ -218,8 +218,9 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: particle_radius(:,:)
       !> Retain temperature and eddy diffusion as functions of hydrostatic pressure.
       logical, optional, intent(in) :: persistent
-      !> Tropopause pressure (dyn/cm^2). May be supplied only when `persistent`
-      !! is true and gas rainout is enabled; it is required when rainout is enabled.
+      !> Tropopause pressure (dyn/cm^2). May be supplied whenever gas rainout is
+      !! enabled; it overrides the settings-file tropopause for the initial state.
+      !! It is required when persistence and gas rainout are both enabled.
       real(dp), optional, intent(in) :: trop_p
       !> Enable approximate TOA-pressure maintenance when `persistent` is true.
       logical, optional, intent(in) :: maintain_toa_pressure

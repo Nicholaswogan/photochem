@@ -14,6 +14,7 @@ contains
     call test_initialize_atmosphere_z()
     call test_initialize_atmosphere_p()
     call test_initialization_paths_step()
+    call test_pressure_tropopause_handoff()
     call test_legacy_file_grid()
     call test_robust_stepper_initialization()
     call test_toa_pressure_maintenance_settings()
@@ -1660,6 +1661,60 @@ contains
     endif
     call check_initialized_step(pc_p, 'pressure', tn)
 
+  end subroutine
+
+  subroutine test_pressure_tropopause_handoff()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp), parameter :: pressure(4) = [1.0e6_dp, 1.0e5_dp, 1.0e4_dp, 1.0e2_dp]
+    real(dp), parameter :: temperature(4) = [300.0_dp, 290.0_dp, 280.0_dp, 270.0_dp]
+    real(dp), parameter :: edd(4) = [1.0e5_dp, 2.0e5_dp, 3.0e5_dp, 4.0e5_dp]
+    real(dp), parameter :: trop_p = 1.0e5_dp
+    real(dp), allocatable :: mix(:,:), particle_radius(:,:)
+
+    ! The supplied tropopause pressure must be used before the first common
+    ! finalization. The settings-file tropopause (1.0e9 cm) is deliberately
+    ! above this shallow pressure-defined domain.
+    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
+                       '../tests/test_settings_tropopause_outside.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    allocate(mix(pc%dat%nq,size(pressure)))
+    allocate(particle_radius(pc%dat%npq,size(pressure)))
+    call fill_static_profiles(pc, mix, particle_radius)
+
+    call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                    particle_radius, trop_p=trop_p, err=err)
+    if (allocated(err)) then
+      print *, 'nonpersistent pressure initialization rejected trop_p: '//trim(err)
+      stop 1
+    endif
+    if (pc%var%press_temp_edd_profile%enabled .or. &
+        pc%var%trop_alt <= pc%var%bottom_atmos .or. &
+        pc%var%trop_alt >= pc%var%top_atmos) then
+      print *, 'nonpersistent pressure initialization mishandled trop_p'
+      stop 1
+    endif
+
+    call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
+                                    particle_radius, persistent=.true., &
+                                    trop_p=trop_p, err=err)
+    if (allocated(err)) then
+      print *, 'pressure initialization rejected a valid supplied tropopause: '//trim(err)
+      stop 1
+    endif
+    if (.not. pc%var%press_temp_edd_profile%enabled .or. &
+        pc%var%press_temp_edd_profile%trop_p /= trop_p .or. &
+        pc%var%trop_alt <= pc%var%bottom_atmos .or. &
+        pc%var%trop_alt >= pc%var%top_atmos) then
+      print *, 'pressure initialization did not apply the supplied tropopause pressure'
+      stop 1
+    endif
   end subroutine
 
   subroutine fill_static_profiles(pc, mix, particle_radius)

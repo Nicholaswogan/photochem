@@ -160,9 +160,10 @@ contains
 
   module subroutine map_atmosphere_p_to_grid(dat, var, profile_pressure, &
                                              temperature, edd, mix, &
-                                             particle_radius, pressure, &
-                                             density, mubar, usol, err)
+                                             particle_radius, trop_p, &
+                                             pressure, density, mubar, usol, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use futils, only: interp
     use photochem_const, only: k_boltz, N_avo
     use photochem_eqns, only: gravity
 
@@ -170,6 +171,7 @@ contains
     type(PhotochemVars), intent(inout) :: var
     real(dp), intent(in) :: profile_pressure(:), temperature(:), edd(:)
     real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
+    real(dp), optional, intent(in) :: trop_p
     real(dp), intent(out) :: pressure(:), density(:), mubar(:)
     real(dp), intent(out) :: usol(:,:)
     character(:), allocatable, intent(out) :: err
@@ -178,7 +180,8 @@ contains
     real(dp) :: gas_total, inverse_radius, inverse_radius_new
     real(dp) :: inverse_radius_factor, delta_log_pressure
     real(dp) :: surface_z(1), surface_gravity(1)
-    integer :: i, nprofile
+    real(dp) :: trop_alt_array(1)
+    integer :: i, nprofile, ierr
 
     nprofile = size(profile_pressure)
 
@@ -265,6 +268,32 @@ contains
       endif
       inverse_radius = inverse_radius_new
     enddo
+
+    if (present(trop_p)) then
+      if (.not. dat%gas_rainout) then
+        err = '"trop_p" can only be supplied when gas rainout is enabled.'
+        return
+      endif
+      if (.not. ieee_is_finite(trop_p) .or. trop_p <= 0.0_dp) then
+        err = '"trop_p" must be finite and positive.'
+        return
+      endif
+      if (trop_p > profile_pressure(1) .or. trop_p < profile_pressure(nprofile)) then
+        err = '"trop_p" must lie within the supplied pressure profile.'
+        return
+      endif
+
+      ! The pressure profile is descending while the interpolation abscissa
+      ! must be ascending. Install the resulting altitude before the common
+      ! altitude mapper validates the candidate tropopause.
+      call interp([log(trop_p)], log(profile_pressure(nprofile:1:-1)), &
+                  z(nprofile:1:-1), trop_alt_array, ierr=ierr)
+      if (ierr /= 0 .or. .not. ieee_is_finite(trop_alt_array(1))) then
+        err = 'Unable to determine the tropopause altitude from "trop_p".'
+        return
+      endif
+      var%trop_alt = trop_alt_array(1)
+    endif
 
     call map_atmosphere_z_to_grid(dat, var, z, temperature, edd, &
                                   profile_pressure(1), mix, particle_radius, &

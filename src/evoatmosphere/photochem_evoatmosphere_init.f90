@@ -161,9 +161,8 @@ contains
     maintain_toa_pressure_ = .true.
     if (present(maintain_toa_pressure)) maintain_toa_pressure_ = maintain_toa_pressure
     if (.not. persistent_ .and. &
-        (present(trop_p) .or. present(target_pressure) .or. &
-         present(maintain_toa_pressure))) then
-      err = '"trop_p", "maintain_toa_pressure", and "target_pressure" '// &
+        (present(target_pressure) .or. present(maintain_toa_pressure))) then
+      err = '"maintain_toa_pressure" and "target_pressure" '// &
             'can only be specified when "persistent" is true.'
       return
     endif
@@ -181,7 +180,8 @@ contains
              mubar(candidate%var%nz), usol_start(candidate%dat%nq,candidate%var%nz))
     call map_atmosphere_p_to_grid(candidate%dat, candidate%var, pressure, &
                                   temperature, edd, mix, particle_radius, &
-                                  pressure_model, density, mubar, usol_start, err)
+                                  trop_p=trop_p, pressure=pressure_model, &
+                                  density=density, mubar=mubar, usol=usol_start, err=err)
     if (allocated(err)) return
 
     call finalize_atmosphere_initialization(candidate%dat, candidate%var, err)
