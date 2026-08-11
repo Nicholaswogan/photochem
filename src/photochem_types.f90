@@ -460,6 +460,9 @@ module photochem_types ! make a giant IO object
     !> If .true., then the chemistry terms of the Jacobian are computed uses 
     !> foward mode automatic differentiation.
     logical :: autodiff = .true.
+    !> Experimental analytical chemistry Jacobian. This only has an effect when
+    !> autodiff == .true.; otherwise the finite-difference Jacobian is used.
+    logical :: analytical_jacobian = .false.
     !> Perturbation for finite difference Jacobian calculation, when autodiff == .false.
     real(dp) :: epsj = 1.0e-4_dp 
     integer :: verbose = 1 !! 0 == no printing. 1 == some printing. 2 == bunch of printing.

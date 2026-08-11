@@ -873,6 +873,18 @@ contains
     end subroutine
   end subroutine
 
+  subroutine analytical_chemistry_jacobian(self, usol, rhs, djac, err)
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), target, contiguous, intent(in) :: usol(:,:)
+    real(dp), intent(out) :: rhs(:), djac(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    ! The analytical implementation is added incrementally. Until it is
+    ! complete, preserve exact behavior by using autodiff as the fallback.
+    call autodiff_chemistry_jacobian(self, usol, rhs, djac, err)
+
+  end subroutine
+
   module subroutine jac_evo_gas(self, lda_neqs, neqs, usol_flat, jac, err)
     use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
     use photochem_enum, only: ZahnleHydrogenEscape
@@ -960,9 +972,13 @@ contains
     !$omp enddo
     !$omp end parallel
     
-    endblock; else 
+    endblock; else
 
-    call autodiff_chemistry_jacobian(self, wrk%usol, rhs, wrk%djac_chem, err)
+    if (var%analytical_jacobian) then
+      call analytical_chemistry_jacobian(self, wrk%usol, rhs, wrk%djac_chem, err)
+    else
+      call autodiff_chemistry_jacobian(self, wrk%usol, rhs, wrk%djac_chem, err)
+    endif
     if (allocated(err)) return
 
     do mm = 1,dat%nq

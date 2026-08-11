@@ -29,8 +29,55 @@ contains
     call test_update_vertical_grid_repeated()
     call test_update_vertical_grid_particles()
     call test_update_vertical_grid_atomicity()
+    call test_analytical_jacobian_switch()
     call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
     call test_methods('../tests/no_particle_test.yaml')
+  end subroutine
+
+  subroutine test_analytical_jacobian_switch()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp), allocatable :: usol_flat(:), jac_autodiff(:), jac_analytical(:)
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    if (pc%var%analytical_jacobian) then
+      print *, 'Analytical Jacobian should be disabled by default'
+      stop 1
+    endif
+
+    usol_flat = reshape(pc%wrk%usol, [pc%var%neqs])
+    allocate(jac_autodiff(pc%dat%lda*pc%var%neqs))
+    allocate(jac_analytical(pc%dat%lda*pc%var%neqs))
+
+    call pc%jacobian(size(jac_autodiff), pc%var%neqs, usol_flat, &
+                     jac_autodiff, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    pc%var%analytical_jacobian = .true.
+    call pc%jacobian(size(jac_analytical), pc%var%neqs, usol_flat, &
+                     jac_analytical, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    if (any(jac_analytical /= jac_autodiff)) then
+      print *, 'Experimental analytical Jacobian fallback differs from autodiff'
+      stop 1
+    endif
+
   end subroutine
 
   subroutine test_update_vertical_grid_inputs()
