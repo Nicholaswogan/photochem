@@ -596,27 +596,25 @@ module photochem_evoatmosphere
 
     ! Internal, non-mutating mapping kernel shared by the public setter and
     ! routines that need to map a profile for an arbitrary trial composition.
-    module subroutine map_press_temp_edd(self, usol_in, P, T, edd, trop_p, has_trop_p, hydro_pressure, &
+    module subroutine map_press_temp_edd(self, usol, P, T, edd, trop_p, hydro_pressure, &
                                          grid_z, grid_dz, grid_grav, temperature_reference, &
                                          pressure_reference, &
-                                         T_new, edd_new, log10P_wrk, trop_alt, err)
+                                         T_grid, edd_grid, log10P_grid, trop_alt, err)
       class(EvoAtmosphere), target, intent(in) :: self
-      real(dp), intent(in) :: usol_in(:,:)
+      real(dp), intent(in) :: usol(:,:)
       real(dp), intent(in) :: P(:)
       real(dp), intent(in) :: T(:)
       real(dp), intent(in) :: edd(:)
       real(dp), intent(in) :: trop_p
-      ! Explicitly records whether trop_p was supplied by the caller.
-      logical, intent(in) :: has_trop_p
-      logical, optional, intent(in) :: hydro_pressure
+      logical, intent(in) :: hydro_pressure
       real(dp), intent(in) :: grid_z(:)
       real(dp), intent(in) :: grid_dz(:)
       real(dp), intent(in) :: grid_grav(:)
       real(dp), intent(in) :: temperature_reference(:)
       real(dp), intent(in) :: pressure_reference(:)
-      real(dp), intent(out) :: T_new(:)
-      real(dp), intent(out) :: edd_new(:)
-      real(dp), intent(out) :: log10P_wrk(:)
+      real(dp), intent(out) :: T_grid(:)
+      real(dp), intent(out) :: edd_grid(:)
+      real(dp), intent(out) :: log10P_grid(:)
       real(dp), intent(out) :: trop_alt
       character(:), allocatable, intent(out) :: err
     end subroutine

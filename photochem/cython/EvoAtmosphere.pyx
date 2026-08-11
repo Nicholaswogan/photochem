@@ -592,8 +592,10 @@ cdef class EvoAtmosphere:
   def set_temperature(self, ndarray[double, ndim=1] temperature, trop_alt = None):
     """Changes the temperature profile.
 
-    This method cannot be used while a persistent pressure-temperature-eddy
-    profile is enabled. Call :meth:`clear_press_temp_edd_profile` first.
+    This method cannot be used while a CVODE stepper is initialized or while
+    a persistent pressure-temperature-eddy profile is enabled. Call
+    :meth:`destroy_stepper` or :meth:`clear_press_temp_edd_profile` first,
+    respectively.
 
     Parameters
     ----------
@@ -632,9 +634,10 @@ cdef class EvoAtmosphere:
 
     On success, this method updates the model temperature, eddy diffusion,
     and derived atmospheric working state. It does not evolve atmospheric
-    species number densities. This method cannot be used while a persistent
-    pressure-temperature-eddy profile is enabled; call
-    :meth:`clear_press_temp_edd_profile` first.
+    species number densities. This method cannot be used while a CVODE
+    stepper is initialized or while a persistent pressure-temperature-eddy
+    profile is enabled; call :meth:`destroy_stepper` or
+    :meth:`clear_press_temp_edd_profile` first, respectively.
     
     Parameters
     ----------

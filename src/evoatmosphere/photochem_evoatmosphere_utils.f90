@@ -317,11 +317,11 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     logical, optional, intent(in) :: hydro_pressure
     character(:), allocatable, intent(out) :: err
 
-    real(dp) :: T_new(self%var%nz), edd_new(self%var%nz)
-    real(dp) :: log10P_wrk(self%var%nz), trop_alt
+    real(dp) :: T_grid(self%var%nz), edd_grid(self%var%nz)
+    real(dp) :: log10P_grid(self%var%nz), trop_alt
     real(dp) :: edd_save(self%var%nz)
     real(dp) :: trop_p_ = 0.0_dp
-    logical :: has_trop_p
+    logical :: has_trop_p, hydro_pressure_
 
     call self%require_atmosphere_initialized('set_press_temp_edd', err)
     if (allocated(err)) return
@@ -338,31 +338,46 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       return
     endif
 
-    has_trop_p = present(trop_p)
-    if (has_trop_p) trop_p_ = trop_p
+    if (present(trop_p)) trop_p_ = trop_p
+    has_trop_p = trop_p_ > 0.0_dp
+    if (present(hydro_pressure)) then
+      hydro_pressure_ = hydro_pressure
+    else
+      hydro_pressure_ = .true.
+    endif
 
     ! First compute the mapping without changing model state. This kernel is
     ! also suitable for applying a persistent pressure-based profile to an
     ! arbitrary trial composition during a future RHS evaluation.
-    call map_press_temp_edd(self, self%wrk%usol, P, T, edd, &
-                            trop_p=trop_p_, has_trop_p=has_trop_p, &
-                            hydro_pressure=hydro_pressure, &
-                            grid_z=self%var%z, grid_dz=self%var%dz, &
-                            grid_grav=self%var%grav, &
-                            temperature_reference=self%var%temperature, &
-                            pressure_reference=self%wrk%pressure_hydro, &
-                            T_new=T_new, edd_new=edd_new, &
-                            log10P_wrk=log10P_wrk, trop_alt=trop_alt, err=err)
+    call map_press_temp_edd( &
+      self, &
+      self%wrk%usol, &
+      P, &
+      T, &
+      edd, &
+      trop_p=trop_p_, &
+      hydro_pressure=hydro_pressure_, &
+      grid_z=self%var%z, &
+      grid_dz=self%var%dz, &
+      grid_grav=self%var%grav, &
+      temperature_reference=self%var%temperature, &
+      pressure_reference=self%wrk%pressure_hydro, &
+      T_grid=T_grid, &
+      edd_grid=edd_grid, &
+      log10P_grid=log10P_grid, &
+      trop_alt=trop_alt, &
+      err=err &
+    )
     if (allocated(err)) return
 
     ! Commit point: the mapping above only reads self. Updating Kzz and
     ! calling set_temperature below are the only operations that mutate it.
     edd_save = self%var%edd
-    self%var%edd = edd_new
-    if (present(trop_p)) then
-      call self%set_temperature(T_new, trop_alt, err)
+    self%var%edd = edd_grid
+    if (has_trop_p) then
+      call self%set_temperature(T_grid, trop_alt, err)
     else
-      call self%set_temperature(T_new, err=err)
+      call self%set_temperature(T_grid, err=err)
     endif
     if (allocated(err)) self%var%edd = edd_save
 
@@ -489,55 +504,61 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     real(dp), intent(in) :: usol_in(:,:)
     character(:), allocatable, intent(out) :: err
 
-    real(dp) :: T_new(self%var%nz), edd_new(self%var%nz)
-    real(dp) :: log10P_wrk(self%var%nz), trop_alt
+    real(dp) :: T_grid(self%var%nz), edd_grid(self%var%nz)
+    real(dp) :: log10P_grid(self%var%nz), trop_alt
 
     if (.not. self%var%press_temp_edd_profile%enabled) return
 
-    call map_press_temp_edd(self, usol_in, &
-         self%var%press_temp_edd_profile%pressure, &
-         self%var%press_temp_edd_profile%temperature, &
-         self%var%press_temp_edd_profile%edd, &
-         trop_p=self%var%press_temp_edd_profile%trop_p, &
-         has_trop_p=self%var%press_temp_edd_profile%has_trop_p, &
-         hydro_pressure=self%var%press_temp_edd_profile%hydro_pressure, &
-         grid_z=self%var%z, grid_dz=self%var%dz, grid_grav=self%var%grav, &
-         temperature_reference=self%var%temperature, &
-         pressure_reference=self%wrk%pressure_hydro, &
-         T_new=T_new, edd_new=edd_new, log10P_wrk=log10P_wrk, &
-         trop_alt=trop_alt, err=err)
+    call map_press_temp_edd( &
+      self, &
+      usol_in, &
+      self%var%press_temp_edd_profile%pressure, &
+      self%var%press_temp_edd_profile%temperature, &
+      self%var%press_temp_edd_profile%edd, &
+      trop_p=self%var%press_temp_edd_profile%trop_p, &
+      hydro_pressure=self%var%press_temp_edd_profile%hydro_pressure, &
+      grid_z=self%var%z, &
+      grid_dz=self%var%dz, &
+      grid_grav=self%var%grav, &
+      temperature_reference=self%var%temperature, &
+      pressure_reference=self%wrk%pressure_hydro, &
+      T_grid=T_grid, &
+      edd_grid=edd_grid, &
+      log10P_grid=log10P_grid, &
+      trop_alt=trop_alt, &
+      err=err &
+    )
     if (allocated(err)) return
 
     ! Commit only after the profile has mapped successfully and the
     ! tropopause has been validated. Do not call set_temperature here: that
     ! routine calls prep_atmosphere and would recurse back into this routine.
-    self%var%temperature = T_new
-    self%var%edd = edd_new
-    call refresh_temperature_dependent_state(self%dat, self%var, trop_alt=trop_alt, err=err)
+    self%var%temperature = T_grid
+    self%var%edd = edd_grid
+    call refresh_temperature_dependent_state(self%dat, self%var, trop_alt, err)
 
   end subroutine
 
-  module subroutine map_press_temp_edd(self, usol_in, P, T, edd, trop_p, has_trop_p, hydro_pressure, &
+  module subroutine map_press_temp_edd(self, usol, P, T, edd, trop_p, hydro_pressure, &
                                        grid_z, grid_dz, grid_grav, temperature_reference, &
                                        pressure_reference, &
-                                       T_new, edd_new, log10P_wrk, trop_alt, err)
+                                       T_grid, edd_grid, log10P_grid, trop_alt, err)
     use futils, only: interp, brent_class
     use ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, ieee_value
     use photochem_const, only: small_real, k_boltz, N_avo
     use photochem_enum, only: DensityBC, PressureBC
     class(EvoAtmosphere), target, intent(in) :: self
-    real(dp), intent(in) :: usol_in(:,:)
+    real(dp), intent(in) :: usol(:,:)
     real(dp), intent(in) :: P(:)
     real(dp), intent(in) :: T(:)
     real(dp), intent(in) :: edd(:)
     real(dp), intent(in) :: trop_p
-    logical, intent(in) :: has_trop_p
-    logical, optional, intent(in) :: hydro_pressure
+    logical, intent(in) :: hydro_pressure
     real(dp), intent(in) :: grid_z(:), grid_dz(:), grid_grav(:)
     real(dp), intent(in) :: temperature_reference(:), pressure_reference(:)
-    real(dp), intent(out) :: T_new(:)
-    real(dp), intent(out) :: edd_new(:)
-    real(dp), intent(out) :: log10P_wrk(:)
+    real(dp), intent(out) :: T_grid(:)
+    real(dp), intent(out) :: edd_grid(:)
+    real(dp), intent(out) :: log10P_grid(:)
     real(dp), intent(out) :: trop_alt
     character(:), allocatable, intent(out) :: err
 
@@ -547,7 +568,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     real(dp) :: xzero, Psurf_initial, Psurf_final
     real(dp) :: log10P_previous, temperature_previous
     real(dp) :: trop_alt_array(1)
-    logical :: hydro_pressure_
+    logical :: has_trop_p
     integer :: ierr, i, j, residual_layer
     character(32) :: layer_string
     character(:), allocatable :: residual_error
@@ -565,12 +586,12 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     var => self%var
 
     ! Check inputs
-    if (size(usol_in,1) /= dat%nq .or. size(usol_in,2) /= var%nz) then
-      err = '"usol_in" has the wrong dimensions'
+    if (size(usol,1) /= dat%nq .or. size(usol,2) /= var%nz) then
+      err = '"usol" has the wrong dimensions'
       return
     endif
-    if (size(T_new) /= var%nz .or. size(edd_new) /= var%nz .or. &
-        size(log10P_wrk) /= var%nz) then
+    if (size(T_grid) /= var%nz .or. size(edd_grid) /= var%nz .or. &
+        size(log10P_grid) /= var%nz) then
       err = 'Pressure-profile mapping output arrays have the wrong dimensions'
       return
     endif
@@ -616,22 +637,14 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       err = '"P" must be strictly decreasing'
       return
     endif
-    if (has_trop_p) then
-      if (.not. ieee_is_finite(trop_p) .or. trop_p <= 0.0_dp) then
-        err = '"trop_p" must be finite and positive'
-        return
-      endif
+    if (.not. ieee_is_finite(trop_p)) then
+      err = '"trop_p" must be finite; use a non-positive value to omit it'
+      return
     endif
+    has_trop_p = trop_p > 0.0_dp
     if (dat%gas_rainout .and. .not.has_trop_p) then
       err = '"trop_p" is a required input.'
       return
-    endif
-
-    ! optional arguments
-    if (present(hydro_pressure)) then
-      hydro_pressure_ = hydro_pressure
-    else
-      hydro_pressure_ = .true. ! default is True
     endif
 
     ! Allocate work space
@@ -639,7 +652,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     allocate(usol_base(dat%nq,var%nz), density_base(var%nz), mubar_base(var%nz))
 
     ! Copy and clip the current state in the same way as prep_atm_evo_gas.
-    call clip_usol(usol_in, usol_base)
+    call clip_usol(usol, usol_base)
 
     ! Above the bottom layer, density and mean molecular weight do not
     ! depend on temperature. The bottom layer is handled separately because
@@ -688,9 +701,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       if (allocated(err)) return
 
       ! Save the result, and evaluate T and Kzz at the root.
-      log10P_wrk(i) = xzero
+      log10P_grid(i) = xzero
       P_wrk(i) = 10.0_dp**xzero
-      call evaluate_profile(xzero, log10P_in, T_in, T_new(i), 'temperature', .true., err)
+      call evaluate_profile(xzero, log10P_in, T_in, T_grid(i), 'temperature', .true., err)
       if (allocated(err)) return
 
       call evaluate_profile(xzero, log10P_in, log10edd_in, log10edd_new(i), &
@@ -706,7 +719,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       endif
       if (i > 1) then
         if (P_wrk(i) >= P_wrk(i-1)) then
-          if (hydro_pressure_) then
+          if (hydro_pressure) then
             write(layer_string,'(i0)') i
             err = 'The hydrostatic pressure does not decrease upward at layer '//trim(layer_string)
             return
@@ -724,9 +737,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
         ! Little sanity check to make sure pressure is decreasing.
 
-        call bottom_column_state(T_new(1), density_final, mubar_final, Psurf_final, err)
+        call bottom_column_state(T_grid(1), density_final, mubar_final, Psurf_final, err)
         if (allocated(err)) return
-        if (hydro_pressure_ .and. P_wrk(1) >= Psurf_final) then
+        if (hydro_pressure .and. P_wrk(1) >= Psurf_final) then
           err = 'The solved bottom-layer pressure is not below the surface pressure'
           return
         endif
@@ -735,7 +748,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       ! Save the previous solve. This is needed for initial guesses and for the residuals on
       ! subsequent layers.
       log10P_previous = xzero
-      temperature_previous = T_new(i)
+      temperature_previous = T_grid(i)
     enddo
 
     ! Ensure eddy diffusion is valid
@@ -743,8 +756,8 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       err = 'The mapped eddy-diffusion profile is not finite'
       return
     endif
-    edd_new = 10.0_dp**log10edd_new
-    if (.not. all(ieee_is_finite(edd_new)) .or. any(edd_new <= 0.0_dp)) then
+    edd_grid = 10.0_dp**log10edd_new
+    if (.not. all(ieee_is_finite(edd_grid)) .or. any(edd_grid <= 0.0_dp)) then
       err = 'The mapped eddy-diffusion profile is not finite and positive'
       return
     endif
@@ -752,7 +765,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     ! Compute the tropopause altitude
     trop_alt = 0.0_dp
     if (has_trop_p) then
-      call interp([log10(trop_p)], log10P_wrk(var%nz:1:-1), &
+      call interp([log10(trop_p)], log10P_grid(var%nz:1:-1), &
                   grid_z(var%nz:1:-1), trop_alt_array, ierr=ierr)
       if (ierr /= 0) then
         err = 'Subroutine interp returned an error.'
@@ -780,7 +793,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
       ! `xcenter` is the root estimate, while `width` is how far above and below
       ! `xcenter` we will search for a bracket that we can use for the solve.
-      if (hydro_pressure_) then
+      if (hydro_pressure) then
         if (layer == 1) then
           ! Existing bottom pressure is the root estimate.
           xcenter = log10(max(pressure_reference(1), small_real))
@@ -873,7 +886,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
         return
       endif
 
-      if (hydro_pressure_) then
+      if (hydro_pressure) then
         ! x is trial log10 pressure. Since the input temperature is T(P),
         ! each trial pressure determines the temperature used in the residual.
         if (residual_layer == 1) then
@@ -1364,19 +1377,25 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
         call extend_density_hydrostatically()
         call fill_candidate_usol()
 
-        call map_press_temp_edd(self, candidate%usol, &
-             var%press_temp_edd_profile%pressure, &
-             var%press_temp_edd_profile%temperature, &
-             var%press_temp_edd_profile%edd, &
-             trop_p=var%press_temp_edd_profile%trop_p, &
-             has_trop_p=var%press_temp_edd_profile%has_trop_p, &
-             hydro_pressure=var%press_temp_edd_profile%hydro_pressure, &
-             grid_z=candidate%z, grid_dz=candidate%dz, &
-             grid_grav=candidate%grav, &
-             temperature_reference=candidate%temperature, &
-             pressure_reference=pressure_reference_candidate, &
-             T_new=temperature_mapped, edd_new=edd_mapped, &
-             log10P_wrk=log10P_mapped, trop_alt=trop_alt, err=err)
+        call map_press_temp_edd( &
+          self, &
+          candidate%usol, &
+          var%press_temp_edd_profile%pressure, &
+          var%press_temp_edd_profile%temperature, &
+          var%press_temp_edd_profile%edd, &
+          trop_p=var%press_temp_edd_profile%trop_p, &
+          hydro_pressure=var%press_temp_edd_profile%hydro_pressure, &
+          grid_z=candidate%z, &
+          grid_dz=candidate%dz, &
+          grid_grav=candidate%grav, &
+          temperature_reference=candidate%temperature, &
+          pressure_reference=pressure_reference_candidate, &
+          T_grid=temperature_mapped, &
+          edd_grid=edd_mapped, &
+          log10P_grid=log10P_mapped, &
+          trop_alt=trop_alt, &
+          err=err &
+        )
         if (allocated(err)) return
 
         temperature_change = maxval(abs(temperature_mapped-candidate%temperature)/ &
