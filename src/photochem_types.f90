@@ -10,7 +10,7 @@ module photochem_types ! make a giant IO object
   private
   
   public :: PhotoSettings, SettingsBC
-  public :: XsectionData
+  public :: XsectionData, ParticleXsections
   public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
   public :: ProductionLoss, ThermodynamicData, CondensationParameters
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate, PressDependentRate, MultiArrheniusRate

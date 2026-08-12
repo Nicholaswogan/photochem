@@ -477,7 +477,7 @@ contains
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
 
-    call interp2particlexsdata(dat, var, err)
+    call interp2particlexsdata(dat, var%particle_radius, var%particle_xs, err)
     if (allocated(err)) return
 
     call refresh_temperature_dependent_state(dat, var, err=err)
@@ -576,72 +576,74 @@ contains
 
   end subroutine
 
-  module subroutine interp2particlexsdata(dat, var, err)
+  subroutine interp2particlexsdata(dat, particle_radius, particle_xs, err)
+    use photochem_types, only: ParticleXsections
     type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
-
+    real(dp), intent(in) :: particle_radius(:,:)
+    type(ParticleXsections), intent(inout) :: particle_xs(:)
     character(:), allocatable, intent(out) :: err
     
-    integer :: i, j, k, jj
+    integer :: i, j, k, jj, nz
     real(dp) :: dr, slope, intercept
+
+    if (.not.dat%there_are_particles) return
+
+    nz = size(particle_radius, 2)
     
-    ! particles
-    if (dat%there_are_particles) then
-      do j = 1,var%nz
-        do k = 1,dat%np
-          ! if there is optical data, then check that the
-          ! data covers the particle radii in the atmosphere.
-          if (dat%part_xs_file(k)%ThereIsData) then
-          
-            if (var%particle_radius(k,j) <= dat%radii_file(1,k)) then
-              err = "There is not any optical data for the "// &
-                    "particle radii specified in the atmosphere."
-              return
-            endif
-            if (var%particle_radius(k,j) >= dat%radii_file(dat%nrad_file,k)) then
-              err = "There is not any optical data for the "// &
-                    "particle radii specified in the atmosphere."
-              return
-            endif
-            
+    do j = 1,nz
+      do k = 1,dat%np
+        ! if there is optical data, then check that the
+        ! data covers the particle radii in the atmosphere.
+        if (dat%part_xs_file(k)%ThereIsData) then
+        
+          if (particle_radius(k,j) <= dat%radii_file(1,k)) then
+            err = "There is not any optical data for the "// &
+                  "particle radii specified in the atmosphere."
+            return
+          endif
+          if (particle_radius(k,j) >= dat%radii_file(dat%nrad_file,k)) then
+            err = "There is not any optical data for the "// &
+                  "particle radii specified in the atmosphere."
+            return
           endif
           
-        enddo
+        endif
+        
       enddo
-      do i = 1,dat%nw
-        do j = 1,var%nz
-          do k = 1,dat%np
-            
-          ! if there is particle optical data, then linearly interpolate
-          ! it to to the particle radii in the atmosphere.
-          if (dat%part_xs_file(k)%ThereIsData) then
-            
-            do jj = 1,dat%nrad_file-1
-              if (var%particle_radius(k,j) >= dat%radii_file(jj,k) .and. &
-                  var%particle_radius(k,j) < dat%radii_file(jj+1,k)) then
-    
-                dr = dat%radii_file(jj+1,k) - dat%radii_file(jj,k)
-    
-                slope = (dat%part_xs_file(k)%w0(jj+1,i) - dat%part_xs_file(k)%w0(jj,i))/dr
-                intercept = dat%part_xs_file(k)%w0(jj,i) - dat%radii_file(jj,k)*slope
-                var%particle_xs(k)%w0(j,i) = slope*var%particle_radius(k,j) + intercept
-                
-                slope = (dat%part_xs_file(k)%qext(jj+1,i) - dat%part_xs_file(k)%qext(jj,i))/dr
-                intercept = dat%part_xs_file(k)%qext(jj,i) - dat%radii_file(jj,k)*slope
-                var%particle_xs(k)%qext(j,i) = slope*var%particle_radius(k,j) + intercept
-    
-                slope = (dat%part_xs_file(k)%gt(jj+1,i) - dat%part_xs_file(k)%gt(jj,i))/dr
-                intercept = dat%part_xs_file(k)%gt(jj,i) - dat%radii_file(jj,k)*slope
-                var%particle_xs(k)%gt(j,i) = slope*var%particle_radius(k,j) + intercept
-              endif
-            enddo
+    enddo
+    do i = 1,dat%nw
+      do j = 1,nz
+        do k = 1,dat%np
           
-          endif 
-            
+        ! if there is particle optical data, then linearly interpolate
+        ! it to to the particle radii in the atmosphere.
+        if (dat%part_xs_file(k)%ThereIsData) then
+          
+          do jj = 1,dat%nrad_file-1
+            if (particle_radius(k,j) >= dat%radii_file(jj,k) .and. &
+                particle_radius(k,j) < dat%radii_file(jj+1,k)) then
+  
+              dr = dat%radii_file(jj+1,k) - dat%radii_file(jj,k)
+  
+              slope = (dat%part_xs_file(k)%w0(jj+1,i) - dat%part_xs_file(k)%w0(jj,i))/dr
+              intercept = dat%part_xs_file(k)%w0(jj,i) - dat%radii_file(jj,k)*slope
+              particle_xs(k)%w0(j,i) = slope*particle_radius(k,j) + intercept
+              
+              slope = (dat%part_xs_file(k)%qext(jj+1,i) - dat%part_xs_file(k)%qext(jj,i))/dr
+              intercept = dat%part_xs_file(k)%qext(jj,i) - dat%radii_file(jj,k)*slope
+              particle_xs(k)%qext(j,i) = slope*particle_radius(k,j) + intercept
+  
+              slope = (dat%part_xs_file(k)%gt(jj+1,i) - dat%part_xs_file(k)%gt(jj,i))/dr
+              intercept = dat%part_xs_file(k)%gt(jj,i) - dat%radii_file(jj,k)*slope
+              particle_xs(k)%gt(j,i) = slope*particle_radius(k,j) + intercept
+            endif
           enddo
+        
+        endif 
+          
         enddo
       enddo
-    endif
+    enddo
     
   end subroutine
 

@@ -11,7 +11,7 @@ module photochem_input
   public :: map_atmosphere_p_to_grid
   public :: finalize_atmosphere_initialization
   public :: refresh_temperature_dependent_state
-  public :: interp2xsdata, compute_gibbs_energy, interp2particlexsdata, parse_reaction
+  public :: interp2xsdata, compute_gibbs_energy, parse_reaction
   
   type, extends(type_list) :: type_list_tmp
   ! temporary list for accessing all reactions and
@@ -103,13 +103,6 @@ module photochem_input
     end subroutine
     
     module subroutine compute_gibbs_energy(dat, var, err)
-      type(PhotochemData), intent(in) :: dat
-      type(PhotochemVars), intent(inout) :: var
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-
-    module subroutine interp2particlexsdata(dat, var, err)
-      use photochem_const, only: smaller_real
       type(PhotochemData), intent(in) :: dat
       type(PhotochemVars), intent(inout) :: var
       character(:), allocatable, intent(out) :: err
