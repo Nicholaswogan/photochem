@@ -515,7 +515,7 @@ contains
       endif
     endif
 
-    call interp2xsdata(dat, var, err)
+    call interp2xsdata(dat, var%xs_x_qy, err)
     if (allocated(err)) return
     
     if (dat%reverse) then
@@ -557,11 +557,10 @@ contains
 
   end subroutine
   
-  module subroutine interp2xsdata(dat, var, err)
-    use futils, only: interp
+  subroutine interp2xsdata(dat, xs_x_qy, err)
     use photochem_const, only: smaller_real
     type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
+    real(dp), intent(inout) :: xs_x_qy(:,:,:)
 
     character(:), allocatable, intent(out) :: err
     
@@ -570,7 +569,7 @@ contains
     ! No temperature dependence, so we just copy over
     do k = 1, dat%nw
       do i = 1,dat%kj
-        var%xs_x_qy(:,i,k) = abs(dat%photolysis_xs(i,k))+smaller_real
+        xs_x_qy(:,i,k) = abs(dat%photolysis_xs(i,k)) + smaller_real
       enddo
     enddo
 
