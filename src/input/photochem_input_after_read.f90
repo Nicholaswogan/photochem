@@ -519,7 +519,7 @@ contains
     if (allocated(err)) return
     
     if (dat%reverse) then
-      call compute_gibbs_energy(dat, var, err)
+      call compute_gibbs_energy(dat, var%temperature, var%gibbs_energy, err)
       if (allocated(err)) return
     endif
 
@@ -532,21 +532,20 @@ contains
 
   end subroutine
 
-  module subroutine compute_gibbs_energy(dat, var, err)
+  subroutine compute_gibbs_energy(dat, temperature, gibbs_energy, err)
     use photochem_eqns, only: gibbs_energy_eval
-    
     type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
+    real(dp), intent(in) :: temperature(:)
+    real(dp), intent(inout) :: gibbs_energy(:,:)
     character(:), allocatable, intent(out) :: err
     
     integer :: i, j
     logical :: found
-
     
     do i = 1,dat%ng
-      do j = 1,var%nz
-        call gibbs_energy_eval(dat%thermo_data(i), var%temperature(j), &
-                               found, var%gibbs_energy(j,i))
+      do j = 1,size(temperature)
+        call gibbs_energy_eval(dat%thermo_data(i), temperature(j), &
+                               found, gibbs_energy(j,i))
         if (.not. found) then
           err = 'The temperature is not within the ranges '// &
                 'given for the thermodynamic data for '//trim(dat%species_names(i+dat%npq))
@@ -561,7 +560,6 @@ contains
     use photochem_const, only: smaller_real
     type(PhotochemData), intent(in) :: dat
     real(dp), intent(inout) :: xs_x_qy(:,:,:)
-
     character(:), allocatable, intent(out) :: err
     
     integer :: i, k
