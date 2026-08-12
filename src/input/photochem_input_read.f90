@@ -2716,33 +2716,6 @@ contains
 
   end subroutine
 
-  module subroutine resolve_atmosphere_settings(profile, dat, var, err)
-    type(AtmosphereFileProfile), intent(in) :: profile
-    type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    character(:), allocatable, intent(out) :: err
-
-    if (profile%nlayer < 2) then
-      err = 'Atmosphere file must contain at least two data rows.'
-      return
-    endif
-
-    var%bottom_atmos = 0.0_dp
-    var%top_atmos = profile%z(profile%nlayer) + &
-                    0.5_dp*(profile%z(profile%nlayer) - profile%z(profile%nlayer-1))
-
-    if (var%top_atmos < var%bottom_atmos) then
-      err = 'The top of the atmosphere must be bigger than the bottom'
-      return
-    endif
-
-    if (dat%gas_rainout .and. var%trop_alt > var%top_atmos) then
-      err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
-      return
-    endif
-
-  end subroutine
-
   pure function check_for_duplicates(str_list) result(ind)
     character(*), intent(in) :: str_list(:)
     integer :: ind

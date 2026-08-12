@@ -315,6 +315,49 @@ contains
 
   end subroutine
 
+  module subroutine map_atmosphere_file_to_grid(dat, var, profile, usol, err)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    type(AtmosphereFileProfile), intent(in) :: profile
+    real(dp), intent(out) :: usol(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    call resolve_atmosphere_settings(profile, dat, var, err)
+    if (allocated(err)) return
+
+    call initialize_altitude_grid(dat, var, var%top_atmos)
+    call interp2atmosfile(dat, var, profile, usol, err)
+    if (allocated(err)) return
+
+  end subroutine
+
+  module subroutine resolve_atmosphere_settings(profile, dat, var, err)
+    type(AtmosphereFileProfile), intent(in) :: profile
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    character(:), allocatable, intent(out) :: err
+
+    if (profile%nlayer < 2) then
+      err = 'Atmosphere file must contain at least two data rows.'
+      return
+    endif
+
+    var%bottom_atmos = 0.0_dp
+    var%top_atmos = profile%z(profile%nlayer) + &
+                    0.5_dp*(profile%z(profile%nlayer) - profile%z(profile%nlayer-1))
+
+    if (var%top_atmos < var%bottom_atmos) then
+      err = 'The top of the atmosphere must be bigger than the bottom'
+      return
+    endif
+
+    if (dat%gas_rainout .and. var%trop_alt > var%top_atmos) then
+      err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
+      return
+    endif
+
+  end subroutine
+
   subroutine interpolate_temperature_edd(var, z, temperature, edd, err, absolute_eddy)
     use futils, only: interp
 
@@ -351,82 +394,6 @@ contains
 
   end subroutine
 
-  module subroutine map_atmosphere_file_to_grid(dat, var, profile, usol, err)
-    type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    type(AtmosphereFileProfile), intent(in) :: profile
-    real(dp), intent(out) :: usol(:,:)
-    character(:), allocatable, intent(out) :: err
-
-    call resolve_atmosphere_settings(profile, dat, var, err)
-    if (allocated(err)) return
-
-    call initialize_altitude_grid(dat, var, var%top_atmos)
-    call interp2atmosfile(dat, var, profile, usol, err)
-    if (allocated(err)) return
-
-  end subroutine
-
-  module subroutine finalize_atmosphere_initialization(dat, var, err)
-    type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    character(:), allocatable, intent(out) :: err
-
-    call interp2particlexsdata(dat, var, err)
-    if (allocated(err)) return
-
-    call refresh_temperature_dependent_state(dat, var, err=err)
-    if (allocated(err)) return
-
-  end subroutine
-
-  module subroutine refresh_temperature_dependent_state(dat, var, trop_alt, err)
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    real(dp), optional, intent(in) :: trop_alt
-    character(:), allocatable, intent(out) :: err
-
-    real(dp) :: trop_alt_new
-    integer :: trop_ind_new
-
-    trop_ind_new = 1
-    if (dat%gas_rainout) then
-      trop_alt_new = var%trop_alt
-      if (present(trop_alt)) trop_alt_new = trop_alt
-      if (.not. ieee_is_finite(trop_alt_new) .or. &
-          trop_alt_new < var%bottom_atmos .or. trop_alt_new > var%top_atmos) then
-        err = 'trop_alt is above or bellow the atmosphere!'
-        return
-      endif
-
-      trop_ind_new = max(minloc(abs(var%z - trop_alt_new), 1) - 1, 1)
-      if (trop_ind_new < 3) then
-        err = 'Tropopause is too low.'
-        return
-      elseif (trop_ind_new > var%nz-2) then
-        err = 'Tropopause is too high.'
-        return
-      endif
-    endif
-
-    call interp2xsdata(dat, var, err)
-    if (allocated(err)) return
-    
-    if (dat%reverse) then
-      call compute_gibbs_energy(dat, var, err)
-      if (allocated(err)) return
-    endif
-
-    if (dat%gas_rainout) then
-      if (present(trop_alt)) var%trop_alt = trop_alt_new
-      var%trop_ind = trop_ind_new
-    else
-      var%trop_ind = 1
-    endif
-
-  end subroutine
-  
   subroutine interp2atmosfile(dat, var, profile, usol, err)
     use futils, only: interp
     type(PhotochemData), intent(in) :: dat
@@ -500,6 +467,68 @@ contains
     do i = 1,var%nz
       usol(:,i) = usol(:,i)*density(i)
     enddo 
+
+  end subroutine
+
+  !~~ The routines below finalized setup after grid construction.
+
+  module subroutine finalize_atmosphere_initialization(dat, var, err)
+    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    character(:), allocatable, intent(out) :: err
+
+    call interp2particlexsdata(dat, var, err)
+    if (allocated(err)) return
+
+    call refresh_temperature_dependent_state(dat, var, err=err)
+    if (allocated(err)) return
+
+  end subroutine
+
+  module subroutine refresh_temperature_dependent_state(dat, var, trop_alt, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    real(dp), optional, intent(in) :: trop_alt
+    character(:), allocatable, intent(out) :: err
+
+    real(dp) :: trop_alt_new
+    integer :: trop_ind_new
+
+    trop_ind_new = 1
+    if (dat%gas_rainout) then
+      trop_alt_new = var%trop_alt
+      if (present(trop_alt)) trop_alt_new = trop_alt
+      if (.not. ieee_is_finite(trop_alt_new) .or. &
+          trop_alt_new < var%bottom_atmos .or. trop_alt_new > var%top_atmos) then
+        err = 'trop_alt is above or bellow the atmosphere!'
+        return
+      endif
+
+      trop_ind_new = max(minloc(abs(var%z - trop_alt_new), 1) - 1, 1)
+      if (trop_ind_new < 3) then
+        err = 'Tropopause is too low.'
+        return
+      elseif (trop_ind_new > var%nz-2) then
+        err = 'Tropopause is too high.'
+        return
+      endif
+    endif
+
+    call interp2xsdata(dat, var, err)
+    if (allocated(err)) return
+    
+    if (dat%reverse) then
+      call compute_gibbs_energy(dat, var, err)
+      if (allocated(err)) return
+    endif
+
+    if (dat%gas_rainout) then
+      if (present(trop_alt)) var%trop_alt = trop_alt_new
+      var%trop_ind = trop_ind_new
+    else
+      var%trop_ind = 1
+    endif
 
   end subroutine
 
@@ -614,48 +643,6 @@ contains
       enddo
     endif
     
-  end subroutine
-  
-  module subroutine allocate_nz_vars(dat, var)
-    type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    
-    integer :: i
-    
-    var%neqs = dat%nq*var%nz
-
-    allocate(var%temperature(var%nz))
-    allocate(var%z(var%nz))
-    allocate(var%dz(var%nz))
-    allocate(var%edd(var%nz))
-    allocate(var%grav(var%nz))
-    allocate(var%particle_radius(dat%npq,var%nz))
-    allocate(var%xs_x_qy(var%nz,dat%kj,dat%nw))
-    
-    allocate(var%particle_xs(dat%np))
-    do i = 1,dat%np
-      ! only allocate space if there is data
-      if (dat%part_xs_file(i)%ThereIsData) then
-        var%particle_xs(i)%ThereIsData = .true.
-        allocate(var%particle_xs(i)%w0(var%nz,dat%nw))
-        allocate(var%particle_xs(i)%qext(var%nz,dat%nw))
-        allocate(var%particle_xs(i)%gt(var%nz,dat%nw))
-      else
-        var%particle_xs(i)%ThereIsData = .false.
-      endif
-    enddo
-    
-    if (dat%reverse) then
-      allocate(var%gibbs_energy(var%nz,dat%ng))
-    endif
-
-    allocate(var%tauc(var%nz,dat%nw))
-    var%tauc = 0.0_dp
-    allocate(var%w0c(var%nz,dat%nw))
-    var%w0c = 0.0_dp
-    allocate(var%g0c(var%nz,dat%nw))
-    var%g0c = 0.0_dp
-
   end subroutine
 
 end submodule

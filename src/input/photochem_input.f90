@@ -89,12 +89,6 @@ module photochem_input
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Allocate persistent arrays whose dimensions depend on the mechanism and nz.
-    module subroutine allocate_nz_vars(dat, var)
-      type(PhotochemData), intent(in) :: dat
-      type(PhotochemVars), intent(inout) :: var
-    end subroutine
-
     module subroutine parse_reaction(instring, reverse, eqr, eqp, err)
       character(len=*), intent(in) :: instring
       logical, intent(out) :: reverse
@@ -209,6 +203,48 @@ contains
 
   end subroutine
 
+  subroutine allocate_nz_vars(dat, var)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+    
+    integer :: i
+    
+    var%neqs = dat%nq*var%nz
+
+    allocate(var%temperature(var%nz))
+    allocate(var%z(var%nz))
+    allocate(var%dz(var%nz))
+    allocate(var%edd(var%nz))
+    allocate(var%grav(var%nz))
+    allocate(var%particle_radius(dat%npq,var%nz))
+    allocate(var%xs_x_qy(var%nz,dat%kj,dat%nw))
+    
+    allocate(var%particle_xs(dat%np))
+    do i = 1,dat%np
+      ! only allocate space if there is data
+      if (dat%part_xs_file(i)%ThereIsData) then
+        var%particle_xs(i)%ThereIsData = .true.
+        allocate(var%particle_xs(i)%w0(var%nz,dat%nw))
+        allocate(var%particle_xs(i)%qext(var%nz,dat%nw))
+        allocate(var%particle_xs(i)%gt(var%nz,dat%nw))
+      else
+        var%particle_xs(i)%ThereIsData = .false.
+      endif
+    enddo
+    
+    if (dat%reverse) then
+      allocate(var%gibbs_energy(var%nz,dat%ng))
+    endif
+
+    allocate(var%tauc(var%nz,dat%nw))
+    var%tauc = 0.0_dp
+    allocate(var%w0c(var%nz,dat%nw))
+    var%w0c = 0.0_dp
+    allocate(var%g0c(var%nz,dat%nw))
+    var%g0c = 0.0_dp
+
+  end subroutine
+
   !> Read and map a legacy atmosphere text file onto the model grid.
   !!
   !! [[setup_static]] must have completed successfully before this routine is
@@ -219,7 +255,7 @@ contains
   subroutine setup_atmosphere_from_file(atmosphere_txt, dat, var, usol, err)
 
     character(len=*), intent(in) :: atmosphere_txt
-    type(PhotochemData), intent(inout) :: dat
+    type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     real(dp), intent(out) :: usol(:,:)
     character(:), allocatable, intent(out) :: err
