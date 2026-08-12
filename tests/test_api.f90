@@ -188,15 +188,6 @@ contains
     allocate(jac_analytical(pc%dat%lda*pc%var%neqs))
 
     pc%var%autodiff = .true.
-    pc%var%analytical_jacobian = .false.
-    call pc%jacobian(size(jac_autodiff), pc%var%neqs, usol_flat, &
-                     jac_autodiff, err)
-    if (allocated(err)) then
-      print *, trim(err)
-      stop 1
-    endif
-    chemistry_autodiff = pc%wrk%djac_chem
-
     pc%var%analytical_jacobian = .true.
     call pc%jacobian(size(jac_analytical), pc%var%neqs, usol_flat, &
                      jac_analytical, err)
@@ -205,6 +196,15 @@ contains
       stop 1
     endif
     chemistry_analytical = pc%wrk%djac_chem
+
+    pc%var%analytical_jacobian = .false.
+    call pc%jacobian(size(jac_autodiff), pc%var%neqs, usol_flat, &
+                     jac_autodiff, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    chemistry_autodiff = pc%wrk%djac_chem
 
     jacobian_scale = max(1.0_dp, maxval(abs(jac_autodiff)), &
                          maxval(abs(jac_analytical)))

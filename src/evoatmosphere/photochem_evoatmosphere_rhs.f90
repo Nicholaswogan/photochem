@@ -873,18 +873,18 @@ contains
     end subroutine
   end subroutine
 
-  subroutine analytical_chemistry_jacobian(self, usol, rhs, djac, err)
+  subroutine analytical_chemistry_jacobian(self, usol, djac, err)
     use photochem_const, only: small_real, pi
     use photochem_enum, only: CondensingParticle
     use photochem_eqns, only: damp_condensation_rate
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), target, contiguous, intent(in) :: usol(:,:)
-    real(dp), intent(out) :: rhs(:), djac(:,:)
+    real(dp), intent(out) :: djac(:,:)
     character(:), allocatable, intent(out) :: err
 
     real(dp), allocatable :: density_derivatives(:,:), reaction_derivative(:)
     real(dp), allocatable :: production_derivative(:), loss_derivative(:)
-    real(dp) :: reaction_rate, loss
+    real(dp) :: reaction_rate, production, loss
     real(dp) :: rh, rh_derivative, cond_rate0, cond_rate
     real(dp) :: rate_derivative, transfer_derivative
     integer :: i, ii, j, k, m, n, species
@@ -897,13 +897,12 @@ contains
     var => self%var
     wrk => self%wrk
 
-    ! Use dochem for the authoritative RHS. The analytical code below only
-    ! replaces differentiation of the chemistry terms.
-    call dochem(self, usol, wrk%rx_rates, &
-                wrk%gas_sat_den, wrk%molecules_per_particle, &
-                wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
-                wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs)
-
+    ! The atmospheric preparation performed by jac_evo_gas has already filled
+    ! all state-independent coefficients used here: reaction and photolysis
+    ! rates, saturation densities, particle sizes, rainout rates, scale
+    ! heights, and fall velocities. This routine differentiates dochem while
+    ! treating those prepared quantities as constants, matching the autodiff
+    ! chemistry-Jacobian contract.
     allocate(density_derivatives(dat%nsp+1,dat%nq))
     allocate(reaction_derivative(dat%nq))
     allocate(production_derivative(dat%nq))
@@ -913,9 +912,11 @@ contains
     do j = 1,var%nz
       density_derivatives = 0.0_dp
 
-      ! Evolved particles are stored as molecules/cm^3 in usol but enter
-      ! chemistry as particles/cm^3. Match the max in dochem,
-      ! including its zero derivative while the lower clamp is active.
+      ! Derivatives of the chemistry densities with respect to the evolved
+      ! state. Gas densities equal their state variables. Particle state
+      ! variables are molecules/cm^3, whereas reaction rates use
+      ! particles/cm^3, giving a 1/molecules_per_particle derivative above the
+      ! lower clamp and zero derivative while the clamp is active.
       do i = 1,dat%npq
         if (usol(i,j)/wrk%molecules_per_particle(i,j) > small_real) then
           density_derivatives(i,i) = &
@@ -926,12 +927,13 @@ contains
         density_derivatives(i,i) = 1.0_dp
       enddo
 
-      ! Algebraically eliminated short-lived species are computed by dochem as
-      ! n_sl = production/loss, where loss is the first-order coefficient with
-      ! n_sl omitted from each loss reaction. Input validation prevents
-      ! dependencies between short-lived species, so this ordered loop does not
-      ! require an implicit solve.
+      ! Derivatives of algebraically eliminated short-lived species. For
+      ! n_sl = P/L, dn_sl = (dP - n_sl*dL)/L. The scalar P and L are also
+      ! evaluated here to replace the short-lived-density side effect of the
+      ! removed dochem call. Input validation prevents dependencies between
+      ! short-lived species, so this ordered loop needs no implicit solve.
       do species = dat%nq+1,dat%nq+dat%nsl
+        production = 0.0_dp
         loss = 0.0_dp
         production_derivative = 0.0_dp
         loss_derivative = 0.0_dp
@@ -940,6 +942,7 @@ contains
           m = dat%pl(species)%iprod(k)
           call reaction_rate_and_derivative(m, j, 0, reaction_rate, &
                                             reaction_derivative)
+          production = production + reaction_rate
           production_derivative = production_derivative + &
                                   reaction_derivative
         enddo
@@ -951,12 +954,17 @@ contains
           loss_derivative = loss_derivative + reaction_derivative
         enddo
 
+        wrk%densities(species,j) = production/loss
         density_derivatives(species,:) = &
             (production_derivative - &
              wrk%densities(species,j)*loss_derivative)/loss
       enddo
       n = dat%nq*(j-1) + 1
 
+      ! Derivatives of mass-action chemical production and loss. Each reaction
+      ! rate derivative is added to product equations and subtracted from
+      ! reactant equations. Repeated metadata indices naturally apply integer
+      ! stoichiometric coefficients.
       do m = 1,dat%nrT
         call reaction_rate_and_derivative(m, j, 0, reaction_rate, &
                                           reaction_derivative)
@@ -988,6 +996,9 @@ contains
         enddo
       endif
 
+      ! Derivatives of saturation-controlled gas-particle transfer. Relative
+      ! humidity depends only on the corresponding gas density; its derivative
+      ! is zero when the same lower clamp used by dochem is active.
       do i = 1,dat%np
         if (dat%particle_formation_method(i) /= CondensingParticle) cycle
 
@@ -999,6 +1010,9 @@ contains
         endif
 
         if (rh > var%cond_params(i)%RHc) then
+          ! Condensation transfer C = k_cond(RH)*n_gas. Differentiate both the
+          ! smoothed rate and gas density, then apply -dC to the gas equation
+          ! and +dC to the particle equation.
           cond_rate0 = var%cond_params(i)%k_cond* &
                        (var%edd(j)/wrk%scale_height(j)**2.0_dp)
           cond_rate = damp_condensation_rate( &
@@ -1015,6 +1029,9 @@ contains
           djac(i,n+ii-1) = djac(i,n+ii-1) + transfer_derivative
 
         elseif (var%evaporation) then
+          ! Evaporation transfer E = k_evap(1/RH)*n_particle. Its gas-density
+          ! derivative comes through 1/RH, and its particle-density derivative
+          ! is k_evap itself. Apply +dE to gas and -dE to particles.
           cond_rate0 = var%cond_params(i)%k_evap* &
                        (wrk%wfall(i,j)/wrk%scale_height(j))
           cond_rate = damp_condensation_rate( &
@@ -1044,6 +1061,8 @@ contains
       real(dp) :: rate_without_reactant
       integer :: reactant, other_reactant, reactant_species
 
+      ! Evaluate k*product(n_r), optionally omitting an algebraically
+      ! eliminated species to obtain its first-order loss coefficient.
       rate = wrk%rx_rates(layer,reaction)
       do reactant = 1,dat%rx(reaction)%nreact
         reactant_species = dat%rx(reaction)%react_sp_inds(reactant)
@@ -1052,6 +1071,9 @@ contains
         endif
       enddo
 
+      ! Product-rule derivative without division by a reactant density. The
+      ! leave-one-occurrence-out form remains valid at zero density and handles
+      ! repeated reactants once per occurrence.
       derivative = 0.0_dp
       do reactant = 1,dat%rx(reaction)%nreact
         reactant_species = dat%rx(reaction)%react_sp_inds(reactant)
@@ -1078,6 +1100,7 @@ contains
       real(dp), intent(in) :: A, rhc, rh0, rh
       real(dp) :: derivative, argument
 
+      ! d/dRH of the arctangent smoothing function used for condensation.
       argument = (rh-rhc)/(rh0-rhc)
       derivative = A*(2.0_dp/pi)/((rh0-rhc)*(1.0_dp+argument**2))
 
@@ -1088,6 +1111,8 @@ contains
       real(dp), intent(in) :: A, rhc, smooth_factor, rh
       real(dp) :: derivative, inverse_rhc, width
 
+      ! d/dRH of the evaporation smoothing function evaluated at 1/RH. This
+      ! algebraic form avoids overflow from explicitly forming 1/RH**2.
       inverse_rhc = 1.0_dp/rhc
       width = smooth_factor/rhc
       derivative = -A*(2.0_dp/pi)*width/ &
@@ -1187,7 +1212,7 @@ contains
     endblock; else
 
     if (var%analytical_jacobian) then
-      call analytical_chemistry_jacobian(self, wrk%usol, rhs, wrk%djac_chem, err)
+      call analytical_chemistry_jacobian(self, wrk%usol, wrk%djac_chem, err)
     else
       call autodiff_chemistry_jacobian(self, wrk%usol, rhs, wrk%djac_chem, err)
     endif

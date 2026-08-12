@@ -27,6 +27,11 @@ contains
       print*,trim(err)
       stop 1
     endif
+
+    pc%var%verbose = 0
+
+    pc%var%autodiff = .true.
+    pc%var%analytical_jacobian = .true.
     
     converged = pc%find_steady_state(err)
     if (allocated(err)) then

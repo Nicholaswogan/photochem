@@ -9,6 +9,12 @@ planet:
   hydrogen-escape:
     type: none
   water:
-    gas-rainout: false
+    gas-rainout: true
+    rainfall-rate: 1.0
+    tropopause-altitude: 2.0e6
 
-boundary-conditions: []
+boundary-conditions:
+- name: O1D
+  type: short lived
+- name: N2D
+  type: short lived
