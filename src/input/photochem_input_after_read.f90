@@ -486,48 +486,49 @@ contains
   end subroutine
 
   module subroutine refresh_temperature_dependent_state(dat, var, trop_alt, err)
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     real(dp), optional, intent(in) :: trop_alt
     character(:), allocatable, intent(out) :: err
 
-    real(dp) :: trop_alt_new
-    integer :: trop_ind_new
-
-    trop_ind_new = 1
-    if (dat%gas_rainout) then
-      trop_alt_new = var%trop_alt
-      if (present(trop_alt)) trop_alt_new = trop_alt
-      if (.not. ieee_is_finite(trop_alt_new) .or. &
-          trop_alt_new < var%bottom_atmos .or. trop_alt_new > var%top_atmos) then
-        err = 'trop_alt is above or bellow the atmosphere!'
-        return
-      endif
-
-      trop_ind_new = max(minloc(abs(var%z - trop_alt_new), 1) - 1, 1)
-      if (trop_ind_new < 3) then
-        err = 'Tropopause is too low.'
-        return
-      elseif (trop_ind_new > var%nz-2) then
-        err = 'Tropopause is too high.'
-        return
-      endif
-    endif
-
     call interp2xsdata(dat, var%xs_x_qy, err)
     if (allocated(err)) return
     
-    if (dat%reverse) then
-      call compute_gibbs_energy(dat, var%temperature, var%gibbs_energy, err)
-      if (allocated(err)) return
+    call compute_gibbs_energy(dat, var%temperature, var%gibbs_energy, err)
+    if (allocated(err)) return
+
+    call set_tropopause(dat, var%z, var%bottom_atmos, var%top_atmos, trop_alt, var%trop_alt, var%trop_ind, err)
+    if (allocated(err)) return
+
+  end subroutine
+
+  subroutine set_tropopause(dat, z, bottom_atmos, top_atmos, trop_alt_new, trop_alt, trop_ind, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    type(PhotochemData), intent(in) :: dat
+    real(dp), intent(in) :: z(:), bottom_atmos, top_atmos
+    real(dp), optional, intent(in) :: trop_alt_new
+    real(dp), intent(inout) :: trop_alt
+    integer, intent(inout) :: trop_ind
+    character(:), allocatable, intent(out) :: err
+
+    trop_ind = 1
+    if (.not. dat%gas_rainout) return
+
+    if (present(trop_alt_new)) trop_alt = trop_alt_new
+
+    if (.not. ieee_is_finite(trop_alt) .or. &
+        trop_alt < bottom_atmos .or. trop_alt > top_atmos) then
+      err = 'trop_alt is above or bellow the atmosphere!'
+      return
     endif
 
-    if (dat%gas_rainout) then
-      if (present(trop_alt)) var%trop_alt = trop_alt_new
-      var%trop_ind = trop_ind_new
-    else
-      var%trop_ind = 1
+    trop_ind = max(minloc(abs(z - trop_alt), 1) - 1, 1)
+    if (trop_ind < 3) then
+      err = 'Tropopause is too low.'
+      return
+    elseif (trop_ind > size(z) - 2) then
+      err = 'Tropopause is too high.'
+      return
     endif
 
   end subroutine
@@ -541,6 +542,8 @@ contains
     
     integer :: i, j
     logical :: found
+
+    if (.not. dat%reverse) return
     
     do i = 1,dat%ng
       do j = 1,size(temperature)
