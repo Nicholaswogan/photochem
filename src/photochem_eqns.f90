@@ -12,32 +12,30 @@ module photochem_eqns
   
 contains
   
-  pure subroutine gravity(radius, mass, nz, z, grav)
+  pure subroutine gravity(radius, mass, z, grav)
     use photochem_const, only: G_grav
     real(dp), intent(in) :: radius, mass ! radius in cm, mass in grams
-    integer, intent(in) :: nz
-    real(dp), intent(in) :: z(nz) ! cm
-    real(dp), intent(out) :: grav(nz) ! cm/s2
+    real(dp), intent(in) :: z(:) ! cm
+    real(dp), intent(out) :: grav(:) ! cm/s2
 
     integer :: i
-    
-    do i = 1, nz              
+
+    do i = 1, size(z)
       grav(i) = G_grav * (mass/1.e3_dp) / ((radius + z(i))/1.e2_dp)**2.0_dp
       grav(i) = grav(i)*1.e2_dp ! convert to cgs
     enddo 
-    
+
   end subroutine
   
-  pure subroutine vertical_grid(bottom, top, nz, z, dz)
+  pure subroutine vertical_grid(bottom, top, z, dz)
     real(dp), intent(in) :: bottom, top
-    integer, intent(in) :: nz
-    real(dp), intent(out) :: z(nz), dz(nz)
+    real(dp), intent(out) :: z(:), dz(:)
   
     integer :: i
   
-    dz = (top - bottom)/nz
+    dz = (top - bottom)/size(z)
     z(1) = dz(1)/2.0_dp
-    do i = 2,nz
+    do i = 2,size(z)
       z(i) = z(i-1) + dz(i)
     enddo
   end subroutine
@@ -194,16 +192,15 @@ contains
 
   end subroutine
 
-  pure subroutine press_and_den(nz, T, grav, Psurf, dz, &
+  pure subroutine press_and_den(T, grav, Psurf, dz, &
                            mubar, pressure, density)
     use photochem_const, only: k_boltz, N_avo
-  
-    integer, intent(in) :: nz
-    real(dp), intent(in) :: T(nz), grav(nz)
-    real(dp), intent(in) :: Psurf, dz(nz), mubar(nz)
-  
-    real(dp), intent(out) :: pressure(nz)
-    real(dp), intent(out) :: density(nz)
+
+    real(dp), intent(in) :: T(:), grav(:)
+    real(dp), intent(in) :: Psurf, dz(:), mubar(:)
+
+    real(dp), intent(out) :: pressure(:)
+    real(dp), intent(out) :: density(:)
   
     real(dp) :: T_temp
     integer :: i
@@ -213,7 +210,7 @@ contains
     pressure(1) = Psurf * exp(-((mubar(1) * grav(1))/(N_avo * k_boltz * T_temp)) * 0.5e0_dp * dz(1))
     density(1) = pressure(1)/(k_boltz * T(1))
     ! other layers
-    do i = 2,nz
+    do i = 2,size(T)
       T_temp = (T(i) + T(i-1))/2.0_dp
       pressure(i) = pressure(i-1) * exp(-((mubar(i) * grav(i))/(N_avo * k_boltz * T_temp))* dz(i))
       density(i) = pressure(i)/(k_boltz * T(i))

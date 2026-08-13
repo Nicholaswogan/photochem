@@ -1271,9 +1271,9 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     candidate%top_atmos = top_atmos_new
     candidate%trop_alt = var%trop_alt
 
-    call vertical_grid(var%bottom_atmos, top_atmos_new, var%nz, &
+    call vertical_grid(var%bottom_atmos, top_atmos_new, &
                        candidate%z, candidate%dz)
-    call gravity(dat%planet_radius, dat%planet_mass, var%nz, &
+    call gravity(dat%planet_radius, dat%planet_mass, &
                  candidate%z, candidate%grav)
     if (.not.all(ieee_is_finite(candidate%z)) .or. &
         .not.all(ieee_is_finite(candidate%dz)) .or. &

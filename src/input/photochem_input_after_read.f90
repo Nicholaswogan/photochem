@@ -9,7 +9,7 @@ contains
                                              pressure, density, mubar, usol, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use futils, only: interp
-    use photochem_eqns, only: press_and_den
+    use photochem_eqns, only: gravity, press_and_den, vertical_grid
 
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
@@ -95,7 +95,10 @@ contains
       gas_mix_normalized(:,j) = gas_mix_normalized(:,j)/sum(gas_mix_normalized(:,j))
     enddo
 
-    call initialize_altitude_grid(dat, var, z(nprofile))
+    var%bottom_atmos = 0.0_dp
+    var%top_atmos = z(nprofile)
+    call vertical_grid(var%bottom_atmos, var%top_atmos, var%z, var%dz)
+    call gravity(dat%planet_radius, dat%planet_mass, var%z, var%grav)
     call interpolate_temperature_edd(var%z, z, temperature, edd, &
                                      var%temperature, var%edd, err)
     if (allocated(err)) return
@@ -116,7 +119,7 @@ contains
       gas_mix_model(:,j) = gas_mix_model(:,j)/sum(gas_mix_model(:,j))
       mubar(j) = sum(gas_mix_model(:,j)*dat%species_mass(dat%ng_1:dat%nq))
     enddo
-    call press_and_den(var%nz, var%temperature, var%grav, surface_pressure, &
+    call press_and_den(var%temperature, var%grav, surface_pressure, &
                        var%dz, mubar, pressure, density)
     if (.not. all(ieee_is_finite(pressure)) .or. any(pressure <= 0.0_dp) .or. &
         .not. all(ieee_is_finite(density)) .or. any(density <= 0.0_dp)) then
@@ -242,7 +245,7 @@ contains
     ! Apply the trapezoid rule to T/mubar between pressure knots. The configured
     ! planet radius is the radius at the lower pressure boundary.
     surface_z = 0.0_dp
-    call gravity(dat%planet_radius, dat%planet_mass, 1, surface_z, surface_gravity)
+    call gravity(dat%planet_radius, dat%planet_mass, surface_z, surface_gravity)
     if (.not. ieee_is_finite(surface_gravity(1)) .or. surface_gravity(1) <= 0.0_dp) then
       err = 'Could not compute finite, positive gravity at the lower boundary.'
       return
@@ -302,21 +305,8 @@ contains
 
   end subroutine
   
-  subroutine initialize_altitude_grid(dat, var, top_atmos)
-    use photochem_eqns, only: vertical_grid, gravity
-
-    type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    real(dp), intent(in) :: top_atmos
-
-    var%bottom_atmos = 0.0_dp
-    var%top_atmos = top_atmos
-    call vertical_grid(var%bottom_atmos, var%top_atmos, var%nz, var%z, var%dz)
-    call gravity(dat%planet_radius, dat%planet_mass, var%nz, var%z, var%grav)
-
-  end subroutine
-
   module subroutine map_atmosphere_file_to_grid(dat, var, profile, usol, err)
+    use photochem_eqns, only: gravity, vertical_grid
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     type(AtmosphereFileProfile), intent(in) :: profile
@@ -326,7 +316,8 @@ contains
     call resolve_atmosphere_settings(profile, dat, var, err)
     if (allocated(err)) return
 
-    call initialize_altitude_grid(dat, var, var%top_atmos)
+    call vertical_grid(var%bottom_atmos, var%top_atmos, var%z, var%dz)
+    call gravity(dat%planet_radius, dat%planet_mass, var%z, var%grav)
     call interp2atmosfile(dat, var, profile, usol, err)
     if (allocated(err)) return
 

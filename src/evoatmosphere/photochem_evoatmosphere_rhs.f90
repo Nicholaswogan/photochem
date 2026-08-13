@@ -550,7 +550,7 @@ contains
     
     ! surface pressure by adding up all the mass in the atmosphere (bars)
     var%surface_pressure = sum(density(:)*mubar(:)*var%grav(:)*var%dz(:))/N_avo/1.0e6_dp
-    call press_and_den(var%nz, var%temperature, var%grav, var%surface_pressure*1.0e6_dp, var%dz, &
+    call press_and_den(var%temperature, var%grav, var%surface_pressure*1.0e6_dp, var%dz, &
                        mubar, pressure_hydro, density_hydro)
     pressure(:) = density(:)*k_boltz*var%temperature(:)
 
