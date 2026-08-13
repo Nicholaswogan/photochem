@@ -390,7 +390,7 @@ contains
                                      var%edd, err)
     if (allocated(err)) return
 
-    call interp2atmosfile_mix(dat, var, profile, usol, err)
+    call interp2atmosfile_mix(var%z, profile, usol, err)
     if (allocated(err)) return
     
     if (dat%there_are_particles) then
@@ -407,10 +407,9 @@ contains
     
   end subroutine
 
-  subroutine interp2atmosfile_mix(dat, var, profile, usol, err)
+  subroutine interp2atmosfile_mix(z_grid, profile, usol, err)
     use futils, only: interp
-    type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
+    real(dp), intent(in) :: z_grid(:)
     type(AtmosphereFileProfile), intent(in) :: profile
     real(dp), intent(out) :: usol(:,:)
     character(:), allocatable, intent(out) :: err
@@ -418,24 +417,25 @@ contains
     integer :: i, ierr
     real(dp), allocatable :: density(:)
 
-    allocate(density(var%nz))
+    if (size(usol,1) /= size(profile%mix,1) .or. size(usol,2) /= size(z_grid)) then
+      err = 'The initial atmospheric-state array has the wrong shape.'
+      return
+    endif
+
+    allocate(density(size(z_grid)))
 
     ! Interpolate file density to model grid
-    call interp(var%z, profile%z, log10(profile%density), density, linear_extrap=.true., ierr=ierr)
+    call interp(z_grid, profile%z, log10(profile%density), density, &
+                linear_extrap=.true., ierr=ierr)
     if (ierr /= 0) then
       err = 'Subroutine interp returned an error.'
       return
     endif
     density = 10.0_dp**density
 
-    if (size(usol,1) /= dat%nq .or. size(usol,2) /= var%nz) then
-      err = 'The initial atmospheric-state array has the wrong shape.'
-      return
-    endif
-
-    do i = 1,dat%nq
-      call interp(var%nz, profile%nlayer, var%z, profile%z,&
-                  log10(abs(profile%mix(i,:))), usol(i,:), ierr)
+    do i = 1,size(profile%mix,1)
+      call interp(z_grid, profile%z, log10(abs(profile%mix(i,:))), &
+                  usol(i,:), ierr=ierr)
       if (ierr /= 0) then
         err = 'Subroutine interp returned an error.'
         return
@@ -443,7 +443,7 @@ contains
     enddo
     usol = 10.0_dp**usol
 
-    do i = 1,var%nz
+    do i = 1,size(z_grid)
       usol(:,i) = usol(:,i)*density(i)
     enddo 
 
