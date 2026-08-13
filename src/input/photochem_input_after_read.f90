@@ -383,8 +383,6 @@ contains
     real(dp), intent(out) :: usol(:,:)
     character(:), allocatable, intent(out) :: err
     
-    integer :: i, ierr
-
     call interpolate_temperature_edd(var%z, profile%z, profile%temperature, &
                                      profile%edd, var%temperature, &
                                      var%edd, err)
@@ -394,18 +392,41 @@ contains
                                     profile%mix, usol, err)
     if (allocated(err)) return
     
-    if (dat%there_are_particles) then
-      do i = 1,dat%npq
-        call interp(var%nz, profile%nlayer, var%z, profile%z, &
-                    log10(abs(profile%particle_radius(i,:))), var%particle_radius(i,:), ierr)
-        if (ierr /= 0) then
-          err = 'Subroutine interp returned an error.'
-          return
-        endif
-      enddo
-      var%particle_radius = 10.0_dp**var%particle_radius
+    if (.not. dat%there_are_particles) return
+
+    call interpolate_atmosphere_radii(var%z, profile%z, &
+                                      profile%particle_radius, &
+                                      var%particle_radius, err)
+    if (allocated(err)) return
+
+  end subroutine
+
+  subroutine interpolate_atmosphere_radii(z_grid, profile_z, profile_radii, &
+                                          radii_grid, err)
+    use futils, only: interp
+    real(dp), intent(in) :: z_grid(:), profile_z(:)
+    real(dp), intent(in) :: profile_radii(:,:)
+    real(dp), intent(out) :: radii_grid(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    integer :: i, ierr
+
+    if (size(radii_grid,1) /= size(profile_radii,1) .or. &
+        size(radii_grid,2) /= size(z_grid)) then
+      err = 'The particle-radius array has the wrong shape.'
+      return
     endif
-    
+
+    do i = 1,size(profile_radii,1)
+      call interp(z_grid, profile_z, log10(profile_radii(i,:)), &
+                  radii_grid(i,:), ierr=ierr)
+      if (ierr /= 0) then
+        err = 'Unable to interpolate particle radii onto the model grid.'
+        return
+      endif
+    enddo
+    radii_grid = 10.0_dp**radii_grid
+
   end subroutine
 
   subroutine interpolate_atmosphere_mix(z_grid, profile_z, profile_density, &
