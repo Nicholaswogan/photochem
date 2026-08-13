@@ -390,7 +390,8 @@ contains
                                      var%edd, err)
     if (allocated(err)) return
 
-    call interp2atmosfile_mix(var%z, profile, usol, err)
+    call interpolate_atmosphere_mix(var%z, profile%z, profile%density, &
+                                    profile%mix, usol, err)
     if (allocated(err)) return
     
     if (dat%there_are_particles) then
@@ -407,17 +408,19 @@ contains
     
   end subroutine
 
-  subroutine interp2atmosfile_mix(z_grid, profile, usol, err)
+  subroutine interpolate_atmosphere_mix(z_grid, profile_z, profile_density, &
+                                        profile_mix, usol, err)
     use futils, only: interp
     real(dp), intent(in) :: z_grid(:)
-    type(AtmosphereFileProfile), intent(in) :: profile
+    real(dp), intent(in) :: profile_z(:), profile_density(:)
+    real(dp), intent(in) :: profile_mix(:,:)
     real(dp), intent(out) :: usol(:,:)
     character(:), allocatable, intent(out) :: err
 
     integer :: i, ierr
     real(dp), allocatable :: density(:)
 
-    if (size(usol,1) /= size(profile%mix,1) .or. size(usol,2) /= size(z_grid)) then
+    if (size(usol,1) /= size(profile_mix,1) .or. size(usol,2) /= size(z_grid)) then
       err = 'The initial atmospheric-state array has the wrong shape.'
       return
     endif
@@ -425,7 +428,7 @@ contains
     allocate(density(size(z_grid)))
 
     ! Interpolate file density to model grid
-    call interp(z_grid, profile%z, log10(profile%density), density, &
+    call interp(z_grid, profile_z, log10(profile_density), density, &
                 linear_extrap=.true., ierr=ierr)
     if (ierr /= 0) then
       err = 'Subroutine interp returned an error.'
@@ -433,8 +436,8 @@ contains
     endif
     density = 10.0_dp**density
 
-    do i = 1,size(profile%mix,1)
-      call interp(z_grid, profile%z, log10(abs(profile%mix(i,:))), &
+    do i = 1,size(profile_mix,1)
+      call interp(z_grid, profile_z, log10(abs(profile_mix(i,:))), &
                   usol(i,:), ierr=ierr)
       if (ierr /= 0) then
         err = 'Subroutine interp returned an error.'
