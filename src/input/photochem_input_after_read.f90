@@ -96,7 +96,8 @@ contains
     enddo
 
     call initialize_altitude_grid(dat, var, z(nprofile))
-    call interpolate_temperature_edd(var, z, temperature, edd, err)
+    call interpolate_temperature_edd(var%z, z, temperature, edd, &
+                                     var%temperature, var%edd, err)
     if (allocated(err)) return
 
     allocate(interpolation_input(nprofile), interpolation_output(var%nz))
@@ -358,39 +359,28 @@ contains
 
   end subroutine
 
-  subroutine interpolate_temperature_edd(var, z, temperature, edd, err, absolute_eddy)
+  subroutine interpolate_temperature_edd(z_grid, z, temperature, edd, &
+                                         temperature_grid, edd_grid, err)
     use futils, only: interp
 
-    type(PhotochemVars), intent(inout) :: var
-    real(dp), intent(in) :: z(:), temperature(:), edd(:)
+    real(dp), intent(in) :: z_grid(:), z(:), temperature(:), edd(:)
+    real(dp), intent(out) :: temperature_grid(:), edd_grid(:)
     character(:), allocatable, intent(out) :: err
-    logical, intent(in), optional :: absolute_eddy
 
-    real(dp), allocatable :: interpolation_input(:), interpolation_output(:)
-    logical :: use_absolute_eddy
     integer :: ierr
 
-    use_absolute_eddy = .false.
-    if (present(absolute_eddy)) use_absolute_eddy = absolute_eddy
-
-    call interp(var%z, z, temperature, var%temperature, ierr=ierr)
+    call interp(z_grid, z, temperature, temperature_grid, ierr=ierr)
     if (ierr /= 0) then
       err = 'Unable to interpolate temperature onto the model grid.'
       return
     endif
 
-    allocate(interpolation_input(size(z)), interpolation_output(var%nz))
-    if (use_absolute_eddy) then
-      interpolation_input = log10(abs(edd))
-    else
-      interpolation_input = log10(edd)
-    endif
-    call interp(var%z, z, interpolation_input, interpolation_output, ierr=ierr)
+    call interp(z_grid, z, log10(edd), edd_grid, ierr=ierr)
     if (ierr /= 0) then
       err = 'Unable to interpolate eddy diffusion onto the model grid.'
       return
     endif
-    var%edd = 10.0_dp**interpolation_output
+    edd_grid = 10.0_dp**edd_grid
 
   end subroutine
 
@@ -404,11 +394,9 @@ contains
     
     integer :: i, ierr
 
-    ! Preserve the file initializer's historical absolute-value treatment of
-    ! eddy diffusion while sharing the common temperature/Kzz interpolation
-    ! kernel used by altitude-based initialization.
-    call interpolate_temperature_edd(var, profile%z, profile%temperature, &
-                                     profile%edd, err, absolute_eddy=.true.)
+    call interpolate_temperature_edd(var%z, profile%z, profile%temperature, &
+                                     profile%edd, var%temperature, &
+                                     var%edd, err)
     if (allocated(err)) return
 
     call interp2atmosfile_mix(dat, var, profile, usol, err)
