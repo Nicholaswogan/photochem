@@ -11,6 +11,7 @@ module photochem_input
   public :: setup_static, setup_atmosphere_from_file, map_atmosphere_z_to_grid
   public :: map_atmosphere_p_to_grid
   public :: finalize_atmosphere_initialization
+  public :: finalize_atmosphere_state
   public :: refresh_temperature_dependent_state
   public :: parse_reaction
   
@@ -39,6 +40,16 @@ module photochem_input
     module subroutine finalize_atmosphere_initialization(dat, var, err)
       type(PhotochemData), intent(inout) :: dat
       type(PhotochemVars), intent(inout) :: var
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Complete derived atmosphere setup on a standalone atmospheric state.
+    !! This is the transaction-friendly form used by initialization paths that
+    !! must validate all atmospheric changes before committing them to `var`.
+    module subroutine finalize_atmosphere_state(dat, state, derived, err)
+      type(PhotochemData), intent(in) :: dat
+      type(AtmosphereState), intent(inout) :: state
+      type(AtmosphereStateDerived), intent(inout) :: derived
       character(:), allocatable, intent(out) :: err
     end subroutine
 

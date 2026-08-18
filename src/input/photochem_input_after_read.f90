@@ -88,7 +88,7 @@ contains
     endif
 
     call state%ensure(nz, dat%nq, dat%npq)
-    call derived%ensure(nz)
+    call derived%ensure(nz, dat%np, dat%ng, dat%kj, dat%nw)
 
     allocate(gas_mix_normalized(ngas,nprofile))
     do j = 1,nprofile
@@ -493,6 +493,69 @@ contains
 
     call refresh_temperature_dependent_state(dat, var, err=err)
     if (allocated(err)) return
+
+  end subroutine
+
+  module subroutine finalize_atmosphere_state(dat, state, derived, err)
+    type(PhotochemData), intent(in) :: dat
+    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereStateDerived), intent(inout) :: derived
+    character(:), allocatable, intent(out) :: err
+
+    call ensure_particle_xs(dat, size(state%z), derived%particle_xs)
+    call interp2particlexsdata(dat, state%particle_radius, derived%particle_xs, err)
+    if (allocated(err)) return
+
+    call interp2xsdata(dat, derived%xs_x_qy, err)
+    if (allocated(err)) return
+
+    derived%gibbs_energy = 0.0_dp
+    call compute_gibbs_energy(dat, state%temperature, derived%gibbs_energy, err)
+    if (allocated(err)) return
+
+    call set_tropopause(dat, state%z, state%bottom_atmos, state%top_atmos, &
+                        trop_alt=state%trop_alt, trop_ind=derived%trop_ind, err=err)
+    if (allocated(err)) return
+
+  end subroutine
+
+  subroutine ensure_particle_xs(dat, nz, particle_xs)
+    use photochem_types, only: ParticleXsections
+    type(PhotochemData), intent(in) :: dat
+    integer, intent(in) :: nz
+    type(ParticleXsections), intent(inout) :: particle_xs(:)
+
+    integer :: i
+    logical :: right_shape
+
+    do i = 1,dat%np
+      particle_xs(i)%ThereIsData = dat%part_xs_file(i)%ThereIsData
+      if (.not. particle_xs(i)%ThereIsData) then
+        if (allocated(particle_xs(i)%w0)) deallocate(particle_xs(i)%w0)
+        if (allocated(particle_xs(i)%qext)) deallocate(particle_xs(i)%qext)
+        if (allocated(particle_xs(i)%gt)) deallocate(particle_xs(i)%gt)
+        cycle
+      endif
+
+      right_shape = allocated(particle_xs(i)%w0) .and. &
+                    allocated(particle_xs(i)%qext) .and. &
+                    allocated(particle_xs(i)%gt)
+      if (right_shape) then
+        right_shape = size(particle_xs(i)%w0,1) == nz .and. &
+                      size(particle_xs(i)%w0,2) == dat%nw .and. &
+                      size(particle_xs(i)%qext,1) == nz .and. &
+                      size(particle_xs(i)%qext,2) == dat%nw .and. &
+                      size(particle_xs(i)%gt,1) == nz .and. &
+                      size(particle_xs(i)%gt,2) == dat%nw
+      endif
+      if (right_shape) cycle
+
+      if (allocated(particle_xs(i)%w0)) deallocate(particle_xs(i)%w0)
+      if (allocated(particle_xs(i)%qext)) deallocate(particle_xs(i)%qext)
+      if (allocated(particle_xs(i)%gt)) deallocate(particle_xs(i)%gt)
+      allocate(particle_xs(i)%w0(nz,dat%nw), &
+               particle_xs(i)%qext(nz,dat%nw), particle_xs(i)%gt(nz,dat%nw))
+    enddo
 
   end subroutine
 

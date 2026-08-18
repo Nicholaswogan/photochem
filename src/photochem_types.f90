@@ -509,14 +509,19 @@ module photochem_types ! make a giant IO object
     procedure :: ensure => AtmosphereState_ensure
   end type
 
-  !> Quantities derived while constructing an atmospheric state candidate.
-  !! These are work/results for initialization and are not part of the
-  !! persistent handoff state.
+  !> Quantities derived while constructing an atmospheric state.
+  !! Hydrostatic arrays are initialization work; the remaining fields mirror
+  !! derived quantities that must be committed with the atmospheric state.
   type :: AtmosphereStateDerived
+    real(dp) :: surface_pressure = 0.0_dp
+    integer :: trop_ind = 1
     real(dp), allocatable :: grav(:)
     real(dp), allocatable :: pressure(:)
     real(dp), allocatable :: density(:)
     real(dp), allocatable :: mubar(:)
+    real(dp), allocatable :: xs_x_qy(:,:,:)
+    type(ParticleXsections), allocatable :: particle_xs(:)
+    real(dp), allocatable :: gibbs_energy(:,:)
   contains
     procedure :: ensure => AtmosphereStateDerived_ensure
   end type
@@ -679,15 +684,19 @@ contains
 
   end subroutine
 
-  subroutine AtmosphereStateDerived_ensure(self, nz)
+  subroutine AtmosphereStateDerived_ensure(self, nz, np, ng, kj, nw)
     class(AtmosphereStateDerived), intent(inout) :: self
-    integer, intent(in) :: nz
+    integer, intent(in) :: nz, np, ng, kj, nw
 
     if (allocated(self%grav)) then
       if (allocated(self%pressure) .and. allocated(self%density) .and. &
-          allocated(self%mubar)) then
+          allocated(self%mubar) .and. allocated(self%xs_x_qy) .and. &
+          allocated(self%particle_xs) .and. allocated(self%gibbs_energy)) then
         if (size(self%grav) == nz .and. size(self%pressure) == nz .and. &
-            size(self%density) == nz .and. size(self%mubar) == nz) then
+            size(self%density) == nz .and. size(self%mubar) == nz .and. &
+            size(self%xs_x_qy,1) == nz .and. size(self%xs_x_qy,2) == kj .and. &
+            size(self%xs_x_qy,3) == nw .and. size(self%particle_xs) == np .and. &
+            size(self%gibbs_energy,1) == nz .and. size(self%gibbs_energy,2) == ng) then
           ! Allocated and right shape so return
           return
         endif
@@ -699,8 +708,13 @@ contains
     if (allocated(self%pressure)) deallocate(self%pressure)
     if (allocated(self%density)) deallocate(self%density)
     if (allocated(self%mubar)) deallocate(self%mubar)
+    if (allocated(self%xs_x_qy)) deallocate(self%xs_x_qy)
+    if (allocated(self%particle_xs)) deallocate(self%particle_xs)
+    if (allocated(self%gibbs_energy)) deallocate(self%gibbs_energy)
 
     allocate(self%grav(nz), self%pressure(nz), self%density(nz), self%mubar(nz))
+    allocate(self%xs_x_qy(nz, kj, nw), self%particle_xs(np), &
+             self%gibbs_energy(nz, ng))
 
   end subroutine
 
