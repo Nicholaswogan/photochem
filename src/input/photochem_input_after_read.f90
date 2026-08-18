@@ -3,20 +3,20 @@ submodule (photochem_input) photochem_input_after_read
   
 contains
 
-  module subroutine map_atmosphere_z_to_grid(dat, var, z, temperature, &
+  module subroutine map_atmosphere_z_to_grid(dat, nz, trop_alt, z, temperature, &
                                              edd, surface_pressure, mix, &
-                                             particle_radius, &
-                                             pressure, density, mubar, usol, err)
+                                             particle_radius, state, derived, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use photochem_eqns, only: gravity, press_and_den, vertical_grid
 
     type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
+    integer, intent(in) :: nz
+    real(dp), intent(in) :: trop_alt
     real(dp), intent(in) :: z(:), temperature(:), edd(:)
     real(dp), intent(in) :: surface_pressure
     real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
-    real(dp), intent(out) :: pressure(:), density(:), mubar(:)
-    real(dp), intent(out) :: usol(:,:)
+    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereStateDerived), intent(inout) :: derived
     character(:), allocatable, intent(out) :: err
 
     real(dp), parameter :: mixing_ratio_floor = 1.0e-40_dp
@@ -28,6 +28,10 @@ contains
     nprofile = size(z)
     ngas = dat%nq - dat%ng_1 + 1
 
+    if (nz < 2) then
+      err = 'Altitude initialization requires at least two model layers.'
+      return
+    endif
     if (nprofile < 2) then
       err = 'Altitude initialization requires at least two profile points.'
       return
@@ -78,10 +82,13 @@ contains
       err = 'The first altitude profile point must be zero.'
       return
     endif
-    if (dat%gas_rainout .and. var%trop_alt >= z(nprofile)) then
+    if (dat%gas_rainout .and. trop_alt >= z(nprofile)) then
       err = 'Tropopause altitude must be below the model-top altitude.'
       return
     endif
+
+    call state%ensure(nz, dat%nq, dat%npq)
+    call derived%ensure(nz)
 
     allocate(gas_mix_normalized(ngas,nprofile))
     do j = 1,nprofile
@@ -94,63 +101,58 @@ contains
       gas_mix_normalized(:,j) = gas_mix_normalized(:,j)/sum(gas_mix_normalized(:,j))
     enddo
 
-    var%bottom_atmos = 0.0_dp
-    var%top_atmos = z(nprofile)
-    call vertical_grid(var%bottom_atmos, var%top_atmos, var%z, var%dz)
-    call gravity(dat%planet_radius, dat%planet_mass, var%z, var%grav)
-    call interpolate_profile_1d(var%z, z, temperature, var%temperature, &
+    state%bottom_atmos = 0.0_dp
+    state%top_atmos = z(nprofile)
+    state%trop_alt = trop_alt
+    call vertical_grid(state%bottom_atmos, state%top_atmos, state%z, state%dz)
+    call gravity(dat%planet_radius, dat%planet_mass, state%z, derived%grav)
+    call interpolate_profile_1d(state%z, z, temperature, state%temperature, &
                                 .false., .false., 'temperature', err)
     if (allocated(err)) return
 
-    call interpolate_profile_1d(var%z, z, edd, var%edd, &
+    call interpolate_profile_1d(state%z, z, edd, state%edd, &
                                 .true., .false., 'eddy diffusion', err)
     if (allocated(err)) return
 
-    allocate(gas_mix_model(ngas,var%nz))
-    call interpolate_profiles_2d(var%z, z, gas_mix_normalized, gas_mix_model, &
+    allocate(gas_mix_model(ngas,nz))
+    call interpolate_profiles_2d(state%z, z, gas_mix_normalized, gas_mix_model, &
                                  .true., .false., 'gas mixing ratios', err)
     if (allocated(err)) return
-    do j = 1,var%nz
+    do j = 1,nz
       gas_mix_model(:,j) = gas_mix_model(:,j)/sum(gas_mix_model(:,j))
-      mubar(j) = sum(gas_mix_model(:,j)*dat%species_mass(dat%ng_1:dat%nq))
+      derived%mubar(j) = sum(gas_mix_model(:,j)*dat%species_mass(dat%ng_1:dat%nq))
     enddo
-    call press_and_den(var%temperature, var%grav, surface_pressure, &
-                       var%dz, mubar, pressure, density)
-    if (.not. all(ieee_is_finite(pressure)) .or. any(pressure <= 0.0_dp) .or. &
-        .not. all(ieee_is_finite(density)) .or. any(density <= 0.0_dp)) then
+    call press_and_den(state%temperature, derived%grav, surface_pressure, &
+                       state%dz, derived%mubar, derived%pressure, derived%density)
+    if (.not. all(ieee_is_finite(derived%pressure)) .or. any(derived%pressure <= 0.0_dp) .or. &
+        .not. all(ieee_is_finite(derived%density)) .or. any(derived%density <= 0.0_dp)) then
       err = 'Hydrostatic integration produced an invalid pressure or density.'
       return
     endif
 
-    if (size(usol,1) /= dat%nq .or. size(usol,2) /= var%nz) then
-      err = 'The initial atmospheric-state array has the wrong shape.'
-      return
-    endif
-    usol = 0.0_dp
+    state%usol = 0.0_dp
     do i = 1,ngas
-      usol(dat%ng_1+i-1,:) = gas_mix_model(i,:)*density
+      state%usol(dat%ng_1+i-1,:) = gas_mix_model(i,:)*derived%density
     enddo
 
     if (dat%npq > 0) then
       allocate(particle_mix_profile(dat%npq,nprofile), &
-               particle_mix_model(dat%npq,var%nz))
+               particle_mix_model(dat%npq,nz))
       particle_mix_profile = max(mix(:dat%npq,:), mixing_ratio_floor)
-      call interpolate_profiles_2d(var%z, z, particle_mix_profile, &
+      call interpolate_profiles_2d(state%z, z, particle_mix_profile, &
                                    particle_mix_model, .true., .false., &
                                    'particle mixing ratios', err)
       if (allocated(err)) return
 
-      call interpolate_profiles_2d(var%z, z, particle_radius, &
-                                   var%particle_radius, .true., .false., &
+      call interpolate_profiles_2d(state%z, z, particle_radius, &
+                                   state%particle_radius, .true., .false., &
                                    'particle radii', err)
       if (allocated(err)) return
 
       do i = 1,dat%npq
-        usol(i,:) = particle_mix_model(i,:)*density
+        state%usol(i,:) = particle_mix_model(i,:)*derived%density
       enddo
     endif
-
-    var%surface_pressure = surface_pressure/1.0e6_dp
 
   end subroutine
 
@@ -177,6 +179,8 @@ contains
     real(dp) :: inverse_radius_factor, delta_log_pressure
     real(dp) :: surface_z(1), surface_gravity(1)
     real(dp) :: trop_alt_array(1)
+    type(AtmosphereState) :: state
+    type(AtmosphereStateDerived) :: derived
     integer :: i, nprofile, ierr
 
     nprofile = size(profile_pressure)
@@ -291,9 +295,25 @@ contains
       var%trop_alt = trop_alt_array(1)
     endif
 
-    call map_atmosphere_z_to_grid(dat, var, z, temperature, edd, &
-                                  profile_pressure(1), mix, particle_radius, &
-                                  pressure, density, mubar, usol, err)
+    call map_atmosphere_z_to_grid(dat, size(var%z), var%trop_alt, z, temperature, &
+                                  edd, profile_pressure(1), mix, particle_radius, &
+                                  state, derived, err)
+    if (allocated(err)) return
+
+    var%bottom_atmos = state%bottom_atmos
+    var%top_atmos = state%top_atmos
+    var%trop_alt = state%trop_alt
+    var%surface_pressure = profile_pressure(1)/1.0e6_dp
+    var%z = state%z
+    var%dz = state%dz
+    var%grav = derived%grav
+    var%temperature = state%temperature
+    var%edd = state%edd
+    var%particle_radius = state%particle_radius
+    pressure = derived%pressure
+    density = derived%density
+    mubar = derived%mubar
+    usol = state%usol
 
   end subroutine
   

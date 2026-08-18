@@ -104,6 +104,7 @@ contains
                                             particle_radius, err)
     use photochem_input, only: finalize_atmosphere_initialization, &
                                map_atmosphere_z_to_grid
+    use photochem_types, only: AtmosphereState, AtmosphereStateDerived
 
     class(EvoAtmosphere), intent(inout) :: self
     real(dp), intent(in) :: z(:), temperature(:), edd(:)
@@ -112,24 +113,35 @@ contains
     character(:), allocatable, intent(out) :: err
 
     type(EvoAtmosphere) :: candidate
-    real(dp), allocatable :: pressure(:), density(:), mubar(:), usol_start(:,:)
+    type(AtmosphereState) :: state
+    type(AtmosphereStateDerived) :: derived
 
     call create_atmosphere_candidate(self, candidate, err)
     if (allocated(err)) return
 
     call reset_press_temp_edd_profile(candidate%var)
 
-    allocate(pressure(candidate%var%nz), density(candidate%var%nz), &
-             mubar(candidate%var%nz), usol_start(candidate%dat%nq,candidate%var%nz))
-    call map_atmosphere_z_to_grid(candidate%dat, candidate%var, z, temperature, &
-                                  edd, surface_pressure, mix, particle_radius, &
-                                  pressure, density, mubar, usol_start, err)
+    call map_atmosphere_z_to_grid(candidate%dat, candidate%var%nz, &
+                                  candidate%var%trop_alt, z, temperature, edd, &
+                                  surface_pressure, mix, particle_radius, &
+                                  state, derived, err)
     if (allocated(err)) return
+
+    candidate%var%bottom_atmos = state%bottom_atmos
+    candidate%var%top_atmos = state%top_atmos
+    candidate%var%trop_alt = state%trop_alt
+    candidate%var%surface_pressure = surface_pressure/1.0e6_dp
+    candidate%var%z = state%z
+    candidate%var%dz = state%dz
+    candidate%var%grav = derived%grav
+    candidate%var%temperature = state%temperature
+    candidate%var%edd = state%edd
+    candidate%var%particle_radius = state%particle_radius
 
     call finalize_atmosphere_initialization(candidate%dat, candidate%var, err)
     if (allocated(err)) return
 
-    call prepare_atmosphere_candidate(candidate, usol_start, err)
+    call prepare_atmosphere_candidate(candidate, state%usol, err)
     if (allocated(err)) return
 
     call commit_atmosphere_candidate(self, candidate, err)

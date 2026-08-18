@@ -12,6 +12,7 @@ module photochem_types ! make a giant IO object
   public :: PhotoSettings, SettingsBC
   public :: XsectionData, ParticleXsections
   public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
+  public :: AtmosphereState, AtmosphereStateDerived
   public :: ProductionLoss, ThermodynamicData, CondensationParameters
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate, PressDependentRate, MultiArrheniusRate
   public :: TOAPressureMaintenance
@@ -491,6 +492,35 @@ module photochem_types ! make a giant IO object
 
   end type
 
+  !> Mutable atmospheric state assembled by an initialization or mapping path.
+  !! This is deliberately separate from PhotochemVars so a candidate can be
+  !! validated before its fields are committed to the live model state.
+  type :: AtmosphereState
+    real(dp) :: bottom_atmos
+    real(dp) :: top_atmos
+    real(dp) :: trop_alt
+    real(dp), allocatable :: z(:)
+    real(dp), allocatable :: dz(:)
+    real(dp), allocatable :: temperature(:)
+    real(dp), allocatable :: edd(:)
+    real(dp), allocatable :: particle_radius(:,:)
+    real(dp), allocatable :: usol(:,:)
+  contains
+    procedure :: ensure => AtmosphereState_ensure
+  end type
+
+  !> Quantities derived while constructing an atmospheric state candidate.
+  !! These are work/results for initialization and are not part of the
+  !! persistent handoff state.
+  type :: AtmosphereStateDerived
+    real(dp), allocatable :: grav(:)
+    real(dp), allocatable :: pressure(:)
+    real(dp), allocatable :: density(:)
+    real(dp), allocatable :: mubar(:)
+  contains
+    procedure :: ensure => AtmosphereStateDerived_ensure
+  end type
+
   type :: SundialsData
     !> cvode memory
     type(c_ptr) :: cvode_mem = c_null_ptr
@@ -596,7 +626,7 @@ module photochem_types ! make a giant IO object
     ! end work space for autodiff jacobian
     
   contains
-    procedure :: init => init_PhotochemWrk
+    procedure :: init => PhotochemWrk_init
   end type
 
   type, extends(PhotochemWrk) :: PhotochemWrkEvo
@@ -610,17 +640,75 @@ module photochem_types ! make a giant IO object
     integer :: nsteps_since_toa_pressure_update = 0
 
   contains
-    procedure :: init => init_PhotochemWrkEvo
+    procedure :: init => PhotochemWrkEvo_init
 
   end type
   
 contains
 
-  subroutine init_PhotochemWrkEvo(self, nsp, np, nq, nz, nrT, kj, nw)
+  subroutine AtmosphereState_ensure(self, nz, nq, np)
+    class(AtmosphereState), intent(inout) :: self
+    integer, intent(in) :: nz, nq, np
+
+    if (allocated(self%z)) then
+      if (allocated(self%dz) .and. allocated(self%temperature) .and. &
+          allocated(self%edd) .and. allocated(self%particle_radius) .and. &
+          allocated(self%usol)) then
+        if (size(self%z) == nz .and. size(self%dz) == nz .and. &
+            size(self%temperature) == nz .and. size(self%edd) == nz .and. &
+            size(self%particle_radius,1) == np .and. &
+            size(self%particle_radius,2) == nz .and. &
+            size(self%usol,1) == nq .and. size(self%usol,2) == nz) then
+          ! Allocated and right shape so return
+          return
+        endif
+      endif
+    endif
+
+    ! Deallocate any existing arrays if they are not the right shape.
+    if (allocated(self%z)) deallocate(self%z)
+    if (allocated(self%dz)) deallocate(self%dz)
+    if (allocated(self%temperature)) deallocate(self%temperature)
+    if (allocated(self%edd)) deallocate(self%edd)
+    if (allocated(self%particle_radius)) deallocate(self%particle_radius)
+    if (allocated(self%usol)) deallocate(self%usol)
+
+    ! Allocate to the right shape
+    allocate(self%z(nz), self%dz(nz), self%temperature(nz))
+    allocate(self%edd(nz), self%particle_radius(np, nz), self%usol(nq, nz))
+
+  end subroutine
+
+  subroutine AtmosphereStateDerived_ensure(self, nz)
+    class(AtmosphereStateDerived), intent(inout) :: self
+    integer, intent(in) :: nz
+
+    if (allocated(self%grav)) then
+      if (allocated(self%pressure) .and. allocated(self%density) .and. &
+          allocated(self%mubar)) then
+        if (size(self%grav) == nz .and. size(self%pressure) == nz .and. &
+            size(self%density) == nz .and. size(self%mubar) == nz) then
+          ! Allocated and right shape so return
+          return
+        endif
+      endif
+    endif
+
+    ! Deallocate any existing arrays if they are not the right shape.
+    if (allocated(self%grav)) deallocate(self%grav)
+    if (allocated(self%pressure)) deallocate(self%pressure)
+    if (allocated(self%density)) deallocate(self%density)
+    if (allocated(self%mubar)) deallocate(self%mubar)
+
+    allocate(self%grav(nz), self%pressure(nz), self%density(nz), self%mubar(nz))
+
+  end subroutine
+
+  subroutine PhotochemWrkEvo_init(self, nsp, np, nq, nz, nrT, kj, nw)
     class(PhotochemWrkEvo), intent(inout) :: self
     integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw
 
-    call init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw)
+    call PhotochemWrk_init(self, nsp, np, nq, nz, nrT, kj, nw)
 
     self%n_toa_pressure_updates = 0
     self%n_toa_pressure_failures = 0
@@ -638,7 +726,7 @@ contains
 
   end subroutine
  
-  subroutine init_PhotochemWrk(self, nsp, np, nq, nz, nrT, kj, nw)
+  subroutine PhotochemWrk_init(self, nsp, np, nq, nz, nrT, kj, nw)
     use photochem_const, only: nsteps_save
     class(PhotochemWrk), intent(inout) :: self
     integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw

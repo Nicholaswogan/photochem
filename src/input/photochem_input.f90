@@ -2,7 +2,8 @@
 module photochem_input
   use fortran_yaml_c_types, only : type_node, type_dictionary, type_list, type_error, &
                          type_list_item, type_scalar, type_key_value_pair
-  use photochem_types, only : PhotochemData, PhotochemVars, PhotoSettings
+  use photochem_types, only : PhotochemData, PhotochemVars, PhotoSettings, &
+                              AtmosphereState, AtmosphereStateDerived
   use photochem_const, only: dp, str_len, s_str_len
   implicit none
   private 
@@ -100,12 +101,12 @@ module photochem_input
     !! a hydrostatic initial state. This is an internal initialization kernel;
     !! species-name handling and transactional model updates are performed by
     !! EvoAtmosphere.
-    module subroutine map_atmosphere_z_to_grid(dat, var, z, temperature, &
+    module subroutine map_atmosphere_z_to_grid(dat, nz, trop_alt, z, temperature, &
                                                edd, surface_pressure, mix, &
-                                               particle_radius, &
-                                               pressure, density, mubar, usol, err)
+                                               particle_radius, state, derived, err)
       type(PhotochemData), intent(in) :: dat
-      type(PhotochemVars), intent(inout) :: var
+      integer, intent(in) :: nz
+      real(dp), intent(in) :: trop_alt
       real(dp), intent(in) :: z(:) !! Altitude profile knots (cm), including both domain edges.
       real(dp), intent(in) :: temperature(:) !! Temperature at `z` (K).
       real(dp), intent(in) :: edd(:) !! Eddy diffusion at `z` (cm^2/s).
@@ -116,10 +117,8 @@ module photochem_input
       real(dp), intent(in) :: mix(:,:)
       !> Particle radii in mechanism order (`1:dat%npq`) at `z` (cm).
       real(dp), intent(in) :: particle_radius(:,:)
-      real(dp), intent(out) :: pressure(:) !! Hydrostatic pressure at model centers (dyn/cm^2).
-      real(dp), intent(out) :: density(:) !! Total gas number density at model centers (molecules/cm^3).
-      real(dp), intent(out) :: mubar(:) !! Gas mean molecular weight at model centers (g/mol).
-      real(dp), intent(out) :: usol(:,:) !! Initial number densities (molecules/cm^3).
+      type(AtmosphereState), intent(inout) :: state
+      type(AtmosphereStateDerived), intent(inout) :: derived
       character(:), allocatable, intent(out) :: err
     end subroutine
 
