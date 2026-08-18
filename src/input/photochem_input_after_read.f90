@@ -8,7 +8,6 @@ contains
                                              particle_radius, &
                                              pressure, density, mubar, usol, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    use futils, only: interp
     use photochem_eqns, only: gravity, press_and_den, vertical_grid
 
     type(PhotochemData), intent(in) :: dat
@@ -22,9 +21,9 @@ contains
 
     real(dp), parameter :: mixing_ratio_floor = 1.0e-40_dp
     real(dp), allocatable :: gas_mix_normalized(:,:), gas_mix_model(:,:), particle_mix_model(:,:)
-    real(dp), allocatable :: interpolation_input(:), interpolation_output(:)
+    real(dp), allocatable :: particle_mix_profile(:,:)
     real(dp) :: gas_total, z_tolerance
-    integer :: i, j, ierr, nprofile, ngas
+    integer :: i, j, nprofile, ngas
 
     nprofile = size(z)
     ngas = dat%nq - dat%ng_1 + 1
@@ -99,22 +98,18 @@ contains
     var%top_atmos = z(nprofile)
     call vertical_grid(var%bottom_atmos, var%top_atmos, var%z, var%dz)
     call gravity(dat%planet_radius, dat%planet_mass, var%z, var%grav)
-    call interpolate_temperature_edd(var%z, z, temperature, edd, &
-                                     var%temperature, var%edd, err)
+    call interpolate_profile_1d(var%z, z, temperature, var%temperature, &
+                                .false., .false., 'temperature', err)
     if (allocated(err)) return
 
-    allocate(interpolation_input(nprofile), interpolation_output(var%nz))
+    call interpolate_profile_1d(var%z, z, edd, var%edd, &
+                                .true., .false., 'eddy diffusion', err)
+    if (allocated(err)) return
 
     allocate(gas_mix_model(ngas,var%nz))
-    do i = 1,ngas
-      interpolation_input = log10(max(gas_mix_normalized(i,:), mixing_ratio_floor))
-      call interp(var%z, z, interpolation_input, interpolation_output, ierr=ierr)
-      if (ierr /= 0) then
-        err = 'Unable to interpolate gas mixing ratios onto the model grid.'
-        return
-      endif
-      gas_mix_model(i,:) = 10.0_dp**interpolation_output
-    enddo
+    call interpolate_profiles_2d(var%z, z, gas_mix_normalized, gas_mix_model, &
+                                 .true., .false., 'gas mixing ratios', err)
+    if (allocated(err)) return
     do j = 1,var%nz
       gas_mix_model(:,j) = gas_mix_model(:,j)/sum(gas_mix_model(:,j))
       mubar(j) = sum(gas_mix_model(:,j)*dat%species_mass(dat%ng_1:dat%nq))
@@ -137,24 +132,21 @@ contains
     enddo
 
     if (dat%npq > 0) then
-      allocate(particle_mix_model(dat%npq,var%nz))
-      do i = 1,dat%npq
-        interpolation_input = log10(max(mix(i,:), mixing_ratio_floor))
-        call interp(var%z, z, interpolation_input, interpolation_output, ierr=ierr)
-        if (ierr /= 0) then
-          err = 'Unable to interpolate particle mixing ratios onto the model grid.'
-          return
-        endif
-        particle_mix_model(i,:) = 10.0_dp**interpolation_output
-        usol(i,:) = particle_mix_model(i,:)*density
+      allocate(particle_mix_profile(dat%npq,nprofile), &
+               particle_mix_model(dat%npq,var%nz))
+      particle_mix_profile = max(mix(:dat%npq,:), mixing_ratio_floor)
+      call interpolate_profiles_2d(var%z, z, particle_mix_profile, &
+                                   particle_mix_model, .true., .false., &
+                                   'particle mixing ratios', err)
+      if (allocated(err)) return
 
-        interpolation_input = log10(particle_radius(i,:))
-        call interp(var%z, z, interpolation_input, interpolation_output, ierr=ierr)
-        if (ierr /= 0) then
-          err = 'Unable to interpolate particle radii onto the model grid.'
-          return
-        endif
-        var%particle_radius(i,:) = 10.0_dp**interpolation_output
+      call interpolate_profiles_2d(var%z, z, particle_radius, &
+                                   var%particle_radius, .true., .false., &
+                                   'particle radii', err)
+      if (allocated(err)) return
+
+      do i = 1,dat%npq
+        usol(i,:) = particle_mix_model(i,:)*density
       enddo
     endif
 
@@ -350,126 +342,122 @@ contains
 
   end subroutine
 
-  subroutine interpolate_temperature_edd(z_grid, z, temperature, edd, &
-                                         temperature_grid, edd_grid, err)
-    use futils, only: interp
-
-    real(dp), intent(in) :: z_grid(:), z(:), temperature(:), edd(:)
-    real(dp), intent(out) :: temperature_grid(:), edd_grid(:)
-    character(:), allocatable, intent(out) :: err
-
-    integer :: ierr
-
-    call interp(z_grid, z, temperature, temperature_grid, ierr=ierr)
-    if (ierr /= 0) then
-      err = 'Unable to interpolate temperature onto the model grid.'
-      return
-    endif
-
-    call interp(z_grid, z, log10(edd), edd_grid, ierr=ierr)
-    if (ierr /= 0) then
-      err = 'Unable to interpolate eddy diffusion onto the model grid.'
-      return
-    endif
-    edd_grid = 10.0_dp**edd_grid
-
-  end subroutine
-
   subroutine interp2atmosfile(dat, var, profile, usol, err)
-    use futils, only: interp
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(inout) :: var
     type(AtmosphereFileProfile), intent(in) :: profile
     real(dp), intent(out) :: usol(:,:)
     character(:), allocatable, intent(out) :: err
-    
-    call interpolate_temperature_edd(var%z, profile%z, profile%temperature, &
-                                     profile%edd, var%temperature, &
-                                     var%edd, err)
-    if (allocated(err)) return
 
-    call interpolate_atmosphere_mix(var%z, profile%z, profile%density, &
-                                    profile%mix, usol, err)
-    if (allocated(err)) return
-    
-    if (.not. dat%there_are_particles) return
+    integer :: i
+    real(dp), allocatable :: density(:), mix(:,:)
 
-    call interpolate_atmosphere_radii(var%z, profile%z, &
-                                      profile%particle_radius, &
-                                      var%particle_radius, err)
-    if (allocated(err)) return
-
-  end subroutine
-
-  subroutine interpolate_atmosphere_radii(z_grid, profile_z, profile_radii, &
-                                          radii_grid, err)
-    use futils, only: interp
-    real(dp), intent(in) :: z_grid(:), profile_z(:)
-    real(dp), intent(in) :: profile_radii(:,:)
-    real(dp), intent(out) :: radii_grid(:,:)
-    character(:), allocatable, intent(out) :: err
-
-    integer :: i, ierr
-
-    if (size(radii_grid,1) /= size(profile_radii,1) .or. &
-        size(radii_grid,2) /= size(z_grid)) then
-      err = 'The particle-radius array has the wrong shape.'
-      return
-    endif
-
-    do i = 1,size(profile_radii,1)
-      call interp(z_grid, profile_z, log10(profile_radii(i,:)), &
-                  radii_grid(i,:), ierr=ierr)
-      if (ierr /= 0) then
-        err = 'Unable to interpolate particle radii onto the model grid.'
-        return
-      endif
-    enddo
-    radii_grid = 10.0_dp**radii_grid
-
-  end subroutine
-
-  subroutine interpolate_atmosphere_mix(z_grid, profile_z, profile_density, &
-                                        profile_mix, usol, err)
-    use futils, only: interp
-    real(dp), intent(in) :: z_grid(:)
-    real(dp), intent(in) :: profile_z(:), profile_density(:)
-    real(dp), intent(in) :: profile_mix(:,:)
-    real(dp), intent(out) :: usol(:,:)
-    character(:), allocatable, intent(out) :: err
-
-    integer :: i, ierr
-    real(dp), allocatable :: density(:)
-
-    if (size(usol,1) /= size(profile_mix,1) .or. size(usol,2) /= size(z_grid)) then
+    if (size(usol,1) /= size(profile%mix,1) .or. size(usol,2) /= size(var%z)) then
       err = 'The initial atmospheric-state array has the wrong shape.'
       return
     endif
 
-    allocate(density(size(z_grid)))
+    call interpolate_profile_1d(var%z, profile%z, profile%temperature, &
+                                var%temperature, .false., .false., &
+                                'temperature', err)
+    if (allocated(err)) return
 
-    ! Interpolate file density to model grid
-    call interp(z_grid, profile_z, log10(profile_density), density, &
-                linear_extrap=.true., ierr=ierr)
-    if (ierr /= 0) then
-      err = 'Subroutine interp returned an error.'
+    call interpolate_profile_1d(var%z, profile%z, profile%edd, var%edd, &
+                                .true., .false., 'eddy diffusion', err)
+    if (allocated(err)) return
+
+    allocate(density(size(var%z)), mix(size(profile%mix,1),size(var%z)))
+
+    call interpolate_profile_1d(var%z, profile%z, profile%density, density, &
+                                .true., .true., 'atmospheric density', err)
+    if (allocated(err)) return
+
+    call interpolate_profiles_2d(var%z, profile%z, profile%mix, mix, &
+                                 .true., .false., 'mixing ratios', err)
+    if (allocated(err)) return
+
+    do i = 1,size(var%z)
+      usol(:,i) = mix(:,i)*density(i)
+    enddo
+    
+    if (.not. dat%there_are_particles) return
+
+    call interpolate_profiles_2d(var%z, profile%z, profile%particle_radius, &
+                                 var%particle_radius, .true., .false., &
+                                 'particle radii', err)
+    if (allocated(err)) return
+
+  end subroutine
+
+  ! Interpolate one profile, optionally transforming its values to/from log10
+  ! space. The profile values must be positive when log interpolation is used.
+  subroutine interpolate_profile_1d(z_grid, profile_z, profile_values, &
+                                    values_grid, log_interpolation, &
+                                    linear_extrapolation, quantity, err)
+    use futils, only: interp
+    real(dp), intent(in) :: z_grid(:), profile_z(:), profile_values(:)
+    real(dp), intent(out) :: values_grid(:)
+    logical, intent(in) :: log_interpolation, linear_extrapolation
+    character(*), intent(in) :: quantity
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: profile_values_work(:)
+    integer :: ierr
+
+    if (size(profile_z) /= size(profile_values) .or. &
+        size(values_grid) /= size(z_grid)) then
+      err = 'The one-dimensional interpolation arrays have incompatible shapes.'
       return
     endif
-    density = 10.0_dp**density
 
-    do i = 1,size(profile_mix,1)
-      call interp(z_grid, profile_z, log10(abs(profile_mix(i,:))), &
-                  usol(i,:), ierr=ierr)
-      if (ierr /= 0) then
-        err = 'Subroutine interp returned an error.'
-        return
-      endif
+    allocate(profile_values_work(size(profile_values)))
+    if (log_interpolation) then
+      ! Log-space interpolation requires positive profile values. Callers
+      ! that permit zeros should apply their physical floor before calling.
+      profile_values_work = log10(profile_values)
+    else
+      profile_values_work = profile_values
+    endif
+
+    call interp(z_grid, profile_z, profile_values_work, values_grid, &
+                linear_extrap=linear_extrapolation, ierr=ierr)
+    if (ierr /= 0) then
+      err = 'Unable to interpolate '//trim(quantity)//' onto the model grid.'
+      return
+    endif
+
+    if (log_interpolation) then
+      values_grid = 10.0_dp**values_grid
+    endif
+
+  end subroutine
+
+  ! Apply the one-dimensional interpolation above independently to each row
+  ! of a set of profiles sharing the same altitude grid.
+  subroutine interpolate_profiles_2d(z_grid, profile_z, profile_values, &
+                                     values_grid, log_interpolation, &
+                                     linear_extrapolation, quantity, err)
+    real(dp), intent(in) :: z_grid(:), profile_z(:), profile_values(:,:)
+    real(dp), intent(out) :: values_grid(:,:)
+    logical, intent(in) :: log_interpolation, linear_extrapolation
+    character(*), intent(in) :: quantity
+    character(:), allocatable, intent(out) :: err
+
+    integer :: i
+
+    if (size(profile_values,1) /= size(values_grid,1) .or. &
+        size(profile_values,2) /= size(profile_z) .or. &
+        size(values_grid,2) /= size(z_grid)) then
+      err = 'The two-dimensional interpolation arrays have incompatible shapes.'
+      return
+    endif
+
+    do i = 1,size(profile_values,1)
+      call interpolate_profile_1d(z_grid, profile_z, profile_values(i,:), &
+                                  values_grid(i,:), log_interpolation, &
+                                  linear_extrapolation, quantity, err)
+      if (allocated(err)) return
     enddo
-    usol = 10.0_dp**usol
-
-    do i = 1,size(z_grid)
-      usol(:,i) = usol(:,i)*density(i)
-    enddo 
 
   end subroutine
 
