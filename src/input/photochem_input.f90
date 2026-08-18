@@ -3,7 +3,7 @@ module photochem_input
   use fortran_yaml_c_types, only : type_node, type_dictionary, type_list, type_error, &
                          type_list_item, type_scalar, type_key_value_pair
   use photochem_types, only : PhotochemData, PhotochemVars, PhotoSettings, &
-                              AtmosphereState, AtmosphereStateDerived
+                              AtmosphereState
   use photochem_const, only: dp, str_len, s_str_len
   implicit none
   private 
@@ -46,10 +46,9 @@ module photochem_input
     !> Complete derived atmosphere setup on a standalone atmospheric state.
     !! This is the transaction-friendly form used by initialization paths that
     !! must validate all atmospheric changes before committing them to `var`.
-    module subroutine finalize_atmosphere_state(dat, state, derived, err)
+    module subroutine finalize_atmosphere_state(dat, state, err)
       type(PhotochemData), intent(in) :: dat
       type(AtmosphereState), intent(inout) :: state
-      type(AtmosphereStateDerived), intent(inout) :: derived
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -114,7 +113,7 @@ module photochem_input
     !! EvoAtmosphere.
     module subroutine map_atmosphere_z_to_grid(dat, nz, trop_alt, z, temperature, &
                                                edd, surface_pressure, mix, &
-                                               particle_radius, state, derived, err)
+                                               particle_radius, state, err)
       type(PhotochemData), intent(in) :: dat
       integer, intent(in) :: nz
       real(dp), intent(in) :: trop_alt
@@ -129,7 +128,6 @@ module photochem_input
       !> Particle radii in mechanism order (`1:dat%npq`) at `z` (cm).
       real(dp), intent(in) :: particle_radius(:,:)
       type(AtmosphereState), intent(inout) :: state
-      type(AtmosphereStateDerived), intent(inout) :: derived
       character(:), allocatable, intent(out) :: err
     end subroutine
 

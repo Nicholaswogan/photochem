@@ -5,7 +5,7 @@ contains
 
   module subroutine map_atmosphere_z_to_grid(dat, nz, trop_alt, z, temperature, &
                                              edd, surface_pressure, mix, &
-                                             particle_radius, state, derived, err)
+                                             particle_radius, state, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use photochem_eqns, only: gravity, press_and_den, vertical_grid
 
@@ -16,7 +16,6 @@ contains
     real(dp), intent(in) :: surface_pressure
     real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
     type(AtmosphereState), intent(inout) :: state
-    type(AtmosphereStateDerived), intent(inout) :: derived
     character(:), allocatable, intent(out) :: err
 
     real(dp), parameter :: mixing_ratio_floor = 1.0e-40_dp
@@ -87,9 +86,6 @@ contains
       return
     endif
 
-    call state%ensure(nz, dat%nq, dat%npq)
-    call derived%ensure(nz, dat%np, dat%ng, dat%kj, dat%nw)
-
     allocate(gas_mix_normalized(ngas,nprofile))
     do j = 1,nprofile
       gas_total = sum(mix(dat%ng_1:dat%nq,j))
@@ -105,7 +101,7 @@ contains
     state%top_atmos = z(nprofile)
     state%trop_alt = trop_alt
     call vertical_grid(state%bottom_atmos, state%top_atmos, state%z, state%dz)
-    call gravity(dat%planet_radius, dat%planet_mass, state%z, derived%grav)
+    call gravity(dat%planet_radius, dat%planet_mass, state%z, state%grav)
     call interpolate_profile_1d(state%z, z, temperature, state%temperature, &
                                 .false., .false., 'temperature', err)
     if (allocated(err)) return
@@ -120,19 +116,21 @@ contains
     if (allocated(err)) return
     do j = 1,nz
       gas_mix_model(:,j) = gas_mix_model(:,j)/sum(gas_mix_model(:,j))
-      derived%mubar(j) = sum(gas_mix_model(:,j)*dat%species_mass(dat%ng_1:dat%nq))
+      state%mubar(j) = sum(gas_mix_model(:,j)*dat%species_mass(dat%ng_1:dat%nq))
     enddo
-    call press_and_den(state%temperature, derived%grav, surface_pressure, &
-                       state%dz, derived%mubar, derived%pressure, derived%density)
-    if (.not. all(ieee_is_finite(derived%pressure)) .or. any(derived%pressure <= 0.0_dp) .or. &
-        .not. all(ieee_is_finite(derived%density)) .or. any(derived%density <= 0.0_dp)) then
+    call press_and_den(state%temperature, state%grav, surface_pressure, &
+                       state%dz, state%mubar, state%pressure, state%density)
+    if (.not. all(ieee_is_finite(state%pressure)) .or. any(state%pressure <= 0.0_dp) .or. &
+        .not. all(ieee_is_finite(state%density)) .or. any(state%density <= 0.0_dp)) then
       err = 'Hydrostatic integration produced an invalid pressure or density.'
       return
     endif
 
+    state%surface_pressure = surface_pressure/1.0e6_dp
+
     state%usol = 0.0_dp
     do i = 1,ngas
-      state%usol(dat%ng_1+i-1,:) = gas_mix_model(i,:)*derived%density
+      state%usol(dat%ng_1+i-1,:) = gas_mix_model(i,:)*state%density
     enddo
 
     if (dat%npq > 0) then
@@ -150,7 +148,7 @@ contains
       if (allocated(err)) return
 
       do i = 1,dat%npq
-        state%usol(i,:) = particle_mix_model(i,:)*derived%density
+        state%usol(i,:) = particle_mix_model(i,:)*state%density
       enddo
     endif
 
@@ -180,7 +178,6 @@ contains
     real(dp) :: surface_z(1), surface_gravity(1)
     real(dp) :: trop_alt_array(1)
     type(AtmosphereState) :: state
-    type(AtmosphereStateDerived) :: derived
     integer :: i, nprofile, ierr
 
     nprofile = size(profile_pressure)
@@ -295,9 +292,10 @@ contains
       var%trop_alt = trop_alt_array(1)
     endif
 
+    call state%allocate(dat, size(var%z))
     call map_atmosphere_z_to_grid(dat, size(var%z), var%trop_alt, z, temperature, &
                                   edd, profile_pressure(1), mix, particle_radius, &
-                                  state, derived, err)
+                                  state, err)
     if (allocated(err)) return
 
     var%bottom_atmos = state%bottom_atmos
@@ -306,13 +304,13 @@ contains
     var%surface_pressure = profile_pressure(1)/1.0e6_dp
     var%z = state%z
     var%dz = state%dz
-    var%grav = derived%grav
+    var%grav = state%grav
     var%temperature = state%temperature
     var%edd = state%edd
     var%particle_radius = state%particle_radius
-    pressure = derived%pressure
-    density = derived%density
-    mubar = derived%mubar
+    pressure = state%pressure
+    density = state%density
+    mubar = state%mubar
     usol = state%usol
 
   end subroutine
@@ -496,66 +494,24 @@ contains
 
   end subroutine
 
-  module subroutine finalize_atmosphere_state(dat, state, derived, err)
+  module subroutine finalize_atmosphere_state(dat, state, err)
     type(PhotochemData), intent(in) :: dat
     type(AtmosphereState), intent(inout) :: state
-    type(AtmosphereStateDerived), intent(inout) :: derived
     character(:), allocatable, intent(out) :: err
 
-    call ensure_particle_xs(dat, size(state%z), derived%particle_xs)
-    call interp2particlexsdata(dat, state%particle_radius, derived%particle_xs, err)
+    call interp2particlexsdata(dat, state%particle_radius, state%particle_xs, err)
     if (allocated(err)) return
 
-    call interp2xsdata(dat, derived%xs_x_qy, err)
+    call interp2xsdata(dat, state%xs_x_qy, err)
     if (allocated(err)) return
 
-    derived%gibbs_energy = 0.0_dp
-    call compute_gibbs_energy(dat, state%temperature, derived%gibbs_energy, err)
+    state%gibbs_energy = 0.0_dp
+    call compute_gibbs_energy(dat, state%temperature, state%gibbs_energy, err)
     if (allocated(err)) return
 
     call set_tropopause(dat, state%z, state%bottom_atmos, state%top_atmos, &
-                        trop_alt=state%trop_alt, trop_ind=derived%trop_ind, err=err)
+                        trop_alt=state%trop_alt, trop_ind=state%trop_ind, err=err)
     if (allocated(err)) return
-
-  end subroutine
-
-  subroutine ensure_particle_xs(dat, nz, particle_xs)
-    use photochem_types, only: ParticleXsections
-    type(PhotochemData), intent(in) :: dat
-    integer, intent(in) :: nz
-    type(ParticleXsections), intent(inout) :: particle_xs(:)
-
-    integer :: i
-    logical :: right_shape
-
-    do i = 1,dat%np
-      particle_xs(i)%ThereIsData = dat%part_xs_file(i)%ThereIsData
-      if (.not. particle_xs(i)%ThereIsData) then
-        if (allocated(particle_xs(i)%w0)) deallocate(particle_xs(i)%w0)
-        if (allocated(particle_xs(i)%qext)) deallocate(particle_xs(i)%qext)
-        if (allocated(particle_xs(i)%gt)) deallocate(particle_xs(i)%gt)
-        cycle
-      endif
-
-      right_shape = allocated(particle_xs(i)%w0) .and. &
-                    allocated(particle_xs(i)%qext) .and. &
-                    allocated(particle_xs(i)%gt)
-      if (right_shape) then
-        right_shape = size(particle_xs(i)%w0,1) == nz .and. &
-                      size(particle_xs(i)%w0,2) == dat%nw .and. &
-                      size(particle_xs(i)%qext,1) == nz .and. &
-                      size(particle_xs(i)%qext,2) == dat%nw .and. &
-                      size(particle_xs(i)%gt,1) == nz .and. &
-                      size(particle_xs(i)%gt,2) == dat%nw
-      endif
-      if (right_shape) cycle
-
-      if (allocated(particle_xs(i)%w0)) deallocate(particle_xs(i)%w0)
-      if (allocated(particle_xs(i)%qext)) deallocate(particle_xs(i)%qext)
-      if (allocated(particle_xs(i)%gt)) deallocate(particle_xs(i)%gt)
-      allocate(particle_xs(i)%w0(nz,dat%nw), &
-               particle_xs(i)%qext(nz,dat%nw), particle_xs(i)%gt(nz,dat%nw))
-    enddo
 
   end subroutine
 

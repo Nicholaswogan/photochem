@@ -12,7 +12,7 @@ module photochem_types ! make a giant IO object
   public :: PhotoSettings, SettingsBC
   public :: XsectionData, ParticleXsections
   public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
-  public :: AtmosphereState, AtmosphereStateDerived
+  public :: AtmosphereState
   public :: ProductionLoss, ThermodynamicData, CondensationParameters
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate, PressDependentRate, MultiArrheniusRate
   public :: TOAPressureMaintenance
@@ -505,25 +505,22 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: edd(:)
     real(dp), allocatable :: particle_radius(:,:)
     real(dp), allocatable :: usol(:,:)
-  contains
-    procedure :: ensure => AtmosphereState_ensure
-  end type
 
-  !> Quantities derived while constructing an atmospheric state.
-  !! Hydrostatic arrays are initialization work; the remaining fields mirror
-  !! derived quantities that must be committed with the atmospheric state.
-  type :: AtmosphereStateDerived
-    real(dp) :: surface_pressure = 0.0_dp
-    integer :: trop_ind = 1
+    ! Derived atmospheric state in `var`
+    integer :: trop_ind
     real(dp), allocatable :: grav(:)
-    real(dp), allocatable :: pressure(:)
-    real(dp), allocatable :: density(:)
-    real(dp), allocatable :: mubar(:)
     real(dp), allocatable :: xs_x_qy(:,:,:)
     type(ParticleXsections), allocatable :: particle_xs(:)
     real(dp), allocatable :: gibbs_energy(:,:)
+
+    ! Derived atmospheric state that can be re-constructed from
+    ! `self%prep_atmosphere`
+    real(dp) :: surface_pressure
+    real(dp), allocatable :: pressure(:)
+    real(dp), allocatable :: density(:)
+    real(dp), allocatable :: mubar(:)
   contains
-    procedure :: ensure => AtmosphereStateDerived_ensure
+    procedure :: allocate => AtmosphereState_allocate
   end type
 
   type :: SundialsData
@@ -651,70 +648,30 @@ module photochem_types ! make a giant IO object
   
 contains
 
-  subroutine AtmosphereState_ensure(self, nz, nq, np)
+  subroutine AtmosphereState_allocate(self, dat, nz)
     class(AtmosphereState), intent(inout) :: self
-    integer, intent(in) :: nz, nq, np
+    type(PhotochemData), intent(in) :: dat
+    integer, intent(in) :: nz
+    integer :: i
 
-    if (allocated(self%z)) then
-      if (allocated(self%dz) .and. allocated(self%temperature) .and. &
-          allocated(self%edd) .and. allocated(self%particle_radius) .and. &
-          allocated(self%usol)) then
-        if (size(self%z) == nz .and. size(self%dz) == nz .and. &
-            size(self%temperature) == nz .and. size(self%edd) == nz .and. &
-            size(self%particle_radius,1) == np .and. &
-            size(self%particle_radius,2) == nz .and. &
-            size(self%usol,1) == nq .and. size(self%usol,2) == nz) then
-          ! Allocated and right shape so return
-          return
-        endif
-      endif
-    endif
-
-    ! Deallocate any existing arrays if they are not the right shape.
-    if (allocated(self%z)) deallocate(self%z)
-    if (allocated(self%dz)) deallocate(self%dz)
-    if (allocated(self%temperature)) deallocate(self%temperature)
-    if (allocated(self%edd)) deallocate(self%edd)
-    if (allocated(self%particle_radius)) deallocate(self%particle_radius)
-    if (allocated(self%usol)) deallocate(self%usol)
-
-    ! Allocate to the right shape
     allocate(self%z(nz), self%dz(nz), self%temperature(nz))
-    allocate(self%edd(nz), self%particle_radius(np, nz), self%usol(nq, nz))
-
-  end subroutine
-
-  subroutine AtmosphereStateDerived_ensure(self, nz, np, ng, kj, nw)
-    class(AtmosphereStateDerived), intent(inout) :: self
-    integer, intent(in) :: nz, np, ng, kj, nw
-
-    if (allocated(self%grav)) then
-      if (allocated(self%pressure) .and. allocated(self%density) .and. &
-          allocated(self%mubar) .and. allocated(self%xs_x_qy) .and. &
-          allocated(self%particle_xs) .and. allocated(self%gibbs_energy)) then
-        if (size(self%grav) == nz .and. size(self%pressure) == nz .and. &
-            size(self%density) == nz .and. size(self%mubar) == nz .and. &
-            size(self%xs_x_qy,1) == nz .and. size(self%xs_x_qy,2) == kj .and. &
-            size(self%xs_x_qy,3) == nw .and. size(self%particle_xs) == np .and. &
-            size(self%gibbs_energy,1) == nz .and. size(self%gibbs_energy,2) == ng) then
-          ! Allocated and right shape so return
-          return
-        endif
-      endif
-    endif
-
-    ! Deallocate any existing arrays if they are not the right shape.
-    if (allocated(self%grav)) deallocate(self%grav)
-    if (allocated(self%pressure)) deallocate(self%pressure)
-    if (allocated(self%density)) deallocate(self%density)
-    if (allocated(self%mubar)) deallocate(self%mubar)
-    if (allocated(self%xs_x_qy)) deallocate(self%xs_x_qy)
-    if (allocated(self%particle_xs)) deallocate(self%particle_xs)
-    if (allocated(self%gibbs_energy)) deallocate(self%gibbs_energy)
+    allocate(self%edd(nz), self%particle_radius(dat%npq, nz), self%usol(dat%nq, nz))
 
     allocate(self%grav(nz), self%pressure(nz), self%density(nz), self%mubar(nz))
-    allocate(self%xs_x_qy(nz, kj, nw), self%particle_xs(np), &
-             self%gibbs_energy(nz, ng))
+    allocate(self%xs_x_qy(nz, dat%kj, dat%nw), self%particle_xs(dat%np), &
+             self%gibbs_energy(nz, dat%ng))
+
+    do i = 1,dat%np
+      ! only allocate space if there is data
+      if (dat%part_xs_file(i)%ThereIsData) then
+        self%particle_xs(i)%ThereIsData = .true.
+        allocate(self%particle_xs(i)%w0(nz,dat%nw))
+        allocate(self%particle_xs(i)%qext(nz,dat%nw))
+        allocate(self%particle_xs(i)%gt(nz,dat%nw))
+      else
+        self%particle_xs(i)%ThereIsData = .false.
+      endif
+    enddo
 
   end subroutine
 

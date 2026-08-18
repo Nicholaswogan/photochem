@@ -104,7 +104,7 @@ contains
                                             particle_radius, err)
     use photochem_input, only: finalize_atmosphere_state, &
                                map_atmosphere_z_to_grid
-    use photochem_types, only: AtmosphereState, AtmosphereStateDerived
+    use photochem_types, only: AtmosphereState
 
     class(EvoAtmosphere), intent(inout) :: self
     real(dp), intent(in) :: z(:), temperature(:), edd(:)
@@ -112,55 +112,56 @@ contains
     real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
     character(:), allocatable, intent(out) :: err
 
-    type(AtmosphereState) :: state
-    type(AtmosphereStateDerived) :: derived
-    type(AtmosphereState) :: previous_state
-    type(AtmosphereStateDerived) :: previous_derived
+    type(AtmosphereState) :: state, previous_state
     logical :: was_initialized
 
-    if (.not. allocated(self%dat) .or. .not. allocated(self%var) .or. &
-        .not. allocated(self%wrk)) then
-      err = 'EvoAtmosphere static setup is not complete.'
-      return
-    endif
-
+    ! Allocate some work space
     was_initialized = self%atmosphere_initialized
+    call state%allocate(self%dat, self%var%nz)
+
+    ! If initialized, then save the previous state
     if (was_initialized) then
-      call state_from_model(self, previous_state, previous_derived)
+      call previous_state%allocate(self%dat, self%var%nz)
+      call state_from_model(self, previous_state)
     endif
 
+    ! Build most of the atmospheric state from inputs
     call map_atmosphere_z_to_grid(self%dat, self%var%nz, self%var%trop_alt, &
                                   z, temperature, edd, &
                                   surface_pressure, mix, particle_radius, &
-                                  state, derived, err)
+                                  state, err)
     if (allocated(err)) return
 
-    derived%surface_pressure = surface_pressure/1.0e6_dp
-
-    call finalize_atmosphere_state(self%dat, state, derived, err)
+    ! finalized atmospheric state
+    call finalize_atmosphere_state(self%dat, state, err)
     if (allocated(err)) return
 
-    if (was_initialized) then
-      call self%destroy_stepper(err)
-      if (allocated(err)) return
-    endif
+    ! Destroy integrator, if relevant
+    call self%destroy_stepper(err)
+    if (allocated(err)) return
 
-    call copy_state_to_model(self, state, derived)
-    call self%prep_atmosphere_unchecked(state%usol, &
-                                        apply_persistent_profile=.false., err=err)
+    ! Copy state to model
+    call copy_state_to_model(self, state)
+
+    ! Prepare the atmosphere
+    call self%prep_atmosphere_unchecked(state%usol, apply_persistent_profile=.false., err=err)
     if (allocated(err)) then
       call restore_previous_state()
       return
     endif
 
-    call reset_press_temp_edd_profile(self%var)
+    ! Destroy persistent P-T-Kzz profile if relevant
+    call self%clear_press_temp_edd_profile(err)
+    if (allocated(err)) return
+
+    ! Atmosphere is now initialized
     self%atmosphere_initialized = .true.
 
   contains
 
     subroutine restore_previous_state()
       if (was_initialized) then
-        call copy_state_to_model(self, previous_state, previous_derived)
+        call copy_state_to_model(self, previous_state)
         self%atmosphere_initialized = .true.
       else
         self%atmosphere_initialized = .false.
@@ -169,15 +170,10 @@ contains
 
   end subroutine
 
-  subroutine state_from_model(self, state, derived)
-    use photochem_types, only: AtmosphereState, AtmosphereStateDerived
+  subroutine state_from_model(self, state)
+    use photochem_types, only: AtmosphereState
     class(EvoAtmosphere), intent(in) :: self
     type(AtmosphereState), intent(inout) :: state
-    type(AtmosphereStateDerived), intent(inout) :: derived
-
-    call state%ensure(self%var%nz, self%dat%nq, self%dat%npq)
-    call derived%ensure(self%var%nz, self%dat%np, self%dat%ng, &
-                        self%dat%kj, self%dat%nw)
 
     state%bottom_atmos = self%var%bottom_atmos
     state%top_atmos = self%var%top_atmos
@@ -189,23 +185,18 @@ contains
     state%particle_radius = self%var%particle_radius
     state%usol = self%wrk%usol
 
-    derived%surface_pressure = self%var%surface_pressure
-    derived%trop_ind = self%var%trop_ind
-    derived%grav = self%var%grav
-    derived%pressure = self%wrk%pressure
-    derived%density = self%wrk%density
-    derived%mubar = self%wrk%mubar
-    derived%xs_x_qy = self%var%xs_x_qy
-    derived%particle_xs = self%var%particle_xs
-    derived%gibbs_energy = self%var%gibbs_energy
+    state%trop_ind = self%var%trop_ind
+    state%grav = self%var%grav
+    state%xs_x_qy = self%var%xs_x_qy
+    state%particle_xs = self%var%particle_xs
+    state%gibbs_energy = self%var%gibbs_energy
 
   end subroutine
 
-  subroutine copy_state_to_model(self, state, derived)
-    use photochem_types, only: AtmosphereState, AtmosphereStateDerived
+  subroutine copy_state_to_model(self, state)
+    use photochem_types, only: AtmosphereState
     class(EvoAtmosphere), intent(inout) :: self
     type(AtmosphereState), intent(in) :: state
-    type(AtmosphereStateDerived), intent(in) :: derived
 
     self%var%bottom_atmos = state%bottom_atmos
     self%var%top_atmos = state%top_atmos
@@ -215,13 +206,13 @@ contains
     self%var%temperature = state%temperature
     self%var%edd = state%edd
     self%var%particle_radius = state%particle_radius
-    self%var%surface_pressure = derived%surface_pressure
-    self%var%trop_ind = derived%trop_ind
-    self%var%grav = derived%grav
-    self%var%xs_x_qy = derived%xs_x_qy
-    self%var%particle_xs = derived%particle_xs
-    self%var%gibbs_energy = derived%gibbs_energy
     self%wrk%usol = state%usol
+
+    self%var%trop_ind = state%trop_ind
+    self%var%grav = state%grav
+    self%var%xs_x_qy = state%xs_x_qy
+    self%var%particle_xs = state%particle_xs
+    self%var%gibbs_energy = state%gibbs_energy
 
   end subroutine
 
