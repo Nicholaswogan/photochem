@@ -664,10 +664,9 @@ contains
 
     allocate(self%grav(nz), self%pressure(nz), self%density(nz), self%mubar(nz))
     allocate(self%xs_x_qy(nz, dat%kj, dat%nw))
+    allocate(self%particle_xs(dat%np))
 
     if (dat%reverse) allocate(self%gibbs_energy(nz, dat%ng))
-
-    if (dat%there_are_particles) allocate(self%particle_xs(dat%np))
 
     do i = 1,dat%np
       ! only allocate space if there is data

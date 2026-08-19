@@ -118,6 +118,7 @@ contains
     ! Allocate some work space
     was_initialized = self%atmosphere_initialized
     call state%allocate(self%dat, self%var%nz)
+    call copy_model_to_state(self, state)
 
     ! If initialized, then save the previous state
     if (was_initialized) then
@@ -189,7 +190,7 @@ contains
     state%grav = self%var%grav
     state%xs_x_qy = self%var%xs_x_qy
     state%particle_xs = self%var%particle_xs
-    state%gibbs_energy = self%var%gibbs_energy
+    if (self%dat%reverse) state%gibbs_energy = self%var%gibbs_energy
     state%press_temp_edd_profile = self%var%press_temp_edd_profile
     state%toa_pressure_maintenance = self%var%toa_pressure_maintenance
 
@@ -214,7 +215,7 @@ contains
     self%var%grav = state%grav
     self%var%xs_x_qy = state%xs_x_qy
     self%var%particle_xs = state%particle_xs
-    self%var%gibbs_energy = state%gibbs_energy
+    if (self%dat%reverse) self%var%gibbs_energy = state%gibbs_energy
     self%var%press_temp_edd_profile = state%press_temp_edd_profile
     self%var%toa_pressure_maintenance = state%toa_pressure_maintenance
 
