@@ -457,7 +457,11 @@ contains
     call interp2particlexsdata(dat, var%particle_radius, var%particle_xs, err)
     if (allocated(err)) return
 
-    call refresh_temperature_dependent_state(dat, var, err=err)
+    call refresh_temperature_dependent_vars( &
+      dat, var%temperature, var%z, var%bottom_atmos, var%top_atmos, &
+      xs_x_qy=var%xs_x_qy, gibbs_energy=var%gibbs_energy, &
+      trop_alt=var%trop_alt, trop_ind=var%trop_ind, err=err &
+    )
     if (allocated(err)) return
 
   end subroutine
@@ -470,31 +474,40 @@ contains
     call interp2particlexsdata(dat, state%particle_radius, state%particle_xs, err)
     if (allocated(err)) return
 
-    call interp2xsdata(dat, state%xs_x_qy, err)
-    if (allocated(err)) return
-
-    call compute_gibbs_energy(dat, state%temperature, state%gibbs_energy, err)
-    if (allocated(err)) return
-
-    call set_tropopause(dat, state%z, state%bottom_atmos, state%top_atmos, &
-                        trop_alt=state%trop_alt, trop_ind=state%trop_ind, err=err)
+    call refresh_temperature_dependent_vars( &
+      dat, state%temperature, state%z, state%bottom_atmos, state%top_atmos, &
+      xs_x_qy=state%xs_x_qy, gibbs_energy=state%gibbs_energy, &
+      trop_alt=state%trop_alt, trop_ind=state%trop_ind, err=err &
+    )
     if (allocated(err)) return
 
   end subroutine
 
-  module subroutine refresh_temperature_dependent_state(dat, var, trop_alt, err)
+  module subroutine refresh_temperature_dependent_vars(dat, temperature, z, &
+                                                       bottom_atmos, top_atmos, &
+                                                       trop_alt_new, xs_x_qy, &
+                                                       gibbs_energy, trop_alt, &
+                                                       trop_ind, err)
     type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    real(dp), optional, intent(in) :: trop_alt
+    real(dp), intent(in) :: temperature(:), z(:)
+    real(dp), intent(in) :: bottom_atmos, top_atmos
+    real(dp), optional, intent(in) :: trop_alt_new
+    real(dp), intent(inout) :: xs_x_qy(:,:,:)
+    real(dp), allocatable, intent(inout) :: gibbs_energy(:,:)
+    real(dp), intent(inout) :: trop_alt
+    integer, intent(inout) :: trop_ind
     character(:), allocatable, intent(out) :: err
 
-    call interp2xsdata(dat, var%xs_x_qy, err)
-    if (allocated(err)) return
-    
-    call compute_gibbs_energy(dat, var%temperature, var%gibbs_energy, err)
+    call interp2xsdata(dat, xs_x_qy, err)
     if (allocated(err)) return
 
-    call set_tropopause(dat, var%z, var%bottom_atmos, var%top_atmos, trop_alt, var%trop_alt, var%trop_ind, err)
+    if (dat%reverse) then
+      call compute_gibbs_energy(dat, temperature, gibbs_energy, err)
+      if (allocated(err)) return
+    endif
+
+    call set_tropopause(dat, z, bottom_atmos, top_atmos, trop_alt_new, &
+                        trop_alt, trop_ind, err)
     if (allocated(err)) return
 
   end subroutine

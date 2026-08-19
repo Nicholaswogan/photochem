@@ -253,15 +253,23 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
   module subroutine set_temperature(self, temperature, trop_alt, err)
     use iso_c_binding, only: c_associated
-    use photochem_input, only: refresh_temperature_dependent_state
+    use photochem_input, only: refresh_temperature_dependent_vars
     
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: temperature(:)
     real(dp), optional, intent(in) :: trop_alt
     character(:), allocatable, intent(out) :: err
     
+    type :: TemperatureState
+      real(dp) :: trop_alt
+      real(dp), allocatable :: temperature(:)
+      integer :: trop_ind ! derived
+      real(dp), allocatable :: xs_x_qy(:,:,:) ! derived
+      real(dp), allocatable :: gibbs_energy(:,:) ! derived
+    end type
+
+    type(TemperatureState) :: state, previous_state
     type(PhotochemVars), pointer :: var
-    type(PhotochemVars) :: var_save
     real(dp), allocatable :: usol_start(:,:)
     character(:), allocatable :: original_err, rollback_err
 
@@ -269,36 +277,39 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     
     call self%require_atmosphere_initialized('set_temperature', err)
     if (allocated(err)) return
-
     if (c_associated(self%wrk%sun%cvode_mem)) then
       err = "Can not change the temperature profile while a CVODE stepper "// &
             "is initialized. Call 'destroy_stepper' first."
       return
     endif
-
     if (var%press_temp_edd_profile%enabled) then
       err = "The persistent pressure-temperature-eddy profile is enabled. "// &
             "Call 'clear_press_temp_edd_profile' before 'set_temperature'."
       return
     endif
-    
     if (size(temperature) /= var%nz) then
       err = "temperature has the wrong input dimension"
       return
     endif
 
-    ! Save in case there is an issue
-    var_save = var
+    ! Build the candidate from the current state so fields not changed by
+    ! this operation retain their existing values.
+    previous_state = initialize_TemperatureState(self)
+    state = previous_state
     
     ! Commit the new temperature
-    var%temperature = temperature
+    state%temperature = temperature
 
-    ! Update temperature-dependent state in `var`
-    call refresh_temperature_dependent_state(self%dat, var, trop_alt, err)
-    if (allocated(err)) then
-      var = var_save
-      return
-    endif
+    ! Update temperature-dependent state
+    call refresh_temperature_dependent_vars( &
+      self%dat, state%temperature, var%z, var%bottom_atmos, var%top_atmos, &
+      trop_alt, state%xs_x_qy, state%gibbs_energy, state%trop_alt, &
+      state%trop_ind, err &
+    )
+    if (allocated(err)) return
+
+    ! Commit only after the candidate and all derived values are valid.
+    call copy_state_to_model(self, state)
 
     ! Fill wrk with new values. Keep the input separate from wrk%usol because
     ! prep_atmosphere has distinct input and output arrays.
@@ -308,7 +319,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       ! Restore both the configuration and derived work state if preparation
       ! failed after making partial changes.
       original_err = err
-      var = var_save
+      call copy_state_to_model(self, previous_state)
       call self%prep_atmosphere(usol_start, rollback_err)
       if (allocated(rollback_err)) then
         err = original_err//' Rollback failed: '//rollback_err
@@ -317,6 +328,34 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       endif
       return
     endif
+
+  contains
+
+    function initialize_TemperatureState(self_) result(state_)
+      class(EvoAtmosphere), intent(in) :: self_
+      type(TemperatureState) :: state_
+
+      state_%trop_alt = self_%var%trop_alt
+      state_%temperature = self_%var%temperature
+
+      state_%trop_ind = self_%var%trop_ind
+      state_%xs_x_qy = self_%var%xs_x_qy
+      if (self_%dat%reverse) state_%gibbs_energy = self_%var%gibbs_energy
+
+    end function
+
+    subroutine copy_state_to_model(self_, state_)
+      class(EvoAtmosphere), intent(inout) :: self_
+      type(TemperatureState), intent(in) :: state_
+
+      self_%var%trop_alt = state_%trop_alt
+      self_%var%temperature = state_%temperature
+
+      self_%var%trop_ind = state_%trop_ind
+      self_%var%xs_x_qy = state_%xs_x_qy
+      if (self_%dat%reverse) self_%var%gibbs_energy = state_%gibbs_energy
+
+    end subroutine
     
   end subroutine
 
@@ -525,7 +564,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
   end subroutine
 
   module subroutine apply_press_temp_edd_profile(self, usol_in, err)
-    use photochem_input, only: refresh_temperature_dependent_state
+    use photochem_input, only: refresh_temperature_dependent_vars
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
     character(:), allocatable, intent(out) :: err
@@ -561,7 +600,11 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     ! routine calls prep_atmosphere and would recurse back into this routine.
     self%var%temperature = T_grid
     self%var%edd = edd_grid
-    call refresh_temperature_dependent_state(self%dat, self%var, trop_alt, err)
+    call refresh_temperature_dependent_vars( &
+      self%dat, self%var%temperature, self%var%z, self%var%bottom_atmos, &
+      self%var%top_atmos, trop_alt, self%var%xs_x_qy, &
+      self%var%gibbs_energy, self%var%trop_alt, self%var%trop_ind, err &
+    )
 
   end subroutine
 
