@@ -122,7 +122,7 @@ contains
     ! If initialized, then save the previous state
     if (was_initialized) then
       call previous_state%allocate(self%dat, self%var%nz)
-      call state_from_model(self, previous_state)
+      call copy_model_to_state(self, previous_state)
     endif
 
     ! Build most of the atmospheric state from inputs
@@ -170,7 +170,7 @@ contains
 
   end subroutine
 
-  subroutine state_from_model(self, state)
+  subroutine copy_model_to_state(self, state)
     use photochem_types, only: AtmosphereState
     class(EvoAtmosphere), intent(in) :: self
     type(AtmosphereState), intent(inout) :: state
@@ -190,6 +190,8 @@ contains
     state%xs_x_qy = self%var%xs_x_qy
     state%particle_xs = self%var%particle_xs
     state%gibbs_energy = self%var%gibbs_energy
+    state%press_temp_edd_profile = self%var%press_temp_edd_profile
+    state%toa_pressure_maintenance = self%var%toa_pressure_maintenance
 
   end subroutine
 
@@ -213,6 +215,8 @@ contains
     self%var%xs_x_qy = state%xs_x_qy
     self%var%particle_xs = state%particle_xs
     self%var%gibbs_energy = state%gibbs_energy
+    self%var%press_temp_edd_profile = state%press_temp_edd_profile
+    self%var%toa_pressure_maintenance = state%toa_pressure_maintenance
 
   end subroutine
 
@@ -220,8 +224,9 @@ contains
                                             mix, particle_radius, persistent, &
                                             trop_p, maintain_toa_pressure, &
                                             target_pressure, err)
-    use photochem_input, only: finalize_atmosphere_initialization, &
+    use photochem_input, only: finalize_atmosphere_state, &
                                map_atmosphere_p_to_grid
+    use photochem_types, only: AtmosphereState
 
     class(EvoAtmosphere), intent(inout) :: self
     real(dp), intent(in) :: pressure(:), temperature(:), edd(:)
@@ -232,8 +237,8 @@ contains
     real(dp), optional, intent(in) :: target_pressure
     character(:), allocatable, intent(out) :: err
 
-    type(EvoAtmosphere) :: candidate
-    real(dp), allocatable :: pressure_model(:), density(:), mubar(:), usol_start(:,:)
+    type(AtmosphereState) :: state, previous_state
+    logical :: was_initialized
     logical :: persistent_, maintain_toa_pressure_
 
     persistent_ = .false.
@@ -251,38 +256,65 @@ contains
       return
     endif
 
-    call create_atmosphere_candidate(self, candidate, err)
+    was_initialized = self%atmosphere_initialized
+
+    call state%allocate(self%dat, self%var%nz)
+    if (was_initialized) then
+      call previous_state%allocate(self%dat, self%var%nz)
+      call copy_model_to_state(self, previous_state)
+    endif
+
+    call map_atmosphere_p_to_grid(self%dat, self%var%nz, self%var%trop_alt, &
+                                  pressure, temperature, edd, mix, particle_radius, &
+                                  trop_p=trop_p, state=state, err=err)
     if (allocated(err)) return
 
-    call reset_press_temp_edd_profile(candidate%var)
-
-    allocate(pressure_model(candidate%var%nz), density(candidate%var%nz), &
-             mubar(candidate%var%nz), usol_start(candidate%dat%nq,candidate%var%nz))
-    call map_atmosphere_p_to_grid(candidate%dat, candidate%var, pressure, &
-                                  temperature, edd, mix, particle_radius, &
-                                  trop_p=trop_p, pressure=pressure_model, &
-                                  density=density, mubar=mubar, usol=usol_start, err=err)
+    call finalize_atmosphere_state(self%dat, state, err)
     if (allocated(err)) return
 
-    call finalize_atmosphere_initialization(candidate%dat, candidate%var, err)
+    call self%destroy_stepper(err)
     if (allocated(err)) return
 
-    call prepare_atmosphere_candidate(candidate, usol_start, err)
-    if (allocated(err)) return
+    call copy_state_to_model(self, state)
+    call self%prep_atmosphere_unchecked(state%usol, apply_persistent_profile=.false., err=err)
+    if (allocated(err)) then
+      call restore_previous_state()
+      return
+    endif
 
+    self%atmosphere_initialized = .true.
     if (persistent_) then
       ! Optional dummy arguments may be forwarded directly to matching
       ! optional dummies. If either input was omitted, it remains absent in
       ! set_press_temp_edd_profile and its default behavior applies.
-      call candidate%set_press_temp_edd_profile(pressure, temperature, edd, &
-                                                trop_p=trop_p, &
-                                                hydro_pressure=.true., &
-                                                maintain_toa_pressure=maintain_toa_pressure_, &
-                                                target_pressure=target_pressure, err=err)
-      if (allocated(err)) return
+      call self%set_press_temp_edd_profile(pressure, temperature, edd, &
+                                           trop_p=trop_p, hydro_pressure=.true., &
+                                           maintain_toa_pressure=maintain_toa_pressure_, &
+                                           target_pressure=target_pressure, err=err)
+      if (allocated(err)) then
+        call restore_previous_state()
+        return
+      endif
+    else
+      call self%clear_press_temp_edd_profile(err)
+      if (allocated(err)) then
+        call restore_previous_state()
+        return
+      endif
     endif
 
-    call commit_atmosphere_candidate(self, candidate, err)
+    self%atmosphere_initialized = .true.
+
+  contains
+
+    subroutine restore_previous_state()
+      if (was_initialized) then
+        call copy_state_to_model(self, previous_state)
+        self%atmosphere_initialized = .true.
+      else
+        self%atmosphere_initialized = .false.
+      endif
+    end subroutine
 
   end subroutine
 

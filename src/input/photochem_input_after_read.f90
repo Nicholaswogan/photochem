@@ -154,22 +154,22 @@ contains
 
   end subroutine
 
-  module subroutine map_atmosphere_p_to_grid(dat, var, profile_pressure, &
-                                             temperature, edd, mix, &
-                                             particle_radius, trop_p, &
-                                             pressure, density, mubar, usol, err)
+  module subroutine map_atmosphere_p_to_grid(dat, nz, trop_alt_default, &
+                                             profile_pressure, temperature, &
+                                             edd, mix, particle_radius, trop_p, &
+                                             state, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use futils, only: interp
     use photochem_const, only: k_boltz, N_avo
     use photochem_eqns, only: gravity
 
     type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
+    integer, intent(in) :: nz
+    real(dp), intent(in) :: trop_alt_default
     real(dp), intent(in) :: profile_pressure(:), temperature(:), edd(:)
     real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
     real(dp), optional, intent(in) :: trop_p
-    real(dp), intent(out) :: pressure(:), density(:), mubar(:)
-    real(dp), intent(out) :: usol(:,:)
+    type(AtmosphereState), intent(inout) :: state
     character(:), allocatable, intent(out) :: err
 
     real(dp), allocatable :: z(:), profile_mubar(:)
@@ -177,14 +177,14 @@ contains
     real(dp) :: inverse_radius_factor, delta_log_pressure
     real(dp) :: surface_z(1), surface_gravity(1)
     real(dp) :: trop_alt_array(1)
-    type(AtmosphereState) :: state
+    real(dp) :: trop_alt
     integer :: i, nprofile, ierr
 
     nprofile = size(profile_pressure)
 
     ! These checks are needed before pressure and composition can safely be
     ! converted to altitude. The altitude mapper performs the remaining common
-    ! profile validation before changing var.
+    ! profile validation before changing state.
     if (nprofile < 2) then
       err = 'Pressure initialization requires at least two profile points.'
       return
@@ -289,29 +289,15 @@ contains
         err = 'Unable to determine the tropopause altitude from "trop_p".'
         return
       endif
-      var%trop_alt = trop_alt_array(1)
+      trop_alt = trop_alt_array(1)
+    else
+      trop_alt = trop_alt_default
     endif
 
-    call state%allocate(dat, size(var%z))
-    call map_atmosphere_z_to_grid(dat, size(var%z), var%trop_alt, z, temperature, &
+    call map_atmosphere_z_to_grid(dat, nz, trop_alt, z, temperature, &
                                   edd, profile_pressure(1), mix, particle_radius, &
                                   state, err)
     if (allocated(err)) return
-
-    var%bottom_atmos = state%bottom_atmos
-    var%top_atmos = state%top_atmos
-    var%trop_alt = state%trop_alt
-    var%surface_pressure = profile_pressure(1)/1.0e6_dp
-    var%z = state%z
-    var%dz = state%dz
-    var%grav = state%grav
-    var%temperature = state%temperature
-    var%edd = state%edd
-    var%particle_radius = state%particle_radius
-    pressure = state%pressure
-    density = state%density
-    mubar = state%mubar
-    usol = state%usol
 
   end subroutine
   
@@ -505,7 +491,6 @@ contains
     call interp2xsdata(dat, state%xs_x_qy, err)
     if (allocated(err)) return
 
-    state%gibbs_energy = 0.0_dp
     call compute_gibbs_energy(dat, state%temperature, state%gibbs_energy, err)
     if (allocated(err)) return
 

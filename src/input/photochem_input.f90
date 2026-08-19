@@ -137,13 +137,14 @@ module photochem_input
     !! is an internal initialization kernel; transactional model updates are
     !! performed by EvoAtmosphere. When supplied, `trop_p` is converted to the
     !! corresponding altitude before the common altitude mapper validates and
-    !! finalizes the candidate state.
-    module subroutine map_atmosphere_p_to_grid(dat, var, profile_pressure, &
-                                               temperature, edd, mix, &
-                                               particle_radius, trop_p, &
-                                               pressure, density, mubar, usol, err)
+    !! finalizes the supplied `AtmosphereState`.
+    module subroutine map_atmosphere_p_to_grid(dat, nz, trop_alt_default, &
+                                               profile_pressure, temperature, &
+                                               edd, mix, particle_radius, trop_p, &
+                                               state, err)
       type(PhotochemData), intent(in) :: dat
-      type(PhotochemVars), intent(inout) :: var
+      integer, intent(in) :: nz
+      real(dp), intent(in) :: trop_alt_default
       !> Strictly decreasing pressure profile knots (dyn/cm^2), including both domain edges.
       real(dp), intent(in) :: profile_pressure(:)
       real(dp), intent(in) :: temperature(:) !! Temperature at `profile_pressure` (K).
@@ -154,10 +155,7 @@ module photochem_input
       real(dp), intent(in) :: particle_radius(:,:)
       !> Optional tropopause pressure (dyn/cm^2), used when gas rainout is enabled.
       real(dp), optional, intent(in) :: trop_p
-      real(dp), intent(out) :: pressure(:) !! Hydrostatic pressure at model centers (dyn/cm^2).
-      real(dp), intent(out) :: density(:) !! Total gas number density at model centers (molecules/cm^3).
-      real(dp), intent(out) :: mubar(:) !! Gas mean molecular weight at model centers (g/mol).
-      real(dp), intent(out) :: usol(:,:) !! Initial number densities (molecules/cm^3).
+      type(AtmosphereState), intent(inout) :: state
       character(:), allocatable, intent(out) :: err
     end subroutine
     

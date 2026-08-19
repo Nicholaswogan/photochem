@@ -14,6 +14,7 @@ module photochem_types ! make a giant IO object
   public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
   public :: AtmosphereState
   public :: ProductionLoss, ThermodynamicData, CondensationParameters
+  public :: PressureTempEddProfile
   public :: Reaction, Efficiencies, BaseRate, PhotolysisRate, PressDependentRate, MultiArrheniusRate
   public :: TOAPressureMaintenance
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, ProdLoss, ReverseRate
@@ -506,19 +507,23 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: particle_radius(:,:)
     real(dp), allocatable :: usol(:,:)
 
-    ! Derived atmospheric state in `var`
-    integer :: trop_ind
+    ! Derived atmospheric state in `var`.
     real(dp), allocatable :: grav(:)
+    integer :: trop_ind
     real(dp), allocatable :: xs_x_qy(:,:,:)
     type(ParticleXsections), allocatable :: particle_xs(:)
     real(dp), allocatable :: gibbs_energy(:,:)
 
     ! Derived atmospheric state that can be re-constructed from
-    ! `self%prep_atmosphere`
+    ! `self%prep_atmosphere`. So these are essential work arrays
     real(dp) :: surface_pressure
     real(dp), allocatable :: pressure(:)
     real(dp), allocatable :: density(:)
     real(dp), allocatable :: mubar(:)
+
+    ! Persistent atmospheric-profile configuration associated with this state.
+    type(PressureTempEddProfile) :: press_temp_edd_profile
+    type(TOAPressureMaintenance) :: toa_pressure_maintenance
   contains
     procedure :: allocate => AtmosphereState_allocate
   end type
@@ -658,8 +663,11 @@ contains
     allocate(self%edd(nz), self%particle_radius(dat%npq, nz), self%usol(dat%nq, nz))
 
     allocate(self%grav(nz), self%pressure(nz), self%density(nz), self%mubar(nz))
-    allocate(self%xs_x_qy(nz, dat%kj, dat%nw), self%particle_xs(dat%np), &
-             self%gibbs_energy(nz, dat%ng))
+    allocate(self%xs_x_qy(nz, dat%kj, dat%nw))
+
+    if (dat%reverse) allocate(self%gibbs_energy(nz, dat%ng))
+
+    if (dat%there_are_particles) allocate(self%particle_xs(dat%np))
 
     do i = 1,dat%np
       ! only allocate space if there is data
