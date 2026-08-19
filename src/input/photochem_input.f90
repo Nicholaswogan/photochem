@@ -92,15 +92,6 @@ module photochem_input
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Resolve and validate settings that depend on raw atmosphere-file data.
-    module subroutine resolve_atmosphere_settings(profile, dat, trop_alt_default, state, err)
-      type(AtmosphereFileProfile), intent(in) :: profile
-      type(PhotochemData), intent(in) :: dat
-      real(dp), intent(in) :: trop_alt_default
-      type(AtmosphereState), intent(inout) :: state
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-
     module subroutine parse_reaction(instring, reverse, eqr, eqp, err)
       character(len=*), intent(in) :: instring
       logical, intent(out) :: reverse

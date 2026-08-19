@@ -21,6 +21,7 @@ contains
     real(dp), parameter :: mixing_ratio_floor = 1.0e-40_dp
     real(dp), allocatable :: gas_mix_normalized(:,:), gas_mix_model(:,:), particle_mix_model(:,:)
     real(dp), allocatable :: particle_mix_profile(:,:)
+    real(dp), allocatable :: pressure(:), density(:), mubar(:)
     real(dp) :: gas_total, z_tolerance
     integer :: i, j, nprofile, ngas
 
@@ -110,27 +111,25 @@ contains
                                 .true., .false., 'eddy diffusion', err)
     if (allocated(err)) return
 
-    allocate(gas_mix_model(ngas,nz))
+    allocate(gas_mix_model(ngas,nz), pressure(nz), density(nz), mubar(nz))
     call interpolate_profiles_2d(state%z, z, gas_mix_normalized, gas_mix_model, &
                                  .true., .false., 'gas mixing ratios', err)
     if (allocated(err)) return
     do j = 1,nz
       gas_mix_model(:,j) = gas_mix_model(:,j)/sum(gas_mix_model(:,j))
-      state%mubar(j) = sum(gas_mix_model(:,j)*dat%species_mass(dat%ng_1:dat%nq))
+      mubar(j) = sum(gas_mix_model(:,j)*dat%species_mass(dat%ng_1:dat%nq))
     enddo
     call press_and_den(state%temperature, state%grav, surface_pressure, &
-                       state%dz, state%mubar, state%pressure, state%density)
-    if (.not. all(ieee_is_finite(state%pressure)) .or. any(state%pressure <= 0.0_dp) .or. &
-        .not. all(ieee_is_finite(state%density)) .or. any(state%density <= 0.0_dp)) then
+                       state%dz, mubar, pressure, density)
+    if (.not. all(ieee_is_finite(pressure)) .or. any(pressure <= 0.0_dp) .or. &
+        .not. all(ieee_is_finite(density)) .or. any(density <= 0.0_dp)) then
       err = 'Hydrostatic integration produced an invalid pressure or density.'
       return
     endif
 
-    state%surface_pressure = surface_pressure/1.0e6_dp
-
     state%usol = 0.0_dp
     do i = 1,ngas
-      state%usol(dat%ng_1+i-1,:) = gas_mix_model(i,:)*state%density
+      state%usol(dat%ng_1+i-1,:) = gas_mix_model(i,:)*density
     enddo
 
     if (dat%npq > 0) then
@@ -148,7 +147,7 @@ contains
       if (allocated(err)) return
 
       do i = 1,dat%npq
-        state%usol(i,:) = particle_mix_model(i,:)*state%density
+        state%usol(i,:) = particle_mix_model(i,:)*density
       enddo
     endif
 
@@ -309,26 +308,11 @@ contains
     type(AtmosphereState), intent(inout) :: state
     character(:), allocatable, intent(out) :: err
     type(AtmosphereFileProfile) :: profile
+    integer :: i
+    real(dp), allocatable :: density(:), mix(:,:)
 
     call read_atmosphere_file(atmosphere_txt, dat, profile, err)
     if (allocated(err)) return
-
-    call resolve_atmosphere_settings(profile, dat, trop_alt_default, state, err)
-    if (allocated(err)) return
-
-    call vertical_grid(state%bottom_atmos, state%top_atmos, state%z, state%dz)
-    call gravity(dat%planet_radius, dat%planet_mass, state%z, state%grav)
-    call interp2atmosfile(dat, state, profile, err)
-    if (allocated(err)) return
-
-  end subroutine
-
-  module subroutine resolve_atmosphere_settings(profile, dat, trop_alt_default, state, err)
-    type(AtmosphereFileProfile), intent(in) :: profile
-    type(PhotochemData), intent(in) :: dat
-    real(dp), intent(in) :: trop_alt_default
-    type(AtmosphereState), intent(inout) :: state
-    character(:), allocatable, intent(out) :: err
 
     if (profile%nlayer < 2) then
       err = 'Atmosphere file must contain at least two data rows.'
@@ -350,16 +334,8 @@ contains
       return
     endif
 
-  end subroutine
-
-  subroutine interp2atmosfile(dat, state, profile, err)
-    type(PhotochemData), intent(in) :: dat
-    type(AtmosphereState), intent(inout) :: state
-    type(AtmosphereFileProfile), intent(in) :: profile
-    character(:), allocatable, intent(out) :: err
-
-    integer :: i
-    real(dp), allocatable :: density(:), mix(:,:)
+    call vertical_grid(state%bottom_atmos, state%top_atmos, state%z, state%dz)
+    call gravity(dat%planet_radius, dat%planet_mass, state%z, state%grav)
 
     if (size(state%usol,1) /= size(profile%mix,1) .or. &
         size(state%usol,2) /= size(state%z)) then
@@ -389,12 +365,12 @@ contains
     do i = 1,size(state%z)
       state%usol(:,i) = mix(:,i)*density(i)
     enddo
-    
-    if (.not. dat%there_are_particles) return
 
-    call interpolate_profiles_2d(state%z, profile%z, profile%particle_radius, &
-                                 state%particle_radius, .true., .false., &
-                                 'particle radii', err)
+    if (dat%there_are_particles) then
+      call interpolate_profiles_2d(state%z, profile%z, profile%particle_radius, &
+                                   state%particle_radius, .true., .false., &
+                                   'particle radii', err)
+    endif
     if (allocated(err)) return
 
   end subroutine

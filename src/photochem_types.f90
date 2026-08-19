@@ -519,12 +519,6 @@ module photochem_types ! make a giant IO object
     type(PressureTempEddProfile) :: press_temp_edd_profile
     type(TOAPressureMaintenance) :: toa_pressure_maintenance
 
-    ! Derived atmospheric state that can be re-constructed from
-    ! `self%prep_atmosphere`. So these are essential work arrays
-    real(dp) :: surface_pressure
-    real(dp), allocatable :: pressure(:)
-    real(dp), allocatable :: density(:)
-    real(dp), allocatable :: mubar(:)
   contains
     procedure :: allocate => AtmosphereState_allocate
   end type
@@ -663,7 +657,7 @@ contains
     allocate(self%z(nz), self%dz(nz), self%temperature(nz))
     allocate(self%edd(nz), self%particle_radius(dat%npq, nz), self%usol(dat%nq, nz))
 
-    allocate(self%grav(nz), self%pressure(nz), self%density(nz), self%mubar(nz))
+    allocate(self%grav(nz))
     allocate(self%xs_x_qy(nz, dat%kj, dat%nw))
     allocate(self%particle_xs(dat%np))
 
