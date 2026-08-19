@@ -260,6 +260,7 @@ contains
     was_initialized = self%atmosphere_initialized
 
     call state%allocate(self%dat, self%var%nz)
+    call copy_model_to_state(self, state)
     if (was_initialized) then
       call previous_state%allocate(self%dat, self%var%nz)
       call copy_model_to_state(self, previous_state)
