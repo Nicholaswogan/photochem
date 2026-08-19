@@ -44,7 +44,16 @@ jobs:
     - name: configure cmake
       shell: bash -el {0}
       run: |
-        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_PREFIX_PATH=$CONDA_PREFIX
+        export CC="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-cc"
+        export CXX="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-c++"
+        export FC="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gfortran"
+        "$FC" --version
+        cmake -B "${{github.workspace}}/build" \
+          -DCMAKE_BUILD_TYPE="${{env.BUILD_TYPE}}" \
+          -DCMAKE_PREFIX_PATH="$CONDA_PREFIX" \
+          -DCMAKE_C_COMPILER="$CC" \
+          -DCMAKE_CXX_COMPILER="$CXX" \
+          -DCMAKE_Fortran_COMPILER="$FC"
 
     - name: build fortran
       shell: bash -el {0}
@@ -67,7 +76,11 @@ jobs:
     - name: build python
       shell: bash -el {0}
       run: |
-        export CMAKE_ARGS="-DCMAKE_PREFIX_PATH=$CONDA_PREFIX"
+        export CMAKE_ARGS="\
+          -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
+          -DCMAKE_C_COMPILER=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-cc \
+          -DCMAKE_CXX_COMPILER=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-c++ \
+          -DCMAKE_Fortran_COMPILER=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gfortran"
         python -m pip install --no-deps --no-build-isolation . -v
 
     - name: test python runtime
