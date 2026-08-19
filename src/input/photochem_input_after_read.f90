@@ -301,28 +301,33 @@ contains
 
   end subroutine
   
-  module subroutine map_atmosphere_file_to_grid(dat, var, profile, usol, err)
+  module subroutine map_atmosphere_file_to_grid(dat, atmosphere_txt, trop_alt_default, state, err)
     use photochem_eqns, only: gravity, vertical_grid
     type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    type(AtmosphereFileProfile), intent(in) :: profile
-    real(dp), intent(out) :: usol(:,:)
+    character(len=*), intent(in) :: atmosphere_txt
+    real(dp), intent(in) :: trop_alt_default
+    type(AtmosphereState), intent(inout) :: state
     character(:), allocatable, intent(out) :: err
+    type(AtmosphereFileProfile) :: profile
 
-    call resolve_atmosphere_settings(profile, dat, var, err)
+    call read_atmosphere_file(atmosphere_txt, dat, profile, err)
     if (allocated(err)) return
 
-    call vertical_grid(var%bottom_atmos, var%top_atmos, var%z, var%dz)
-    call gravity(dat%planet_radius, dat%planet_mass, var%z, var%grav)
-    call interp2atmosfile(dat, var, profile, usol, err)
+    call resolve_atmosphere_settings(profile, dat, trop_alt_default, state, err)
+    if (allocated(err)) return
+
+    call vertical_grid(state%bottom_atmos, state%top_atmos, state%z, state%dz)
+    call gravity(dat%planet_radius, dat%planet_mass, state%z, state%grav)
+    call interp2atmosfile(dat, state, profile, err)
     if (allocated(err)) return
 
   end subroutine
 
-  module subroutine resolve_atmosphere_settings(profile, dat, var, err)
+  module subroutine resolve_atmosphere_settings(profile, dat, trop_alt_default, state, err)
     type(AtmosphereFileProfile), intent(in) :: profile
     type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
+    real(dp), intent(in) :: trop_alt_default
+    type(AtmosphereState), intent(inout) :: state
     character(:), allocatable, intent(out) :: err
 
     if (profile%nlayer < 2) then
@@ -330,64 +335,65 @@ contains
       return
     endif
 
-    var%bottom_atmos = 0.0_dp
-    var%top_atmos = profile%z(profile%nlayer) + &
+    state%bottom_atmos = 0.0_dp
+    state%top_atmos = profile%z(profile%nlayer) + &
                     0.5_dp*(profile%z(profile%nlayer) - profile%z(profile%nlayer-1))
+    state%trop_alt = trop_alt_default
 
-    if (var%top_atmos < var%bottom_atmos) then
+    if (state%top_atmos < state%bottom_atmos) then
       err = 'The top of the atmosphere must be bigger than the bottom'
       return
     endif
 
-    if (dat%gas_rainout .and. var%trop_alt > var%top_atmos) then
+    if (dat%gas_rainout .and. state%trop_alt > state%top_atmos) then
       err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
       return
     endif
 
   end subroutine
 
-  subroutine interp2atmosfile(dat, var, profile, usol, err)
+  subroutine interp2atmosfile(dat, state, profile, err)
     type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
+    type(AtmosphereState), intent(inout) :: state
     type(AtmosphereFileProfile), intent(in) :: profile
-    real(dp), intent(out) :: usol(:,:)
     character(:), allocatable, intent(out) :: err
 
     integer :: i
     real(dp), allocatable :: density(:), mix(:,:)
 
-    if (size(usol,1) /= size(profile%mix,1) .or. size(usol,2) /= size(var%z)) then
+    if (size(state%usol,1) /= size(profile%mix,1) .or. &
+        size(state%usol,2) /= size(state%z)) then
       err = 'The initial atmospheric-state array has the wrong shape.'
       return
     endif
 
-    call interpolate_profile_1d(var%z, profile%z, profile%temperature, &
-                                var%temperature, .false., .false., &
+    call interpolate_profile_1d(state%z, profile%z, profile%temperature, &
+                                state%temperature, .false., .false., &
                                 'temperature', err)
     if (allocated(err)) return
 
-    call interpolate_profile_1d(var%z, profile%z, profile%edd, var%edd, &
+    call interpolate_profile_1d(state%z, profile%z, profile%edd, state%edd, &
                                 .true., .false., 'eddy diffusion', err)
     if (allocated(err)) return
 
-    allocate(density(size(var%z)), mix(size(profile%mix,1),size(var%z)))
+    allocate(density(size(state%z)), mix(size(profile%mix,1),size(state%z)))
 
-    call interpolate_profile_1d(var%z, profile%z, profile%density, density, &
+    call interpolate_profile_1d(state%z, profile%z, profile%density, density, &
                                 .true., .true., 'atmospheric density', err)
     if (allocated(err)) return
 
-    call interpolate_profiles_2d(var%z, profile%z, profile%mix, mix, &
+    call interpolate_profiles_2d(state%z, profile%z, profile%mix, mix, &
                                  .true., .false., 'mixing ratios', err)
     if (allocated(err)) return
 
-    do i = 1,size(var%z)
-      usol(:,i) = mix(:,i)*density(i)
+    do i = 1,size(state%z)
+      state%usol(:,i) = mix(:,i)*density(i)
     enddo
     
     if (.not. dat%there_are_particles) return
 
-    call interpolate_profiles_2d(var%z, profile%z, profile%particle_radius, &
-                                 var%particle_radius, .true., .false., &
+    call interpolate_profiles_2d(state%z, profile%z, profile%particle_radius, &
+                                 state%particle_radius, .true., .false., &
                                  'particle radii', err)
     if (allocated(err)) return
 

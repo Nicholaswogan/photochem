@@ -69,33 +69,60 @@ contains
   end subroutine
 
   module subroutine initialize_from_atmosphere_file(self, atmosphere_txt, err)
-    use photochem_input, only: finalize_atmosphere_initialization, &
-                               setup_atmosphere_from_file
+    use photochem_input, only: finalize_atmosphere_state, &
+                               map_atmosphere_file_to_grid
+    use photochem_types, only: AtmosphereState
 
     class(EvoAtmosphere), intent(inout) :: self
     character(len=*), intent(in) :: atmosphere_txt
     character(:), allocatable, intent(out) :: err
 
-    type(EvoAtmosphere) :: candidate
-    real(dp), allocatable :: usol_start(:,:)
+    type(AtmosphereState) :: state, previous_state
+    logical :: was_initialized
 
-    call create_atmosphere_candidate(self, candidate, err)
+    was_initialized = self%atmosphere_initialized
+    if (was_initialized) then
+      call previous_state%allocate(self%dat, self%var%nz)
+      call copy_model_to_state(self, previous_state)
+    endif
+
+    call state%allocate(self%dat, self%var%nz)
+    call copy_model_to_state(self, state)
+
+    call map_atmosphere_file_to_grid(self%dat, atmosphere_txt, self%var%trop_alt, &
+                                     state, err)
     if (allocated(err)) return
 
-    call reset_press_temp_edd_profile(candidate%var)
-
-    allocate(usol_start(candidate%dat%nq,candidate%var%nz))
-    call setup_atmosphere_from_file(atmosphere_txt, candidate%dat, candidate%var, &
-                                    usol_start, err)
+    call finalize_atmosphere_state(self%dat, state, err)
     if (allocated(err)) return
 
-    call finalize_atmosphere_initialization(candidate%dat, candidate%var, err)
+    call self%destroy_stepper(err)
     if (allocated(err)) return
 
-    call prepare_atmosphere_candidate(candidate, usol_start, err)
+    call copy_state_to_model(self, state)
+
+    call self%prep_atmosphere_unchecked(state%usol, apply_persistent_profile=.false., err=err)
+    if (allocated(err)) then
+      call restore_previous_state()
+      return
+    endif
+
+    ! Atmosphere-file initialization does not retain a persistent P-T-Kzz profile.
+    call self%clear_press_temp_edd_profile(err)
     if (allocated(err)) return
 
-    call commit_atmosphere_candidate(self, candidate, err)
+    self%atmosphere_initialized = .true.
+
+  contains
+
+    subroutine restore_previous_state()
+      if (was_initialized) then
+        call copy_state_to_model(self, previous_state)
+        self%atmosphere_initialized = .true.
+      else
+        self%atmosphere_initialized = .false.
+      endif
+    end subroutine
 
   end subroutine
 
@@ -322,62 +349,6 @@ contains
         self%atmosphere_initialized = .false.
       endif
     end subroutine
-
-  end subroutine
-
-  subroutine create_atmosphere_candidate(self, candidate, err)
-    class(EvoAtmosphere), intent(in) :: self
-    type(EvoAtmosphere), intent(out) :: candidate
-    character(:), allocatable, intent(out) :: err
-
-    if (.not. allocated(self%dat) .or. .not. allocated(self%var) .or. &
-        .not. allocated(self%wrk)) then
-      err = 'EvoAtmosphere static setup is not complete.'
-      return
-    endif
-
-    allocate(candidate%dat)
-    allocate(candidate%var)
-    allocate(candidate%wrk)
-    candidate%dat = self%dat
-    candidate%var = self%var
-    call candidate%wrk%init(candidate%dat%nsp, candidate%dat%np, candidate%dat%nq, &
-                            candidate%var%nz, candidate%dat%nrT, candidate%dat%kj, &
-                            candidate%dat%nw)
-
-  end subroutine
-
-  subroutine prepare_atmosphere_candidate(candidate, usol_start, err)
-    type(EvoAtmosphere), intent(inout) :: candidate
-    real(dp), intent(in) :: usol_start(:,:)
-    character(:), allocatable, intent(out) :: err
-
-    call candidate%prep_atmosphere_unchecked(usol_start, err=err)
-    if (allocated(err)) return
-
-    candidate%atmosphere_initialized = .true.
-
-  end subroutine
-
-  subroutine commit_atmosphere_candidate(self, candidate, err)
-    class(EvoAtmosphere), intent(inout) :: self
-    type(EvoAtmosphere), intent(inout) :: candidate
-    character(:), allocatable, intent(out) :: err
-
-    character(:), allocatable :: destroy_err
-
-    ! Do not disturb the current model or its integrator until the replacement
-    ! atmosphere has been prepared successfully.
-    call self%destroy_stepper(destroy_err)
-    if (allocated(destroy_err)) then
-      err = destroy_err
-      return
-    endif
-
-    call move_alloc(candidate%dat, self%dat)
-    call move_alloc(candidate%var, self%var)
-    call move_alloc(candidate%wrk, self%wrk)
-    self%atmosphere_initialized = .true.
 
   end subroutine
 

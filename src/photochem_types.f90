@@ -391,7 +391,7 @@ module photochem_types ! make a giant IO object
     real(dp) :: surface_albedo
     real(dp) :: diurnal_fac = 0.5_dp !! Default is 0.5, to account for half planet facing the sun.
     real(dp) :: solar_zenith !! degrees
-    real(dp) :: trop_alt !! cm (only for gas_rainout == true)
+    real(dp) :: trop_alt = 0.0_dp !! cm (only for gas_rainout == true)
     real(dp) :: rainfall_rate !! relative to modern Earth's average rainfall rate of 1.1e17 molecules/cm2/s
     integer :: trop_ind !! index of troposphere (only for gas_rainout == true)
     
@@ -498,7 +498,7 @@ module photochem_types ! make a giant IO object
   !! validated before its fields are committed to the live model state.
   type :: AtmosphereState
 
-    ! T state below MUST be assigned by routines that build an
+    ! The state below MUST be assigned by routines that build an
     ! AtmosphereState type.
     real(dp) :: bottom_atmos
     real(dp) :: top_atmos

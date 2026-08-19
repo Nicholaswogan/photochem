@@ -8,7 +8,7 @@ module photochem_input
   implicit none
   private 
 
-  public :: setup_static, setup_atmosphere_from_file, map_atmosphere_z_to_grid
+  public :: setup_static, map_atmosphere_file_to_grid, map_atmosphere_z_to_grid
   public :: map_atmosphere_p_to_grid
   public :: finalize_atmosphere_initialization
   public :: finalize_atmosphere_state
@@ -63,14 +63,14 @@ module photochem_input
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Map a temporary legacy atmosphere-file profile onto the common altitude
-    !! grid. File density remains an explicit legacy policy; it is not replaced
-    !! by hydrostatic reconstruction in this adapter.
-    module subroutine map_atmosphere_file_to_grid(dat, var, profile, usol, err)
+    !> Read a legacy atmosphere file and map it onto the common altitude grid.
+    !! File density remains an explicit legacy policy; it is not replaced by
+    !! hydrostatic reconstruction in this adapter.
+    module subroutine map_atmosphere_file_to_grid(dat, atmosphere_txt, trop_alt_default, state, err)
       type(PhotochemData), intent(in) :: dat
-      type(PhotochemVars), intent(inout) :: var
-      type(AtmosphereFileProfile), intent(in) :: profile
-      real(dp), intent(out) :: usol(:,:)
+      character(len=*), intent(in) :: atmosphere_txt
+      real(dp), intent(in) :: trop_alt_default
+      type(AtmosphereState), intent(inout) :: state
       character(:), allocatable, intent(out) :: err
     end subroutine
     
@@ -93,10 +93,11 @@ module photochem_input
     end subroutine
 
     !> Resolve and validate settings that depend on raw atmosphere-file data.
-    module subroutine resolve_atmosphere_settings(profile, dat, var, err)
+    module subroutine resolve_atmosphere_settings(profile, dat, trop_alt_default, state, err)
       type(AtmosphereFileProfile), intent(in) :: profile
       type(PhotochemData), intent(in) :: dat
-      type(PhotochemVars), intent(inout) :: var
+      real(dp), intent(in) :: trop_alt_default
+      type(AtmosphereState), intent(inout) :: state
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -232,31 +233,6 @@ contains
 
   end subroutine
 
-  !> Read and map a legacy atmosphere text file onto the model grid.
-  !!
-  !! [[setup_static]] must have completed successfully before this routine is
-  !! called. This routine reads the raw atmosphere, resolves grid-dependent
-  !! settings, constructs the grid and gravity, and interpolates atmospheric
-  !! profiles and particle radii. The caller must invoke
-  !! `finalize_atmosphere_initialization` before preparing the RHS work arrays.
-  subroutine setup_atmosphere_from_file(atmosphere_txt, dat, var, usol, err)
-
-    character(len=*), intent(in) :: atmosphere_txt
-    type(PhotochemData), intent(in) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    real(dp), intent(out) :: usol(:,:)
-    character(:), allocatable, intent(out) :: err
-
-    type(AtmosphereFileProfile) :: profile
-
-    call read_atmosphere_file(atmosphere_txt, dat, profile, err)
-    if (allocated(err)) return
-
-    call map_atmosphere_file_to_grid(dat, var, profile, usol, err)
-    if (allocated(err)) return
-
-  end subroutine
-  
   subroutine list_destroy(self)
     type(type_list_tmp), intent(inout) :: self
     
