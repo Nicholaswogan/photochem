@@ -497,6 +497,9 @@ module photochem_types ! make a giant IO object
   !! This is deliberately separate from PhotochemVars so a candidate can be
   !! validated before its fields are committed to the live model state.
   type :: AtmosphereState
+
+    ! T state below MUST be assigned by routines that build an
+    ! AtmosphereState type.
     real(dp) :: bottom_atmos
     real(dp) :: top_atmos
     real(dp) :: trop_alt
@@ -506,13 +509,15 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: edd(:)
     real(dp), allocatable :: particle_radius(:,:)
     real(dp), allocatable :: usol(:,:)
+    real(dp), allocatable :: grav(:) ! derived
+    integer :: trop_ind ! derived
+    real(dp), allocatable :: xs_x_qy(:,:,:) ! derived
+    type(ParticleXsections), allocatable :: particle_xs(:) ! derived
+    real(dp), allocatable :: gibbs_energy(:,:) ! derived, and only allocated if `dat%reverse`
 
-    ! Derived atmospheric state in `var`.
-    real(dp), allocatable :: grav(:)
-    integer :: trop_ind
-    real(dp), allocatable :: xs_x_qy(:,:,:)
-    type(ParticleXsections), allocatable :: particle_xs(:)
-    real(dp), allocatable :: gibbs_energy(:,:)
+    ! Persistent atmospheric-profile configuration associated with this state.
+    type(PressureTempEddProfile) :: press_temp_edd_profile
+    type(TOAPressureMaintenance) :: toa_pressure_maintenance
 
     ! Derived atmospheric state that can be re-constructed from
     ! `self%prep_atmosphere`. So these are essential work arrays
@@ -520,10 +525,6 @@ module photochem_types ! make a giant IO object
     real(dp), allocatable :: pressure(:)
     real(dp), allocatable :: density(:)
     real(dp), allocatable :: mubar(:)
-
-    ! Persistent atmospheric-profile configuration associated with this state.
-    type(PressureTempEddProfile) :: press_temp_edd_profile
-    type(TOAPressureMaintenance) :: toa_pressure_maintenance
   contains
     procedure :: allocate => AtmosphereState_allocate
   end type

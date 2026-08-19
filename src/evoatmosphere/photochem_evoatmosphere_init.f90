@@ -115,16 +115,15 @@ contains
     type(AtmosphereState) :: state, previous_state
     logical :: was_initialized
 
-    ! Allocate some work space
     was_initialized = self%atmosphere_initialized
-    call state%allocate(self%dat, self%var%nz)
-    call copy_model_to_state(self, state)
-
     ! If initialized, then save the previous state
     if (was_initialized) then
       call previous_state%allocate(self%dat, self%var%nz)
       call copy_model_to_state(self, previous_state)
     endif
+
+    call state%allocate(self%dat, self%var%nz)
+    call copy_model_to_state(self, state)
 
     ! Build most of the atmospheric state from inputs
     call map_atmosphere_z_to_grid(self%dat, self%var%nz, self%var%trop_alt, &
@@ -176,6 +175,13 @@ contains
     class(EvoAtmosphere), intent(in) :: self
     type(AtmosphereState), intent(inout) :: state
 
+    ! Always preserve valid persistent settings
+    state%press_temp_edd_profile = self%var%press_temp_edd_profile
+    state%toa_pressure_maintenance = self%var%toa_pressure_maintenance
+
+    if (.not. self%atmosphere_initialized) return
+
+    ! Copy committed atmospheric state only after initialization
     state%bottom_atmos = self%var%bottom_atmos
     state%top_atmos = self%var%top_atmos
     state%trop_alt = self%var%trop_alt
@@ -191,8 +197,6 @@ contains
     state%xs_x_qy = self%var%xs_x_qy
     state%particle_xs = self%var%particle_xs
     if (self%dat%reverse) state%gibbs_energy = self%var%gibbs_energy
-    state%press_temp_edd_profile = self%var%press_temp_edd_profile
-    state%toa_pressure_maintenance = self%var%toa_pressure_maintenance
 
   end subroutine
 
@@ -200,6 +204,9 @@ contains
     use photochem_types, only: AtmosphereState
     class(EvoAtmosphere), intent(inout) :: self
     type(AtmosphereState), intent(in) :: state
+
+    self%var%press_temp_edd_profile = state%press_temp_edd_profile
+    self%var%toa_pressure_maintenance = state%toa_pressure_maintenance
 
     self%var%bottom_atmos = state%bottom_atmos
     self%var%top_atmos = state%top_atmos
@@ -216,8 +223,6 @@ contains
     self%var%xs_x_qy = state%xs_x_qy
     self%var%particle_xs = state%particle_xs
     if (self%dat%reverse) self%var%gibbs_energy = state%gibbs_energy
-    self%var%press_temp_edd_profile = state%press_temp_edd_profile
-    self%var%toa_pressure_maintenance = state%toa_pressure_maintenance
 
   end subroutine
 
@@ -258,13 +263,13 @@ contains
     endif
 
     was_initialized = self%atmosphere_initialized
-
-    call state%allocate(self%dat, self%var%nz)
-    call copy_model_to_state(self, state)
     if (was_initialized) then
       call previous_state%allocate(self%dat, self%var%nz)
       call copy_model_to_state(self, previous_state)
     endif
+
+    call state%allocate(self%dat, self%var%nz)
+    call copy_model_to_state(self, state)
 
     call map_atmosphere_p_to_grid(self%dat, self%var%nz, self%var%trop_alt, &
                                   pressure, temperature, edd, mix, particle_radius, &
