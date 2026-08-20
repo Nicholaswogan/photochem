@@ -1,10 +1,48 @@
 
 submodule(photochem_evoatmosphere) photochem_evoatmosphere_utils
+  use photochem_types, only: PressureTempEddProfile
   implicit none
+
+  type :: PressTempEddState
+    real(dp) :: trop_alt
+    real(dp), allocatable :: temperature(:)
+    real(dp), allocatable :: edd(:)
+    integer :: trop_ind ! derived
+    real(dp), allocatable :: xs_x_qy(:,:,:) ! derived
+    real(dp), allocatable :: gibbs_energy(:,:) ! derived
+  end type
 
 contains
 
-module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwrite, clip, err)
+  function initialize_PressTempEddState(self) result(state)
+    class(EvoAtmosphere), intent(in) :: self
+    type(PressTempEddState) :: state
+
+    state%trop_alt = self%var%trop_alt
+    state%temperature = self%var%temperature
+    state%edd = self%var%edd
+
+    state%trop_ind = self%var%trop_ind
+    state%xs_x_qy = self%var%xs_x_qy
+    if (self%dat%reverse) state%gibbs_energy = self%var%gibbs_energy
+
+  end function
+
+  subroutine copy_PressTempEddState_to_model(self, state)
+    class(EvoAtmosphere), intent(inout) :: self
+    type(PressTempEddState), intent(in) :: state
+
+    self%var%trop_alt = state%trop_alt
+    self%var%temperature = state%temperature
+    self%var%edd = state%edd
+
+    self%var%trop_ind = state%trop_ind
+    self%var%xs_x_qy = state%xs_x_qy
+    if (self%dat%reverse) self%var%gibbs_energy = state%gibbs_energy
+
+  end subroutine
+
+  module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwrite, clip, err)
     use photochem_common, only: out2atmosphere_txt_base
     class(EvoAtmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: filename
@@ -370,15 +408,6 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     logical, optional, intent(in) :: hydro_pressure
     character(:), allocatable, intent(out) :: err
 
-    type :: PressTempEddState
-      real(dp) :: trop_alt
-      real(dp), allocatable :: temperature(:)
-      real(dp), allocatable :: edd(:)
-      integer :: trop_ind ! derived
-      real(dp), allocatable :: xs_x_qy(:,:,:) ! derived
-      real(dp), allocatable :: gibbs_energy(:,:) ! derived
-    end type
-
     type(PressTempEddState) :: state, previous_state
     real(dp), allocatable :: T_grid(:), edd_grid(:), log10P_grid(:)
     real(dp), allocatable :: usol_start(:,:)
@@ -455,11 +484,11 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     if (allocated(err)) return
 
     usol_start = self%wrk%usol
-    call copy_state_to_model(self, state)
+    call copy_PressTempEddState_to_model(self, state)
     call self%prep_atmosphere(usol_start, err)
     if (allocated(err)) then
       original_err = err
-      call copy_state_to_model(self, previous_state)
+      call copy_PressTempEddState_to_model(self, previous_state)
       call self%prep_atmosphere(usol_start, rollback_err)
       if (allocated(rollback_err)) then
         err = original_err//' Rollback failed: '//rollback_err
@@ -468,36 +497,6 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       endif
       return
     endif
-
-  contains
-
-    function initialize_PressTempEddState(self_) result(state_)
-      class(EvoAtmosphere), intent(in) :: self_
-      type(PressTempEddState) :: state_
-
-      state_%trop_alt = self_%var%trop_alt
-      state_%temperature = self_%var%temperature
-      state_%edd = self_%var%edd
-
-      state_%trop_ind = self_%var%trop_ind
-      state_%xs_x_qy = self_%var%xs_x_qy
-      if (self_%dat%reverse) state_%gibbs_energy = self_%var%gibbs_energy
-
-    end function
-
-    subroutine copy_state_to_model(self_, state_)
-      class(EvoAtmosphere), intent(inout) :: self_
-      type(PressTempEddState), intent(in) :: state_
-
-      self_%var%trop_alt = state_%trop_alt
-      self_%var%temperature = state_%temperature
-      self_%var%edd = state_%edd
-
-      self_%var%trop_ind = state_%trop_ind
-      self_%var%xs_x_qy = state_%xs_x_qy
-      if (self_%dat%reverse) self_%var%gibbs_energy = state_%gibbs_energy
-
-    end subroutine
 
   end subroutine
 
@@ -515,7 +514,8 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     real(dp), optional, intent(in) :: target_pressure
     character(:), allocatable, intent(out) :: err
 
-    type(PhotochemVars) :: var_save
+    type(PressTempEddState) :: previous_state
+    type(PressureTempEddProfile) :: previous_profile
     real(dp), allocatable :: usol_start(:,:)
     logical :: maintain_toa_pressure_
     character(:), allocatable :: original_err, rollback_err
@@ -538,7 +538,8 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
       endif
     endif
 
-    var_save = self%var
+    previous_state = initialize_PressTempEddState(self)
+    previous_profile = self%var%press_temp_edd_profile
 
     self%var%press_temp_edd_profile%pressure = P
     self%var%press_temp_edd_profile%temperature = T
@@ -563,7 +564,8 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     call self%prep_atmosphere(usol_start, err)
     if (allocated(err)) then
       original_err = err
-      self%var = var_save
+      self%var%press_temp_edd_profile = previous_profile
+      call copy_PressTempEddState_to_model(self, previous_state)
       call self%prep_atmosphere(usol_start, rollback_err)
       if (allocated(rollback_err)) then
         err = original_err//' Rollback failed: '//rollback_err
