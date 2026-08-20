@@ -361,6 +361,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
 
   module subroutine set_press_temp_edd(self, P, T, edd, trop_p, hydro_pressure, err)
     use iso_c_binding, only: c_associated
+    use photochem_input, only: refresh_temperature_dependent_vars
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: P(:)
     real(dp), intent(in) :: T(:)
@@ -369,11 +370,22 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     logical, optional, intent(in) :: hydro_pressure
     character(:), allocatable, intent(out) :: err
 
+    type :: PressTempEddState
+      real(dp) :: trop_alt
+      real(dp), allocatable :: temperature(:)
+      real(dp), allocatable :: edd(:)
+      integer :: trop_ind ! derived
+      real(dp), allocatable :: xs_x_qy(:,:,:) ! derived
+      real(dp), allocatable :: gibbs_energy(:,:) ! derived
+    end type
+
+    type(PressTempEddState) :: state, previous_state
     real(dp), allocatable :: T_grid(:), edd_grid(:), log10P_grid(:)
-    real(dp), allocatable :: edd_save(:)
+    real(dp), allocatable :: usol_start(:,:)
     real(dp) :: trop_alt
     real(dp) :: trop_p_
     logical :: has_trop_p, hydro_pressure_
+    character(:), allocatable :: original_err, rollback_err
 
     call self%require_atmosphere_initialized('set_press_temp_edd', err)
     if (allocated(err)) return
@@ -402,8 +414,7 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     ! Allocate only after the lifecycle checks above. In particular, an
     ! uninitialized object must return the normal API error without using an
     ! undefined `var%nz` as an automatic-array extent.
-    allocate(T_grid(self%var%nz), edd_grid(self%var%nz), log10P_grid(self%var%nz), &
-             edd_save(self%var%nz))
+    allocate(T_grid(self%var%nz), edd_grid(self%var%nz), log10P_grid(self%var%nz))
 
     ! First compute the mapping without changing model state. This kernel is
     ! also suitable for applying a persistent pressure-based profile to an
@@ -429,16 +440,64 @@ module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwri
     )
     if (allocated(err)) return
 
-    ! Commit point: the mapping above only reads self. Updating Kzz and
-    ! calling set_temperature below are the only operations that mutate it.
-    edd_save = self%var%edd
-    self%var%edd = edd_grid
-    if (has_trop_p) then
-      call self%set_temperature(T_grid, trop_alt, err)
-    else
-      call self%set_temperature(T_grid, err=err)
+    ! Build and validate the complete candidate without changing the model.
+    previous_state = initialize_PressTempEddState(self)
+    state = previous_state
+    state%temperature = T_grid
+    state%edd = edd_grid
+    if (.not. has_trop_p) trop_alt = state%trop_alt
+
+    call refresh_temperature_dependent_vars( &
+      self%dat, state%temperature, self%var%z, self%var%bottom_atmos, &
+      self%var%top_atmos, trop_alt, state%xs_x_qy, state%gibbs_energy, &
+      state%trop_alt, state%trop_ind, err &
+    )
+    if (allocated(err)) return
+
+    usol_start = self%wrk%usol
+    call copy_state_to_model(self, state)
+    call self%prep_atmosphere(usol_start, err)
+    if (allocated(err)) then
+      original_err = err
+      call copy_state_to_model(self, previous_state)
+      call self%prep_atmosphere(usol_start, rollback_err)
+      if (allocated(rollback_err)) then
+        err = original_err//' Rollback failed: '//rollback_err
+      else
+        err = original_err
+      endif
+      return
     endif
-    if (allocated(err)) self%var%edd = edd_save
+
+  contains
+
+    function initialize_PressTempEddState(self_) result(state_)
+      class(EvoAtmosphere), intent(in) :: self_
+      type(PressTempEddState) :: state_
+
+      state_%trop_alt = self_%var%trop_alt
+      state_%temperature = self_%var%temperature
+      state_%edd = self_%var%edd
+
+      state_%trop_ind = self_%var%trop_ind
+      state_%xs_x_qy = self_%var%xs_x_qy
+      if (self_%dat%reverse) state_%gibbs_energy = self_%var%gibbs_energy
+
+    end function
+
+    subroutine copy_state_to_model(self_, state_)
+      class(EvoAtmosphere), intent(inout) :: self_
+      type(PressTempEddState), intent(in) :: state_
+
+      self_%var%trop_alt = state_%trop_alt
+      self_%var%temperature = state_%temperature
+      self_%var%edd = state_%edd
+
+      self_%var%trop_ind = state_%trop_ind
+      self_%var%xs_x_qy = state_%xs_x_qy
+      if (self_%dat%reverse) self_%var%gibbs_energy = state_%gibbs_energy
+
+    end subroutine
 
   end subroutine
 
