@@ -1,32 +1,11 @@
 module photochem_evoatmosphere
   use photochem_const, only: dp
-  use photochem_types, only : PhotochemData, PhotochemVars, PhotochemWrkEvo
+  use photochem_types, only : PhotochemData, PhotochemVars, PhotochemWrkEvo, &
+                              AtmosphereState
   implicit none
 
   private
   public :: EvoAtmosphere
-
-  type :: VerticalGridCandidate
-    real(dp) :: trop_alt
-    real(dp) :: top_atmos
-    real(dp), allocatable :: usol(:,:)
-    real(dp), allocatable :: pressure(:)
-    real(dp), allocatable :: z(:)
-    real(dp), allocatable :: dz(:)
-    real(dp), allocatable :: grav(:)
-    real(dp), allocatable :: temperature(:)
-    real(dp), allocatable :: edd(:)
-    real(dp), allocatable :: particle_radius(:,:)
-
-    ! Reusable scratch arrays; overwritten on every candidate construction.
-    real(dp), allocatable :: mix(:,:), mix_new(:,:)
-    real(dp), allocatable :: density(:), density_new(:)
-
-    ! Pressure-profile mapping workspace; overwritten on every fixed-point pass.
-    real(dp), allocatable :: temperature_reference(:)
-    real(dp), allocatable :: pressure_reference(:)
-    real(dp), allocatable :: log10P(:)
-  end type
 
   type :: EvoAtmosphere
     type(PhotochemData), allocatable :: dat
@@ -142,6 +121,16 @@ module photochem_evoatmosphere
       class(EvoAtmosphere), intent(inout) :: self
       character(len=*), intent(in) :: atmosphere_txt !! Path to the legacy atmosphere text file.
       character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    module subroutine copy_model_to_state(self, state)
+      class(EvoAtmosphere), intent(in) :: self
+      type(AtmosphereState), intent(inout) :: state
+    end subroutine
+
+    module subroutine copy_state_to_model(self, state)
+      class(EvoAtmosphere), intent(inout) :: self
+      type(AtmosphereState), intent(in) :: state
     end subroutine
 
     !> Initialize atmosphere-dependent model state from altitude-based profiles.

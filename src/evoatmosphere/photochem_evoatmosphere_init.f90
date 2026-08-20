@@ -197,7 +197,7 @@ contains
 
   end subroutine
 
-  subroutine copy_model_to_state(self, state)
+  module subroutine copy_model_to_state(self, state)
     use photochem_types, only: AtmosphereState
     class(EvoAtmosphere), intent(in) :: self
     type(AtmosphereState), intent(inout) :: state
@@ -227,7 +227,7 @@ contains
 
   end subroutine
 
-  subroutine copy_state_to_model(self, state)
+  module subroutine copy_state_to_model(self, state)
     use photochem_types, only: AtmosphereState
     class(EvoAtmosphere), intent(inout) :: self
     type(AtmosphereState), intent(in) :: state
