@@ -232,15 +232,6 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_grav_get(self._ptr, &dim1, <double *>arr.data)
       return arr
       
-  property surface_pressure:
-    "double. The surface pressure in bars."
-    def __get__(self):
-      cdef double val
-      var_pxd.photochemvars_surface_pressure_get(self._ptr, &val)
-      return val
-    def __set__(self, double val):
-      var_pxd.photochemvars_surface_pressure_set(self._ptr, &val)
-
   property tauc:
     "ndarray[double,dim=2], shape (nz,nw). Custom optical depth in each layer."
     def __get__(self):

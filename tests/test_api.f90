@@ -231,7 +231,7 @@ contains
       print *, trim(err)
       stop 1
     endif
-    P = [2.0_dp*pc%var%surface_pressure*1.0e6_dp, &
+    P = [2.0_dp*pc%wrk%surface_pressure*1.0e6_dp, &
          0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
     T = [300.0_dp, 180.0_dp]
     edd = [3.0e7_dp, 4.0e5_dp]
@@ -322,7 +322,7 @@ contains
       print *, trim(err)
       stop 1
     endif
-    P = [2.0_dp*pc%var%surface_pressure*1.0e6_dp, &
+    P = [2.0_dp*pc%wrk%surface_pressure*1.0e6_dp, &
          0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
     T = [300.0_dp, 180.0_dp]
     edd = [3.0e7_dp, 4.0e5_dp]
@@ -376,7 +376,7 @@ contains
       print *, trim(err)
       stop 1
     endif
-    P = [2.0_dp*pc%var%surface_pressure*1.0e6_dp, &
+    P = [2.0_dp*pc%wrk%surface_pressure*1.0e6_dp, &
          0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
     T = [300.0_dp, 180.0_dp]
     edd = [3.0e7_dp, 4.0e5_dp]
@@ -506,7 +506,7 @@ contains
       print *, trim(err)
       stop 1
     endif
-    P = [2.0_dp*pc%var%surface_pressure*1.0e6_dp, &
+    P = [2.0_dp*pc%wrk%surface_pressure*1.0e6_dp, &
          0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
     T = [300.0_dp, 180.0_dp]
     edd = [3.0e7_dp, 4.0e5_dp]
@@ -833,7 +833,7 @@ contains
     pc%var%particle_radius(optical_particle,pc%var%nz) = &
         0.5_dp*pc%dat%radii_file(1,optical_particle)
     top_before = pc%var%top_atmos
-    surface_pressure_before = pc%var%surface_pressure
+    surface_pressure_before = pc%wrk%surface_pressure
     z_before = pc%var%z
     usol_before = pc%wrk%usol
     temperature_before = pc%var%temperature
@@ -847,7 +847,7 @@ contains
     endif
     deallocate(err)
     if (pc%var%top_atmos /= top_before .or. &
-        pc%var%surface_pressure /= surface_pressure_before .or. &
+        pc%wrk%surface_pressure /= surface_pressure_before .or. &
         any(pc%var%z /= z_before) .or. any(pc%wrk%usol /= usol_before) .or. &
         any(pc%var%temperature /= temperature_before) .or. &
         any(pc%var%particle_radius /= particle_radius_before) .or. &
@@ -2115,7 +2115,7 @@ contains
     ! Two input points are sufficient because interpolation is linear in log10(P).
     ! First test the default hydrostatic-pressure mode with profiles that differ
     ! substantially from the current atmosphere.
-    P = [2.0_dp*pc%var%surface_pressure*1.0e6_dp, &
+    P = [2.0_dp*pc%wrk%surface_pressure*1.0e6_dp, &
          0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
     T = [310.0_dp, 160.0_dp]
     edd = [1.0e7_dp, 2.0e5_dp]
@@ -2214,7 +2214,7 @@ contains
     real(dp) :: tn
 
     usol_original = pc%wrk%usol
-    P = [2.0_dp*pc%var%surface_pressure*1.0e6_dp, &
+    P = [2.0_dp*pc%wrk%surface_pressure*1.0e6_dp, &
          0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
     T = [300.0_dp, 180.0_dp]
     edd = [3.0e7_dp, 4.0e5_dp]

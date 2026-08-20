@@ -67,5 +67,6 @@ cdef extern void photochemwrk_vh2_esc_get(PhotochemWrk *ptr, double *val)
 cdef extern void photochemwrk_vh_esc_get(PhotochemWrk *ptr, double *val)
 
 # PhotochemWrkEvo
+cdef extern void photochemwrkevo_surface_pressure_get(PhotochemWrkEvo *ptr, double *val)
 cdef extern void photochemwrkevo_pressure_hydro_get_size(PhotochemWrkEvo *ptr, int *dim1)
 cdef extern void photochemwrkevo_pressure_hydro_get(PhotochemWrkEvo *ptr, int *dim1, double *arr)

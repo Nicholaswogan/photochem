@@ -330,6 +330,14 @@
 
 ! PhotochemWrkEvo
 
+  subroutine photochemwrkevo_surface_pressure_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemWrkEvo), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    val = wrk%surface_pressure
+  end subroutine
+
   subroutine photochemwrkevo_pressure_hydro_get_size(ptr, dim1) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1

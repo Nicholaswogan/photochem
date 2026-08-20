@@ -931,6 +931,8 @@ contains
     block
       real(c_double), pointer :: usol_tmp(:,:)
       usol_tmp(1:dat%nq,1:var%nz) => wrk%sun%yvec
+      ! RHS and Jacobian callbacks may have prepared var for trial states.
+      ! Prepare the accepted CVODE solution before this public call returns.
       call self%prep_atm_evo_gas(usol_tmp, wrk%usol, &
            wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
            wrk%pressure_hydro, wrk%density_hydro, err=err)

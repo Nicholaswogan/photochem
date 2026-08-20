@@ -387,7 +387,6 @@ module photochem_types ! make a giant IO object
     real(dp) :: bottom_atmos = 0.0_dp !! cm
     real(dp) :: top_atmos = 0.0_dp !! cm; determined during atmosphere initialization
     integer :: nz !! number of vertical layers
-    real(dp) :: surface_pressure !! bars
     real(dp) :: surface_albedo
     real(dp) :: diurnal_fac = 0.5_dp !! Default is 0.5, to account for half planet facing the sun.
     real(dp) :: solar_zenith !! degrees
@@ -411,6 +410,12 @@ module photochem_types ! make a giant IO object
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! set AFTER file read-in !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! Most fields in this section change only through public model-mutation
+    ! routines. The prepared subset temperature, edd, trop_alt, trop_ind,
+    ! xs_x_qy, and gibbs_energy may also be updated during integration when a
+    ! persistent pressure-temperature-Kzz profile is enabled. These remain the
+    ! single authoritative prepared values; successful integration routines
+    ! leave them consistent with the committed wrk%usol before returning.
     integer :: neqs !! number of equations nq*nz
     real(dp), allocatable :: temperature(:) !! (nz) K
     real(dp), allocatable :: z(:) !! (nz) cm
@@ -632,6 +637,8 @@ module photochem_types ! make a giant IO object
   end type
 
   type, extends(PhotochemWrk) :: PhotochemWrkEvo
+    !> Surface pressure derived from the current atmospheric column (bars).
+    real(dp) :: surface_pressure = 0.0_dp
     real(dp), allocatable :: mix(:,:) !! (nq,nz) mixing ratio.
     real(dp), allocatable :: pressure_hydro(:) !! (nz)
     real(dp), allocatable :: density_hydro(:) !! (nz)
@@ -683,6 +690,7 @@ contains
 
     call PhotochemWrk_init(self, nsp, np, nq, nz, nrT, kj, nw)
 
+    self%surface_pressure = 0.0_dp
     self%n_toa_pressure_updates = 0
     self%n_toa_pressure_failures = 0
     self%nsteps_since_toa_pressure_update = 0

@@ -54,9 +54,6 @@ cdef extern void photochemvars_grav_get(PhotochemVars *ptr, int *dim1, double *a
 cdef extern void photochemvars_z_get_size(PhotochemVars *ptr, int *dim1)
 cdef extern void photochemvars_z_get(PhotochemVars *ptr, int *dim1, double *z)
 
-cdef extern void photochemvars_surface_pressure_get(PhotochemVars *ptr, double *val)
-cdef extern void photochemvars_surface_pressure_set(PhotochemVars *ptr, double *val)
-
 cdef extern void photochemvars_tauc_get_size(PhotochemVars *ptr, int *dim1, int *dim2)
 cdef extern void photochemvars_tauc_get(PhotochemVars *ptr, int *dim1, int *dim2, double *val)
 cdef extern void photochemvars_tauc_set(PhotochemVars *ptr, int *dim1, int *dim2, double *val)

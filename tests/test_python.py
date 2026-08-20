@@ -130,7 +130,7 @@ def test_persistent_profile_controls_toa_maintenance():
     )
 
     pressure = np.array([
-        2.0 * pc.var.surface_pressure * 1.0e6,
+        2.0 * pc.wrk.surface_pressure * 1.0e6,
         0.5 * pc.wrk.pressure_hydro[-1],
     ])
     temperature = np.array([300.0, 180.0])
@@ -171,7 +171,7 @@ def test_robust_initial_toa_pressure_preflight():
         {"H2": np.ones(z.size)},
     )
     pressure = np.array([
-        2.0 * pc.var.surface_pressure * 1.0e6,
+        2.0 * pc.wrk.surface_pressure * 1.0e6,
         0.5 * pc.wrk.pressure_hydro[-1],
     ])
     pc.set_press_temp_edd_profile(
@@ -570,7 +570,7 @@ def test_wrapper():
     pc.var.custom_binary_diffusion_fcn = None
     print(pc.var.photon_flux[0])
     print(pc.var.grav[0])
-    print(pc.var.surface_pressure)
+    print(pc.wrk.surface_pressure)
     print(pc.var.max_error_reinit_attempts)
     print(pc.var.rtol)
     print(pc.var.atol)
@@ -609,7 +609,7 @@ def test_wrapper():
     pc.set_rate_fcn('CH4',None)
     pc.set_temperature(pc.var.temperature)
     pc.set_press_temp_edd(pc.wrk.pressure,pc.var.temperature,pc.var.edd,1e-1*1e6)
-    P = np.array([2.0*pc.var.surface_pressure*1.0e6,
+    P = np.array([2.0*pc.wrk.surface_pressure*1.0e6,
                   0.5*pc.wrk.pressure_hydro[-1]])
     T = np.array([300.0, 180.0])
     edd = np.array([3.0e7, 4.0e5])

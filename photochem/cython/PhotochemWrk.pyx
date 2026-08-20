@@ -2,6 +2,14 @@ cimport PhotochemWrk_pxd as wrk_pxd
 
 cdef class PhotochemWrkEvo(PhotochemWrk):
 
+  property surface_pressure:
+    "double. Surface pressure derived from the current atmospheric column, in bars."
+    def __get__(self):
+      cdef double val
+      cdef wrk_pxd.PhotochemWrkEvo *evo_ptr = <wrk_pxd.PhotochemWrkEvo *>self._ptr
+      wrk_pxd.photochemwrkevo_surface_pressure_get(evo_ptr, &val)
+      return val
+
   property n_toa_pressure_updates:
     """int. Number of successful automatic TOA pressure updates."""
     def __get__(self):
