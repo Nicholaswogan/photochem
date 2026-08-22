@@ -1,5 +1,5 @@
 module photochem_evoatmosphere
-  use photochem_const, only: dp
+  use photochem_const, only: dp, m_str_len
   use photochem_data, only: PhotochemData, ParticleXsections
   use photochem_vars, only: PhotochemVars, PressureTempEddProfile, &
                             TOAPressureMaintenance
@@ -7,7 +7,16 @@ module photochem_evoatmosphere
   implicit none
 
   private
-  public :: EvoAtmosphere
+  public :: EvoAtmosphere, ProductionLoss
+
+  type :: ProductionLoss
+    real(dp), allocatable :: production(:,:)
+    real(dp), allocatable :: loss(:,:)
+    real(dp), allocatable :: integrated_production(:)
+    real(dp), allocatable :: integrated_loss(:)
+    character(len=m_str_len), allocatable :: production_rx(:)
+    character(len=m_str_len), allocatable :: loss_rx(:)
+  end type
 
   !> Internal transactional handoff used to validate atmospheric changes
   !! before committing them to the live model.
@@ -353,8 +362,7 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    module subroutine production_and_loss(self, species, usol, pl, err)  
-      use photochem_types, only: ProductionLoss   
+    module subroutine production_and_loss(self, species, usol, pl, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: species
       real(dp), intent(in) :: usol(:,:)

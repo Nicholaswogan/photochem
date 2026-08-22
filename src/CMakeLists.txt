@@ -9,7 +9,7 @@ add_subdirectory(evoatmosphere)
 
 set(fppFiles 
   photochem_eqns.f90
-  photochem_common.f90
+  photochem_chemistry.f90
   evoatmosphere/photochem_evoatmosphere_rhs.f90)
 
 fypp_f90("" "${fppFiles}" outFiles)
@@ -21,8 +21,7 @@ set(PHOTOCHEM_MODULES
   photochem_settings.f90
   photochem_data.f90
   photochem_vars.f90
-  photochem_wrk.f90
-  photochem_types.f90)
+  photochem_wrk.f90)
 
 set(PHOTOCHEM_EVOATMOSPHERE
     evoatmosphere/photochem_evoatmosphere.f90

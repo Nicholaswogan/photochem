@@ -1,11 +1,10 @@
 module photochem_c_api
   use iso_c_binding
   use clima_saturationdata, only: SaturationData
-  use photochem, only: EvoAtmosphere
+  use photochem, only: EvoAtmosphere, ProductionLoss
   use photochem_data, only: PhotochemData
   use photochem_vars, only: PhotochemVars, TOAPressureMaintenance
   use photochem_wrk, only: PhotochemWrk
-  use photochem_types, only: ProductionLoss
   use photochem_settings, only: CondensationParameters
   use photochem, only: err_len
   use photochem_const, only: s_str_len, m_str_len

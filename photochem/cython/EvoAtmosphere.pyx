@@ -1006,7 +1006,7 @@ cdef class EvoAtmosphere:
 
   def production_and_loss(self, str species, ndarray[double, ndim=2] usol):
     """Computes the production and loss of input `species`.
-    See ProductionLoss object in photochem_types.f90.
+    See the ProductionLoss object exported by the photochem module.
 
     Parameters
     ----------

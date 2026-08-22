@@ -653,12 +653,12 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 8A: Standalone and compatibility cleanup
 
-- [ ] Move `ProductionLoss` into the EvoAtmosphere parent module and export it
+- [x] Move `ProductionLoss` into the EvoAtmosphere parent module and export it
       through the `photochem` facade.
-- [ ] Update wrappers and remove `photochem_types.f90`.
-- [ ] Rename `photochem_common.f90` to `photochem_chemistry.f90`.
-- [ ] Move `out2atmosphere_txt_base` to the output submodule.
-- [ ] Build and run the full Fortran and Python test suites.
+- [x] Update wrappers and remove `photochem_types.f90`.
+- [x] Rename `photochem_common.f90` to `photochem_chemistry.f90`.
+- [x] Move `out2atmosphere_txt_base` to the output submodule.
+- [x] Build and run the full Fortran and Python test suites.
 
 ### Pass 8B: Flat Photochem layout
 
