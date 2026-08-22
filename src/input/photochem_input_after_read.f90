@@ -450,6 +450,8 @@ contains
   !~~ The routines below finalized setup after grid construction.
 
   module subroutine finalize_atmosphere_initialization(dat, var, err)
+    use photochem_vars, only: refresh_temperature_dependent_vars, &
+                              interp2particlexsdata
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
@@ -467,6 +469,8 @@ contains
   end subroutine
 
   module subroutine finalize_atmosphere_state(dat, state, err)
+    use photochem_vars, only: refresh_temperature_dependent_vars, &
+                              interp2particlexsdata
     type(PhotochemData), intent(in) :: dat
     type(AtmosphereState), intent(inout) :: state
     character(:), allocatable, intent(out) :: err
@@ -481,180 +485,6 @@ contains
     )
     if (allocated(err)) return
 
-  end subroutine
-
-  module subroutine refresh_temperature_dependent_vars(dat, temperature, z, &
-                                                       bottom_atmos, top_atmos, &
-                                                       trop_alt_new, xs_x_qy, &
-                                                       gibbs_energy, trop_alt, &
-                                                       trop_ind, err)
-    type(PhotochemData), intent(in) :: dat
-    real(dp), intent(in) :: temperature(:), z(:)
-    real(dp), intent(in) :: bottom_atmos, top_atmos
-    real(dp), optional, intent(in) :: trop_alt_new
-    real(dp), intent(inout) :: xs_x_qy(:,:,:)
-    real(dp), allocatable, intent(inout) :: gibbs_energy(:,:)
-    real(dp), intent(inout) :: trop_alt
-    integer, intent(inout) :: trop_ind
-    character(:), allocatable, intent(out) :: err
-
-    call interp2xsdata(dat, xs_x_qy, err)
-    if (allocated(err)) return
-
-    if (dat%reverse) then
-      call compute_gibbs_energy(dat, temperature, gibbs_energy, err)
-      if (allocated(err)) return
-    endif
-
-    call set_tropopause(dat, z, bottom_atmos, top_atmos, trop_alt_new, &
-                        trop_alt, trop_ind, err)
-    if (allocated(err)) return
-
-  end subroutine
-
-  subroutine set_tropopause(dat, z, bottom_atmos, top_atmos, trop_alt_new, trop_alt, trop_ind, err)
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    type(PhotochemData), intent(in) :: dat
-    real(dp), intent(in) :: z(:), bottom_atmos, top_atmos
-    real(dp), optional, intent(in) :: trop_alt_new
-    real(dp), intent(inout) :: trop_alt
-    integer, intent(inout) :: trop_ind
-    character(:), allocatable, intent(out) :: err
-
-    trop_ind = 1
-    if (.not. dat%gas_rainout) return
-
-    if (present(trop_alt_new)) trop_alt = trop_alt_new
-
-    if (.not. ieee_is_finite(trop_alt) .or. &
-        trop_alt < bottom_atmos .or. trop_alt > top_atmos) then
-      err = 'trop_alt is above or bellow the atmosphere!'
-      return
-    endif
-
-    trop_ind = max(minloc(abs(z - trop_alt), 1) - 1, 1)
-    if (trop_ind < 3) then
-      err = 'Tropopause is too low.'
-      return
-    elseif (trop_ind > size(z) - 2) then
-      err = 'Tropopause is too high.'
-      return
-    endif
-
-  end subroutine
-
-  subroutine compute_gibbs_energy(dat, temperature, gibbs_energy, err)
-    use photochem_data, only: gibbs_energy_eval
-    type(PhotochemData), intent(in) :: dat
-    real(dp), intent(in) :: temperature(:)
-    real(dp), intent(inout) :: gibbs_energy(:,:)
-    character(:), allocatable, intent(out) :: err
-    
-    integer :: i, j
-    logical :: found
-
-    if (.not. dat%reverse) return
-    
-    do i = 1,dat%ng
-      do j = 1,size(temperature)
-        call gibbs_energy_eval(dat%thermo_data(i), temperature(j), &
-                               found, gibbs_energy(j,i))
-        if (.not. found) then
-          err = 'The temperature is not within the ranges '// &
-                'given for the thermodynamic data for '//trim(dat%species_names(i+dat%npq))
-          return
-        endif
-      enddo
-    enddo
-
-  end subroutine
-  
-  subroutine interp2xsdata(dat, xs_x_qy, err)
-    use photochem_const, only: smaller_real
-    type(PhotochemData), intent(in) :: dat
-    real(dp), intent(inout) :: xs_x_qy(:,:,:)
-    character(:), allocatable, intent(out) :: err
-    
-    integer :: i, k
-
-    ! No temperature dependence, so we just copy over
-    do k = 1, dat%nw
-      do i = 1,dat%kj
-        xs_x_qy(:,i,k) = abs(dat%photolysis_xs(i,k)) + smaller_real
-      enddo
-    enddo
-
-  end subroutine
-
-  subroutine interp2particlexsdata(dat, particle_radius, particle_xs, err)
-    use photochem_data, only: ParticleXsections
-    type(PhotochemData), intent(in) :: dat
-    real(dp), intent(in) :: particle_radius(:,:)
-    type(ParticleXsections), intent(inout) :: particle_xs(:)
-    character(:), allocatable, intent(out) :: err
-    
-    integer :: i, j, k, jj, nz
-    real(dp) :: dr, slope, intercept
-
-    if (.not.dat%there_are_particles) return
-
-    nz = size(particle_radius, 2)
-    
-    do j = 1,nz
-      do k = 1,dat%np
-        ! if there is optical data, then check that the
-        ! data covers the particle radii in the atmosphere.
-        if (dat%part_xs_file(k)%ThereIsData) then
-        
-          if (particle_radius(k,j) <= dat%radii_file(1,k)) then
-            err = "There is not any optical data for the "// &
-                  "particle radii specified in the atmosphere."
-            return
-          endif
-          if (particle_radius(k,j) >= dat%radii_file(dat%nrad_file,k)) then
-            err = "There is not any optical data for the "// &
-                  "particle radii specified in the atmosphere."
-            return
-          endif
-          
-        endif
-        
-      enddo
-    enddo
-    do i = 1,dat%nw
-      do j = 1,nz
-        do k = 1,dat%np
-          
-        ! if there is particle optical data, then linearly interpolate
-        ! it to to the particle radii in the atmosphere.
-        if (dat%part_xs_file(k)%ThereIsData) then
-          
-          do jj = 1,dat%nrad_file-1
-            if (particle_radius(k,j) >= dat%radii_file(jj,k) .and. &
-                particle_radius(k,j) < dat%radii_file(jj+1,k)) then
-  
-              dr = dat%radii_file(jj+1,k) - dat%radii_file(jj,k)
-  
-              slope = (dat%part_xs_file(k)%w0(jj+1,i) - dat%part_xs_file(k)%w0(jj,i))/dr
-              intercept = dat%part_xs_file(k)%w0(jj,i) - dat%radii_file(jj,k)*slope
-              particle_xs(k)%w0(j,i) = slope*particle_radius(k,j) + intercept
-              
-              slope = (dat%part_xs_file(k)%qext(jj+1,i) - dat%part_xs_file(k)%qext(jj,i))/dr
-              intercept = dat%part_xs_file(k)%qext(jj,i) - dat%radii_file(jj,k)*slope
-              particle_xs(k)%qext(j,i) = slope*particle_radius(k,j) + intercept
-  
-              slope = (dat%part_xs_file(k)%gt(jj+1,i) - dat%part_xs_file(k)%gt(jj,i))/dr
-              intercept = dat%part_xs_file(k)%gt(jj,i) - dat%radii_file(jj,k)*slope
-              particle_xs(k)%gt(j,i) = slope*particle_radius(k,j) + intercept
-            endif
-          enddo
-        
-        endif 
-          
-        enddo
-      enddo
-    enddo
-    
   end subroutine
 
 end submodule

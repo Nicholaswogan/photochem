@@ -57,7 +57,6 @@ contains
     allocate(self%var)
     allocate(self%wrk)
 
-    self%var%data_dir = data_dir
     call setup_static(mechanism_file, s, flux_file, data_dir, self%dat, self%var, err)
     if (allocated(err)) return
 

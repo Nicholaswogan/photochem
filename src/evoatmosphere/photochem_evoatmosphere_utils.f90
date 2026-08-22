@@ -303,7 +303,7 @@ contains
 
   module subroutine set_temperature(self, temperature, trop_alt, err)
     use iso_c_binding, only: c_associated
-    use photochem_input, only: refresh_temperature_dependent_vars
+    use photochem_vars, only: refresh_temperature_dependent_vars
     
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: temperature(:)
@@ -411,7 +411,7 @@ contains
 
   module subroutine set_press_temp_edd(self, P, T, edd, trop_p, hydro_pressure, err)
     use iso_c_binding, only: c_associated
-    use photochem_input, only: refresh_temperature_dependent_vars
+    use photochem_vars, only: refresh_temperature_dependent_vars
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: P(:)
     real(dp), intent(in) :: T(:)
@@ -637,7 +637,7 @@ contains
   end subroutine
 
   module subroutine apply_press_temp_edd_profile(self, usol_in, err)
-    use photochem_input, only: refresh_temperature_dependent_vars
+    use photochem_vars, only: refresh_temperature_dependent_vars
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
     character(:), allocatable, intent(out) :: err

@@ -3,26 +3,6 @@ submodule (photochem_input) photochem_input_read
 
 contains
 
-  module subroutine read_static_files(mechanism_file, s, flux_file, data_dir, &
-                                      dat, var, err)
-    character(len=*), intent(in) :: mechanism_file
-    type(PhotoSettings), intent(in) :: s
-    character(len=*), intent(in) :: flux_file
-    character(len=*), intent(in) :: data_dir
-    type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    character(:), allocatable, intent(out) :: err
-
-    dat = PhotochemData(mechanism_file, s, data_dir, err)
-    if (allocated(err)) return
-
-    call apply_vars_settings(dat, s, var, err)
-    if (allocated(err)) return
-
-    allocate(var%photon_flux(dat%nw))
-    call read_stellar_flux(flux_file, dat%nw, dat%wavl, var%photon_flux, err)
-  end subroutine
-
   module subroutine read_atmosphere_file(atmosphere_txt, dat, profile, err)
     use futils, only: FileCloser
     character(len=*), intent(in) :: atmosphere_txt

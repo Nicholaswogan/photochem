@@ -2,8 +2,7 @@
 module photochem_input
   use photochem_data, only: PhotochemData, parse_reaction
   use photochem_settings, only: PhotoSettings
-  use photochem_vars, only: PhotochemVars, apply_vars_settings, &
-                            allocate_model_grid, read_stellar_flux
+  use photochem_vars, only: PhotochemVars
   use photochem_types, only: AtmosphereState
   use photochem_const, only: dp, s_str_len
   implicit none
@@ -13,7 +12,6 @@ module photochem_input
   public :: map_atmosphere_p_to_grid
   public :: finalize_atmosphere_initialization
   public :: finalize_atmosphere_state
-  public :: refresh_temperature_dependent_vars
   public :: parse_reaction
 
   ! Raw atmosphere-file data is initialization-only state. Keep it in a
@@ -46,24 +44,6 @@ module photochem_input
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Refresh temperature-dependent quantities without modifying
-    !! `PhotochemVars` directly.
-    module subroutine refresh_temperature_dependent_vars(dat, temperature, z, &
-                                                         bottom_atmos, top_atmos, &
-                                                         trop_alt_new, xs_x_qy, &
-                                                         gibbs_energy, trop_alt, &
-                                                         trop_ind, err)
-      type(PhotochemData), intent(in) :: dat
-      real(dp), intent(in) :: temperature(:), z(:)
-      real(dp), intent(in) :: bottom_atmos, top_atmos
-      real(dp), optional, intent(in) :: trop_alt_new
-      real(dp), intent(inout) :: xs_x_qy(:,:,:)
-      real(dp), allocatable, intent(inout) :: gibbs_energy(:,:)
-      real(dp), intent(inout) :: trop_alt
-      integer, intent(inout) :: trop_ind
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-
     !> Read a legacy atmosphere file and map it onto the common altitude grid.
     !! File density remains an explicit legacy policy; it is not replaced by
     !! hydrostatic reconstruction in this adapter.
@@ -72,18 +52,6 @@ module photochem_input
       character(len=*), intent(in) :: atmosphere_txt
       real(dp), intent(in) :: trop_alt_default
       type(AtmosphereState), intent(inout) :: state
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-
-    !> Read files and settings that do not require an initialized atmosphere.
-    module subroutine read_static_files(mechanism_file, s, flux_file, data_dir, &
-                                        dat, var, err)
-      character(len=*), intent(in) :: mechanism_file
-      type(PhotoSettings), intent(in) :: s
-      character(len=*), intent(in) :: flux_file
-      character(len=*), intent(in) :: data_dir
-      type(PhotochemData), intent(inout) :: dat
-      type(PhotochemVars), intent(inout) :: var
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -167,10 +135,10 @@ contains
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
 
-    call read_static_files(mechanism_file, s, flux_file, data_dir, dat, var, err)
+    dat = PhotochemData(mechanism_file, s, data_dir, err)
     if (allocated(err)) return
 
-    call allocate_model_grid(dat, var)
+    var = PhotochemVars(dat, s, flux_file, err)
 
   end subroutine
 

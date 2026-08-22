@@ -587,12 +587,12 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [x] Move mutable settings and boundary-condition setup into this module.
 - [x] Move stellar-flux reading into this module.
 - [x] Move model-grid allocation into this module.
-- [ ] Move temperature-dependent prepared-variable maintenance into this
+- [x] Move temperature-dependent prepared-variable maintenance into this
       module while preserving explicit-array interfaces.
-- [ ] Add the isolated `PhotochemVars` constructor.
-- [ ] Document configured validity versus initialized-atmosphere validity.
-- [ ] Add focused constructor tests.
-- [ ] Build and run the full Fortran test suite.
+- [x] Add the isolated `PhotochemVars` constructor.
+- [x] Document configured validity versus initialized-atmosphere validity.
+- [x] Add focused constructor tests.
+- [x] Build and run the full Fortran test suite.
 
 ### Pass 4: Work ownership
 

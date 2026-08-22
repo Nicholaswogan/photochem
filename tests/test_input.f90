@@ -3,6 +3,7 @@ program test_input
   implicit none
   call test_parsing()
   call test_data_construction()
+  call test_vars_construction()
   call test_removed_evolve_climate_setting()
   call test_removed_conserving_initialization()
   call test_removed_water_settings()
@@ -47,6 +48,44 @@ contains
     if (dat%kl /= dat%kd + dat%nq) call fail('PhotochemData has the wrong lower bandwidth')
     if (dat%ku /= dat%kd - dat%nq) call fail('PhotochemData has the wrong upper bandwidth')
     if (dat%lda /= 3*dat%nq + 1) call fail('PhotochemData has the wrong Jacobian leading dimension')
+  end subroutine
+
+  subroutine test_vars_construction()
+    use photochem_data, only: PhotochemData
+    use photochem_settings, only: PhotoSettings
+    use photochem_vars, only: PhotochemVars
+    type(PhotoSettings) :: settings
+    type(PhotochemData) :: dat
+    type(PhotochemVars) :: var
+    character(:), allocatable :: err
+
+    settings = PhotoSettings('../examples/ModernEarth/settings.yaml', err)
+    if (allocated(err)) call fail('Could not construct test settings: '//trim(err))
+
+    dat = PhotochemData('../data/reaction_mechanisms/zahnle_earth.yaml', &
+                        settings, '../data', err)
+    if (allocated(err)) call fail('Could not construct test data: '//trim(err))
+
+    var = PhotochemVars(dat, settings, '../examples/ModernEarth/Sun_now.txt', err)
+    if (allocated(err)) call fail('Could not construct PhotochemVars: '//trim(err))
+
+    if (var%nz /= settings%nz) call fail('PhotochemVars has the wrong grid size')
+    if (var%neqs /= dat%nq*var%nz) call fail('PhotochemVars has the wrong equation count')
+    if (.not. allocated(var%lowerboundcond)) call fail('PhotochemVars boundary conditions were not initialized')
+    if (size(var%lowerboundcond) /= dat%nq) call fail('PhotochemVars boundary dimensions are inconsistent')
+    if (.not. allocated(var%photon_flux)) call fail('PhotochemVars photon flux was not initialized')
+    if (size(var%photon_flux) /= dat%nw) call fail('PhotochemVars photon-flux dimensions are inconsistent')
+    if (.not. allocated(var%temperature)) call fail('PhotochemVars temperature storage was not allocated')
+    if (.not. allocated(var%z)) call fail('PhotochemVars altitude storage was not allocated')
+    if (.not. allocated(var%xs_x_qy)) call fail('PhotochemVars cross-section storage was not allocated')
+    if (size(var%temperature) /= var%nz .or. size(var%z) /= var%nz) then
+      call fail('PhotochemVars atmospheric storage dimensions are inconsistent')
+    endif
+    if (size(var%xs_x_qy,1) /= var%nz .or. &
+        size(var%xs_x_qy,2) /= dat%kj .or. &
+        size(var%xs_x_qy,3) /= dat%nw) then
+      call fail('PhotochemVars cross-section dimensions are inconsistent')
+    endif
   end subroutine
 
   subroutine test_parsing()
