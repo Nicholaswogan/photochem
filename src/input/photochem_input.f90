@@ -1,14 +1,13 @@
 
 module photochem_input
   use photochem_data, only: PhotochemData, parse_reaction
-  use photochem_settings, only: PhotoSettings
   use photochem_vars, only: PhotochemVars
   use photochem_types, only: AtmosphereState
   use photochem_const, only: dp, s_str_len
   implicit none
   private
 
-  public :: setup_static, map_atmosphere_file_to_grid, map_atmosphere_z_to_grid
+  public :: map_atmosphere_file_to_grid, map_atmosphere_z_to_grid
   public :: map_atmosphere_p_to_grid
   public :: finalize_atmosphere_initialization
   public :: finalize_atmosphere_state
@@ -116,30 +115,5 @@ module photochem_input
     end subroutine
 
   end interface
-
-contains
-
-  !> Read and allocate model state that is independent of atmospheric profiles.
-  !!
-  !! This establishes mechanism and radiative dimensions, reads settings and
-  !! stellar data, and allocates persistent arrays whose shapes depend only on
-  !! those dimensions and `number-of-layers`. It does not construct a vertical
-  !! grid, initialize atmospheric profiles, or prepare an RHS state.
-  subroutine setup_static(mechanism_file, s, flux_file, data_dir, dat, var, err)
-
-    character(len=*), intent(in) :: mechanism_file
-    type(PhotoSettings), intent(in) :: s
-    character(len=*), intent(in) :: flux_file
-    character(len=*), intent(in) :: data_dir
-    type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(inout) :: var
-    character(:), allocatable, intent(out) :: err
-
-    dat = PhotochemData(mechanism_file, s, data_dir, err)
-    if (allocated(err)) return
-
-    var = PhotochemVars(dat, s, flux_file, err)
-
-  end subroutine
 
 end module

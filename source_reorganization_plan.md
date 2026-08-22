@@ -609,16 +609,16 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 5: Aggregate static construction
 
-- [ ] Replace `setup_static` and `read_static_files` orchestration with the new
+- [x] Replace `setup_static` and `read_static_files` orchestration with the new
       owner constructors.
-- [ ] Make `create_EvoAtmosphere_static` visibly compose settings, data, vars,
+- [x] Make `create_EvoAtmosphere_static` visibly compose settings, data, vars,
       and work objects.
-- [ ] Confirm that successful static construction leaves
+- [x] Confirm that successful static construction leaves
       `atmosphere_initialized == .false.`.
-- [ ] Confirm that all allocated-but-uninitialized atmosphere fields remain
+- [x] Confirm that all allocated-but-uninitialized atmosphere fields remain
       inaccessible through guarded public operations.
-- [ ] Remove obsolete joint-mutator routines.
-- [ ] Build and run the full Fortran and Python test suites.
+- [x] Remove obsolete joint-mutator routines.
+- [x] Build and run the full Fortran and Python test suites.
 
 ### Pass 6: Atmosphere initialization ownership
 

@@ -14,8 +14,8 @@ contains
     character(:), allocatable, intent(out) :: err
     type(EvoAtmosphere) :: self
 
-    call setup_evoatmosphere_static(self, mechanism_file, settings_file, &
-                                    flux_file, data_dir, err)
+    self = create_EvoAtmosphere_static(mechanism_file, settings_file, &
+                                       flux_file, data_dir, err)
     if (allocated(err)) return
 
     call self%initialize_from_atmosphere_file(atmosphere_txt, err)
@@ -24,6 +24,7 @@ contains
 
   module function create_EvoAtmosphere_static(mechanism_file, settings_file, &
                                               flux_file, data_dir, err) result(self)
+    use photochem_settings, only: PhotoSettings
     character(len=*), intent(in) :: mechanism_file
     character(len=*), intent(in) :: settings_file
     character(len=*), intent(in) :: flux_file
@@ -31,33 +32,15 @@ contains
     character(:), allocatable, intent(out) :: err
     type(EvoAtmosphere) :: self
 
-    call setup_evoatmosphere_static(self, mechanism_file, settings_file, &
-                                    flux_file, data_dir, err)
+    type(PhotoSettings) :: settings
 
-  end function
-
-  subroutine setup_evoatmosphere_static(self, mechanism_file, settings_file, &
-                                        flux_file, data_dir, err)
-    use photochem_input, only: setup_static
-    use photochem_settings, only: PhotoSettings
-
-    type(EvoAtmosphere), intent(out) :: self
-    character(len=*), intent(in) :: mechanism_file
-    character(len=*), intent(in) :: settings_file
-    character(len=*), intent(in) :: flux_file
-    character(len=*), intent(in) :: data_dir
-    character(:), allocatable, intent(out) :: err
-
-    type(PhotoSettings) :: s
-
-    s = PhotoSettings(settings_file, err)
+    settings = PhotoSettings(settings_file, err)
     if (allocated(err)) return
 
-    allocate(self%dat)
-    allocate(self%var)
-    allocate(self%wrk)
+    self%dat = PhotochemData(mechanism_file, settings, data_dir, err)
+    if (allocated(err)) return
 
-    call setup_static(mechanism_file, s, flux_file, data_dir, self%dat, self%var, err)
+    self%var = PhotochemVars(self%dat, settings, flux_file, err)
     if (allocated(err)) return
 
     self%wrk = PhotochemWrk(self%dat%nsp, self%dat%np, self%dat%nq, &
@@ -65,7 +48,7 @@ contains
                             self%dat%nw)
     self%atmosphere_initialized = .false.
 
-  end subroutine
+  end function
 
   module subroutine initialize_from_atmosphere_file(self, atmosphere_txt, err)
     use photochem_input, only: finalize_atmosphere_state, &
