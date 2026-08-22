@@ -119,7 +119,7 @@ contains
   
   pure subroutine gibbs_energy_eval(thermo, T, found, gibbs_energy)
     use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial, Nasa7Polynomial
-    use photochem_types, only: ThermodynamicData
+    use photochem_data, only: ThermodynamicData
     
     type(ThermodynamicData), intent(in) :: thermo
     real(dp), intent(in) :: T
@@ -163,7 +163,7 @@ contains
   
   pure subroutine heat_capacity_eval(thermo, T, found, cp)
     use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial
-    use photochem_types, only: ThermodynamicData
+    use photochem_data, only: ThermodynamicData
   
     type(ThermodynamicData), intent(in) :: thermo
     real(dp), intent(in) :: T !! K

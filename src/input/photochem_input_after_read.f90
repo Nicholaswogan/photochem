@@ -587,7 +587,7 @@ contains
   end subroutine
 
   subroutine interp2particlexsdata(dat, particle_radius, particle_xs, err)
-    use photochem_types, only: ParticleXsections
+    use photochem_data, only: ParticleXsections
     type(PhotochemData), intent(in) :: dat
     real(dp), intent(in) :: particle_radius(:,:)
     type(ParticleXsections), intent(inout) :: particle_xs(:)

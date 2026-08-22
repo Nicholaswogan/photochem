@@ -568,8 +568,8 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 2: PhotochemData ownership
 
-- [ ] Create `photochem_data.f90`.
-- [ ] Move `PhotochemData` and its subordinate data types.
+- [x] Create `photochem_data.f90`.
+- [x] Move `PhotochemData` and its subordinate data types.
 - [ ] Move mechanism, reaction, thermodynamic, Henry, wavelength, cross-section,
       particle-optical, and Rayleigh readers into the owner module.
 - [ ] Replace construction-time `var%data_dir` access with explicit

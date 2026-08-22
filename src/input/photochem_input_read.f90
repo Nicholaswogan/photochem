@@ -61,7 +61,7 @@ contains
   end subroutine
   
   subroutine get_rxmechanism(mapping, infile, dat, var, err)
-    use photochem_types, only: ReverseRate
+    use photochem_data, only: ReverseRate
     use photochem_enum, only: CondensingParticle, ReactionParticle
     use photochem_enum, only: MieParticle, FractalParticle 
     use photochem_enum, only: PhotolysisRateType, ReverseRateType
@@ -1057,7 +1057,7 @@ contains
   subroutine get_thermodata(molecule, molecule_name, infile, &
                             thermo, err)
     use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial, Nasa7Polynomial
-    use photochem_types, only: ThermodynamicData
+    use photochem_data, only: ThermodynamicData
     class(type_dictionary), intent(in) :: molecule
     character(len=*), intent(in) :: molecule_name
     character(len=*), intent(in) :: infile
@@ -1178,7 +1178,7 @@ contains
   end subroutine
   
   subroutine get_reaction_sp_nums(dat, rx_str, rx, reverse, err)
-    use photochem_types, only: Reaction
+    use photochem_data, only: Reaction
     use photochem_enum, only: ThreeBodyRateType, FalloffRateType
     type(PhotochemData), intent(in) :: dat
     character(len=*), intent(in) :: rx_str
@@ -1259,7 +1259,8 @@ contains
   subroutine get_rateparams(dat, reaction_d, infile, rx, err)
     use photochem_enum, only: NoFalloff, TroeWithoutT2Falloff, TroeWithT2Falloff, JPLFalloff
     use photochem_enum, only: PhotolysisRateType, ElementaryRateType, ThreeBodyRateType, FalloffRateType, PressDependentRateType
-    use photochem_types, only: Reaction, BaseRate, ElementaryRate, ThreeBodyRate, FalloffRate, PhotolysisRate, PressDependentRate
+    use photochem_data, only: Reaction, BaseRate, ElementaryRate, ThreeBodyRate, &
+                              FalloffRate, PhotolysisRate, PressDependentRate
     type(PhotochemData), intent(in) :: dat
     class(type_dictionary), intent(in) :: reaction_d
     character(len=*), intent(in) :: infile
@@ -1378,7 +1379,7 @@ contains
 
     class is (PressDependentRate); block
       use futils, only: argsort
-      use photochem_types, only: MultiArrheniusRate
+      use photochem_data, only: MultiArrheniusRate
       type(MultiArrheniusRate) :: rate
       real(dp), allocatable :: P(:), A(:), b(:), Ea(:)
       integer, allocatable :: inds(:)
@@ -1461,7 +1462,7 @@ contains
   end subroutine
   
   subroutine get_efficiencies(dat, rx, eff, err)
-    use photochem_types, only: Efficiencies
+    use photochem_data, only: Efficiencies
     type(PhotochemData), intent(in) :: dat
     type(type_dictionary), intent(in) :: rx
     type(Efficiencies), intent(out) :: eff
@@ -1777,7 +1778,7 @@ contains
   end function
   
   subroutine check_sl(dat, err)
-    use photochem_types, only: ThreeBodyRate, FalloffRate
+    use photochem_data, only: ThreeBodyRate, FalloffRate
     type(PhotochemData), intent(in) :: dat
     character(:), allocatable, intent(out) :: err
     
@@ -2303,7 +2304,7 @@ contains
     use h5fortran
     use clima_useful, only: hdf5_file_closer
     use futils, only: interp_discrete_to_bins
-    use photochem_types, only: XsectionData
+    use photochem_data, only: XsectionData
     character(*), intent(in) :: filename
     integer, intent(in) :: sp_ind
     real(dp), intent(in) :: wavl(:)

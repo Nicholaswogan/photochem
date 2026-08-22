@@ -1,7 +1,7 @@
 module photochem_evoatmosphere
   use photochem_const, only: dp
-  use photochem_types, only : PhotochemData, PhotochemVars, PhotochemWrkEvo, &
-                              AtmosphereState
+  use photochem_data, only: PhotochemData
+  use photochem_types, only: PhotochemVars, PhotochemWrkEvo, AtmosphereState
   implicit none
 
   private

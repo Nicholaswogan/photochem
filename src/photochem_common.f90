@@ -4,7 +4,8 @@
 
 module photochem_common
   use photochem_const, only: dp
-  use photochem_types, only : PhotochemData, PhotochemVars
+  use photochem_data, only: PhotochemData
+  use photochem_types, only: PhotochemVars
   implicit none
 
   interface chempl
@@ -20,7 +21,7 @@ contains
   subroutine reaction_rates(dat, var, pressure, density, densities, rx_rates)
     use futils, only: searchsorted
     use photochem_enum, only: NoFalloff, TroeWithoutT2Falloff, TroeWithT2Falloff, JPLFalloff
-    use photochem_types, only: ElementaryRate, ThreeBodyRate, FalloffRate, PressDependentRate
+    use photochem_data, only: ElementaryRate, ThreeBodyRate, FalloffRate, PressDependentRate
     use photochem_eqns, only: arrhenius_rate, Troe_noT2, Troe_withT2, falloff_rate
     use photochem_const, only: Rgas, k_boltz, smallest_real ! constants
     

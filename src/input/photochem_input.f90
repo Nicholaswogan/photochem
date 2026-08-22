@@ -2,8 +2,9 @@
 module photochem_input
   use fortran_yaml_c_types, only : type_node, type_dictionary, type_list, type_error, &
                          type_list_item, type_scalar, type_key_value_pair
+  use photochem_data, only: PhotochemData
   use photochem_settings, only: PhotoSettings
-  use photochem_types, only : PhotochemData, PhotochemVars, AtmosphereState
+  use photochem_types, only: PhotochemVars, AtmosphereState
   use photochem_const, only: dp, str_len, s_str_len
   implicit none
   private 
