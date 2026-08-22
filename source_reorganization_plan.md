@@ -597,15 +597,15 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 ### Pass 4: Work ownership
 
 - [x] Create `photochem_wrk.f90`.
-- [ ] Merge the current `PhotochemWrk` and `PhotochemWrkEvo` into one
+- [x] Merge the current `PhotochemWrk` and `PhotochemWrkEvo` into one
       `PhotochemWrk` type.
 - [x] Move `PhotochemWrk` and the SUNDIALS owner types into the new module.
-- [ ] Replace `%init` allocation with the explicit-dimension constructor
+- [x] Replace `%init` allocation with the explicit-dimension constructor
       `wrk = PhotochemWrk(...)`.
-- [ ] Update `EvoAtmosphere` and all call sites to use the consolidated type.
-- [ ] Preserve reliable SUNDIALS finalization and cleanup semantics.
-- [ ] Update imports and tests.
-- [ ] Build and run the full Fortran test suite.
+- [x] Update `EvoAtmosphere` and all call sites to use the consolidated type.
+- [x] Preserve reliable SUNDIALS finalization and cleanup semantics.
+- [x] Update imports and tests.
+- [x] Build and run the full Fortran test suite.
 
 ### Pass 5: Aggregate static construction
 

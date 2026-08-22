@@ -561,7 +561,7 @@ contains
     real(dp), intent(in) :: usol_in(:,:)
     character(:), allocatable, intent(out) :: err
 
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
 
     wrk => self%wrk
 
@@ -600,7 +600,7 @@ contains
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     integer :: i, j, k
 
     dat => self%dat
@@ -705,7 +705,7 @@ contains
     real(dp), pointer :: usol_in(:,:)
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     
     call self%require_atmosphere_initialized('right_hand_side', err)
     if (allocated(err)) return
@@ -838,7 +838,7 @@ contains
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
 
     dat => self%dat
     var => self%var
@@ -891,7 +891,7 @@ contains
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
 
     integer :: i, k, j, m, mm
   
@@ -1058,7 +1058,7 @@ contains
     
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     
     call self%require_atmosphere_initialized('right_hand_side_chem', err)
     if (allocated(err)) return
@@ -1120,7 +1120,7 @@ contains
     integer :: i, j, k, np, nl, nlT
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
   
     call self%require_atmosphere_initialized('production_and_loss', err)
     if (allocated(err)) return

@@ -7,7 +7,7 @@ module photochem_wrk
   implicit none
   private
 
-  public :: PhotochemWrk, PhotochemWrkEvo
+  public :: PhotochemWrk
   public :: SundialsDataFinalizer
 
   type :: SundialsData
@@ -114,11 +114,6 @@ module photochem_wrk
     real(dp), allocatable :: djac_chem(:,:)
     ! end work space for autodiff jacobian
 
-  contains
-    procedure :: init => PhotochemWrk_init
-  end type
-
-  type, extends(PhotochemWrk) :: PhotochemWrkEvo
     !> Surface pressure derived from the current atmospheric column (bars).
     real(dp) :: surface_pressure = 0.0_dp
     real(dp), allocatable :: mix(:,:) !! (nq,nz) mixing ratio.
@@ -129,106 +124,52 @@ module photochem_wrk
     integer :: n_toa_pressure_updates = 0
     integer :: n_toa_pressure_failures = 0
     integer :: nsteps_since_toa_pressure_update = 0
-
-  contains
-    procedure :: init => PhotochemWrkEvo_init
   end type
+
+  interface PhotochemWrk
+    module procedure :: create_PhotochemWrk
+  end interface
 
 contains
 
-  subroutine PhotochemWrkEvo_init(self, nsp, np, nq, nz, nrT, kj, nw)
-    class(PhotochemWrkEvo), intent(inout) :: self
-    integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw
-
-    call PhotochemWrk_init(self, nsp, np, nq, nz, nrT, kj, nw)
-
-    self%surface_pressure = 0.0_dp
-    self%n_toa_pressure_updates = 0
-    self%n_toa_pressure_failures = 0
-    self%nsteps_since_toa_pressure_update = 0
-
-    if (allocated(self%mix)) then
-      deallocate(self%mix)
-      deallocate(self%pressure_hydro)
-      deallocate(self%density_hydro)
-    endif
-
-    allocate(self%mix(nq,nz))
-    allocate(self%pressure_hydro(nz))
-    allocate(self%density_hydro(nz))
-  end subroutine
-
-  subroutine PhotochemWrk_init(self, nsp, np, nq, nz, nrT, kj, nw)
+  function create_PhotochemWrk(nsp, np, nq, nz, nrT, kj, nw) result(wrk)
     use photochem_const, only: nsteps_save
-    class(PhotochemWrk), intent(inout) :: self
     integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw
+    type(PhotochemWrk) :: wrk
 
-    self%robust_stepper_initialized = .false.
-    self%nsteps_total = -1
-    self%nerrors_total = -1
-
-    if (allocated(self%usol)) then
-      deallocate(self%t_history)
-      deallocate(self%mix_history)
-      deallocate(self%dmix)
-      deallocate(self%usol)
-      deallocate(self%mubar)
-      deallocate(self%pressure)
-      deallocate(self%density)
-      deallocate(self%densities)
-      deallocate(self%rx_rates)
-      deallocate(self%prates)
-      deallocate(self%surf_radiance)
-      deallocate(self%amean_grd)
-      deallocate(self%optical_depth)
-      deallocate(self%xp)
-      deallocate(self%xl)
-      deallocate(self%DU)
-      deallocate(self%DD)
-      deallocate(self%DL)
-      deallocate(self%ADU)
-      deallocate(self%ADL)
-      deallocate(self%ADD)
-      deallocate(self%upper_veff_copy)
-      deallocate(self%lower_vdep_copy)
-      deallocate(self%scale_height)
-      deallocate(self%wfall)
-      deallocate(self%gas_sat_den)
-      deallocate(self%molecules_per_particle)
-      deallocate(self%rainout_rates)
-      deallocate(self%djac_chem)
-    endif
-
-    allocate(self%t_history(nsteps_save))
-    allocate(self%mix_history(nq,nz,nsteps_save))
-    allocate(self%dmix(nq,nz))
-    allocate(self%usol(nq,nz))
-    allocate(self%mubar(nz))
-    allocate(self%pressure(nz))
-    allocate(self%density(nz))
-    allocate(self%densities(nsp+1,nz))
-    allocate(self%rx_rates(nz,nrT))
-    allocate(self%prates(nz,kj))
-    allocate(self%surf_radiance(nw))
-    allocate(self%amean_grd(nz,nw))
-    allocate(self%optical_depth(nz,nw))
-    allocate(self%xp(nz))
-    allocate(self%xl(nz))
-    allocate(self%DU(nq,nz))
-    allocate(self%DD(nq,nz))
-    allocate(self%DL(nq,nz))
-    allocate(self%ADU(nq,nz))
-    allocate(self%ADL(nq,nz))
-    allocate(self%ADD(nq,nz))
-    allocate(self%upper_veff_copy(nq))
-    allocate(self%lower_vdep_copy(nq))
-    allocate(self%scale_height(nz))
-    allocate(self%wfall(np,nz))
-    allocate(self%gas_sat_den(np,nz))
-    allocate(self%molecules_per_particle(np,nz))
-    allocate(self%rainout_rates(nq,nz))
-    allocate(self%djac_chem(nq,nz*nq))
-  end subroutine
+    allocate(wrk%t_history(nsteps_save))
+    allocate(wrk%mix_history(nq,nz,nsteps_save))
+    allocate(wrk%dmix(nq,nz))
+    allocate(wrk%usol(nq,nz))
+    allocate(wrk%mubar(nz))
+    allocate(wrk%pressure(nz))
+    allocate(wrk%density(nz))
+    allocate(wrk%densities(nsp+1,nz))
+    allocate(wrk%rx_rates(nz,nrT))
+    allocate(wrk%prates(nz,kj))
+    allocate(wrk%surf_radiance(nw))
+    allocate(wrk%amean_grd(nz,nw))
+    allocate(wrk%optical_depth(nz,nw))
+    allocate(wrk%xp(nz))
+    allocate(wrk%xl(nz))
+    allocate(wrk%DU(nq,nz))
+    allocate(wrk%DD(nq,nz))
+    allocate(wrk%DL(nq,nz))
+    allocate(wrk%ADU(nq,nz))
+    allocate(wrk%ADL(nq,nz))
+    allocate(wrk%ADD(nq,nz))
+    allocate(wrk%upper_veff_copy(nq))
+    allocate(wrk%lower_vdep_copy(nq))
+    allocate(wrk%scale_height(nz))
+    allocate(wrk%wfall(np,nz))
+    allocate(wrk%gas_sat_den(np,nz))
+    allocate(wrk%molecules_per_particle(np,nz))
+    allocate(wrk%rainout_rates(nq,nz))
+    allocate(wrk%djac_chem(nq,nz*nq))
+    allocate(wrk%mix(nq,nz))
+    allocate(wrk%pressure_hydro(nz))
+    allocate(wrk%density_hydro(nz))
+  end function
 
   subroutine SundialsData_finalize(self, err)
     use iso_c_binding, only: c_associated, c_null_ptr, c_int

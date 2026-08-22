@@ -373,7 +373,7 @@ cdef class EvoAtmosphere:
     integration.
     """
     def __get__(self):
-      wrk = PhotochemWrkEvo()
+      wrk = PhotochemWrk()
       ea_pxd.evoatmosphere_wrk_get(self._ptr, &wrk._ptr)
       return wrk
 

@@ -10,14 +10,13 @@ module photochem_types ! make a giant IO object
   use photochem_vars, only: PhotochemVars, PressureTempEddProfile, &
                             TOAPressureMaintenance, time_dependent_flux_fcn, &
                             time_dependent_rate_fcn, binary_diffusion_fcn
-  use photochem_wrk, only: PhotochemWrk, PhotochemWrkEvo, &
-                           SundialsDataFinalizer
+  use photochem_wrk, only: PhotochemWrk, SundialsDataFinalizer
   implicit none
   private
   
   public :: PhotoSettings, SettingsBC
   public :: XsectionData, ParticleXsections
-  public :: PhotochemData, PhotochemVars, PhotochemWrk, PhotochemWrkEvo
+  public :: PhotochemData, PhotochemVars, PhotochemWrk
   public :: AtmosphereState
   public :: ProductionLoss, ThermodynamicData, CondensationParameters
   public :: PressureTempEddProfile

@@ -2,7 +2,7 @@ module photochem_evoatmosphere
   use photochem_const, only: dp
   use photochem_data, only: PhotochemData
   use photochem_vars, only: PhotochemVars
-  use photochem_wrk, only: PhotochemWrkEvo
+  use photochem_wrk, only: PhotochemWrk
   use photochem_types, only: AtmosphereState
   implicit none
 
@@ -12,7 +12,7 @@ module photochem_evoatmosphere
   type :: EvoAtmosphere
     type(PhotochemData), allocatable :: dat
     type(PhotochemVars), allocatable :: var
-    type(PhotochemWrkEvo), allocatable :: wrk
+    type(PhotochemWrk), allocatable :: wrk
 
     !> True only after atmosphere-dependent initialization and preparation have
     !! completed successfully.

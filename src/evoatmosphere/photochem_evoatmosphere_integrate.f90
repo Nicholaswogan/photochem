@@ -181,7 +181,7 @@ contains
     type(SundialsDataFinalizer) :: sunfin
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     
     success = .false.
     call self%require_atmosphere_initialized('evolve', err)
@@ -503,7 +503,7 @@ contains
     integer :: i,j,ind
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
 
     converged = .false.
     call self%require_atmosphere_initialized('check_for_convergence', err)
@@ -597,7 +597,7 @@ contains
     
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     type(EvoAtmosphere), pointer :: self_ptr
     real(dp) :: initial_step_
     
@@ -731,7 +731,7 @@ contains
     integer :: i, j, k
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
 
     dat => self%dat
     var => self%var
@@ -843,7 +843,7 @@ contains
     character(:), allocatable :: reinit_err
     integer(c_int) :: ierr
     logical :: can_reinit, attempted_reinit
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
 
     wrk => self%wrk
     usol_clipped = max(usol_restart, self%var%reinit_min_density)
@@ -898,7 +898,7 @@ contains
     real(c_double) :: tcur(1)
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     
     tn = 0.0_dp
     call self%require_atmosphere_initialized('step', err)
@@ -1103,7 +1103,7 @@ contains
     logical :: chemistry_converged, toa_updated, toa_failed
 
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     
     converged = .false.
     give_up = .false.

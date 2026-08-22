@@ -1,2 +1,1 @@
 struct PhotochemWrk{};
-struct PhotochemWrkEvo{};

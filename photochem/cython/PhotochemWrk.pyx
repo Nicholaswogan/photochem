@@ -1,52 +1,7 @@
 cimport PhotochemWrk_pxd as wrk_pxd
 
-cdef class PhotochemWrkEvo(PhotochemWrk):
-
-  property surface_pressure:
-    "double. Surface pressure derived from the current atmospheric column, in bars."
-    def __get__(self):
-      cdef double val
-      cdef wrk_pxd.PhotochemWrkEvo *evo_ptr = <wrk_pxd.PhotochemWrkEvo *>self._ptr
-      wrk_pxd.photochemwrkevo_surface_pressure_get(evo_ptr, &val)
-      return val
-
-  property n_toa_pressure_updates:
-    """int. Number of successful automatic TOA pressure updates."""
-    def __get__(self):
-      cdef int val
-      cdef wrk_pxd.PhotochemWrkEvo *evo_ptr = <wrk_pxd.PhotochemWrkEvo *>self._ptr
-      wrk_pxd.photochemwrkevo_n_toa_pressure_updates_get(evo_ptr, &val)
-      return val
-
-  property n_toa_pressure_failures:
-    """int. Number of failed automatic TOA pressure maintenance attempts."""
-    def __get__(self):
-      cdef int val
-      cdef wrk_pxd.PhotochemWrkEvo *evo_ptr = <wrk_pxd.PhotochemWrkEvo *>self._ptr
-      wrk_pxd.photochemwrkevo_n_toa_pressure_failures_get(evo_ptr, &val)
-      return val
-
-  property nsteps_since_toa_pressure_update:
-    """int. Accepted steps since the last successful TOA pressure update."""
-    def __get__(self):
-      cdef int val
-      cdef wrk_pxd.PhotochemWrkEvo *evo_ptr = <wrk_pxd.PhotochemWrkEvo *>self._ptr
-      wrk_pxd.photochemwrkevo_nsteps_since_toa_pressure_update_get(evo_ptr, &val)
-      return val
-
-  property pressure_hydro:
-    """ndarray[double,dim=1], shape (nz). The hydrostatic pressure at the center of each 
-    atmospheric layer (dynes/cm^2).
-    """
-    def __get__(self):
-      cdef int dim1
-      wrk_pxd.photochemwrkevo_pressure_hydro_get_size(<wrk_pxd.PhotochemWrkEvo *>self._ptr, &dim1)
-      cdef ndarray arr = np.empty(dim1, np.double)
-      wrk_pxd.photochemwrkevo_pressure_hydro_get(<wrk_pxd.PhotochemWrkEvo *>self._ptr, &dim1, <double *>arr.data)
-      return arr
-
 cdef class PhotochemWrk:
-  """This class contains data that changes during each step 
+  """This class contains data that changes during each step
   when integrating the photochemical model
   """
 
@@ -54,6 +9,45 @@ cdef class PhotochemWrk:
 
   def __cinit__(self):
     self._ptr = NULL
+
+  property surface_pressure:
+    "double. Surface pressure derived from the current atmospheric column, in bars."
+    def __get__(self):
+      cdef double val
+      wrk_pxd.photochemwrk_surface_pressure_get(self._ptr, &val)
+      return val
+
+  property n_toa_pressure_updates:
+    """int. Number of successful automatic TOA pressure updates."""
+    def __get__(self):
+      cdef int val
+      wrk_pxd.photochemwrk_n_toa_pressure_updates_get(self._ptr, &val)
+      return val
+
+  property n_toa_pressure_failures:
+    """int. Number of failed automatic TOA pressure maintenance attempts."""
+    def __get__(self):
+      cdef int val
+      wrk_pxd.photochemwrk_n_toa_pressure_failures_get(self._ptr, &val)
+      return val
+
+  property nsteps_since_toa_pressure_update:
+    """int. Accepted steps since the last successful TOA pressure update."""
+    def __get__(self):
+      cdef int val
+      wrk_pxd.photochemwrk_nsteps_since_toa_pressure_update_get(self._ptr, &val)
+      return val
+
+  property pressure_hydro:
+    """ndarray[double,dim=1], shape (nz). The hydrostatic pressure at the center of each
+    atmospheric layer (dynes/cm^2).
+    """
+    def __get__(self):
+      cdef int dim1
+      wrk_pxd.photochemwrk_pressure_hydro_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      wrk_pxd.photochemwrk_pressure_hydro_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
 
   property nsteps_total:
     "int. Total number of steps in a robust integration."

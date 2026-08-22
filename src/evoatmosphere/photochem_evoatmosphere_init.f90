@@ -60,9 +60,9 @@ contains
     call setup_static(mechanism_file, s, flux_file, data_dir, self%dat, self%var, err)
     if (allocated(err)) return
 
-    call self%wrk%init(self%dat%nsp, self%dat%np, self%dat%nq, &
-                       self%var%nz, self%dat%nrT, self%dat%kj, &
-                       self%dat%nw)
+    self%wrk = PhotochemWrk(self%dat%nsp, self%dat%np, self%dat%nq, &
+                            self%var%nz, self%dat%nrT, self%dat%kj, &
+                            self%dat%nw)
     self%atmosphere_initialized = .false.
 
   end subroutine

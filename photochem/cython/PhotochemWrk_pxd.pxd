@@ -5,8 +5,6 @@ cdef extern from "<stdbool.h>":
 cdef extern from "PhotochemWrk.h":
   struct PhotochemWrk:
     pass
-  struct PhotochemWrkEvo:
-    pass
 
 cdef extern void photochemwrk_nsteps_total_get(PhotochemWrk *ptr, int *val)
 cdef extern void photochemwrk_nerrors_total_get(PhotochemWrk *ptr, int *val)
@@ -14,9 +12,9 @@ cdef extern void photochemwrk_robust_stepper_initialized_get(PhotochemWrk *ptr, 
 
 cdef extern void photochemwrk_nsteps_get(PhotochemWrk *ptr, int *val)
 
-cdef extern void photochemwrkevo_n_toa_pressure_updates_get(PhotochemWrkEvo *ptr, int *val)
-cdef extern void photochemwrkevo_n_toa_pressure_failures_get(PhotochemWrkEvo *ptr, int *val)
-cdef extern void photochemwrkevo_nsteps_since_toa_pressure_update_get(PhotochemWrkEvo *ptr, int *val)
+cdef extern void photochemwrk_n_toa_pressure_updates_get(PhotochemWrk *ptr, int *val)
+cdef extern void photochemwrk_n_toa_pressure_failures_get(PhotochemWrk *ptr, int *val)
+cdef extern void photochemwrk_nsteps_since_toa_pressure_update_get(PhotochemWrk *ptr, int *val)
 
 cdef extern void photochemwrk_t_history_get_size(PhotochemWrk *ptr, int *dim1)
 cdef extern void photochemwrk_t_history_get(PhotochemWrk *ptr, int *dim1, double *arr)
@@ -66,7 +64,6 @@ cdef extern void photochemwrk_vh2_esc_get(PhotochemWrk *ptr, double *val)
 
 cdef extern void photochemwrk_vh_esc_get(PhotochemWrk *ptr, double *val)
 
-# PhotochemWrkEvo
-cdef extern void photochemwrkevo_surface_pressure_get(PhotochemWrkEvo *ptr, double *val)
-cdef extern void photochemwrkevo_pressure_hydro_get_size(PhotochemWrkEvo *ptr, int *dim1)
-cdef extern void photochemwrkevo_pressure_hydro_get(PhotochemWrkEvo *ptr, int *dim1, double *arr)
+cdef extern void photochemwrk_surface_pressure_get(PhotochemWrk *ptr, double *val)
+cdef extern void photochemwrk_pressure_hydro_get_size(PhotochemWrk *ptr, int *dim1)
+cdef extern void photochemwrk_pressure_hydro_get(PhotochemWrk *ptr, int *dim1, double *arr)

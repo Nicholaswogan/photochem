@@ -66,7 +66,7 @@ contains
     real(dp) :: rhs(self%var%neqs)  
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     
     call self%require_atmosphere_initialized('out2atmosphere_txt', err)
     if (allocated(err)) return
@@ -97,7 +97,7 @@ contains
     real(dp) :: chemical_production
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
   
     integer :: i
     
@@ -1765,7 +1765,7 @@ contains
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     character(:), allocatable :: original_err
 
     dat => self%dat

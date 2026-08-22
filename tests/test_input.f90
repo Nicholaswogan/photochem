@@ -4,6 +4,7 @@ program test_input
   call test_parsing()
   call test_data_construction()
   call test_vars_construction()
+  call test_wrk_construction()
   call test_removed_evolve_climate_setting()
   call test_removed_conserving_initialization()
   call test_removed_water_settings()
@@ -85,6 +86,34 @@ contains
         size(var%xs_x_qy,2) /= dat%kj .or. &
         size(var%xs_x_qy,3) /= dat%nw) then
       call fail('PhotochemVars cross-section dimensions are inconsistent')
+    endif
+  end subroutine
+
+  subroutine test_wrk_construction()
+    use photochem_const, only: nsteps_save
+    use photochem_wrk, only: PhotochemWrk
+    type(PhotochemWrk) :: wrk
+    integer, parameter :: nsp = 12, np = 2, nq = 8, nz = 20
+    integer, parameter :: nrT = 15, kj = 3, nw = 25
+
+    wrk = PhotochemWrk(nsp, np, nq, nz, nrT, kj, nw)
+
+    if (size(wrk%t_history) /= nsteps_save) call fail('PhotochemWrk has the wrong history size')
+    if (any(shape(wrk%mix_history) /= [nq,nz,nsteps_save])) then
+      call fail('PhotochemWrk has inconsistent mixing-ratio history dimensions')
+    endif
+    if (any(shape(wrk%usol) /= [nq,nz])) call fail('PhotochemWrk has inconsistent solution dimensions')
+    if (any(shape(wrk%densities) /= [nsp+1,nz])) call fail('PhotochemWrk has inconsistent density dimensions')
+    if (any(shape(wrk%rx_rates) /= [nz,nrT])) call fail('PhotochemWrk has inconsistent reaction-rate dimensions')
+    if (any(shape(wrk%prates) /= [nz,kj])) call fail('PhotochemWrk has inconsistent photolysis-rate dimensions')
+    if (any(shape(wrk%amean_grd) /= [nz,nw])) call fail('PhotochemWrk has inconsistent radiation dimensions')
+    if (any(shape(wrk%mix) /= [nq,nz])) call fail('PhotochemWrk has inconsistent mixing-ratio dimensions')
+    if (size(wrk%pressure_hydro) /= nz .or. size(wrk%density_hydro) /= nz) then
+      call fail('PhotochemWrk has inconsistent hydrostatic dimensions')
+    endif
+    if (wrk%robust_stepper_initialized) call fail('PhotochemWrk robust state was initialized prematurely')
+    if (wrk%nsteps_total /= -1 .or. wrk%nerrors_total /= -1) then
+      call fail('PhotochemWrk robust counters have the wrong initial values')
     endif
   end subroutine
 

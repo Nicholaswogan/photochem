@@ -35,26 +35,26 @@
     val = wrk%nsteps
   end subroutine
 
-  subroutine photochemwrkevo_n_toa_pressure_updates_get(ptr, val) bind(c)
+  subroutine photochemwrk_n_toa_pressure_updates_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
     val = wrk%n_toa_pressure_updates
   end subroutine
 
-  subroutine photochemwrkevo_n_toa_pressure_failures_get(ptr, val) bind(c)
+  subroutine photochemwrk_n_toa_pressure_failures_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
     val = wrk%n_toa_pressure_failures
   end subroutine
 
-  subroutine photochemwrkevo_nsteps_since_toa_pressure_update_get(ptr, val) bind(c)
+  subroutine photochemwrk_nsteps_since_toa_pressure_update_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
     val = wrk%nsteps_since_toa_pressure_update
   end subroutine
@@ -328,29 +328,27 @@
     val = wrk%VH_esc
   end subroutine
 
-! PhotochemWrkEvo
-
-  subroutine photochemwrkevo_surface_pressure_get(ptr, val) bind(c)
+  subroutine photochemwrk_surface_pressure_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
     val = wrk%surface_pressure
   end subroutine
 
-  subroutine photochemwrkevo_pressure_hydro_get_size(ptr, dim1) bind(c)
+  subroutine photochemwrk_pressure_hydro_get_size(ptr, dim1) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
     dim1 = size(wrk%pressure_hydro,1)
   end subroutine
   
-  subroutine photochemwrkevo_pressure_hydro_get(ptr, dim1, arr) bind(c)
+  subroutine photochemwrk_pressure_hydro_get(ptr, dim1, arr) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
     real(c_double), intent(out) :: arr(dim1)
-    type(PhotochemWrkEvo), pointer :: wrk
+    type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
     arr = wrk%pressure_hydro
   end subroutine
