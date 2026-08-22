@@ -62,7 +62,6 @@ module photochem_evoatmosphere
     procedure, private :: require_atmosphere_initialized
 
     !~~ photochem_evoatmosphere_rhs.f90 ~~!
-    procedure, private :: set_trop_ind
     procedure, private :: apply_lower_boundary_conditions
     procedure, private :: prep_atm_evo_gas
     procedure, private :: prep_atmosphere_unchecked => prep_all_evo_gas
@@ -282,12 +281,6 @@ module photochem_evoatmosphere
     end subroutine
 
     !~~ photochem_atmosphere_rhs.f90 ~~!
-
-    module subroutine set_trop_ind(self, usol_in, err)
-      class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_in(:,:)
-      character(:), allocatable, intent(out) :: err
-    end subroutine
 
     !> Apply fixed-density and fixed-pressure lower boundary conditions to a
     !! bottom-layer number-density vector without modifying any other state.

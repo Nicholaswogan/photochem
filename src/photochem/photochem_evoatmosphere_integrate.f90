@@ -751,7 +751,11 @@ contains
     call self%apply_lower_boundary_conditions(var%temperature(1), yvec_usol(:,1), err)
     if (allocated(err)) return
 
-    call self%set_trop_ind(yvec_usol, err)
+    call self%prep_atm_evo_gas( &
+      yvec_usol, wrk%usol, wrk%molecules_per_particle, wrk%pressure, &
+      wrk%density, wrk%mix, wrk%mubar, wrk%pressure_hydro, &
+      wrk%density_hydro, err=err &
+    )
     if (allocated(err)) return
     do j=1,var%nz
       do i=1,dat%nq

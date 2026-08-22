@@ -556,36 +556,6 @@ contains
 
   end subroutine
 
-  module subroutine set_trop_ind(self, usol_in, err)
-    class(EvoAtmosphere), target, intent(inout) :: self
-    real(dp), intent(in) :: usol_in(:,:)
-    character(:), allocatable, intent(out) :: err
-
-    type(PhotochemWrk), pointer :: wrk
-
-    wrk => self%wrk
-
-    call prep_atm_evo_gas(self, usol_in, wrk%usol, &
-                          wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
-                          wrk%pressure_hydro, wrk%density_hydro, err=err)
-    if (allocated(err)) return
-
-    if (self%dat%gas_rainout) then
-      self%var%trop_ind = max(minloc(abs(self%var%z - self%var%trop_alt), 1) - 1, 1)
-      
-      if (self%var%trop_ind < 3) then
-        err = 'Tropopause is too low.'
-        return
-      elseif (self%var%trop_ind > self%var%nz-2) then
-        err = 'Tropopause is too high.'
-        return
-      endif
-    else
-      self%var%trop_ind = 1
-    endif
-
-  end subroutine
-
   module subroutine prep_all_evo_gas(self, usol_in, apply_persistent_profile, err)
 
     use photochem_chemistry, only: reaction_rates, rainout, photorates
