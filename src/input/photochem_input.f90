@@ -4,7 +4,8 @@ module photochem_input
                          type_list_item, type_scalar, type_key_value_pair
   use photochem_data, only: PhotochemData
   use photochem_settings, only: PhotoSettings
-  use photochem_types, only: PhotochemVars, AtmosphereState
+  use photochem_vars, only: PhotochemVars
+  use photochem_types, only: AtmosphereState
   use photochem_const, only: dp, str_len, s_str_len
   implicit none
   private 

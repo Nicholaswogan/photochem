@@ -173,7 +173,7 @@ contains
                               default_binary_diffusion_param
     use photochem_const, only: k_boltz, N_avo
     use photochem_enum, only: DiffusionLimHydrogenEscape
-    use photochem_types, only: binary_diffusion_fcn
+    use photochem_vars, only: binary_diffusion_fcn
 
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var

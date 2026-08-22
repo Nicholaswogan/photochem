@@ -1,6 +1,7 @@
 
 submodule(photochem_evoatmosphere) photochem_evoatmosphere_utils
-  use photochem_types, only: PressureTempEddProfile, AtmosphereState
+  use photochem_vars, only: PressureTempEddProfile
+  use photochem_types, only: AtmosphereState
   implicit none
 
   type :: PressTempEddState
@@ -281,7 +282,7 @@ contains
   end subroutine
 
   module subroutine set_rate_fcn(self, species, fcn, err)
-    use photochem_types, only: time_dependent_rate_fcn
+    use photochem_vars, only: time_dependent_rate_fcn
     class(EvoAtmosphere), target, intent(inout) :: self
     character(*), intent(in) :: species
     procedure(time_dependent_rate_fcn), pointer :: fcn

@@ -3,8 +3,7 @@ module photochem_c_api
   use clima_saturationdata, only: SaturationData
   use photochem, only: EvoAtmosphere
   use photochem_data, only: PhotochemData
-  use photochem_types, only: PhotochemVars
-  use photochem_types, only: TOAPressureMaintenance
+  use photochem_vars, only: PhotochemVars, TOAPressureMaintenance
   use photochem_types, only: PhotochemWrk, PhotochemWrkEvo
   use photochem_types, only: ProductionLoss
   use photochem_settings, only: CondensationParameters

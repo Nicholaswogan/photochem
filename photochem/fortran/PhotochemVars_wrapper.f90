@@ -87,7 +87,7 @@
   end subroutine
 
   subroutine photochemvars_photon_flux_fcn_set(ptr, photon_flux_fcn_c) bind(c)
-    use photochem_types, only: time_dependent_flux_fcn
+    use photochem_vars, only: time_dependent_flux_fcn
     type(c_ptr), value, intent(in) :: ptr
     type(c_funptr), value, intent(in) :: photon_flux_fcn_c
   
@@ -166,7 +166,7 @@
   end subroutine
 
   subroutine photochemvars_custom_binary_diffusion_fcn_set(ptr, fcn_c) bind(c)
-    use photochem_types, only: binary_diffusion_fcn
+    use photochem_vars, only: binary_diffusion_fcn
     type(c_ptr), value, intent(in) :: ptr
     type(c_funptr), value, intent(in) :: fcn_c
   

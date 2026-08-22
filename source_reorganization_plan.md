@@ -582,8 +582,8 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 3: PhotochemVars ownership
 
-- [ ] Create `photochem_vars.f90`.
-- [ ] Move `PhotochemVars` and its subordinate types and callback interfaces.
+- [x] Create `photochem_vars.f90`.
+- [x] Move `PhotochemVars` and its subordinate types and callback interfaces.
 - [ ] Move mutable settings and boundary-condition setup into this module.
 - [ ] Move stellar-flux reading into this module.
 - [ ] Move model-grid allocation into this module.

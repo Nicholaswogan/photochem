@@ -1,7 +1,8 @@
 module photochem_evoatmosphere
   use photochem_const, only: dp
   use photochem_data, only: PhotochemData
-  use photochem_types, only: PhotochemVars, PhotochemWrkEvo, AtmosphereState
+  use photochem_vars, only: PhotochemVars
+  use photochem_types, only: PhotochemWrkEvo, AtmosphereState
   implicit none
 
   private
@@ -519,7 +520,7 @@ module photochem_evoatmosphere
     !> This could be useful for modeling external processes not in the
     !> model.
     module subroutine set_rate_fcn(self, species, fcn, err)
-      use photochem_types, only: time_dependent_rate_fcn
+      use photochem_vars, only: time_dependent_rate_fcn
       class(EvoAtmosphere), target, intent(inout) :: self
       character(*), intent(in) :: species !! Species name
       procedure(time_dependent_rate_fcn), pointer :: fcn

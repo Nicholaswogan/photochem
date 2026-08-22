@@ -342,7 +342,7 @@
   end subroutine
 
   subroutine evoatmosphere_set_rate_fcn_wrapper(ptr, species_c, fcn_c, err) bind(c)
-    use photochem_types, only: time_dependent_rate_fcn
+    use photochem_vars, only: time_dependent_rate_fcn
     type(c_ptr), value, intent(in) :: ptr
     character(kind=c_char), intent(in) :: species_c(*)
     type(c_funptr), value, intent(in) :: fcn_c

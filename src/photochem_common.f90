@@ -5,7 +5,7 @@
 module photochem_common
   use photochem_const, only: dp
   use photochem_data, only: PhotochemData
-  use photochem_types, only: PhotochemVars
+  use photochem_vars, only: PhotochemVars
   implicit none
 
   interface chempl
