@@ -3,10 +3,12 @@ submodule (photochem_input) photochem_input_read
   
 contains
   
-  module subroutine read_static_files(mechanism_file, s, flux_file, dat, var, err)
+  module subroutine read_static_files(mechanism_file, s, flux_file, data_dir, &
+                                      dat, var, err)
     character(len=*), intent(in) :: mechanism_file
     type(PhotoSettings), intent(in) :: s
     character(len=*), intent(in) :: flux_file
+    character(len=*), intent(in) :: data_dir
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
@@ -29,11 +31,11 @@ contains
 
     !!! henrys law !!!
     if (dat%gas_rainout) then
-      call get_henry(dat, var, s, err)
+      call get_henry(dat, data_dir, s, err)
       if (allocated(err)) return
     endif
     
-    call get_photorad(dat, var, err)
+    call get_photorad(dat, data_dir, err)
     if (allocated(err)) return
     
     ! stellar flux
@@ -659,11 +661,11 @@ contains
     enddo
   end subroutine
   
-  subroutine get_henry(dat, var, s, err)
+  subroutine get_henry(dat, data_dir, s, err)
     use photochem_settings, only: PhotoSettings
     use fortran_yaml_c, only : YamlFile
     type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(in) :: var
+    character(len=*), intent(in) :: data_dir
     type(PhotoSettings), intent(in) :: s
     character(:), allocatable :: err
     
@@ -674,7 +676,7 @@ contains
     real(dp), allocatable :: henry_data(:,:)
 
     ! parse yaml file
-    call file%parse(trim(var%data_dir)//"/henry/henry.yaml", err)
+    call file%parse(trim(data_dir)//"/henry/henry.yaml", err)
     if (allocated(err)) return
     select type (root => file%root)
     class is (type_list)
@@ -1748,34 +1750,34 @@ contains
     
   end subroutine
   
-  subroutine get_photorad(dat, var, err)
+  subroutine get_photorad(dat, data_dir, err)
     type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(in) :: var
+    character(len=*), intent(in) :: data_dir
     character(:), allocatable, intent(out) :: err
     
     ! Read wavelength grid
-    call get_wavl(dat, var, err)
+    call get_wavl(dat, data_dir, err)
     if (allocated(err)) return
     
     ! get rayleigh
-    call get_rayleigh(dat, var, err)
+    call get_rayleigh(dat, data_dir, err)
     if (allocated(err)) return
     
     ! get photolysis xsections data
-    call get_photolysis_xs(dat, var, err)
+    call get_photolysis_xs(dat, data_dir, err)
     if (allocated(err)) return
     
     if (dat%there_are_particles) then
-      call get_aerosol_xs(dat, var, err)
+      call get_aerosol_xs(dat, data_dir, err)
       if (allocated(err)) return
     endif
     
   end subroutine
 
-  subroutine get_wavl(dat, var, err)
+  subroutine get_wavl(dat, data_dir, err)
     use h5fortran
     type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(in) :: var
+    character(len=*), intent(in) :: data_dir
     character(:), allocatable, intent(out) :: err
 
     type(hdf5_file) :: h
@@ -1783,7 +1785,7 @@ contains
     character(:), allocatable :: xsroot, filename
 
     ! Root directory
-    xsroot = trim(var%data_dir)//"/xsections/"
+    xsroot = trim(data_dir)//"/xsections/"
     filename = xsroot//'bins.h5'
 
     if (.not.is_hdf5(filename)) then
@@ -1940,10 +1942,10 @@ contains
 
   end subroutine
   
-  subroutine get_aerosol_xs(dat, var, err)
+  subroutine get_aerosol_xs(dat, data_dir, err)
     use photochem_enum, only: MieParticle, FractalParticle
     type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(in) :: var
+    character(len=*), intent(in) :: data_dir
     character(:), allocatable, intent(out) :: err
     
     integer :: nrad
@@ -1954,7 +1956,7 @@ contains
     character(len=:), allocatable :: filename
     integer :: i
     
-    xsroot = trim(var%data_dir)//"/aerosol_xsections/"
+    xsroot = trim(data_dir)//"/aerosol_xsections/"
     
     allocate(dat%radii_file(nrad_fixed,dat%np))
     allocate(dat%part_xs_file(dat%np))
@@ -2004,17 +2006,17 @@ contains
 
   end subroutine
   
-  subroutine get_photolysis_xs(dat, var, err)
+  subroutine get_photolysis_xs(dat, data_dir, err)
     use h5fortran, only: is_hdf5
     type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(in) :: var
+    character(len=*), intent(in) :: data_dir
     character(:), allocatable, intent(out) :: err
     
     character(:), allocatable :: xsroot, species, filename, reaction
     integer :: i, j, k
 
     ! Root directory
-    xsroot = trim(var%data_dir)//"/xsections/"
+    xsroot = trim(data_dir)//"/xsections/"
 
     !~~ First, we get total absorption ~~!
 
@@ -2292,10 +2294,10 @@ contains
     
   end subroutine
   
-  subroutine get_rayleigh(dat, var, err)
+  subroutine get_rayleigh(dat, data_dir, err)
     use fortran_yaml_c, only : YamlFile
     type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(in) :: var
+    character(len=*), intent(in) :: data_dir
     character(:), allocatable, intent(out) :: err
     
     real(dp), allocatable :: A(:), B(:), Delta(:)
@@ -2304,7 +2306,7 @@ contains
     type(YamlFile) :: file
     integer :: i, j
     
-    rayleigh_file = trim(var%data_dir)//"/rayleigh/rayleigh.yaml"
+    rayleigh_file = trim(data_dir)//"/rayleigh/rayleigh.yaml"
     
     ! parse yaml file
     call file%parse(rayleigh_file, err)

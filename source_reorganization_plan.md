@@ -572,9 +572,9 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [x] Move `PhotochemData` and its subordinate data types.
 - [ ] Move mechanism, reaction, thermodynamic, Henry, wavelength, cross-section,
       particle-optical, and Rayleigh readers into the owner module.
-- [ ] Replace construction-time `var%data_dir` access with explicit
+- [x] Replace construction-time `var%data_dir` access with explicit
       `data_dir` arguments.
-- [ ] Remove all unnecessary `PhotochemVars` arguments from data readers.
+- [x] Remove all unnecessary `PhotochemVars` arguments from data readers.
 - [x] Split immutable settings application from mutable vars settings.
 - [ ] Add the isolated `PhotochemData` constructor.
 - [ ] Add focused constructor tests.

@@ -85,10 +85,12 @@ module photochem_input
     end subroutine
     
     !> Read files and settings that do not require an initialized atmosphere.
-    module subroutine read_static_files(mechanism_file, s, flux_file, dat, var, err)
+    module subroutine read_static_files(mechanism_file, s, flux_file, data_dir, &
+                                        dat, var, err)
       character(len=*), intent(in) :: mechanism_file
       type(PhotoSettings), intent(in) :: s
       character(len=*), intent(in) :: flux_file
+      character(len=*), intent(in) :: data_dir
       type(PhotochemData), intent(inout) :: dat
       type(PhotochemVars), intent(inout) :: var
       character(:), allocatable, intent(out) :: err
@@ -171,16 +173,17 @@ contains
   !! stellar data, and allocates persistent arrays whose shapes depend only on
   !! those dimensions and `number-of-layers`. It does not construct a vertical
   !! grid, initialize atmospheric profiles, or prepare an RHS state.
-  subroutine setup_static(mechanism_file, s, flux_file, dat, var, err)
+  subroutine setup_static(mechanism_file, s, flux_file, data_dir, dat, var, err)
 
     character(len=*), intent(in) :: mechanism_file
     type(PhotoSettings), intent(in) :: s
     character(len=*), intent(in) :: flux_file
+    character(len=*), intent(in) :: data_dir
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
 
-    call read_static_files(mechanism_file, s, flux_file, dat, var, err)
+    call read_static_files(mechanism_file, s, flux_file, data_dir, dat, var, err)
     if (allocated(err)) return
 
     dat%kd = 2*dat%nq + 1
