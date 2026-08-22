@@ -5,6 +5,7 @@
 module photochem_eqns
   use photochem_const, only: dp
   implicit none
+  public
 
   interface damp_condensation_rate
     module procedure :: damp_condensation_rate_real, damp_condensation_rate_dual 

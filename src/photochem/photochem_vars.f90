@@ -12,6 +12,7 @@ module photochem_vars
   public :: binary_diffusion_fcn
   public :: refresh_temperature_dependent_vars, interp2particlexsdata
 
+  !> Persistent temperature and eddy-diffusion profiles defined on pressure.
   type :: PressureTempEddProfile
     logical :: enabled = .false.
     logical :: hydro_pressure = .true.
@@ -21,9 +22,8 @@ module photochem_vars
     real(dp), allocatable :: edd(:)
   end type
 
-  ! Settings for optional robust-stepper maintenance of the model-top
-  ! pressure. The feature is valid only while a persistent pressure-based
-  ! temperature and eddy-diffusion profile is enabled.
+  !> Settings for optional robust-stepper maintenance of model-top pressure.
+  !! This requires a persistent pressure-based temperature and eddy-diffusion profile.
   type :: TOAPressureMaintenance
     logical :: enabled = .false.
     real(dp) :: target_pressure = 0.0_dp !! Target pressure (dynes/cm^2)
@@ -33,25 +33,25 @@ module photochem_vars
   end type
 
   abstract interface
-    !> Custom binary diffusion function
+    !> Compute a custom binary diffusion parameter.
     function binary_diffusion_fcn(mu_i, mubar, T) result(b)
       use iso_c_binding, only: c_double
       real(c_double), value, intent(in) :: mu_i !! molar weight of species i (g/mol)
       real(c_double), value, intent(in) :: mubar !! molar weight of background gas (g/mol)
       real(c_double), value, intent(in) :: T !! Temperature (K)
-      real(c_double) :: b !! binary diffusion parameter of species i
-                          !! with respect to the background gas (molecules cm^-1 s^1)
+      real(c_double) :: b !! Binary diffusion parameter relative to the background gas
+                          !! (molecules cm^-1 s^-1)
     end function
 
-    !> Sets the time-dependent photon flux
+    !> Set the incident photon flux at a specified model time.
     subroutine time_dependent_flux_fcn(tn, nw, photon_flux)
       use iso_c_binding, only: c_double, c_int
-      real(c_double), value, intent(in) :: tn
-      integer(c_int), value, intent(in) :: nw
-      real(c_double), intent(out) :: photon_flux(nw)
+      real(c_double), value, intent(in) :: tn !! Time (s)
+      integer(c_int), value, intent(in) :: nw !! Number of wavelength bins
+      real(c_double), intent(out) :: photon_flux(nw) !! photons cm^-2 s^-1
     end subroutine
 
-    !> Sets a production or destruction rate for a molecule
+    !> Set a time-dependent production or destruction rate for a species.
     subroutine time_dependent_rate_fcn(tn, nz, rate)
       use iso_c_binding, only: c_double, c_int
       real(c_double), value, intent(in) :: tn !! time (s)
@@ -65,12 +65,10 @@ module photochem_vars
     procedure(time_dependent_rate_fcn), nopass, pointer :: fcn => null()
   end type
 
+  !> Configured model variables and persistent prepared atmospheric state.
+  !! The constructor allocates atmosphere-dependent arrays without initializing
+  !! their physical values; those become valid when the owning atmosphere is initialized.
   type :: PhotochemVars
-    ! PhotochemVars contains configured storage and persistent prepared state
-    ! that can change between integrations without rereading static data. Its
-    ! constructor allocates atmosphere-dependent arrays but does not initialize
-    ! their physical values. Those arrays become valid only when the owning
-    ! EvoAtmosphere has atmosphere_initialized == .true.
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! set DURING file read-in !!!
@@ -209,6 +207,7 @@ module photochem_vars
 
 contains
 
+  !> Construct configured model variables and allocate atmospheric storage.
   function create_PhotochemVars(dat, settings, flux_file, err) result(var)
     type(PhotochemData), intent(in) :: dat
     type(PhotoSettings), intent(in) :: settings
@@ -363,6 +362,71 @@ contains
     var%g0c = 0.0_dp
   end subroutine
 
+  subroutine read_stellar_flux(star_file, nw, wavl, photon_flux, err)
+    use futils, only: inter2, addpnt, FileCloser
+    use photochem_const, only: c_light, plank
+    character(len=*), intent(in) :: star_file
+    integer, intent(in) :: nw
+    real(dp), intent(in) :: wavl(nw+1)
+    real(dp), intent(out) :: photon_flux(nw)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: file_wav(:), file_flux(:)
+    real(dp) :: flux(nw)
+    real(dp) :: dum1, dum2
+    integer :: io, i, n, ierr
+    real(dp), parameter :: rdelta = 1.0e-4_dp
+    type(FileCloser) :: file
+
+    open(1,file=star_file,status='old',iostat=io)
+    file%unit = 1
+    if (io /= 0) then
+      err = 'The input file '//star_file//' does not exist.'
+      return
+    endif
+
+    n = -1
+    read(1,*)
+    do while (io == 0)
+      read(1,*,iostat=io) dum1, dum2
+      n = n + 1
+    enddo
+
+    allocate(file_wav(n+4), file_flux(n+4))
+
+    rewind(1)
+    read(1,*)
+    do i = 1,n
+      read(1,*,iostat=io) file_wav(i), file_flux(i)
+      if (io /= 0) then
+        err = 'Problem reading '//star_file
+        return
+      endif
+    enddo
+
+    i = n
+    call addpnt(file_wav, file_flux, n+4, i, file_wav(1)*(1.0_dp-rdelta), 0.0_dp, ierr)
+    call addpnt(file_wav, file_flux, n+4, i, 0.0_dp, 0.0_dp, ierr)
+    call addpnt(file_wav, file_flux, n+4, i, file_wav(i)*(1.0_dp+rdelta), 0.0_dp,ierr)
+    call addpnt(file_wav, file_flux, n+4, i, huge(rdelta), 0.0_dp,ierr)
+    if (ierr /= 0) then
+      err = 'Problem interpolating '//trim(star_file)
+      return
+    endif
+
+    call inter2(nw+1, wavl, flux, n+4, file_wav, file_flux, ierr)
+    if (ierr /= 0) then
+      err = 'Problem interpolating '//trim(star_file)
+      return
+    endif
+
+    do i = 1,nw
+      photon_flux(i) = (1/(plank*c_light*1.e16_dp))*flux(i)*(wavl(i+1)-wavl(i))* &
+                       ((wavl(i+1)+wavl(i))/2.0_dp)
+    enddo
+  end subroutine
+
+  !> Recompute persistent variables affected by a temperature-profile change.
   subroutine refresh_temperature_dependent_vars(dat, temperature, z, &
                                                 bottom_atmos, top_atmos, &
                                                 trop_alt_new, xs_x_qy, &
@@ -460,6 +524,7 @@ contains
     enddo
   end subroutine
 
+  !> Interpolate particle optical properties onto the model particle radii.
   subroutine interp2particlexsdata(dat, particle_radius, particle_xs, err)
     type(PhotochemData), intent(in) :: dat
     real(dp), intent(in) :: particle_radius(:,:)
@@ -519,70 +584,6 @@ contains
           endif
         enddo
       enddo
-    enddo
-  end subroutine
-
-  subroutine read_stellar_flux(star_file, nw, wavl, photon_flux, err)
-    use futils, only: inter2, addpnt, FileCloser
-    use photochem_const, only: c_light, plank
-    character(len=*), intent(in) :: star_file
-    integer, intent(in) :: nw
-    real(dp), intent(in) :: wavl(nw+1)
-    real(dp), intent(out) :: photon_flux(nw)
-    character(:), allocatable, intent(out) :: err
-
-    real(dp), allocatable :: file_wav(:), file_flux(:)
-    real(dp) :: flux(nw)
-    real(dp) :: dum1, dum2
-    integer :: io, i, n, ierr
-    real(dp), parameter :: rdelta = 1.0e-4_dp
-    type(FileCloser) :: file
-
-    open(1,file=star_file,status='old',iostat=io)
-    file%unit = 1
-    if (io /= 0) then
-      err = 'The input file '//star_file//' does not exist.'
-      return
-    endif
-
-    n = -1
-    read(1,*)
-    do while (io == 0)
-      read(1,*,iostat=io) dum1, dum2
-      n = n + 1
-    enddo
-
-    allocate(file_wav(n+4), file_flux(n+4))
-
-    rewind(1)
-    read(1,*)
-    do i = 1,n
-      read(1,*,iostat=io) file_wav(i), file_flux(i)
-      if (io /= 0) then
-        err = 'Problem reading '//star_file
-        return
-      endif
-    enddo
-
-    i = n
-    call addpnt(file_wav, file_flux, n+4, i, file_wav(1)*(1.0_dp-rdelta), 0.0_dp, ierr)
-    call addpnt(file_wav, file_flux, n+4, i, 0.0_dp, 0.0_dp, ierr)
-    call addpnt(file_wav, file_flux, n+4, i, file_wav(i)*(1.0_dp+rdelta), 0.0_dp,ierr)
-    call addpnt(file_wav, file_flux, n+4, i, huge(rdelta), 0.0_dp,ierr)
-    if (ierr /= 0) then
-      err = 'Problem interpolating '//trim(star_file)
-      return
-    endif
-
-    call inter2(nw+1, wavl, flux, n+4, file_wav, file_flux, ierr)
-    if (ierr /= 0) then
-      err = 'Problem interpolating '//trim(star_file)
-      return
-    endif
-
-    do i = 1,nw
-      photon_flux(i) = (1/(plank*c_light*1.e16_dp))*flux(i)*(wavl(i+1)-wavl(i))* &
-                       ((wavl(i+1)+wavl(i))/2.0_dp)
     enddo
   end subroutine
 

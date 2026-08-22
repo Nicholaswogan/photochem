@@ -5,7 +5,7 @@ module photochem_settings
   implicit none
   private
 
-  public :: PhotoSettings, SettingsBC, CondensationParameters
+  public :: PhotoSettings, CondensationParameters
 
   type :: SettingsBC
     integer :: bc_type
@@ -30,6 +30,7 @@ module photochem_settings
     type(CondensationParameters) :: params
   end type
 
+  !> Photochemical model settings parsed from a YAML configuration file.
   type :: PhotoSettings
     character(:), allocatable :: filename
 
@@ -70,6 +71,7 @@ module photochem_settings
 
 contains
 
+  !> Read and validate a photochemical model settings file.
   function create_PhotoSettings(filename, err) result(s)
     use fortran_yaml_c, only : YamlFile
     character(*), intent(in) :: filename

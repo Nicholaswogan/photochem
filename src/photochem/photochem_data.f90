@@ -8,11 +8,9 @@ module photochem_data
   private
 
   public :: PhotochemData
-  public :: XsectionData, ParticleXsections, ThermodynamicData
-  public :: Reaction, Efficiencies, BaseRate, ReverseRate, PhotolysisRate
+  public :: ParticleXsections
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, PressDependentRate
-  public :: MultiArrheniusRate, ProdLoss
-  public :: gibbs_energy_eval, heat_capacity_eval
+  public :: gibbs_energy_eval
   public :: parse_reaction
 
   type, extends(type_list) :: type_list_tmp
@@ -26,6 +24,7 @@ module photochem_data
     real(dp), allocatable :: xs(:) !! The cross section in cm^2/molecule (nw)
   end type
 
+  !> Particle optical properties tabulated over radius and wavelength.
   type :: ParticleXsections
     logical :: ThereIsData
     real(dp), allocatable :: w0(:,:) ! (nz,nw) or (nrad_file, nw)
@@ -59,6 +58,7 @@ module photochem_data
     ! no rate parameters. calculated via radiative transfer
   end type
 
+  !> Arrhenius parameters for an elementary reaction.
   type, extends(BaseRate) :: ElementaryRate
     ! rate = A*T^b*exp(-Ea/T)
     real(dp) :: A !! pre-exponential factor (various units)
@@ -66,6 +66,7 @@ module photochem_data
     real(dp) :: Ea !! Activate energy (T)
   end type
 
+  !> Arrhenius parameters and collider efficiencies for a three-body reaction.
   type, extends(BaseRate) :: ThreeBodyRate
     real(dp) :: A !! pre-exponential factor (various units)
     real(dp) :: b !! temperature exponent (unitless)
@@ -73,6 +74,7 @@ module photochem_data
     type(Efficiencies) :: eff
   end type
 
+  !> Low- and high-pressure parameters for a falloff reaction.
   type, extends(BaseRate) :: FalloffRate
     real(dp) :: A0 !! For low-P rate constant
     real(dp) :: b0 !! For low-P rate constant
@@ -96,6 +98,7 @@ module photochem_data
     real(dp), allocatable :: Ea(:)
   end type
 
+  !> Arrhenius parameters tabulated on a pressure grid.
   type, extends(BaseRate) :: PressDependentRate
     real(dp), allocatable :: logP(:)
     type(MultiArrheniusRate), allocatable :: rate(:)
@@ -118,9 +121,8 @@ module photochem_data
     integer, allocatable :: iloss(:) ! reaction #s of loss mechanism for sp
   end type
 
+  !> Mechanism and supporting data fixed after model construction.
   type :: PhotochemData
-    ! PhotochemData contains information that is never changed
-    ! after file read-in
 
     integer :: natoms !! number of atoms
     character(len=s_str_len), allocatable :: atoms_names(:) !! (natoms)
@@ -212,6 +214,35 @@ module photochem_data
 
 contains
 
+  !> Evaluate a species Gibbs free energy from its thermodynamic parameterization.
+  pure subroutine gibbs_energy_eval(thermo, T, found, gibbs_energy)
+    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial, Nasa7Polynomial
+    use photochem_eqns, only: gibbs_energy_shomate, gibbs_energy_nasa9, &
+                             gibbs_energy_nasa7
+    type(ThermodynamicData), intent(in) :: thermo
+    real(dp), intent(in) :: T
+    logical, intent(out) :: found
+    real(dp), intent(out) :: gibbs_energy
+
+    integer :: k
+
+    found = .false.
+    do k = 1,thermo%ntemps
+      if (T >= thermo%temps(k) .and. T < thermo%temps(k+1)) then
+        found = .true.
+        if (thermo%dtype == ShomatePolynomial) then
+          gibbs_energy = gibbs_energy_shomate(thermo%data(1:7,k), T)
+        elseif (thermo%dtype == Nasa9Polynomial) then
+          gibbs_energy = gibbs_energy_nasa9(thermo%data(1:9,k), T)
+        elseif (thermo%dtype == Nasa7Polynomial) then
+          gibbs_energy = gibbs_energy_nasa7(thermo%data(1:7,k), T)
+        endif
+        exit
+      endif
+    enddo
+  end subroutine
+
+  !> Construct fixed photochemical data from a mechanism and model settings.
   function create_PhotochemData(mechanism_file, settings, data_dir, err) result(dat)
     character(len=*), intent(in) :: mechanism_file
     type(PhotoSettings), intent(in) :: settings
@@ -294,57 +325,6 @@ contains
       err = 'IOError: H2O must be a species if gas-rainout = True.'
       return
     endif
-  end subroutine
-
-  pure subroutine gibbs_energy_eval(thermo, T, found, gibbs_energy)
-    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial, Nasa7Polynomial
-    use photochem_eqns, only: gibbs_energy_shomate, gibbs_energy_nasa9, &
-                             gibbs_energy_nasa7
-    type(ThermodynamicData), intent(in) :: thermo
-    real(dp), intent(in) :: T
-    logical, intent(out) :: found
-    real(dp), intent(out) :: gibbs_energy
-
-    integer :: k
-
-    found = .false.
-    do k = 1,thermo%ntemps
-      if (T >= thermo%temps(k) .and. T < thermo%temps(k+1)) then
-        found = .true.
-        if (thermo%dtype == ShomatePolynomial) then
-          gibbs_energy = gibbs_energy_shomate(thermo%data(1:7,k), T)
-        elseif (thermo%dtype == Nasa9Polynomial) then
-          gibbs_energy = gibbs_energy_nasa9(thermo%data(1:9,k), T)
-        elseif (thermo%dtype == Nasa7Polynomial) then
-          gibbs_energy = gibbs_energy_nasa7(thermo%data(1:7,k), T)
-        endif
-        exit
-      endif
-    enddo
-  end subroutine
-
-  pure subroutine heat_capacity_eval(thermo, T, found, cp)
-    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial
-    use photochem_eqns, only: heat_capacity_shomate
-    type(ThermodynamicData), intent(in) :: thermo
-    real(dp), intent(in) :: T !! K
-    logical, intent(out) :: found
-    real(dp), intent(out) :: cp !! J/(mol*K)
-
-    integer :: k
-
-    found = .false.
-    do k = 1,thermo%ntemps
-      if (T >= thermo%temps(k) .and. T < thermo%temps(k+1)) then
-        found = .true.
-        if (thermo%dtype == ShomatePolynomial) then
-          cp = heat_capacity_shomate(thermo%data(1:7,k), T)
-        elseif (thermo%dtype == Nasa9Polynomial) then
-          found = .false.
-        endif
-        exit
-      endif
-    enddo
   end subroutine
 
   subroutine get_photomech(infile, dat, err)
@@ -1643,6 +1623,7 @@ contains
 
   end subroutine
 
+  !> Parse a reaction equation into its reactant and product species.
   subroutine parse_reaction(instring, reverse, eqr, eqp, err)
     character(len=*), intent(in) :: instring
     logical, intent(out) :: reverse

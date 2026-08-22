@@ -6,7 +6,8 @@ module photochem_radtran
   public :: two_stream
 
 contains
-  
+
+  !> Solve plane-parallel radiative transfer with the delta-Eddington two-stream method.
   pure subroutine two_stream(nz, tau, w0, gt, u0, Rsfc, amean, surface_radiance, ierr)
     integer, intent(in) :: nz
     real(dp), intent(inout) :: tau(nz)

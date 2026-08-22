@@ -27,15 +27,15 @@ module photochem_wrk
     final :: SundialsData_final
   end type
 
+  !> Scoped finalizer for SUNDIALS resources owned by a work object.
   type :: SundialsDataFinalizer
     type(SundialsData), pointer :: sun => NULL()
   contains
     final :: SundialsDataFinalizer_final
   end type
 
+  !> Runtime work arrays and integration state for an evolving atmosphere.
   type :: PhotochemWrk
-    ! PhotochemWrk are work variables that change
-    ! through the course of an integration
 
     ! Total step counter for robust_step method
     !> True while the CVODE stepper belongs to an initialized robust
@@ -132,6 +132,7 @@ module photochem_wrk
 
 contains
 
+  !> Allocate a work object for the supplied model dimensions.
   function create_PhotochemWrk(nsp, np, nq, nz, nrT, kj, nw) result(wrk)
     use photochem_const, only: nsteps_save
     integer, intent(in) :: nsp, np, nq, nz, nrT, kj, nw
