@@ -29,7 +29,7 @@ contains
     ! set_trop_ind : test_step
     !  : test_production_and_loss
     ! prep_atmosphere : test_production_and_loss
-    ! right_hand_side_chem : gas_fluxes
+    ! chemistry_right_hand_side : gas_fluxes
     call test_production_and_loss(pcs)
     ! right_hand_side : test_step
     ! jacobian : test_step

@@ -6,8 +6,8 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_integrate
   
 contains
   
-  module function RhsFn_evo(tn, sunvec_y, sunvec_f, user_data) &
-                        result(ierr) bind(c, name='RhsFn_evo')
+  module function right_hand_side_callback(tn, sunvec_y, sunvec_f, user_data) &
+                        result(ierr) bind(c, name='right_hand_side_callback')
     use, intrinsic :: iso_c_binding
     use fcvode_mod
     use fsundials_nvector_mod
@@ -92,9 +92,9 @@ contains
     return
   end function
   
-  module function JacFn_evo(tn, sunvec_y, sunvec_f, sunmat_J, user_data, &
-                        tmp1, tmp2, tmp3) &
-                        result(ierr) bind(C,name='JacFn_evo')
+  module function jacobian_callback(tn, sunvec_y, sunvec_f, sunmat_J, user_data, &
+                            tmp1, tmp2, tmp3) &
+                        result(ierr) bind(C,name='jacobian_callback')
     !======= Inclusions ===========
     use, intrinsic :: iso_c_binding
     use fsundials_nvector_mod
@@ -138,7 +138,8 @@ contains
   
   end function
 
-  subroutine ErrHandlerFn_evo(error_code, module_, func, msg, eh_data) bind(c, name='ErrHandlerFn_evo')
+  subroutine error_handler_callback(error_code, module_, func, msg, eh_data) &
+                                    bind(c, name='error_handler_callback')
     use iso_c_binding
     integer(c_int), value :: error_code
     character(kind=c_char) :: module_(*)
@@ -669,7 +670,7 @@ contains
       return
     end if
     
-    ierr = FCVodeInit(wrk%sun%cvode_mem, c_funloc(RhsFn_evo), tstart, wrk%sun%sunvec_y)
+    ierr = FCVodeInit(wrk%sun%cvode_mem, c_funloc(right_hand_side_callback), tstart, wrk%sun%sunvec_y)
     if (ierr /= 0) then
       err = "CVODE setup error while initializing CVODE."
       call cleanup_after_setup_failure()
@@ -696,7 +697,7 @@ contains
       return
     end if
     
-    ierr = FCVodeSetJacFn(wrk%sun%cvode_mem, c_funloc(JacFn_evo))
+    ierr = FCVodeSetJacFn(wrk%sun%cvode_mem, c_funloc(jacobian_callback))
     if (ierr /= 0) then
       err = "CVODE setup error while setting the Jacobian function."
       call cleanup_after_setup_failure()
@@ -751,7 +752,7 @@ contains
     call self%apply_lower_boundary_conditions(var%temperature(1), yvec_usol(:,1), err)
     if (allocated(err)) return
 
-    call self%prep_atm_evo_gas( &
+    call self%prepare_atmosphere_structure( &
       yvec_usol, wrk%usol, wrk%molecules_per_particle, wrk%pressure, &
       wrk%density, wrk%mix, wrk%mubar, wrk%pressure_hydro, &
       wrk%density_hydro, err=err &
@@ -825,7 +826,7 @@ contains
 
     if (self%var%verbose == 0) then
       ierr = FCVodeSetErrHandlerFn(self%wrk%sun%cvode_mem, &
-                                   c_funloc(ErrHandlerFn_evo), c_null_ptr)
+                                   c_funloc(error_handler_callback), c_null_ptr)
       if (ierr /= 0) then
         err = "CVODE setup error while setting the error handler."
         return
@@ -937,7 +938,7 @@ contains
       usol_tmp(1:dat%nq,1:var%nz) => wrk%sun%yvec
       ! RHS and Jacobian callbacks may have prepared var for trial states.
       ! Prepare the accepted CVODE solution before this public call returns.
-      call self%prep_atm_evo_gas(usol_tmp, wrk%usol, &
+      call self%prepare_atmosphere_structure(usol_tmp, wrk%usol, &
            wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
            wrk%pressure_hydro, wrk%density_hydro, err=err)
       if (allocated(err)) return

@@ -497,9 +497,9 @@ contains
 
   end subroutine
 
-  module subroutine prep_atm_evo_gas(self, usol_in, usol, &
-                                     molecules_per_particle, pressure, density, mix, mubar, &
-                                     pressure_hydro, density_hydro, apply_persistent_profile, err)
+  module subroutine prepare_atmosphere_structure(self, usol_in, usol, &
+                                                  molecules_per_particle, pressure, density, mix, mubar, &
+                                                  pressure_hydro, density_hydro, apply_persistent_profile, err)
     use photochem_eqns, only: press_and_den
     use photochem_evoatmosphere_chemistry, only: molec_per_particle
     use photochem_const, only: N_avo, k_boltz
@@ -556,7 +556,7 @@ contains
 
   end subroutine
 
-  module subroutine prep_all_evo_gas(self, usol_in, apply_persistent_profile, err)
+  module subroutine prep_atmosphere_unchecked(self, usol_in, apply_persistent_profile, err)
 
     use photochem_evoatmosphere_chemistry, only: reaction_rates, rainout, photorates
     use photochem_evoatmosphere_chemistry, only: gas_saturation_density
@@ -577,9 +577,10 @@ contains
     var => self%var
     wrk => self%wrk
 
-    call prep_atm_evo_gas(self, usol_in, wrk%usol, &
-                          wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
-                          wrk%pressure_hydro, wrk%density_hydro, apply_persistent_profile, err)
+    call prepare_atmosphere_structure(self, usol_in, wrk%usol, &
+                                      wrk%molecules_per_particle, wrk%pressure, wrk%density, &
+                                      wrk%mix, wrk%mubar, wrk%pressure_hydro, wrk%density_hydro, &
+                                      apply_persistent_profile, err)
     if (allocated(err)) return
 
     !!! diffusion and advection coefficients
@@ -651,12 +652,12 @@ contains
     call self%require_atmosphere_initialized('prep_atmosphere', err)
     if (allocated(err)) return
 
-    call prep_all_evo_gas(self, usol_in, err=err)
+    call prep_atmosphere_unchecked(self, usol_in, err=err)
     if (allocated(err)) return
 
   end subroutine
 
-  module subroutine rhs_evo_gas(self, neqs, tn, usol_flat, rhs, err)
+  module subroutine right_hand_side(self, neqs, tn, usol_flat, rhs, err)
     use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
     use photochem_enum, only: ZahnleHydrogenEscape
     use iso_c_binding, only: c_ptr, c_f_pointer
@@ -696,7 +697,7 @@ contains
     wrk%tn = tn
     
     ! fills self%wrk with data
-    call prep_all_evo_gas(self, usol_in, err=err)
+    call prep_atmosphere_unchecked(self, usol_in, err=err)
     if (allocated(err)) return
 
     call dochem(self, wrk%usol, wrk%rx_rates, &
@@ -843,7 +844,7 @@ contains
     end subroutine
   end subroutine
 
-  module subroutine jac_evo_gas(self, lda_neqs, neqs, usol_flat, jac, err)
+  module subroutine jacobian(self, lda_neqs, neqs, usol_flat, jac, err)
     use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
     use photochem_enum, only: ZahnleHydrogenEscape
     use iso_c_binding, only: c_ptr, c_f_pointer
@@ -881,7 +882,7 @@ contains
       return 
     endif
   
-    call prep_all_evo_gas(self, usol_in, err=err)
+    call prep_atmosphere_unchecked(self, usol_in, err=err)
     if (allocated(err)) return
   
     jac = 0.0_dp
@@ -1017,7 +1018,7 @@ contains
   
   end subroutine
 
-  module subroutine right_hand_side_chem(self, usol, rhs, err)
+  module subroutine chemistry_right_hand_side(self, usol, rhs, err)
     use photochem_enum, only: ZahnleHydrogenEscape
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol(:,:)
@@ -1030,7 +1031,7 @@ contains
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
     
-    call self%require_atmosphere_initialized('right_hand_side_chem', err)
+    call self%require_atmosphere_initialized('chemistry_right_hand_side', err)
     if (allocated(err)) return
 
     dat => self%dat

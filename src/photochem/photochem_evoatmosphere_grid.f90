@@ -645,7 +645,7 @@ contains
     ! Refresh all atmospheric work state from the committed composition. When
     ! enabled, the persistent profile is applied before pressure and
     ! hydrostatic quantities are recomputed.
-    call self%prep_atm_evo_gas(previous_state%usol, wrk%usol, &
+    call self%prepare_atmosphere_structure(previous_state%usol, wrk%usol, &
                                wrk%molecules_per_particle, wrk%pressure, &
                                wrk%density, wrk%mix, wrk%mubar, &
                                wrk%pressure_hydro, wrk%density_hydro, &

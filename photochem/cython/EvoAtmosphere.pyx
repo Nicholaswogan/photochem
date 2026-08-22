@@ -2,7 +2,7 @@
 cimport EvoAtmosphere_pxd as ea_pxd
 
 cdef class EvoAtmosphere:
-  """One-dimensional photochemical model without a prescribed background gas.
+  """A one-dimensional photochemical model.
 
   Construction loads the static mechanism and model configuration. The
   atmosphere may be initialized during construction or later with one of the
@@ -865,10 +865,13 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
 
   def evolve(self, str filename, double tstart, ndarray[double, ndim=2] usol, ndarray[double, ndim=1] t_eval, bool overwrite = False, bool restart_from_file = False):
-    """Evolve atmosphere through time on the current fixed vertical grid,
-    and save output in a binary Fortran file. Grid changes must be requested
-    explicitly with :meth:`update_vertical_grid` or handled by the robust
-    stepper's TOA-maintenance mode.
+    """Run a fixed-grid batch integration and save a binary Fortran file.
+
+    This is separate from the basic and robust step-by-step pathways: it
+    creates, owns, and releases its CVODE session internally. The vertical grid
+    remains fixed, and TOA-pressure maintenance is not performed. Grid changes
+    must be requested explicitly with :meth:`update_vertical_grid` outside the
+    integration.
 
     Parameters
     ----------
@@ -907,7 +910,11 @@ cdef class EvoAtmosphere:
     return success
 
   def check_for_convergence(self):
-    """Determine whether the integration satisfies the convergence criteria.
+    """Check an active stepper's history for photochemical convergence.
+
+    This check is valid for both the basic :meth:`step` pathway and the
+    policy-managed :meth:`robust_step` pathway. It does not advance the
+    integration and requires that either stepper has first been initialized.
 
     Returns
     -------
@@ -922,10 +929,14 @@ cdef class EvoAtmosphere:
     return converged
 
   def initialize_stepper(self, ndarray[double, ndim=2] usol_start):
-    """Initialize a CVODE integration at time zero from ``usol_start``.
+    """Initialize the basic CVODE stepping pathway at time zero.
 
-    Any existing stepper is replaced. Call :meth:`step` to advance the
-    integration and :meth:`destroy_stepper` when finished.
+    Advance this pathway with :meth:`step`. The caller is responsible for
+    responding to solver failures, checking convergence, and deciding when to
+    restart or stop. Robust recovery, scheduled restarts, and TOA-pressure
+    maintenance are provided instead by :meth:`initialize_robust_stepper` and
+    :meth:`robust_step`. Any existing stepper is replaced; call
+    :meth:`destroy_stepper` when finished.
 
     Parameters
     ----------
@@ -943,9 +954,13 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
     
   def step(self):
-    """Take one internal CVODE integration step.
+    """Advance the basic CVODE pathway by one internal solver step.
 
-    :meth:`initialize_stepper` must have been called first.
+    :meth:`initialize_stepper` must have been called first. This low-level
+    pathway does not perform robust failure recovery, scheduled restarts,
+    convergence management, or TOA-pressure maintenance; the caller is
+    responsible for that policy. Use :meth:`robust_step` for the policy-managed
+    pathway.
 
     Returns
     -------
@@ -959,7 +974,7 @@ cdef class EvoAtmosphere:
     return tn
     
   def destroy_stepper(self):
-    """Destroy the active CVODE stepper and release its resources.
+    """Destroy the active basic or robust CVODE stepper and its resources.
 
     It is safe to call this method when no stepper is active.
     """
@@ -969,16 +984,18 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
 
   def initialize_robust_stepper(self, ndarray[double, ndim=2] usol_start):
-    """Initializes a robust integration starting at `usol_start`.
+    """Initialize the policy-managed integration pathway at time zero.
 
-    The integration begins at time zero and resets the total accepted-step and
-    failed-step counters. Optional approximate TOA-pressure maintenance is
-    configured through ``self.var.toa_pressure_maintenance`` and requires a
-    persistent pressure-based temperature/eddy-diffusion profile. When it is
-    enabled, the initial composition is prepared and the model top is brought
-    inside the configured pressure band before CVODE starts. This preflight is
-    performed here so pressure-based initialization can retain its requested
-    domain endpoints.
+    Advance this pathway with :meth:`robust_step`. It uses the same underlying
+    CVODE stepper as the basic pathway, while adding failure recovery, scheduled
+    restarts, convergence management, and integration counters. Optional
+    approximate TOA-pressure maintenance is configured through
+    ``self.var.toa_pressure_maintenance`` and requires a persistent
+    pressure-based temperature/eddy-diffusion profile. When enabled, the initial
+    composition is prepared and the model top is brought inside the configured
+    pressure band before CVODE starts. This preflight allows pressure-based
+    atmosphere initialization to retain its requested domain endpoints. Total
+    accepted-step and failed-step counters are reset.
 
     Parameters
     ----------
@@ -996,12 +1013,14 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
     
   def robust_step(self):
-    """Takes one internal robust integration step. Function `initialize_robust_stepper`
-    must have been called before this.
+    """Advance the policy-managed integration pathway by one robust step.
 
-    A failed step is recovered from the last committed state without advancing
-    logical time. Scheduled CVODE restarts preserve logical time and total
-    counters, but discard segment-local convergence history. When
+    :meth:`initialize_robust_stepper` must have been called first. Unlike the
+    basic :meth:`step` pathway, this method manages failure recovery, scheduled
+    restarts, convergence checks, and integration counters. A failed step is
+    recovered from the last committed state without advancing logical time.
+    Scheduled CVODE restarts preserve logical time and total counters, but
+    discard segment-local convergence history. When
     ``self.var.toa_pressure_maintenance.enabled`` is true, accepted steps may
     trigger a pressure-targeted vertical-grid update after chemistry has
     converged; successful updates restart CVODE while preserving the total
@@ -1022,7 +1041,11 @@ cdef class EvoAtmosphere:
     return give_up, converged
 
   def find_steady_state(self):
-    """Integrates using a robust stepper until a steady state has been achieved.
+    """Run the policy-managed pathway until convergence or give-up.
+
+    This convenience method initializes the robust stepper from the current
+    ``self.wrk.usol``, then repeatedly calls :meth:`robust_step`. It returns
+    ``True`` on convergence and ``False`` if the robust policy gives up.
 
     Returns
     -------

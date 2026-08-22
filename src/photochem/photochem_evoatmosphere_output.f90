@@ -24,7 +24,7 @@ contains
     wrk => self%wrk
 
     ! Update work variables needed for output.
-    call self%right_hand_side_chem(wrk%usol, rhs, err)
+    call self%chemistry_right_hand_side(wrk%usol, rhs, err)
     if (allocated(err)) return
 
     call out2atmosphere_txt_base(dat, var, &

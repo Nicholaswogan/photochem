@@ -539,7 +539,7 @@ contains
     allocate(usol_base(dat%nq,var%nz), density_base(var%nz), mubar_base(var%nz))
     allocate(usol_bottom(dat%nq))
 
-    ! Copy and clip the current state in the same way as prep_atm_evo_gas.
+    ! Copy and clip the current state in the same way as prepare_atmosphere_structure.
     call clip_usol(usol, usol_base)
 
     ! Above the bottom layer, density and mean molecular weight do not

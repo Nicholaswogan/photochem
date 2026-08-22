@@ -30,7 +30,7 @@ contains
       return
     endif
 
-    call self%right_hand_side_chem(wrk%usol, rhs, err)
+    call self%chemistry_right_hand_side(wrk%usol, rhs, err)
     if (allocated(err)) return
 
     ! surface flux is molecules required to sustain the lower boundary

@@ -49,7 +49,7 @@ module photochem_evoatmosphere
     procedure :: allocate => AtmosphereState_allocate
   end type
 
-  !> One-dimensional photochemical model without a prescribed background gas.
+  !> A one-dimensional photochemical model.
   !!
   !! Construction loads the static mechanism and model configuration. The
   !! atmosphere may be initialized during construction or later with one of
@@ -74,13 +74,13 @@ module photochem_evoatmosphere
 
     !~~ photochem_evoatmosphere_rhs.f90 ~~!
     procedure, private :: apply_lower_boundary_conditions
-    procedure, private :: prep_atm_evo_gas
-    procedure, private :: prep_atmosphere_unchecked => prep_all_evo_gas
+    procedure, private :: prepare_atmosphere_structure
+    procedure, private :: prep_atmosphere_unchecked
     procedure :: prep_atmosphere
-    procedure :: right_hand_side_chem
+    procedure :: chemistry_right_hand_side
     procedure :: production_and_loss
-    procedure :: right_hand_side => rhs_evo_gas
-    procedure :: jacobian => jac_evo_gas
+    procedure :: right_hand_side
+    procedure :: jacobian
 
     !~~ photochem_evoatmosphere_integrate.f90 ~~!
     procedure :: evolve
@@ -308,9 +308,11 @@ module photochem_evoatmosphere
       real(dp), intent(out) :: usol_out(:,:)
     end subroutine
 
-    module subroutine prep_atm_evo_gas(self, usol_in, usol, &
-                                      molecules_per_particle, pressure, density, mix, mubar, &
-                                      pressure_hydro, density_hydro, apply_persistent_profile, err)
+    !> Prepare composition, pressure, density, and mean molecular mass from an
+    !! evolved-species number-density state.
+    module subroutine prepare_atmosphere_structure(self, usol_in, usol, &
+                                                   molecules_per_particle, pressure, density, mix, mubar, &
+                                                   pressure_hydro, density_hydro, apply_persistent_profile, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:)
       real(dp), intent(out) :: usol(:,:)
@@ -325,7 +327,7 @@ module photochem_evoatmosphere
     !> this subroutine calculates reaction rates, photolysis rates, etc.
     !> and puts this information into self.wrk. self.wrk contains all the
     !> information needed for `dochem` to compute chemistry.
-    module subroutine prep_all_evo_gas(self, usol_in, apply_persistent_profile, err)
+    module subroutine prep_atmosphere_unchecked(self, usol_in, apply_persistent_profile, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:) !! Number densities (molecules/cm^3)
       logical, optional, intent(in) :: apply_persistent_profile
@@ -350,7 +352,7 @@ module photochem_evoatmosphere
     !! configured custom rates and hydrogen escape. Transport is not included.
     !! The result uses altitude-major flattened storage: species vary fastest
     !! within each atmospheric layer.
-    module subroutine right_hand_side_chem(self, usol, rhs, err)
+    module subroutine chemistry_right_hand_side(self, usol, rhs, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol(:,:) !! Number densities, shape `(dat%nq,var%nz)` (molecules/cm^3).
       real(dp), intent(out) :: rhs(:) !! Chemistry tendency, size `var%neqs` (molecules/cm^3/s).
@@ -361,7 +363,7 @@ module photochem_evoatmosphere
     !!
     !! `usol_flat` and `rhs` use altitude-major flattened storage: the
     !! `dat%nq` evolved species vary fastest within each atmospheric layer.
-    module subroutine rhs_evo_gas(self, neqs, tn, usol_flat, rhs, err)
+    module subroutine right_hand_side(self, neqs, tn, usol_flat, rhs, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       integer, intent(in) :: neqs !! Number of ODE equations, `dat%nq*var%nz`.
       real(dp), intent(in) :: tn !! Integration time (s).
@@ -375,7 +377,7 @@ module photochem_evoatmosphere
     !! The input state uses the same altitude-major flattened storage as the
     !! right-hand side. `jac` uses the extended band-matrix storage expected by
     !! the SUNDIALS band linear solver.
-    module subroutine jac_evo_gas(self, lda_neqs, neqs, usol_flat, jac, err)
+    module subroutine jacobian(self, lda_neqs, neqs, usol_flat, jac, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       integer, intent(in) :: lda_neqs !! Size of the extended band-matrix storage.
       integer, intent(in) :: neqs !! Number of ODE equations, `dat%nq*var%nz`.
@@ -400,11 +402,13 @@ module photochem_evoatmosphere
 
     !~~ photochem_evoatmosphere_integrate.f90 ~~!
 
-    !> Evolve the atmosphere through time and save it in a binary Fortran file.
+    !> Run a fixed-grid batch integration and save it in a binary Fortran file.
     !!
-    !! The vertical grid remains fixed during this integration. Grid changes
-    !! must be requested explicitly with [[EvoAtmosphere:update_vertical_grid]]
-    !! or handled separately by the robust stepper's TOA-pressure maintenance.
+    !! This is separate from the basic and robust step-by-step pathways: it
+    !! creates, owns, and releases its CVODE session internally. The vertical
+    !! grid remains fixed, and TOA-pressure maintenance is not performed. Grid
+    !! changes must be requested explicitly with
+    !! [[EvoAtmosphere:update_vertical_grid]] outside the integration.
     module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, restart_from_file, err) result(success)
       use, intrinsic :: iso_c_binding
       class(EvoAtmosphere), target, intent(inout) :: self
@@ -418,18 +422,29 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end function
 
-    !> Determine whether the prepared integration history satisfies the
+    !> Determine whether an active stepper's integration history satisfies the
     !! configured photochemical steady-state criteria.
+    !!
+    !! This check is valid for both the basic [[EvoAtmosphere:step]] pathway and
+    !! the policy-managed [[EvoAtmosphere:robust_step]] pathway. It does not
+    !! advance the integration and requires that either stepper has first been
+    !! initialized.
     module function check_for_convergence(self, err) result(converged)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
       logical :: converged !! True when all configured convergence criteria are satisfied.
     end function
 
-    !> Initialize a CVODE integration at time zero from `usol_start`.
+    !> Initialize the basic CVODE stepping pathway at time zero from
+    !! `usol_start`.
     !!
-    !! Any existing stepper is replaced. Call [[EvoAtmosphere:step]] to advance
-    !! the integration and [[EvoAtmosphere:destroy_stepper]] when finished.
+    !! Advance this pathway with [[EvoAtmosphere:step]]. The caller is
+    !! responsible for responding to solver failures, checking convergence,
+    !! and deciding when to restart or stop. Robust recovery, scheduled
+    !! restarts, and TOA-pressure maintenance are provided instead by
+    !! [[EvoAtmosphere:initialize_robust_stepper]] and
+    !! [[EvoAtmosphere:robust_step]]. Any existing stepper is replaced; call
+    !! [[EvoAtmosphere:destroy_stepper]] when finished.
     module subroutine initialize_stepper(self, usol_start, err)      
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
@@ -484,41 +499,55 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
     
-    !> Takes one internal integration step. Function `initialize_stepper`
-    !> must have been called before this.
+    !> Advance the basic CVODE pathway by one internal solver step.
+    !!
+    !! [[EvoAtmosphere:initialize_stepper]] must have been called first. This
+    !! low-level pathway does not perform robust failure recovery, scheduled
+    !! restarts, convergence management, or TOA-pressure maintenance; the
+    !! caller is responsible for that policy. Use [[EvoAtmosphere:robust_step]]
+    !! for the policy-managed pathway.
     module function step(self, err) result(tn)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
       real(dp) :: tn !! Current time in the integration.
     end function
     
-    !> Destroy the active CVODE stepper and release its integration resources.
-    !! It is safe to call this procedure when no stepper is active.
+    !> Destroy the active basic or robust CVODE stepper and release its
+    !! integration resources. It is safe to call this procedure when no
+    !! stepper is active.
     module subroutine destroy_stepper(self, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Initializes a robust integration starting at `usol_start` and time zero.
-    !> When TOA-pressure maintenance is enabled, the starting composition is
-    !> prepared and the model top is brought inside the configured pressure
-    !> band before CVODE is initialized. This preflight is performed here so
-    !> pressure-based initialization can retain its requested domain endpoints.
-    !> Total accepted-step and failed-step counters are reset.
+    !> Initialize the policy-managed integration pathway at time zero from
+    !! `usol_start`.
+    !!
+    !! Advance this pathway with [[EvoAtmosphere:robust_step]]. It uses the
+    !! same underlying CVODE stepper as the basic pathway, while adding failure
+    !! recovery, scheduled restarts, convergence management, and integration
+    !! counters. When TOA-pressure maintenance is enabled, the starting
+    !! composition is prepared and the model top is brought inside the
+    !! configured pressure band before CVODE is initialized. This preflight
+    !! allows pressure-based atmosphere initialization to retain its requested
+    !! domain endpoints. Total accepted-step and failed-step counters are reset.
     module subroutine initialize_robust_stepper(self, usol_start, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
       character(:), allocatable, intent(out) :: err
     end subroutine
     
-    !> Takes one robust integration step. Function `initialize_robust_stepper`
-    !> must have been called before this. Failed steps recover from the last
-    !> committed state without advancing logical time. Scheduled restarts retain
-    !> logical time and total counters but discard segment-local convergence
-    !> history. When TOA-pressure maintenance is enabled, an accepted step may
-    !> trigger a pressure-targeted vertical-grid update after chemistry has
-    !> converged. A successful update restarts CVODE while retaining logical
-    !> time and total integration counters.
+    !> Advance the policy-managed integration pathway by one robust step.
+    !!
+    !! [[EvoAtmosphere:initialize_robust_stepper]] must have been called first.
+    !! Unlike the basic [[EvoAtmosphere:step]] pathway, this routine manages
+    !! failure recovery, scheduled restarts, convergence checks, and integration
+    !! counters. Failed steps recover from the last committed state without
+    !! advancing logical time. Scheduled restarts retain logical time and total
+    !! counters but discard segment-local convergence history. When TOA-pressure
+    !! maintenance is enabled, an accepted step may trigger a pressure-targeted
+    !! vertical-grid update after chemistry has converged. A successful update
+    !! restarts CVODE while retaining logical time and total integration counters.
     module subroutine robust_step(self, give_up, converged, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       logical, intent(out) :: give_up !! If .true., then the algorithm thinks it is time to give up.
@@ -526,15 +555,19 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err  
     end subroutine
     
-    !> Integrates using a robust stepper until a steady state has been achieved.
+    !> Run the policy-managed pathway until convergence or give-up.
+    !!
+    !! This convenience routine initializes the robust stepper from the current
+    !! `wrk%usol`, then repeatedly calls [[EvoAtmosphere:robust_step]]. It
+    !! returns true on convergence and false if the robust policy gives up.
     module function find_steady_state(self, err) result(converged)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
       logical :: converged !! If .true., then the integration has converged to a steady state.
     end function
     
-    module function RhsFn_evo(tn, sunvec_y, sunvec_f, user_data) &
-                          result(ierr) bind(c, name='RhsFn_evo')
+    module function right_hand_side_callback(tn, sunvec_y, sunvec_f, user_data) &
+                          result(ierr) bind(c, name='right_hand_side_callback')
       use, intrinsic :: iso_c_binding
       use fcvode_mod
       use fsundials_nvector_mod
@@ -545,9 +578,9 @@ module photochem_evoatmosphere
       integer(c_int)        :: ierr
     end function
     
-    module function JacFn_evo(tn, sunvec_y, sunvec_f, sunmat_J, user_data, &
-                          tmp1, tmp2, tmp3) &
-                          result(ierr) bind(C,name='JacFn_evo')
+    module function jacobian_callback(tn, sunvec_y, sunvec_f, sunmat_J, user_data, &
+                              tmp1, tmp2, tmp3) &
+                          result(ierr) bind(C,name='jacobian_callback')
       use, intrinsic :: iso_c_binding
       use fsundials_nvector_mod
       use fnvector_serial_mod
