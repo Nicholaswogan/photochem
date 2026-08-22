@@ -88,11 +88,13 @@ module photochem_evoatmosphere
     procedure :: set_upper_bc
     procedure :: set_rate_fcn
 
-    !~~ photochem_evoatmosphere_utils.f90 ~~!
+    !~~ photochem_evoatmosphere_profiles.f90 ~~!
     procedure :: set_temperature
     procedure :: set_press_temp_edd
     procedure :: set_press_temp_edd_profile
     procedure :: clear_press_temp_edd_profile
+
+    !~~ photochem_evoatmosphere_utils.f90 ~~!
     procedure :: update_vertical_grid
 
   end type
@@ -572,7 +574,7 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(inout) :: err
     end subroutine
 
-    !~~ photochem_evoatmosphere_utils.f90 ~~!
+    !~~ photochem_evoatmosphere_profiles.f90 ~~!
 
     !> Changes the altitude-based temperature profile.
     !!
@@ -723,6 +725,8 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: usol_in(:,:)
       character(:), allocatable, intent(out) :: err
     end subroutine
+
+    !~~ photochem_evoatmosphere_utils.f90 ~~!
 
     !> Rebuilds the vertical grid for a new `TOA_alt` or `TOA_pressure`.
     !! Inside the old model domain, atmospheric properties are interpolated.

@@ -643,7 +643,7 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 7: Split EvoAtmosphere operations by responsibility
 
-- [ ] Create the profiles submodule and move profile operations.
+- [x] Create the profiles submodule and move profile operations.
 - [ ] Create the grid submodule and move vertical-grid operations.
 - [x] Create the boundary submodule and move boundary operations.
 - [x] Create the output submodule and move output operations.
