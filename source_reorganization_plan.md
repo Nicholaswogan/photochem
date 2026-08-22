@@ -576,8 +576,8 @@ Mechanical moves and behavioral changes should be separate whenever practical.
       `data_dir` arguments.
 - [x] Remove all unnecessary `PhotochemVars` arguments from data readers.
 - [x] Split immutable settings application from mutable vars settings.
-- [ ] Add the isolated `PhotochemData` constructor.
-- [ ] Add focused constructor tests.
+- [x] Add the isolated `PhotochemData` constructor.
+- [x] Add focused constructor tests.
 - [x] Build and run the full Fortran test suite.
 
 ### Pass 3: PhotochemVars ownership

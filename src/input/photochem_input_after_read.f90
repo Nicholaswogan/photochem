@@ -544,7 +544,7 @@ contains
   end subroutine
 
   subroutine compute_gibbs_energy(dat, temperature, gibbs_energy, err)
-    use photochem_eqns, only: gibbs_energy_eval
+    use photochem_data, only: gibbs_energy_eval
     type(PhotochemData), intent(in) :: dat
     real(dp), intent(in) :: temperature(:)
     real(dp), intent(inout) :: gibbs_energy(:,:)

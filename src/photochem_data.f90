@@ -12,7 +12,7 @@ module photochem_data
   public :: Reaction, Efficiencies, BaseRate, ReverseRate, PhotolysisRate
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, PressDependentRate
   public :: MultiArrheniusRate, ProdLoss
-  public :: read_photochem_mechanism, read_photochem_supporting_data
+  public :: gibbs_energy_eval, heat_capacity_eval
   public :: parse_reaction
 
   type, extends(type_list) :: type_list_tmp
@@ -206,35 +206,145 @@ module photochem_data
     integer :: LH !! H index
   end type
 
+  interface PhotochemData
+    module procedure :: create_PhotochemData
+  end interface
+
 contains
 
-  subroutine read_photochem_mechanism(mechanism_file, s, dat, err)
+  function create_PhotochemData(mechanism_file, settings, data_dir, err) result(dat)
     character(len=*), intent(in) :: mechanism_file
-    type(PhotoSettings), intent(in) :: s
-    type(PhotochemData), intent(inout) :: dat
+    type(PhotoSettings), intent(in) :: settings
+    character(len=*), intent(in) :: data_dir
     character(:), allocatable, intent(out) :: err
+    type(PhotochemData) :: dat
 
-    dat%nsl = s%nsl
-    dat%SL_names = s%SL_names
+    dat%nsl = settings%nsl
+    dat%SL_names = settings%SL_names
 
     call get_photomech(mechanism_file, dat, err)
-  end subroutine
+    if (allocated(err)) return
 
-  subroutine read_photochem_supporting_data(dat, data_dir, s, err)
-    type(PhotochemData), intent(inout) :: dat
-    character(len=*), intent(in) :: data_dir
-    type(PhotoSettings), intent(in) :: s
-    character(:), allocatable, intent(out) :: err
+    call apply_data_settings(settings, dat, err)
+    if (allocated(err)) return
 
     call check_sl(dat, err)
     if (allocated(err)) return
 
     if (dat%gas_rainout) then
-      call get_henry(dat, data_dir, s, err)
+      call get_henry(dat, data_dir, settings, err)
       if (allocated(err)) return
     endif
 
     call get_photorad(dat, data_dir, err)
+    if (allocated(err)) return
+
+    dat%kd = 2*dat%nq + 1
+    dat%kl = dat%kd + dat%nq
+    dat%ku = dat%kd - dat%nq
+    dat%lda = 3*dat%nq + 1
+  end function
+
+  subroutine apply_data_settings(settings, dat, err)
+    use photochem_enum, only: ZahnleHydrogenEscape, NoHydrogenEscape
+    use photochem_eqns, only: zahnle_Hescape_coeff
+    type(PhotoSettings), intent(in) :: settings
+    type(PhotochemData), intent(inout) :: dat
+    character(:), allocatable, intent(out) :: err
+
+    integer :: ind(1)
+
+    dat%planet_mass = settings%planet_mass
+    dat%planet_radius = settings%planet_radius
+    dat%H_escape_type = settings%H_escape_type
+    if (dat%H_escape_type /= NoHydrogenEscape) then
+      ind = findloc(dat%species_names, 'H2')
+      dat%LH2 = ind(1)
+      if (ind(1) == 0) then
+        err = 'IOError: H2 must be a species if hydrogen-escape is on.'
+        return
+      endif
+      ind = findloc(dat%species_names, 'H')
+      dat%LH = ind(1)
+      if (ind(1) == 0) then
+        err = 'IOError: H must be a species if hydrogen-escape is on.'
+        return
+      endif
+
+      ind = findloc(dat%species_names(dat%nq+1:dat%nq+dat%nsl), 'H2')
+      if (ind(1) /= 0) then
+        err = 'H2 must not be short lived if hydrogen escape is on'
+        return
+      endif
+      ind = findloc(dat%species_names(dat%nq+1:dat%nq+dat%nsl), 'H')
+      if (ind(1) /= 0) then
+        err = 'H must not be short lived if hydrogen escape is on'
+        return
+      endif
+
+      if (dat%H_escape_type == ZahnleHydrogenEscape) then
+        dat%H_escape_coeff = zahnle_Hescape_coeff(settings%H_escape_S1)
+      endif
+    endif
+
+    dat%gas_rainout = settings%gas_rainout
+    ind = findloc(dat%species_names, 'H2O')
+    dat%LH2O = ind(1)
+    if (ind(1) == 0 .and. dat%gas_rainout) then
+      err = 'IOError: H2O must be a species if gas-rainout = True.'
+      return
+    endif
+  end subroutine
+
+  pure subroutine gibbs_energy_eval(thermo, T, found, gibbs_energy)
+    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial, Nasa7Polynomial
+    use photochem_eqns, only: gibbs_energy_shomate, gibbs_energy_nasa9, &
+                             gibbs_energy_nasa7
+    type(ThermodynamicData), intent(in) :: thermo
+    real(dp), intent(in) :: T
+    logical, intent(out) :: found
+    real(dp), intent(out) :: gibbs_energy
+
+    integer :: k
+
+    found = .false.
+    do k = 1,thermo%ntemps
+      if (T >= thermo%temps(k) .and. T < thermo%temps(k+1)) then
+        found = .true.
+        if (thermo%dtype == ShomatePolynomial) then
+          gibbs_energy = gibbs_energy_shomate(thermo%data(1:7,k), T)
+        elseif (thermo%dtype == Nasa9Polynomial) then
+          gibbs_energy = gibbs_energy_nasa9(thermo%data(1:9,k), T)
+        elseif (thermo%dtype == Nasa7Polynomial) then
+          gibbs_energy = gibbs_energy_nasa7(thermo%data(1:7,k), T)
+        endif
+        exit
+      endif
+    enddo
+  end subroutine
+
+  pure subroutine heat_capacity_eval(thermo, T, found, cp)
+    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial
+    use photochem_eqns, only: heat_capacity_shomate
+    type(ThermodynamicData), intent(in) :: thermo
+    real(dp), intent(in) :: T !! K
+    logical, intent(out) :: found
+    real(dp), intent(out) :: cp !! J/(mol*K)
+
+    integer :: k
+
+    found = .false.
+    do k = 1,thermo%ntemps
+      if (T >= thermo%temps(k) .and. T < thermo%temps(k+1)) then
+        found = .true.
+        if (thermo%dtype == ShomatePolynomial) then
+          cp = heat_capacity_shomate(thermo%data(1:7,k), T)
+        elseif (thermo%dtype == Nasa9Polynomial) then
+          found = .false.
+        endif
+        exit
+      endif
+    enddo
   end subroutine
 
   subroutine get_photomech(infile, dat, err)

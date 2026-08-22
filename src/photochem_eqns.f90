@@ -117,38 +117,6 @@ contains
 
   end function
   
-  pure subroutine gibbs_energy_eval(thermo, T, found, gibbs_energy)
-    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial, Nasa7Polynomial
-    use photochem_data, only: ThermodynamicData
-    
-    type(ThermodynamicData), intent(in) :: thermo
-    real(dp), intent(in) :: T
-    logical, intent(out) :: found
-    real(dp), intent(out) :: gibbs_energy
-    
-    integer :: k
-    
-    found = .false.
-    do k = 1,thermo%ntemps
-      if (T >= thermo%temps(k) .and. &
-          T <  thermo%temps(k+1)) then
-          
-        found = .true.
-        if (thermo%dtype == ShomatePolynomial) then
-          gibbs_energy = gibbs_energy_shomate(thermo%data(1:7,k), T)
-        elseif (thermo%dtype == Nasa9Polynomial) then
-          gibbs_energy = gibbs_energy_nasa9(thermo%data(1:9,k), T)
-        elseif (thermo%dtype == Nasa7Polynomial) then
-          gibbs_energy = gibbs_energy_nasa7(thermo%data(1:7,k), T)          
-        endif
-        
-        exit
-        
-      endif
-    enddo
-
-  end subroutine
-
   pure function heat_capacity_shomate(coeffs, T) result(cp)
     real(dp), intent(in) :: coeffs(7)
     real(dp), intent(in) :: T !! K
@@ -161,37 +129,6 @@ contains
          coeffs(4)*TT**3 + coeffs(5)/TT**2
   end function
   
-  pure subroutine heat_capacity_eval(thermo, T, found, cp)
-    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial
-    use photochem_data, only: ThermodynamicData
-  
-    type(ThermodynamicData), intent(in) :: thermo
-    real(dp), intent(in) :: T !! K
-    logical, intent(out) :: found
-    real(dp), intent(out) :: cp !! J/(mol*K)
-  
-    integer :: k
-
-    found = .false.
-    do k = 1,thermo%ntemps
-      if (T >= thermo%temps(k) .and. &
-          T <  thermo%temps(k+1)) then
-  
-        found = .true.
-        if (thermo%dtype == ShomatePolynomial) then
-          cp = heat_capacity_shomate(thermo%data(1:7,k), T)
-        elseif (thermo%dtype == Nasa9Polynomial) then
-          ! gibbs_energy = heat_capacity_nasa9(thermo%data(1:9,k), T)
-          found = .false.         
-        endif
-  
-        exit
-  
-      endif
-    enddo
-
-  end subroutine
-
   pure subroutine press_and_den(T, grav, Psurf, dz, &
                            mubar, pressure, density)
     use photochem_const, only: k_boltz, N_avo

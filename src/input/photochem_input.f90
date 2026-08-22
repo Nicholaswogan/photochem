@@ -1,7 +1,6 @@
 
 module photochem_input
-  use photochem_data, only: PhotochemData, read_photochem_mechanism, &
-                            read_photochem_supporting_data, parse_reaction
+  use photochem_data, only: PhotochemData, parse_reaction
   use photochem_settings, only: PhotoSettings
   use photochem_vars, only: PhotochemVars, apply_vars_settings, &
                             allocate_model_grid, read_stellar_flux
@@ -170,11 +169,6 @@ contains
 
     call read_static_files(mechanism_file, s, flux_file, data_dir, dat, var, err)
     if (allocated(err)) return
-
-    dat%kd = 2*dat%nq + 1
-    dat%kl = dat%kd + dat%nq
-    dat%ku = dat%kd - dat%nq
-    dat%lda = 3*dat%nq + 1
 
     call allocate_model_grid(dat, var)
 

@@ -2,11 +2,52 @@ program test_input
   ! Focused input parsing and validation tests. See tests/README.md.
   implicit none
   call test_parsing()
+  call test_data_construction()
   call test_removed_evolve_climate_setting()
   call test_removed_conserving_initialization()
   call test_removed_water_settings()
   print *, 'test_input passed'
 contains
+
+  subroutine test_data_construction()
+    use photochem_data, only: PhotochemData
+    use photochem_settings, only: PhotoSettings
+    type(PhotoSettings) :: settings
+    type(PhotochemData) :: dat
+    character(:), allocatable :: err
+
+    settings = PhotoSettings('../examples/ModernEarth/settings.yaml', err)
+    if (allocated(err)) call fail('Could not construct test settings: '//trim(err))
+
+    dat = PhotochemData('../data/reaction_mechanisms/zahnle_earth.yaml', &
+                        settings, '../data', err)
+    if (allocated(err)) call fail('Could not construct PhotochemData: '//trim(err))
+
+    if (dat%nsl /= settings%nsl) call fail('PhotochemData has the wrong short-lived species count')
+    if (.not. allocated(dat%SL_names)) call fail('PhotochemData did not store short-lived species names')
+    if (any(dat%SL_names /= settings%SL_names)) call fail('PhotochemData has the wrong short-lived species names')
+    if (dat%planet_mass /= settings%planet_mass) call fail('PhotochemData has the wrong planet mass')
+    if (dat%planet_radius /= settings%planet_radius) call fail('PhotochemData has the wrong planet radius')
+    if (dat%gas_rainout .neqv. settings%gas_rainout) call fail('PhotochemData has the wrong rainout setting')
+
+    if (dat%nsp <= 0 .or. dat%nq <= 0 .or. dat%nrT <= 0) then
+      call fail('PhotochemData mechanism dimensions were not initialized')
+    endif
+    if (.not. allocated(dat%species_names)) call fail('PhotochemData species were not initialized')
+    if (.not. allocated(dat%reaction_equations)) call fail('PhotochemData reactions were not initialized')
+    if (.not. allocated(dat%wavl)) call fail('PhotochemData wavelength grid was not initialized')
+    if (.not. allocated(dat%photolysis_xs)) call fail('PhotochemData cross sections were not initialized')
+    if (size(dat%wavl) /= dat%nw + 1) call fail('PhotochemData wavelength dimensions are inconsistent')
+    if (size(dat%photolysis_xs, 1) /= dat%kj .or. &
+        size(dat%photolysis_xs, 2) /= dat%nw) then
+      call fail('PhotochemData photolysis dimensions are inconsistent')
+    endif
+
+    if (dat%kd /= 2*dat%nq + 1) call fail('PhotochemData has the wrong Jacobian diagonal width')
+    if (dat%kl /= dat%kd + dat%nq) call fail('PhotochemData has the wrong lower bandwidth')
+    if (dat%ku /= dat%kd - dat%nq) call fail('PhotochemData has the wrong upper bandwidth')
+    if (dat%lda /= 3*dat%nq + 1) call fail('PhotochemData has the wrong Jacobian leading dimension')
+  end subroutine
 
   subroutine test_parsing()
     call expect_valid('H2 + O => H2O', .false., [character(len=2) :: 'H2', 'O'], ['H2O'])
