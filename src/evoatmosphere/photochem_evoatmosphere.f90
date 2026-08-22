@@ -82,11 +82,13 @@ module photochem_evoatmosphere
     !~~ photochem_evoatmosphere_output.f90 ~~!
     procedure :: out2atmosphere_txt
 
-    !~~ photochem_evoatmosphere_utils.f90 ~~!
+    !~~ photochem_evoatmosphere_boundary.f90 ~~!
     procedure :: gas_fluxes
     procedure :: set_lower_bc
     procedure :: set_upper_bc
     procedure :: set_rate_fcn
+
+    !~~ photochem_evoatmosphere_utils.f90 ~~!
     procedure :: set_temperature
     procedure :: set_press_temp_edd
     procedure :: set_press_temp_edd_profile
@@ -524,7 +526,7 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !~~ photochem_evoatmosphere_utils.f90 ~~!
+    !~~ photochem_evoatmosphere_boundary.f90 ~~!
 
     !> Computes gas fluxes at model boundaries in order to maintain
     !> current atmospheric concentrations. Uses the densities stored in
@@ -569,6 +571,8 @@ module photochem_evoatmosphere
       procedure(time_dependent_rate_fcn), pointer :: fcn
       character(:), allocatable, intent(inout) :: err
     end subroutine
+
+    !~~ photochem_evoatmosphere_utils.f90 ~~!
 
     !> Changes the altitude-based temperature profile.
     !!

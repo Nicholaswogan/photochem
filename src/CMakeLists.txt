@@ -26,6 +26,7 @@ set(PHOTOCHEM_MODULES
 
 set(PHOTOCHEM_EVOATMOSPHERE
     evoatmosphere/photochem_evoatmosphere.f90
+    evoatmosphere/photochem_evoatmosphere_boundary.f90
     evoatmosphere/photochem_evoatmosphere_init.f90
     evoatmosphere/photochem_evoatmosphere_integrate.f90
     evoatmosphere/photochem_evoatmosphere_output.f90
