@@ -342,6 +342,9 @@ Defines the aggregate `EvoAtmosphere` type and its public API. It contains:
 - public result types such as `ProductionLoss`;
 - lifecycle state and its documented invariants.
 
+`AtmosphereState` is defined privately in this parent module so every
+EvoAtmosphere submodule can use it through host association.
+
 Implementation remains in focused submodules.
 
 ### `photochem_evoatmosphere_init.f90`
@@ -365,7 +368,9 @@ Owns aggregate and atmosphere construction:
 This absorbs the atmosphere-specific functionality currently in
 `photochem_input_after_read.f90`. The unused nontransactional
 `finalize_atmosphere_initialization(dat, var, err)` should be removed if a final
-usage audit confirms that it has no callers.
+usage audit confirms that it has no callers. Mapping, file-reading, and
+interpolation routines are private helpers; `finalize_atmosphere_state`
+remains a private parent-module procedure because grid operations also use it.
 
 ### `photochem_evoatmosphere_profiles.f90`
 
@@ -441,7 +446,8 @@ Owns:
 ### `photochem_chemistry.f90`
 
 Replaces the vague `photochem_common.f90` name and owns standalone chemistry
-kernels:
+kernels. These may operate on `PhotochemData` and `PhotochemVars`, but do not
+own or coordinate a complete `EvoAtmosphere`:
 
 - `reaction_rates`;
 - `photorates`;
@@ -464,11 +470,10 @@ Retain their current focused purposes:
 - `photochem_eqns.f90`: pure or nearly pure primitive equations;
 - `photochem_radtran.f90`: the self-contained UV two-stream solver.
 
-Avoid circular dependencies between `photochem_data` and `photochem_eqns`.
-Because `photochem_eqns` evaluates `ThermodynamicData`, the data constructor
-should not call back into `photochem_eqns`. Small construction-only formulas can
-remain private to `photochem_data` or later move to an appropriate neutral leaf
-module.
+`photochem_eqns` should remain independent of model-owned derived types.
+Type-specific operations such as thermodynamic-data evaluation belong with
+their owning type; primitive numerical and physical equations belong in
+`photochem_eqns`.
 
 ## Expected removal of current files
 
@@ -624,10 +629,15 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 - [ ] Move atmosphere-file reading and profile mapping into
       `photochem_evoatmosphere_init.f90`.
-- [ ] Keep `AtmosphereState` private to the EvoAtmosphere implementation.
+- [ ] Define `AtmosphereState` privately in the parent EvoAtmosphere module.
+- [ ] Keep mapping, file-reading, and interpolation routines private to the
+      initialization implementation.
+- [ ] Keep `finalize_atmosphere_state` available privately to EvoAtmosphere
+      submodules.
 - [ ] Preserve transactional initialization and rollback behavior.
 - [ ] Remove `finalize_atmosphere_initialization` if the final caller audit
       confirms that it is unused.
+- [ ] Import `parse_reaction` tests directly from `photochem_data`.
 - [ ] Remove the obsolete `photochem_input` module and source directory.
 - [ ] Build and run the full Fortran and Python test suites.
 
@@ -641,24 +651,40 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [ ] Remove `photochem_evoatmosphere_utils.f90`.
 - [ ] Build and run the full Fortran and Python test suites.
 
-### Pass 8: Standalone cleanup and flat layout
+### Pass 8A: Standalone and compatibility cleanup
 
+- [ ] Move `ProductionLoss` into the EvoAtmosphere parent module and export it
+      through the `photochem` facade.
+- [ ] Update wrappers and remove `photochem_types.f90`.
 - [ ] Rename `photochem_common.f90` to `photochem_chemistry.f90`.
 - [ ] Move `out2atmosphere_txt_base` to the output submodule.
+- [ ] Build and run the full Fortran and Python test suites.
+
+### Pass 8B: Flat Photochem layout
+
 - [ ] Move all Photochem implementation files into the flat
       `src/photochem/` directory.
 - [ ] Update CMake source lists, FYPP inputs, module output paths, and install
       rules.
-- [ ] Remove empty `src/input/` and `src/evoatmosphere/` directories.
+- [ ] Remove the empty `src/evoatmosphere/` directory.
 - [ ] Perform a clean build in the `photochem` conda environment.
 - [ ] Run all tests and confirm CI on supported compilers and Python versions.
 
-### Pass 9: Import Clima and Equilibrate
+### Pass 9A: Import Clima
 
 - [ ] Copy nearly all existing Clima source into a flat `src/clima/`
       implementation directory.
+- [ ] Bring the Clima bindings in-tree while preserving `photochem._clima` and
+      installed climate-data behavior.
+- [ ] Build and test the in-tree Clima before removing its CPM dependency.
+
+### Pass 9B: Import Equilibrate
+
 - [ ] Copy nearly all existing Equilibrate source into a flat
       `src/equilibrate/` implementation directory.
+- [ ] Bring the Equilibrate bindings in-tree while preserving
+      `photochem._equilibrate`.
+- [ ] Build and test the in-tree Equilibrate before removing its CPM dependency.
 - [ ] Keep the imported implementations unchanged except for flattening,
       necessary build integration, and unavoidable path or module-order fixes.
 - [ ] Accept duplicate code between the three model directories during the
@@ -738,11 +764,6 @@ pre-reorganization baseline.
 
 Record decisions here as implementation reveals more information:
 
-- [ ] Should the top-level facade files remain directly under `src/` after all
-      three models are imported, or should each move inside its component
-      directory?
-- [ ] Does `ProductionLoss` belong in the EvoAtmosphere parent module or in a
-      small neutral results module once Clima and Equilibrate are present?
 - [ ] Should Photochem's UV two-stream implementation remain model-specific or
       share numerical kernels with Clima radiative transfer?
 
