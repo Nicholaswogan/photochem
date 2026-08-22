@@ -596,10 +596,10 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 4: Work ownership
 
-- [ ] Create `photochem_wrk.f90`.
+- [x] Create `photochem_wrk.f90`.
 - [ ] Merge the current `PhotochemWrk` and `PhotochemWrkEvo` into one
       `PhotochemWrk` type.
-- [ ] Move `PhotochemWrk` and the SUNDIALS owner types into the new module.
+- [x] Move `PhotochemWrk` and the SUNDIALS owner types into the new module.
 - [ ] Replace `%init` allocation with the explicit-dimension constructor
       `wrk = PhotochemWrk(...)`.
 - [ ] Update `EvoAtmosphere` and all call sites to use the consolidated type.

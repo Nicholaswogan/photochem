@@ -152,7 +152,7 @@ contains
     use, intrinsic :: iso_c_binding, only: c_double, c_int
     use fcvode_mod, only: CV_NORMAL, FCVode, FCVodeSVtolerances, &
                           FCVodeSetInitStep, FCVodeReInit, FCVodeSetMaxStep
-    use photochem_types, only: SundialsDataFinalizer
+    use photochem_wrk, only: SundialsDataFinalizer
     
     ! in/out
     class(EvoAtmosphere), target, intent(inout) :: self
