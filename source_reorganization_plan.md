@@ -558,13 +558,13 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 1: Settings ownership
 
-- [ ] Create `photochem_settings.f90`.
-- [ ] Move settings types out of `photochem_types.f90`.
-- [ ] Move the `PhotoSettings` constructor and parsing implementation out of
+- [x] Create `photochem_settings.f90`.
+- [x] Move settings types out of `photochem_types.f90`.
+- [x] Move the `PhotoSettings` constructor and parsing implementation out of
       `photochem_types_create.f90`.
-- [ ] Update module imports without changing behavior.
-- [ ] Add or retain focused settings-construction tests.
-- [ ] Build and run the full Fortran test suite.
+- [x] Update module imports without changing behavior.
+- [x] Add or retain focused settings-construction tests.
+- [x] Build and run the full Fortran test suite.
 
 ### Pass 2: PhotochemData ownership
 

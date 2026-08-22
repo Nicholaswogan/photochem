@@ -18,8 +18,8 @@ set(PHOTOCHEM_MODULES
   photochem_const.f90
   photochem_radtran.f90 
   photochem_enum.f90
-  photochem_types.f90
-  photochem_types_create.f90)
+  photochem_settings.f90
+  photochem_types.f90)
 
 set(PHOTOCHEM_INPUT
     input/photochem_input.f90

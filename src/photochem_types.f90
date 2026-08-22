@@ -2,6 +2,7 @@
 module photochem_types ! make a giant IO object
   use, intrinsic :: iso_c_binding, only: c_double, c_int, c_long, c_ptr, c_null_ptr
   use photochem_const, only: dp, str_len, s_str_len, m_str_len
+  use photochem_settings, only: PhotoSettings, SettingsBC, CondensationParameters
   use clima_saturationdata, only: SaturationData
   use fsundials_nvector_mod, only: N_Vector
   use fsundials_matrix_mod, only: SUNMatrix
@@ -21,28 +22,6 @@ module photochem_types ! make a giant IO object
   public :: SundialsDataFinalizer
   public :: time_dependent_flux_fcn, time_dependent_rate_fcn, binary_diffusion_fcn
   
-  !!!!!!!!!!!!!!!!
-  !!! Settings !!!
-  !!!!!!!!!!!!!!!!
-  
-  type :: SettingsBC
-    integer :: bc_type
-    real(dp) :: vel
-    real(dp) :: flux
-    real(dp) :: height
-    real(dp) :: den
-    real(dp) :: press
-  end type
-
-  !> Condensation parameters
-  type :: CondensationParameters
-    real(dp) :: k_cond = 100.0_dp !! rate coefficient for condensation
-    real(dp) :: k_evap = 10.0_dp !! rate coefficient for evaporation
-    real(dp) :: RHc = 1.0_dp !! RH where condensation occurs
-    real(dp) :: smooth_factor = 0.2_dp !! A factor that smooths condensation/evaporation 
-                                       !! rate to prevents stiffness
-  end type
-
   type :: PressureTempEddProfile
     logical :: enabled = .false.
     logical :: hydro_pressure = .true.
@@ -62,57 +41,6 @@ module photochem_types ! make a giant IO object
     integer :: nsteps_between_updates = 100 !! Minimum accepted steps between updates
     integer :: max_failures = 0 !! Failed updates allowed before robust integration stops
   end type
-  
-  type :: SettingsParticle
-    character(:), allocatable :: name
-    type(CondensationParameters) :: params
-  endtype
-
-  type :: PhotoSettings
-    character(:), allocatable :: filename
-  
-    ! atmosphere-grid
-    integer :: nz
-  
-    ! planet
-    real(dp) :: planet_mass
-    real(dp) :: planet_radius
-    real(dp) :: surface_albedo
-    real(dp) :: photon_scale_factor 
-    real(dp) :: solar_zenith
-    integer :: H_escape_type
-    real(dp), allocatable :: H_escape_S1
-    integer :: default_lowerboundcond
-    ! rainout
-    logical :: gas_rainout
-    real(dp) :: rainfall_rate
-    character(s_str_len), allocatable :: rainout_species(:)
-    real(dp) :: trop_alt
-
-    ! particles
-    type(SettingsParticle), allocatable :: particles(:)
-  
-    ! boundary-conditions
-    type(SettingsBC), allocatable :: ubcs(:)
-    type(SettingsBC), allocatable :: lbcs(:)
-    character(s_str_len), allocatable :: sp_names(:)
-    character(s_str_len), allocatable :: sp_types(:)
-    
-    integer :: nsl
-    character(s_str_len), allocatable :: SL_names(:)
-    
-  end type
-
-  interface
-    module function create_PhotoSettings(filename, err) result(s)
-      character(*), intent(in) :: filename
-      character(:), allocatable, intent(out) :: err
-      type(PhotoSettings) :: s
-    end function
-  end interface
-  interface PhotoSettings
-    module procedure :: create_PhotoSettings
-  end interface
   
   !!!!!!!!!!!!!!!!!
   !!! Utilities !!!

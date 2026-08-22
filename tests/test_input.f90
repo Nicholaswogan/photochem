@@ -32,7 +32,7 @@ contains
   end subroutine
 
   subroutine test_removed_evolve_climate_setting()
-    use photochem_types, only: PhotoSettings
+    use photochem_settings, only: PhotoSettings
     type(PhotoSettings) :: settings
     character(:), allocatable :: err
 
@@ -46,7 +46,7 @@ contains
   end subroutine
 
   subroutine test_removed_conserving_initialization()
-    use photochem_types, only: PhotoSettings
+    use photochem_settings, only: PhotoSettings
     type(PhotoSettings) :: settings
     character(:), allocatable :: err
 
@@ -60,7 +60,7 @@ contains
   end subroutine
 
   subroutine test_removed_water_settings()
-    use photochem_types, only: PhotoSettings
+    use photochem_settings, only: PhotoSettings
     type(PhotoSettings) :: settings
     character(:), allocatable :: err
 

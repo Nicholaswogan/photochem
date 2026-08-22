@@ -561,7 +561,7 @@ contains
   subroutine unpack_settings(infile, s, dat, var, err)
     use photochem_enum, only: VelocityBC, DensityBC, PressureBC
     use photochem_enum, only: DiffusionLimHydrogenEscape, ZahnleHydrogenEscape, NoHydrogenEscape
-    use photochem_types, only: PhotoSettings
+    use photochem_settings, only: PhotoSettings
     character(len=*), intent(in) :: infile
     type(PhotoSettings), intent(in) :: s
     type(PhotochemData), intent(inout) :: dat
@@ -775,7 +775,7 @@ contains
   end subroutine
   
   subroutine get_henry(dat, var, s, err)
-    use photochem_types, only: PhotoSettings
+    use photochem_settings, only: PhotoSettings
     use fortran_yaml_c, only : YamlFile
     type(PhotochemData), intent(inout) :: dat
     type(PhotochemVars), intent(in) :: var

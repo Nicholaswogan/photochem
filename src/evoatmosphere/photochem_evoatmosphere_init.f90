@@ -39,7 +39,7 @@ contains
   subroutine setup_evoatmosphere_static(self, mechanism_file, settings_file, &
                                         flux_file, data_dir, err)
     use photochem_input, only: setup_static
-    use photochem_types, only: PhotoSettings
+    use photochem_settings, only: PhotoSettings
 
     type(EvoAtmosphere), intent(out) :: self
     character(len=*), intent(in) :: mechanism_file

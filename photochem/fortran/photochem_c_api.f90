@@ -7,7 +7,7 @@ module photochem_c_api
   use photochem_types, only: TOAPressureMaintenance
   use photochem_types, only: PhotochemWrk, PhotochemWrkEvo
   use photochem_types, only: ProductionLoss
-  use photochem_types, only: CondensationParameters
+  use photochem_settings, only: CondensationParameters
   use photochem, only: err_len
   use photochem_const, only: s_str_len, m_str_len
   implicit none

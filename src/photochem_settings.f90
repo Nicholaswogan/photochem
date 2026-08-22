@@ -1,20 +1,84 @@
-submodule (photochem_types) photochem_types_create
+module photochem_settings
+  use photochem_const, only: dp, s_str_len
   use fortran_yaml_c_types, only : type_node, type_dictionary, type_list, type_error, &
                                    type_list_item, type_scalar, type_key_value_pair
   implicit none
+  private
+
+  public :: PhotoSettings, SettingsBC, CondensationParameters
+
+  type :: SettingsBC
+    integer :: bc_type
+    real(dp) :: vel
+    real(dp) :: flux
+    real(dp) :: height
+    real(dp) :: den
+    real(dp) :: press
+  end type
+
+  !> Condensation parameters
+  type :: CondensationParameters
+    real(dp) :: k_cond = 100.0_dp !! rate coefficient for condensation
+    real(dp) :: k_evap = 10.0_dp !! rate coefficient for evaporation
+    real(dp) :: RHc = 1.0_dp !! RH where condensation occurs
+    real(dp) :: smooth_factor = 0.2_dp !! A factor that smooths condensation/evaporation
+                                       !! rate to prevents stiffness
+  end type
+
+  type :: SettingsParticle
+    character(:), allocatable :: name
+    type(CondensationParameters) :: params
+  end type
+
+  type :: PhotoSettings
+    character(:), allocatable :: filename
+
+    ! atmosphere-grid
+    integer :: nz
+
+    ! planet
+    real(dp) :: planet_mass
+    real(dp) :: planet_radius
+    real(dp) :: surface_albedo
+    real(dp) :: photon_scale_factor
+    real(dp) :: solar_zenith
+    integer :: H_escape_type
+    real(dp), allocatable :: H_escape_S1
+    integer :: default_lowerboundcond
+    ! rainout
+    logical :: gas_rainout
+    real(dp) :: rainfall_rate
+    character(s_str_len), allocatable :: rainout_species(:)
+    real(dp) :: trop_alt
+
+    ! particles
+    type(SettingsParticle), allocatable :: particles(:)
+
+    ! boundary-conditions
+    type(SettingsBC), allocatable :: ubcs(:)
+    type(SettingsBC), allocatable :: lbcs(:)
+    character(s_str_len), allocatable :: sp_names(:)
+    character(s_str_len), allocatable :: sp_types(:)
+
+    integer :: nsl
+    character(s_str_len), allocatable :: SL_names(:)
+  end type
+
+  interface PhotoSettings
+    module procedure :: create_PhotoSettings
+  end interface
 
 contains
 
-  module function create_PhotoSettings(filename, err) result(s)
+  function create_PhotoSettings(filename, err) result(s)
     use fortran_yaml_c, only : YamlFile
-    use photochem_types, only: PhotoSettings
     character(*), intent(in) :: filename
     character(:), allocatable, intent(out) :: err
-    
+
     type(PhotoSettings) :: s
-    
+
     type(YamlFile) :: file
-    
+
     ! parse yaml file
     call file%parse(filename, err)
     if (allocated(err)) return
@@ -26,19 +90,18 @@ contains
     end select
     call file%finalize()
     if (allocated(err)) return
-      
+
   end function
-  
+
   function unpack_PhotoSettings(root, filename, err) result(s)
     use photochem_enum, only: VelocityBC, MosesBC
     use photochem_enum, only: DiffusionLimHydrogenEscape, ZahnleHydrogenEscape, NoHydrogenEscape
-    use photochem_types, only: PhotoSettings
     type(type_dictionary), intent(in) :: root
     character(*), intent(in) :: filename
     character(:), allocatable, intent(out) :: err
-    
+
     type(PhotoSettings) :: s
-    
+
     type(type_dictionary), pointer :: dict, tmp2
     class(type_node), pointer :: obsolete_node
     type(type_list), pointer :: list, bcs
@@ -51,7 +114,7 @@ contains
 
     ! filename
     s%filename = filename
-    
+
     !!!!!!!!!!!!!!!!!!!!!!!
     !!! atmosphere-grid !!!
     !!!!!!!!!!!!!!!!!!!!!!!
@@ -64,7 +127,7 @@ contains
       err = "The number of vertical layers must be >= 10"
       return
     endif
-  
+
     !!!!!!!!!!!!!!
     !!! planet !!!
     !!!!!!!!!!!!!!
@@ -105,7 +168,7 @@ contains
             'remove it from the planet section.'
       return
     endif
-    
+
     ! H2 escape
     tmp2 => dict%get_dictionary('hydrogen-escape',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
@@ -125,7 +188,7 @@ contains
       err = '"'//temp_char//'" is not an a valid hydrogen escape type in '//trim(filename)
       return
     endif
-    
+
     ! default lower boundary
     temp_char = trim(dict%get_string('default-gas-lower-boundary',"deposition velocity",error = io_err))
     if (trim(temp_char) == 'deposition velocity') then
@@ -162,7 +225,7 @@ contains
     endif
     s%gas_rainout = tmp2%get_logical('gas-rainout',error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    
+
     if (s%gas_rainout) then
       s%rainfall_rate = tmp2%get_real('rainfall-rate',error = io_err)
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
@@ -182,7 +245,7 @@ contains
         endif
       endif
     endif
-    
+
     if (s%gas_rainout) then
       ! we need a tropopause altitude
       s%trop_alt = tmp2%get_real('tropopause-altitude',error = io_err)
@@ -194,7 +257,7 @@ contains
         err = 'IOError: tropopause-altitude must be between the top and bottom of the atmosphere'
         return
       endif
-    
+
     endif
 
     ! Particles
@@ -231,7 +294,7 @@ contains
         class default
           err = "IOError: Particles must be a list of dictionaries"
           return
-        end select 
+        end select
 
         i = i + 1
         item => item%next
@@ -251,19 +314,19 @@ contains
       endblock
 
     endif
-    
+
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
     !!! boundary-conditions !!!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!
     bcs => root%get_list('boundary-conditions',.true.,error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-   
+
     ! allocate boundary conditions
     allocate(s%ubcs(bcs%size()))
     allocate(s%lbcs(size(s%ubcs)))
     allocate(s%sp_types(size(s%ubcs)))
     allocate(s%sp_names(size(s%ubcs)))
-   
+
     ! default boundary conditions
     do j = 1,size(s%ubcs)
      s%lbcs(j)%bc_type = s%default_lowerboundcond
@@ -271,7 +334,7 @@ contains
      s%ubcs(j)%bc_type = VelocityBC
      s%ubcs(j)%vel = 0.0_dp
     enddo
-     
+
     s%nsl = 0
     j = 1
     item => bcs%first
@@ -290,35 +353,35 @@ contains
             endif
           enddo
         endif
-        
+
         s%sp_types(j) = trim(e%get_string('type','long lived',error = io_err))
         if (s%sp_types(j) == 'short lived') then
           s%nsl = s%nsl + 1
-        
+
         elseif (s%sp_types(j) == 'long lived') then
           ! get boundary condition
           dict => e%get_dictionary("upper-boundary",.true.,error = io_err)
           if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
           call unpack_SettingsBC(dict, "upper", s%sp_names(j), filename, s%ubcs(j), err)
           if (allocated(err)) return
-          
+
           dict => e%get_dictionary("lower-boundary",.true.,error = io_err)
           if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
           call unpack_SettingsBC(dict, "lower", s%sp_names(j), filename, s%lbcs(j), err)
           if (allocated(err)) return
-        
+
         else
-          err = 'IOError: species type '//s%sp_types(j)//' is not a valid.' 
+          err = 'IOError: species type '//s%sp_types(j)//' is not a valid.'
           return
         endif
       class default
         err = "IOError: Boundary conditions must be a list of dictionaries."
         return
-      end select 
+      end select
       j = j + 1
       item => item%next
     enddo
-    
+
     allocate(s%SL_names(s%nsl))
     i = 1
     do j = 1,size(s%sp_names)
@@ -326,12 +389,11 @@ contains
         s%SL_names(i) = s%sp_names(j)
         i = i + 1
       endif
-    enddo   
-    
+    enddo
+
   end function
-  
+
   subroutine unpack_SettingsBC(bc, bc_kind, sp_name, filename, sbc, err)
-    use photochem_types, only: SettingsBC
     use photochem_enum, only: MosesBC, VelocityBC, FluxBC
     use photochem_enum, only: VelocityDistributedFluxBC, DensityBC, PressureBC
     type(type_dictionary), intent(in) :: bc
@@ -340,7 +402,7 @@ contains
     character(*), intent(in) :: filename
     type(SettingsBC), intent(inout) :: sbc
     character(:), allocatable, intent(out) :: err
-    
+
     character(:), allocatable :: vel, bctype
     type(type_error), allocatable :: io_err
 
@@ -356,10 +418,10 @@ contains
     sbc%height = -huge(1.0_dp)
     sbc%den = -huge(1.0_dp)
     sbc%press = -huge(1.0_dp)
-    
+
     bctype = bc%get_string("type",error = io_err)
     if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    
+
     if (bctype == vel) then
       sbc%bc_type = VelocityBC
       sbc%vel = bc%get_real(vel,error = io_err)
@@ -374,20 +436,20 @@ contains
       sbc%bc_type = FluxBC
       sbc%flux = bc%get_real("flux",error = io_err)
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-    
+
     elseif (bctype == "vdep + dist flux") then
       if (bc_kind == "upper") then
         err = 'Upper boundary conditions can not be "vdep + dist flux" for '//trim(sp_name)
         return
       endif
-      
+
       sbc%bc_type = VelocityDistributedFluxBC
       sbc%vel = bc%get_real(vel,error = io_err)
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-      
+
       sbc%flux = bc%get_real("flux",error = io_err)
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
-      
+
       sbc%height = bc%get_real("height",error = io_err)
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
 
@@ -406,7 +468,7 @@ contains
         err = 'Upper boundary conditions can not be "den" for '//trim(sp_name)
         return
       endif
-      
+
       sbc%bc_type = DensityBC
       sbc%den = bc%get_real("den",error = io_err)
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
@@ -421,7 +483,7 @@ contains
         err = 'Upper boundary conditions can not be "press" for '//trim(sp_name)
         return
       endif
-      
+
       sbc%bc_type = PressureBC
       sbc%press = bc%get_real("press",error = io_err)
       if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
@@ -437,7 +499,7 @@ contains
       err = 'IOError: "'//trim(bctype)//'" is not a valid lower boundary condition for '//trim(sp_name)
       return
     endif
-    
+
   end subroutine
 
   pure function check_for_duplicates(str_list) result(ind)
@@ -459,10 +521,10 @@ contains
     type(type_list), intent(in) :: list
     character(*), allocatable, intent(out) :: str_list(:)
     character(:), allocatable, intent(out) :: err
-    
+
     integer :: i
     type(type_list_item), pointer :: item
-    
+
     allocate(str_list(list%size()))
     i = 1
     item => list%first
@@ -477,7 +539,7 @@ contains
       i = i + 1
       item => item%next
     enddo
-    
+
   end subroutine
 
-end submodule
+end module
