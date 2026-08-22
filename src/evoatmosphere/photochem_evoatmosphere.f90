@@ -1,13 +1,40 @@
 module photochem_evoatmosphere
   use photochem_const, only: dp
-  use photochem_data, only: PhotochemData
-  use photochem_vars, only: PhotochemVars
+  use photochem_data, only: PhotochemData, ParticleXsections
+  use photochem_vars, only: PhotochemVars, PressureTempEddProfile, &
+                            TOAPressureMaintenance
   use photochem_wrk, only: PhotochemWrk
-  use photochem_types, only: AtmosphereState
   implicit none
 
   private
   public :: EvoAtmosphere
+
+  !> Internal transactional handoff used to validate atmospheric changes
+  !! before committing them to the live model.
+  type :: AtmosphereState
+    real(dp) :: bottom_atmos
+    real(dp) :: top_atmos
+    real(dp) :: trop_alt
+    real(dp), allocatable :: z(:)
+    real(dp), allocatable :: dz(:)
+    real(dp), allocatable :: temperature(:)
+    real(dp), allocatable :: edd(:)
+    real(dp), allocatable :: particle_radius(:,:)
+    real(dp), allocatable :: usol(:,:)
+
+    ! State derived before commit.
+    real(dp), allocatable :: grav(:)
+    integer :: trop_ind
+    real(dp), allocatable :: xs_x_qy(:,:,:)
+    type(ParticleXsections), allocatable :: particle_xs(:)
+    real(dp), allocatable :: gibbs_energy(:,:)
+
+    ! Persistent atmospheric-profile configuration associated with the state.
+    type(PressureTempEddProfile) :: press_temp_edd_profile
+    type(TOAPressureMaintenance) :: toa_pressure_maintenance
+  contains
+    procedure :: allocate => AtmosphereState_allocate
+  end type
 
   type :: EvoAtmosphere
     type(PhotochemData), allocatable :: dat
@@ -73,6 +100,18 @@ module photochem_evoatmosphere
   interface
 
     !~~ photochem_evoatmosphere_init.f90 ~~!
+
+    module subroutine AtmosphereState_allocate(self, dat, nz)
+      class(AtmosphereState), intent(inout) :: self
+      type(PhotochemData), intent(in) :: dat
+      integer, intent(in) :: nz
+    end subroutine
+
+    module subroutine finalize_atmosphere_state(dat, state, err)
+      type(PhotochemData), intent(in) :: dat
+      type(AtmosphereState), intent(inout) :: state
+      character(:), allocatable, intent(out) :: err
+    end subroutine
 
     !> Construct and initialize a photochemical model from a legacy atmosphere file.
     !!

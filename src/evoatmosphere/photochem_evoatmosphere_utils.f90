@@ -1,7 +1,6 @@
 
 submodule(photochem_evoatmosphere) photochem_evoatmosphere_utils
   use photochem_vars, only: PressureTempEddProfile
-  use photochem_types, only: AtmosphereState
   implicit none
 
   type :: PressTempEddState
@@ -1753,7 +1752,6 @@ contains
 
   module subroutine update_vertical_grid(self, TOA_alt, TOA_pressure, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    use photochem_input, only: finalize_atmosphere_state
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), optional, intent(in) :: TOA_alt !! cm
     real(dp), optional, intent(in) :: TOA_pressure !! dynes/cm^2

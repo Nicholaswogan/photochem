@@ -627,19 +627,19 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 6: Atmosphere initialization ownership
 
-- [ ] Move atmosphere-file reading and profile mapping into
+- [x] Move atmosphere-file reading and profile mapping into
       `photochem_evoatmosphere_init.f90`.
-- [ ] Define `AtmosphereState` privately in the parent EvoAtmosphere module.
-- [ ] Keep mapping, file-reading, and interpolation routines private to the
+- [x] Define `AtmosphereState` privately in the parent EvoAtmosphere module.
+- [x] Keep mapping, file-reading, and interpolation routines private to the
       initialization implementation.
-- [ ] Keep `finalize_atmosphere_state` available privately to EvoAtmosphere
+- [x] Keep `finalize_atmosphere_state` available privately to EvoAtmosphere
       submodules.
-- [ ] Preserve transactional initialization and rollback behavior.
-- [ ] Remove `finalize_atmosphere_initialization` if the final caller audit
+- [x] Preserve transactional initialization and rollback behavior.
+- [x] Remove `finalize_atmosphere_initialization` if the final caller audit
       confirms that it is unused.
-- [ ] Import `parse_reaction` tests directly from `photochem_data`.
-- [ ] Remove the obsolete `photochem_input` module and source directory.
-- [ ] Build and run the full Fortran and Python test suites.
+- [x] Import `parse_reaction` tests directly from `photochem_data`.
+- [x] Remove the obsolete `photochem_input` module and source directory.
+- [x] Build and run the full Fortran and Python test suites.
 
 ### Pass 7: Split EvoAtmosphere operations by responsibility
 

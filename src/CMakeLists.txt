@@ -24,11 +24,6 @@ set(PHOTOCHEM_MODULES
   photochem_wrk.f90
   photochem_types.f90)
 
-set(PHOTOCHEM_INPUT
-    input/photochem_input.f90
-    input/photochem_input_after_read.f90
-    input/photochem_input_read.f90)
-
 set(PHOTOCHEM_EVOATMOSPHERE
     evoatmosphere/photochem_evoatmosphere.f90
     evoatmosphere/photochem_evoatmosphere_init.f90
@@ -37,7 +32,6 @@ set(PHOTOCHEM_EVOATMOSPHERE
 
 set(PHOTOCHEM_SOURCES 
   ${PHOTOCHEM_MODULES}
-  ${PHOTOCHEM_INPUT}
   ${PHOTOCHEM_EVOATMOSPHERE}
   ${outFiles}
   photochem.f90)

@@ -196,7 +196,7 @@ contains
   end subroutine
 
   subroutine expect_valid(equation, expected_reverse, expected_reactants, expected_products)
-    use photochem_input, only: parse_reaction
+    use photochem_data, only: parse_reaction
     character(len=*), intent(in) :: equation
     logical, intent(in) :: expected_reverse
     character(len=*), intent(in) :: expected_reactants(:), expected_products(:)
@@ -227,7 +227,7 @@ contains
   end subroutine
 
   subroutine expect_invalid(equation, expected_message)
-    use photochem_input, only: parse_reaction
+    use photochem_data, only: parse_reaction
     character(len=*), intent(in) :: equation, expected_message
     character(len=20), allocatable :: reactants(:), products(:)
     character(:), allocatable :: err
