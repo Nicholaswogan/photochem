@@ -8,7 +8,8 @@
 
 ## Status
 
-- [ ] Phase 8.1a: reorganize the existing Photochem Fortran source
+- [ ] Phase 8.1a: reorganize the existing Photochem source, tests, bindings,
+      and Python package boundary
 - [ ] Phase 8.1b: bring Clima source into this repository
 - [ ] Phase 8.1c: bring Equilibrate source into this repository
 - Optional after completion: extract demonstrated shared code into neutral
@@ -17,9 +18,9 @@
 
 ## Objective
 
-Organize the Fortran implementation around explicit ownership and dependency
-boundaries before adding the Clima and Equilibrate sources to this repository.
-The final repository should make it easy to answer:
+Organize the Photochem implementation, tests, bindings, and package boundaries
+around explicit ownership before adding the Clima and Equilibrate sources to
+this repository. The final repository should make it easy to answer:
 
 1. Which module constructs and maintains each major model object?
 2. Which routines coordinate a complete model lifecycle?
@@ -214,6 +215,75 @@ definition of completion for roadmap item 8.1.
 The names under `photochem/` retain the `photochem_` prefix so module names and
 filenames remain easy to associate in compiler output, build files, and code
 searches.
+
+## Bindings and Python package layout
+
+Before importing Clima and Equilibrate, establish the final component-first
+bindings layout using the existing Photochem wrappers:
+
+```text
+bindings/
+├── CMakeLists.txt
+├── photochem/
+│   ├── CMakeLists.txt
+│   ├── c_api/
+│   └── cython/
+├── clima/                            # Added with the Clima import
+│   ├── c_api/
+│   └── cython/
+└── equilibrate/                      # Added with the Equilibrate import
+    ├── c_api/
+    └── cython/
+```
+
+Each component owns its complete C API and Cython stack. Shared binding code
+may be extracted later only if concrete reuse appears. Compiled extensions
+must retain their existing private Python names: `photochem._photochem`,
+`photochem._clima`, and `photochem._equilibrate`.
+
+After the Photochem wrappers move, the repository-root `photochem/` directory
+is only the installable Python package. Its current public organization is a
+reasonable initial target:
+
+```text
+photochem/
+├── __init__.py
+├── clima.py
+├── equilibrate.py
+├── io.py
+├── extensions/
+└── utils/
+```
+
+Audit this package boundary before importing the other components, but avoid a
+broad Python API redesign. The thin Clima and Equilibrate facades, extension
+modules, utility imports, and existing public import paths should remain stable
+during the source import.
+
+## Test layout
+
+Establish component test ownership before importing external tests:
+
+```text
+tests/
+├── CMakeLists.txt
+├── README.md
+├── photochem/
+│   ├── CMakeLists.txt
+│   ├── test_*.f90
+│   ├── test_python.py
+│   └── test fixtures
+├── clima/                            # Added with the Clima import
+├── equilibrate/                      # Added with the Equilibrate import
+└── integration/                      # Cross-component behavior only
+```
+
+Keep each component directory flat initially. Use component-prefixed CMake
+target names and CTest labels so targets remain globally unique and individual
+suites can be selected. Test fixtures must be resolved independently of the
+build directory; do not preserve assumptions that the build tree is a sibling
+of the source tree. Move existing tests mechanically before splitting truly
+cross-component coverage into `tests/integration/`.
 
 ## Target Photochem modules
 
@@ -495,13 +565,15 @@ and Fortran submodules rather than a unique nested directory.
 
 ## Import strategy for Clima and Equilibrate
 
-The required first step is intentionally conservative. After Photochem has
-been reorganized, copy nearly all existing Clima and Equilibrate source into
-their respective flat directories with as little modification as possible:
+After the Photochem source, bindings, and Python package boundaries have been
+established, copy each external component's source and bindings directly into
+its final locations with as little modification as possible:
 
 ```text
 src/clima/
+bindings/clima/
 src/equilibrate/
+bindings/equilibrate/
 ```
 
 Duplicate code is acceptable at this stage. The initial objective is to make
@@ -513,6 +585,32 @@ adjustments, preserve the imported code as-is.
 The three complete models should remain independently owned aggregates. Do not
 attempt to create universal `Data`, `Vars`, `Wrk`, or model-state types shared
 by all three codes.
+
+The import must also account for these existing repository assumptions:
+
+- Record the imported Clima and Equilibrate versions and source revisions, and
+  retain their GPL license provenance. Their version modules must use explicit
+  component versions rather than inheriting the top-level Photochem project
+  version.
+- Centralize external dependency targets in this repository. Clima currently
+  creates `h5fortran`, `finterp`, `dop853`, and `minpack` targets, while
+  Photochem already consumes `finterp` and `minpack` indirectly. Preserve
+  LAPACK discovery and the shared OpenMP policy without defining duplicate
+  CMake targets.
+- Preserve the required build direction: Clima provides
+  `clima_saturationdata` and `clima_useful` modules used by Photochem.
+  Equilibrate is consumed through its Python extension and higher-level
+  Photochem utilities rather than by the Photochem Fortran library.
+- Preserve wrapper dependency declarations, generated FYPP sources, component
+  version modules, extension install destinations, and the
+  `photochem_clima_data` default-data behavior.
+- Import test fixtures required by the component suites, including the Clima
+  settings/species/atmosphere inputs and Equilibrate thermodynamic data. Keep
+  those assets under their component test directories when they are not
+  runtime package data.
+- Defer standalone examples, notebooks, and conversion/development scripts.
+  A future top-level `docs/` tree will provide examples and documentation for
+  all three codes after the combined package is stable.
 
 ## Optional shared implementation
 
@@ -669,23 +767,63 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [x] Remove the empty `src/evoatmosphere/` directory.
 - [x] Perform a clean build in the `photochem` conda environment.
 - [x] Run all Fortran and Python tests locally.
-- [ ] Confirm CI on supported compilers and Python versions after pushing the branch.
+- [ ] Confirm CI on supported compilers and Python versions after pushing the
+      branch.
+
+### Pass 8C: Component-oriented test layout
+
+- [ ] Move existing tests and fixtures into `tests/photochem/`.
+- [ ] Make the root test CMake file coordinate component test directories.
+- [ ] Use component-prefixed CMake target names and CTest labels.
+- [ ] Remove build-location assumptions from test fixture paths.
+- [ ] Preserve current test behavior and run the full Fortran and Python suites.
+
+### Pass 8D: Photochem bindings layout
+
+- [ ] Create `bindings/photochem/c_api/` and `bindings/photochem/cython/`.
+- [ ] Move the existing Photochem Fortran/C and Cython wrappers out of the
+      Python package without changing wrapper behavior.
+- [ ] Move component binding CMake ownership under `bindings/photochem/` and
+      connect it through `bindings/CMakeLists.txt`.
+- [ ] Preserve the installed extension name `photochem._photochem`.
+- [ ] Build the wheel and run the full Fortran and Python test suites.
+
+### Pass 8E: Python package boundary audit
+
+- [ ] Confirm that the root `photochem/` directory contains only installable
+      Python-package code after the bindings move.
+- [ ] Preserve `photochem.clima`, `photochem.equilibrate`, `extensions`,
+      `utils`, and all existing public import paths.
+- [ ] Update packaging manifests and source-distribution inputs as needed.
+- [ ] Avoid broad Python module moves until all three components are in-tree.
+- [ ] Build and test the installed package.
 
 ### Pass 9A: Import Clima
 
 - [ ] Copy nearly all existing Clima source into a flat `src/clima/`
       implementation directory.
-- [ ] Bring the Clima bindings in-tree while preserving `photochem._clima` and
-      installed climate-data behavior.
+- [ ] Record the imported version, source revision, and license provenance.
+- [ ] Integrate Clima's external dependencies without duplicate CMake targets,
+      preserving LAPACK and OpenMP behavior.
+- [ ] Copy the Clima C API and Cython bindings into `bindings/clima/` while
+      preserving `photochem._clima` and installed climate-data behavior.
+- [ ] Import the Clima tests and required fixtures into `tests/clima/` without
+      importing examples or notebooks.
 - [ ] Build and test the in-tree Clima before removing its CPM dependency.
 
 ### Pass 9B: Import Equilibrate
 
 - [ ] Copy nearly all existing Equilibrate source into a flat
       `src/equilibrate/` implementation directory.
-- [ ] Bring the Equilibrate bindings in-tree while preserving
-      `photochem._equilibrate`.
+- [ ] Record the imported version, source revision, and license provenance.
+- [ ] Copy the Equilibrate C API and Cython bindings into
+      `bindings/equilibrate/` while preserving `photochem._equilibrate`.
+- [ ] Import the Equilibrate tests and required thermodynamic fixtures into
+      `tests/equilibrate/` without importing examples or development scripts.
 - [ ] Build and test the in-tree Equilibrate before removing its CPM dependency.
+
+### Pass 9C: Remove external component copies and stabilize
+
 - [ ] Keep the imported implementations unchanged except for flattening,
       necessary build integration, and unavoidable path or module-order fixes.
 - [ ] Accept duplicate code between the three model directories during the
@@ -693,6 +831,8 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [ ] Preserve separate public facade modules.
 - [ ] Update CMake so this repository builds all three components directly.
 - [ ] Remove CPM/external-source copies once the in-tree builds are stable.
+- [ ] Verify independent component version modules and public facade exports.
+- [ ] Verify runtime data defaults, wheel contents, and source distributions.
 - [ ] Preserve the existing Python package API during the transition.
 - [ ] Stabilize clean local builds and CI.
 
