@@ -17,7 +17,7 @@ contains
                     rainout_rates, scale_height, wfall, &
                     density, mix, densities, xp, xl, rhs)                 
     use photochem_enum, only: CondensingParticle
-    use photochem_chemistry, only: chempl, chempl_sl
+    use photochem_evoatmosphere_chemistry, only: chempl, chempl_sl
     use photochem_eqns, only: damp_condensation_rate
     use photochem_const, only: N_avo, pi, small_real
     #:if NAME == 'dual'
@@ -501,7 +501,7 @@ contains
                                      molecules_per_particle, pressure, density, mix, mubar, &
                                      pressure_hydro, density_hydro, apply_persistent_profile, err)
     use photochem_eqns, only: press_and_den
-    use photochem_chemistry, only: molec_per_particle
+    use photochem_evoatmosphere_chemistry, only: molec_per_particle
     use photochem_const, only: N_avo, k_boltz
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
@@ -558,8 +558,8 @@ contains
 
   module subroutine prep_all_evo_gas(self, usol_in, apply_persistent_profile, err)
 
-    use photochem_chemistry, only: reaction_rates, rainout, photorates
-    use photochem_chemistry, only: gas_saturation_density
+    use photochem_evoatmosphere_chemistry, only: reaction_rates, rainout, photorates
+    use photochem_evoatmosphere_chemistry, only: gas_saturation_density
     use photochem_const, only: pi, N_avo, small_real, k_boltz
     use photochem_enum, only: DiffusionLimHydrogenEscape
 
@@ -1074,7 +1074,7 @@ contains
 
   module subroutine production_and_loss(self, species, usol, pl, err)     
     use futils, only: argsort            
-    use photochem_chemistry, only: chempl_sl, chempl_t
+    use photochem_evoatmosphere_chemistry, only: chempl_sl, chempl_t
     use photochem_const, only: small_real
   
     class(EvoAtmosphere), target, intent(inout) :: self

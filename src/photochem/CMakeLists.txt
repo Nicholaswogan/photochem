@@ -1,6 +1,6 @@
 set(fppFiles
   photochem_eqns.f90
-  photochem_chemistry.f90
+  photochem_evoatmosphere_chemistry.f90
   photochem_evoatmosphere_rhs.f90)
 
 fypp_f90("" "${fppFiles}" outFiles)

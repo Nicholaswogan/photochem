@@ -2,11 +2,16 @@
 #:set NAMES = ['real', 'dual']
 #:set TYPES_NAMES = list(zip(TYPES, NAMES))
 
-module photochem_chemistry
+module photochem_evoatmosphere_chemistry
   use photochem_const, only: dp
   use photochem_data, only: PhotochemData
   use photochem_vars, only: PhotochemVars
   implicit none
+  private
+
+  public :: reaction_rates, photorates, rainout
+  public :: chempl, chempl_sl, chempl_t
+  public :: gas_saturation_density, molec_per_particle
 
   interface chempl
     module procedure :: chempl_real, chempl_dual

@@ -190,7 +190,7 @@ src/
 │   ├── photochem_enum.f90
 │   ├── photochem_eqns.f90
 │   ├── photochem_radtran.f90
-│   ├── photochem_chemistry.f90
+│   ├── photochem_evoatmosphere_chemistry.f90
 │   ├── photochem_settings.f90
 │   ├── photochem_data.f90
 │   ├── photochem_vars.f90
@@ -513,11 +513,11 @@ Owns:
 - `out2atmosphere_txt_base`;
 - output-only formatting and file helpers.
 
-### `photochem_chemistry.f90`
+### `photochem_evoatmosphere_chemistry.f90`
 
-Replaces the vague `photochem_common.f90` name and owns standalone chemistry
-kernels. These may operate on `PhotochemData` and `PhotochemVars`, but do not
-own or coordinate a complete `EvoAtmosphere`:
+Owns the chemistry and atmospheric-process kernels used privately by the
+EvoAtmosphere RHS workflow. They retain explicit `PhotochemData` and
+`PhotochemVars` interfaces rather than taking the complete model object:
 
 - `reaction_rates`;
 - `photorates`;
@@ -754,7 +754,7 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [x] Move `ProductionLoss` into the EvoAtmosphere parent module and export it
       through the `photochem` facade.
 - [x] Update wrappers and remove `photochem_types.f90`.
-- [x] Rename `photochem_common.f90` to `photochem_chemistry.f90`.
+- [x] Rename `photochem_common.f90` to `photochem_evoatmosphere_chemistry.f90`.
 - [x] Move `out2atmosphere_txt_base` to the output submodule.
 - [x] Build and run the full Fortran and Python test suites.
 
