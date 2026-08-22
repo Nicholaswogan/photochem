@@ -79,8 +79,10 @@ module photochem_evoatmosphere
     procedure :: robust_step
     procedure :: find_steady_state
 
-    !~~ photochem_evoatmosphere_utils.f90 ~~!
+    !~~ photochem_evoatmosphere_output.f90 ~~!
     procedure :: out2atmosphere_txt
+
+    !~~ photochem_evoatmosphere_utils.f90 ~~!
     procedure :: gas_fluxes
     procedure :: set_lower_bc
     procedure :: set_upper_bc
@@ -508,11 +510,10 @@ module photochem_evoatmosphere
       integer(c_int)        :: ierr
     end function
 
-    !~~ photochem_evoatmosphere_utils.f90 ~~!
+    !~~ photochem_evoatmosphere_output.f90 ~~!
 
     !> Saves state of the atmosphere using the concentrations in self%wrk%usol.
     module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwrite, clip, err)
-      use photochem_common, only: out2atmosphere_txt_base
       class(EvoAtmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: filename !! Output filename
       integer, intent(in) :: number_of_decimals !! Number of decimals
@@ -522,6 +523,8 @@ module photochem_evoatmosphere
       logical, intent(in) :: clip
       character(:), allocatable, intent(out) :: err
     end subroutine
+
+    !~~ photochem_evoatmosphere_utils.f90 ~~!
 
     !> Computes gas fluxes at model boundaries in order to maintain
     !> current atmospheric concentrations. Uses the densities stored in

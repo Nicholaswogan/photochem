@@ -646,7 +646,7 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [ ] Create the profiles submodule and move profile operations.
 - [ ] Create the grid submodule and move vertical-grid operations.
 - [ ] Create the boundary submodule and move boundary operations.
-- [ ] Create the output submodule and move output operations.
+- [x] Create the output submodule and move output operations.
 - [ ] Keep RHS and integration in their existing focused submodules.
 - [ ] Remove `photochem_evoatmosphere_utils.f90`.
 - [ ] Build and run the full Fortran and Python test suites.
