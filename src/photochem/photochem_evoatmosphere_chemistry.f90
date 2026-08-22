@@ -2,6 +2,7 @@
 #:set NAMES = ['real', 'dual']
 #:set TYPES_NAMES = list(zip(TYPES, NAMES))
 
+!> Internal chemistry kernels used by the EvoAtmosphere preparation and RHS.
 module photochem_evoatmosphere_chemistry
   use photochem_const, only: dp
   use photochem_data, only: PhotochemData
@@ -13,16 +14,21 @@ module photochem_evoatmosphere_chemistry
   public :: chempl, chempl_sl, chempl_t
   public :: gas_saturation_density, molec_per_particle
 
+  !> Sum chemical production and loss rates for one species.
+  !! Supports both real and automatic-differentiation number densities.
   interface chempl
     module procedure :: chempl_real, chempl_dual
   end interface
 
+  !> Compute production and pseudo-first-order loss for a short-lived species.
+  !! Supports both real and automatic-differentiation number densities.
   interface chempl_sl
     module procedure :: chempl_sl_real, chempl_sl_dual
   end interface
   
 contains
   
+  !> Compute altitude-dependent forward and reverse reaction-rate coefficients.
   subroutine reaction_rates(dat, var, pressure, density, densities, rx_rates)
     use futils, only: searchsorted
     use photochem_enum, only: NoFalloff, TroeWithoutT2Falloff, TroeWithT2Falloff, JPLFalloff
@@ -194,6 +200,7 @@ contains
 
   end subroutine
   
+  !> Compute photolysis rates and associated radiative-transfer diagnostics.
   subroutine photorates(dat, var, densities, &
                         prates, surf_radiance, amean_grd, optical_depth, err)
     use photochem_radtran, only: two_stream
@@ -344,6 +351,7 @@ contains
     
   end subroutine
   
+  !> Compute first-order tropospheric gas-removal rates due to rainout.
   pure subroutine rainout(dat, var, fH2O, den, rainout_rates)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use photochem_const, only: k_boltz, N_avo, small_real
@@ -563,6 +571,7 @@ contains
   end subroutine
   
   #:endfor
+  !> Compute reaction-resolved chemical production and loss for one species.
   pure subroutine chempl_t(dat, var, densities, rx_rates, k, xpT, xlT)
     
     ! input
@@ -615,6 +624,7 @@ contains
     
   end subroutine
 
+  !> Compute gas saturation number densities for condensing particles.
   subroutine gas_saturation_density(dat, var, gas_sat_den)
     use photochem_const, only: k_boltz
     use photochem_enum, only: CondensingParticle
@@ -638,6 +648,7 @@ contains
 
   end subroutine
 
+  !> Compute the number of condensate molecules represented by each particle.
   subroutine molec_per_particle(dat, var, molecules_per_particle)
     use photochem_const, only: pi, N_avo
     type(PhotochemData), intent(inout) :: dat
