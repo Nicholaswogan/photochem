@@ -662,13 +662,14 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 8B: Flat Photochem layout
 
-- [ ] Move all Photochem implementation files into the flat
+- [x] Move all Photochem implementation files into the flat
       `src/photochem/` directory.
-- [ ] Update CMake source lists, FYPP inputs, module output paths, and install
+- [x] Update CMake source lists, FYPP inputs, module output paths, and install
       rules.
-- [ ] Remove the empty `src/evoatmosphere/` directory.
-- [ ] Perform a clean build in the `photochem` conda environment.
-- [ ] Run all tests and confirm CI on supported compilers and Python versions.
+- [x] Remove the empty `src/evoatmosphere/` directory.
+- [x] Perform a clean build in the `photochem` conda environment.
+- [x] Run all Fortran and Python tests locally.
+- [ ] Confirm CI on supported compilers and Python versions after pushing the branch.
 
 ### Pass 9A: Import Clima
 
