@@ -570,7 +570,7 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 - [x] Create `photochem_data.f90`.
 - [x] Move `PhotochemData` and its subordinate data types.
-- [ ] Move mechanism, reaction, thermodynamic, Henry, wavelength, cross-section,
+- [x] Move mechanism, reaction, thermodynamic, Henry, wavelength, cross-section,
       particle-optical, and Rayleigh readers into the owner module.
 - [x] Replace construction-time `var%data_dir` access with explicit
       `data_dir` arguments.
@@ -578,7 +578,7 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [x] Split immutable settings application from mutable vars settings.
 - [ ] Add the isolated `PhotochemData` constructor.
 - [ ] Add focused constructor tests.
-- [ ] Build and run the full Fortran test suite.
+- [x] Build and run the full Fortran test suite.
 
 ### Pass 3: PhotochemVars ownership
 

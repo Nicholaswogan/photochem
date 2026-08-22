@@ -1,15 +1,14 @@
 
 module photochem_input
-  use fortran_yaml_c_types, only : type_node, type_dictionary, type_list, type_error, &
-                         type_list_item, type_scalar, type_key_value_pair
-  use photochem_data, only: PhotochemData
+  use photochem_data, only: PhotochemData, read_photochem_mechanism, &
+                            read_photochem_supporting_data, parse_reaction
   use photochem_settings, only: PhotoSettings
   use photochem_vars, only: PhotochemVars, apply_vars_settings, &
                             allocate_model_grid, read_stellar_flux
   use photochem_types, only: AtmosphereState
-  use photochem_const, only: dp, str_len, s_str_len
+  use photochem_const, only: dp, s_str_len
   implicit none
-  private 
+  private
 
   public :: setup_static, map_atmosphere_file_to_grid, map_atmosphere_z_to_grid
   public :: map_atmosphere_p_to_grid
@@ -17,13 +16,6 @@ module photochem_input
   public :: finalize_atmosphere_state
   public :: refresh_temperature_dependent_vars
   public :: parse_reaction
-  
-  type, extends(type_list) :: type_list_tmp
-  ! temporary list for accessing all reactions and
-  ! species in a row.
-  contains
-    final :: list_destroy
-  end type
 
   ! Raw atmosphere-file data is initialization-only state. Keep it in a
   ! short-lived profile object rather than retaining it in PhotochemData.
@@ -36,7 +28,7 @@ module photochem_input
     real(dp), allocatable :: mix(:,:) !! Evolved-species mixing ratios
     real(dp), allocatable :: particle_radius(:,:) !! Particle radii (cm)
   end type
-  
+
   interface
     !> Complete derived atmosphere setup after a profile has been mapped onto
     !! the model grid and the static model state has been loaded.
@@ -83,7 +75,7 @@ module photochem_input
       type(AtmosphereState), intent(inout) :: state
       character(:), allocatable, intent(out) :: err
     end subroutine
-    
+
     !> Read files and settings that do not require an initialized atmosphere.
     module subroutine read_static_files(mechanism_file, s, flux_file, data_dir, &
                                         dat, var, err)
@@ -101,13 +93,6 @@ module photochem_input
       character(len=*), intent(in) :: atmosphere_txt
       type(PhotochemData), intent(in) :: dat
       type(AtmosphereFileProfile), intent(out) :: profile
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-
-    module subroutine parse_reaction(instring, reverse, eqr, eqp, err)
-      character(len=*), intent(in) :: instring
-      logical, intent(out) :: reverse
-      character(len=s_str_len), allocatable, intent(out) :: eqr(:), eqp(:)
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -162,9 +147,9 @@ module photochem_input
       type(AtmosphereState), intent(inout) :: state
       character(:), allocatable, intent(out) :: err
     end subroutine
-    
+
   end interface
-    
+
 contains
 
   !> Read and allocate model state that is independent of atmospheric profiles.
@@ -195,18 +180,4 @@ contains
 
   end subroutine
 
-  subroutine list_destroy(self)
-    type(type_list_tmp), intent(inout) :: self
-    
-    type (type_list_item),pointer :: item, next
-    
-    item => self%first
-    do while (associated(item))
-       next => item%next
-       deallocate(item)
-       item => next
-    end do
-    nullify(self%first)
-  end subroutine
-  
 end module
