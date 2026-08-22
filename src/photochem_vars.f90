@@ -1,8 +1,8 @@
 module photochem_vars
   use, intrinsic :: iso_c_binding, only: c_double, c_int
   use photochem_const, only: dp
-  use photochem_data, only: ParticleXsections
-  use photochem_settings, only: CondensationParameters
+  use photochem_data, only: PhotochemData, ParticleXsections
+  use photochem_settings, only: PhotoSettings, CondensationParameters
   implicit none
   private
 
@@ -10,6 +10,7 @@ module photochem_vars
   public :: PressureTempEddProfile, TOAPressureMaintenance
   public :: time_dependent_flux_fcn, time_dependent_rate_fcn
   public :: binary_diffusion_fcn
+  public :: apply_vars_settings, allocate_model_grid, read_stellar_flux
 
   type :: PressureTempEddProfile
     logical :: enabled = .false.
@@ -202,5 +203,208 @@ module photochem_vars
     type(TOAPressureMaintenance) :: toa_pressure_maintenance
     ! End settings for `robust_stepper` and `find_steady_state`
   end type
+
+contains
+
+  subroutine apply_vars_settings(dat, s, var, err)
+    use photochem_enum, only: VelocityBC, DiffusionLimHydrogenEscape
+    type(PhotochemData), intent(in) :: dat
+    type(PhotoSettings), intent(in) :: s
+    type(PhotochemVars), intent(inout) :: var
+    character(:), allocatable, intent(out) :: err
+
+    integer :: i, j, ind(1)
+
+    var%bottom_atmos = 0.0_dp
+    var%top_atmos = 0.0_dp
+    var%nz = s%nz
+
+    var%surface_albedo = s%surface_albedo
+    var%photon_scale_factor = s%photon_scale_factor
+    var%solar_zenith = s%solar_zenith
+
+    if (dat%gas_rainout) then
+      var%rainfall_rate = s%rainfall_rate
+      var%trop_alt = s%trop_alt
+    endif
+
+    ! Condensation rate parameters. Size is zero when there are no particles.
+    allocate(var%cond_params(dat%np))
+    if (allocated(s%particles) .and. dat%there_are_particles) then
+      do i = 1,size(s%particles)
+        ind = findloc(dat%species_names(1:dat%np), s%particles(i)%name)
+        if (ind(1) == 0) then
+          err = 'Particle '//s%particles(i)%name// &
+                ' in the settings file is not a particle in the reaction file.'
+          return
+        endif
+        var%cond_params(ind(1)) = s%particles(i)%params
+      enddo
+    endif
+
+    allocate(var%lowerboundcond(dat%nq))
+    allocate(var%lower_vdep(dat%nq))
+    allocate(var%lower_flux(dat%nq))
+    allocate(var%lower_dist_height(dat%nq))
+    allocate(var%lower_fix_den(dat%nq))
+    allocate(var%lower_fix_press(dat%nq))
+    allocate(var%upperboundcond(dat%nq))
+    allocate(var%upper_veff(dat%nq))
+    allocate(var%upper_flux(dat%nq))
+    allocate(var%rate_fcns(dat%nq))
+
+    var%lowerboundcond(:dat%np) = VelocityBC
+    var%lowerboundcond(dat%ng_1:) = s%default_lowerboundcond
+    var%lower_vdep = 0.0_dp
+    var%upperboundcond = VelocityBC
+    var%upper_veff = 0.0_dp
+
+    do j = 1,size(s%ubcs)
+      ind = findloc(dat%species_names, s%sp_names(j))
+      if (ind(1) == 0) then
+        err = 'IOError: Species '//trim(s%sp_names(j))// &
+              ' in settings file is not in the reaction mechanism file.'
+        return
+      endif
+
+      if (s%sp_types(j) == 'long lived') then
+        var%lowerboundcond(ind(1)) = s%lbcs(j)%bc_type
+        var%lower_vdep(ind(1)) = s%lbcs(j)%vel
+        var%lower_flux(ind(1)) = s%lbcs(j)%flux
+        var%lower_dist_height(ind(1)) = s%lbcs(j)%height
+        var%lower_fix_den(ind(1)) = s%lbcs(j)%den
+        var%lower_fix_press(ind(1)) = s%lbcs(j)%press
+
+        var%upperboundcond(ind(1)) = s%ubcs(j)%bc_type
+        var%upper_veff(ind(1)) = s%ubcs(j)%vel
+        var%upper_flux(ind(1)) = s%ubcs(j)%flux
+      endif
+    enddo
+
+    if (dat%H_escape_type == DiffusionLimHydrogenEscape) then
+      if (var%upperboundcond(dat%LH2) /= VelocityBC) then
+        err = 'IOError: H2 must have a have a effusion velocity upper boundary'// &
+              ' for diffusion limited hydrogen escape'
+        return
+      endif
+      if (var%upperboundcond(dat%LH) /= VelocityBC) then
+        err = 'IOError: H must have a have a effusion velocity upper boundary'// &
+              ' for diffusion limited hydrogen escape'
+        return
+      endif
+    endif
+
+    if (dat%there_are_particles) then
+      do i = 1,dat%npq
+        if (var%lowerboundcond(i) /= VelocityBC) then
+          err = 'Particle "'//trim(dat%species_names(i))// &
+                '" must have deposition velocity lower boundary condition.'
+          return
+        endif
+      enddo
+    endif
+  end subroutine
+
+  subroutine allocate_model_grid(dat, var)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(inout) :: var
+
+    integer :: i
+
+    var%neqs = dat%nq*var%nz
+
+    allocate(var%temperature(var%nz))
+    allocate(var%z(var%nz))
+    allocate(var%dz(var%nz))
+    allocate(var%edd(var%nz))
+    allocate(var%grav(var%nz))
+    allocate(var%particle_radius(dat%npq,var%nz))
+    allocate(var%xs_x_qy(var%nz,dat%kj,dat%nw))
+
+    allocate(var%particle_xs(dat%np))
+    do i = 1,dat%np
+      if (dat%part_xs_file(i)%ThereIsData) then
+        var%particle_xs(i)%ThereIsData = .true.
+        allocate(var%particle_xs(i)%w0(var%nz,dat%nw))
+        allocate(var%particle_xs(i)%qext(var%nz,dat%nw))
+        allocate(var%particle_xs(i)%gt(var%nz,dat%nw))
+      else
+        var%particle_xs(i)%ThereIsData = .false.
+      endif
+    enddo
+
+    if (dat%reverse) allocate(var%gibbs_energy(var%nz,dat%ng))
+
+    allocate(var%tauc(var%nz,dat%nw))
+    var%tauc = 0.0_dp
+    allocate(var%w0c(var%nz,dat%nw))
+    var%w0c = 0.0_dp
+    allocate(var%g0c(var%nz,dat%nw))
+    var%g0c = 0.0_dp
+  end subroutine
+
+  subroutine read_stellar_flux(star_file, nw, wavl, photon_flux, err)
+    use futils, only: inter2, addpnt, FileCloser
+    use photochem_const, only: c_light, plank
+    character(len=*), intent(in) :: star_file
+    integer, intent(in) :: nw
+    real(dp), intent(in) :: wavl(nw+1)
+    real(dp), intent(out) :: photon_flux(nw)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: file_wav(:), file_flux(:)
+    real(dp) :: flux(nw)
+    real(dp) :: dum1, dum2
+    integer :: io, i, n, ierr
+    real(dp), parameter :: rdelta = 1.0e-4_dp
+    type(FileCloser) :: file
+
+    open(1,file=star_file,status='old',iostat=io)
+    file%unit = 1
+    if (io /= 0) then
+      err = 'The input file '//star_file//' does not exist.'
+      return
+    endif
+
+    n = -1
+    read(1,*)
+    do while (io == 0)
+      read(1,*,iostat=io) dum1, dum2
+      n = n + 1
+    enddo
+
+    allocate(file_wav(n+4), file_flux(n+4))
+
+    rewind(1)
+    read(1,*)
+    do i = 1,n
+      read(1,*,iostat=io) file_wav(i), file_flux(i)
+      if (io /= 0) then
+        err = 'Problem reading '//star_file
+        return
+      endif
+    enddo
+
+    i = n
+    call addpnt(file_wav, file_flux, n+4, i, file_wav(1)*(1.0_dp-rdelta), 0.0_dp, ierr)
+    call addpnt(file_wav, file_flux, n+4, i, 0.0_dp, 0.0_dp, ierr)
+    call addpnt(file_wav, file_flux, n+4, i, file_wav(i)*(1.0_dp+rdelta), 0.0_dp,ierr)
+    call addpnt(file_wav, file_flux, n+4, i, huge(rdelta), 0.0_dp,ierr)
+    if (ierr /= 0) then
+      err = 'Problem interpolating '//trim(star_file)
+      return
+    endif
+
+    call inter2(nw+1, wavl, flux, n+4, file_wav, file_flux, ierr)
+    if (ierr /= 0) then
+      err = 'Problem interpolating '//trim(star_file)
+      return
+    endif
+
+    do i = 1,nw
+      photon_flux(i) = (1/(plank*c_light*1.e16_dp))*flux(i)*(wavl(i+1)-wavl(i))* &
+                       ((wavl(i+1)+wavl(i))/2.0_dp)
+    enddo
+  end subroutine
 
 end module

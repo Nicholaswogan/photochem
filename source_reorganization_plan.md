@@ -575,7 +575,7 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [ ] Replace construction-time `var%data_dir` access with explicit
       `data_dir` arguments.
 - [ ] Remove all unnecessary `PhotochemVars` arguments from data readers.
-- [ ] Split immutable settings application from mutable vars settings.
+- [x] Split immutable settings application from mutable vars settings.
 - [ ] Add the isolated `PhotochemData` constructor.
 - [ ] Add focused constructor tests.
 - [ ] Build and run the full Fortran test suite.
@@ -584,9 +584,9 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 - [x] Create `photochem_vars.f90`.
 - [x] Move `PhotochemVars` and its subordinate types and callback interfaces.
-- [ ] Move mutable settings and boundary-condition setup into this module.
-- [ ] Move stellar-flux reading into this module.
-- [ ] Move model-grid allocation into this module.
+- [x] Move mutable settings and boundary-condition setup into this module.
+- [x] Move stellar-flux reading into this module.
+- [x] Move model-grid allocation into this module.
 - [ ] Move temperature-dependent prepared-variable maintenance into this
       module while preserving explicit-array interfaces.
 - [ ] Add the isolated `PhotochemVars` constructor.

@@ -15,10 +15,16 @@ contains
     dat%nsl = s%nsl
     dat%SL_names = s%SL_names
 
-    call get_photomech(mechanism_file, dat, var, err)
+    call get_photomech(mechanism_file, dat, err)
     if (allocated(err)) return
 
-    call unpack_settings(s%filename, s, dat, var, err)
+    call apply_data_settings(s, dat, err)
+    if (allocated(err)) return
+
+    call apply_vars_settings(dat, s, var, err)
+    if (allocated(err)) return
+
+    call check_sl(dat, err)
     if (allocated(err)) return
 
     !!! henrys law !!!
@@ -37,11 +43,10 @@ contains
     
   end subroutine
   
-  subroutine get_photomech(infile, dat, var, err) 
+  subroutine get_photomech(infile, dat, err)
     use fortran_yaml_c, only : YamlFile
     character(len=*), intent(in) :: infile
     type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
     
     type(YamlFile) :: file
@@ -51,7 +56,7 @@ contains
     if (allocated(err)) return
     select type (root => file%root)
       class is (type_dictionary)
-        call get_rxmechanism(root, infile, dat, var, err)
+        call get_rxmechanism(root, infile, dat, err)
       class default
         err = "yaml file must have dictionaries at root level"
     end select
@@ -60,7 +65,7 @@ contains
      
   end subroutine
   
-  subroutine get_rxmechanism(mapping, infile, dat, var, err)
+  subroutine get_rxmechanism(mapping, infile, dat, err)
     use photochem_data, only: ReverseRate
     use photochem_enum, only: CondensingParticle, ReactionParticle
     use photochem_enum, only: MieParticle, FractalParticle 
@@ -69,7 +74,6 @@ contains
     class (type_dictionary), intent(in), pointer :: mapping
     character(len=*), intent(in) :: infile
     type(PhotochemData), target, intent(inout) :: dat
-    type(PhotochemVars), intent(in) :: var
     character(:), allocatable, intent(out) :: err
     
     class (type_dictionary), pointer :: sat_params
@@ -558,33 +562,20 @@ contains
     
   end subroutine
   
-  subroutine unpack_settings(infile, s, dat, var, err)
-    use photochem_enum, only: VelocityBC, DensityBC, PressureBC
-    use photochem_enum, only: DiffusionLimHydrogenEscape, ZahnleHydrogenEscape, NoHydrogenEscape
+  subroutine apply_data_settings(s, dat, err)
+    use photochem_enum, only: ZahnleHydrogenEscape, NoHydrogenEscape
     use photochem_settings, only: PhotoSettings
-    character(len=*), intent(in) :: infile
     type(PhotoSettings), intent(in) :: s
     type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(inout) :: var
     character(:), allocatable, intent(out) :: err
     
-    integer :: j, i, ind(1)
-    
-    !!!!!!!!!!!!!!!!!!!!!!!
-    !!! atmosphere-grid !!!
-    !!!!!!!!!!!!!!!!!!!!!!!
-    var%bottom_atmos = 0.0_dp
-    var%top_atmos = 0.0_dp
-    var%nz = s%nz
+    integer :: ind(1)
     
     !!!!!!!!!!!!!!
     !!! planet !!!
     !!!!!!!!!!!!!!
     dat%planet_mass = s%planet_mass
     dat%planet_radius = s%planet_radius
-    var%surface_albedo = s%surface_albedo
-    var%photon_scale_factor = s%photon_scale_factor
-    var%solar_zenith = s%solar_zenith
     dat%H_escape_type = s%H_escape_type
     if (dat%H_escape_type /= NoHydrogenEscape) then
 
@@ -634,116 +625,10 @@ contains
       return
     endif
     
-    if (dat%gas_rainout) then
-      var%rainfall_rate = s%rainfall_rate
-    endif
-    
-    if (dat%gas_rainout) then
-      ! we need a tropopause altitude
-      var%trop_alt = s%trop_alt
-    endif
-    
-    !!!!!!!!!!!!!!!!!
-    !!! particles !!!
-    !!!!!!!!!!!!!!!!!
-    ! Condensation rate parameters. size is zero when there are no particles
-    allocate(var%cond_params(dat%np))
-    ! Replace default values with values from settings file, if needed
-    if (allocated(s%particles) .and. dat%there_are_particles) then
-      do i = 1,size(s%particles)
-        ind = findloc(dat%species_names(1:dat%np),s%particles(i)%name)
-        if (ind(1) == 0) then
-          err = 'Particle '//s%particles(i)%name//' in the settings file is not a particle in the reaction file.'
-          return
-        endif
-        var%cond_params(ind(1)) = s%particles(i)%params
-      enddo
-    endif
-    
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!! boundary-conditions !!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!
-    allocate(var%lowerboundcond(dat%nq))
-    allocate(var%lower_vdep(dat%nq))
-    allocate(var%lower_flux(dat%nq))
-    allocate(var%lower_dist_height(dat%nq))
-    allocate(var%lower_fix_den(dat%nq))
-    allocate(var%lower_fix_press(dat%nq))
-    allocate(var%upperboundcond(dat%nq))
-    allocate(var%upper_veff(dat%nq))
-    allocate(var%upper_flux(dat%nq))
-
-    allocate(var%rate_fcns(dat%nq))
-    ! default boundary conditions
-    var%lowerboundcond(:dat%np) = VelocityBC ! default particle BC is alway velocity
-    var%lowerboundcond(dat%ng_1:) = s%default_lowerboundcond ! can be -1 (Moses) or 0 (velocity)
-    var%lower_vdep = 0.0_dp
-    var%upperboundcond = VelocityBC
-    var%upper_veff = 0.0_dp
-    
-    do j = 1,size(s%ubcs)
-      ! check if in rxmech
-      ind = findloc(dat%species_names,s%sp_names(j))
-      if (ind(1) == 0) then
-        err = "IOError: Species "//trim(s%sp_names(j))// &
-        ' in settings file is not in the reaction mechanism file.'
-        return 
-      endif
-      
-      if (s%sp_types(j) == 'long lived') then
-      
-        var%lowerboundcond(ind(1)) = s%lbcs(j)%bc_type
-        var%lower_vdep(ind(1)) = s%lbcs(j)%vel
-        var%lower_flux(ind(1)) = s%lbcs(j)%flux
-        var%lower_dist_height(ind(1)) = s%lbcs(j)%height
-        var%lower_fix_den(ind(1)) = s%lbcs(j)%den
-        var%lower_fix_press(ind(1)) = s%lbcs(j)%press
-        
-        var%upperboundcond(ind(1)) = s%ubcs(j)%bc_type
-        var%upper_veff(ind(1)) = s%ubcs(j)%vel
-        var%upper_flux(ind(1)) = s%ubcs(j)%flux
-        
-      endif
-      
-    enddo
-    
-    ! Make sure that upper boundary condition for H and H2 are
-    ! effusion velocities, if diffusion limited escape
-    if (dat%H_escape_type == DiffusionLimHydrogenEscape) then
-      if (var%upperboundcond(dat%LH2) /= VelocityBC) then
-        err = "IOError: H2 must have a have a effusion velocity upper boundary"// &
-              " for diffusion limited hydrogen escape"
-        return
-      endif
-      if (var%upperboundcond(dat%LH) /= VelocityBC) then
-        err = "IOError: H must have a have a effusion velocity upper boundary"// &
-              " for diffusion limited hydrogen escape"
-        return
-      endif
-    endif
-
-    ! Make sure all lower boundary conditions for particles are deposition
-    ! velocities, so that particles actually fall out of the model.
-    if (dat%there_are_particles) then
-      do i = 1,dat%npq
-        if (var%lowerboundcond(i) /= VelocityBC) then
-          err = 'Particle "'//trim(dat%species_names(i))//'" must have deposition velocity '// &
-                'lower boundary condition.'
-          return
-        endif
-      enddo
-    endif
-
-    ! check for SL nonlinearities
-    call check_sl(dat, err)
-    if (allocated(err)) return
-    
   end subroutine
   
-  subroutine get_henry_parse(root, dat, var, henry_names, henry_data, err)
+  subroutine get_henry_parse(root, henry_names, henry_data, err)
     class (type_list), intent(in) :: root
-    type(PhotochemData), intent(inout) :: dat
-    type(PhotochemVars), intent(in) :: var
     character(len=s_str_len), allocatable, intent(out) :: henry_names(:)
     real(dp), allocatable, intent(out) :: henry_data(:,:)
     character(:), allocatable :: err
@@ -793,7 +678,7 @@ contains
     if (allocated(err)) return
     select type (root => file%root)
     class is (type_list)
-      call get_henry_parse(root, dat, var, henry_names, henry_data, err)
+      call get_henry_parse(root, henry_names, henry_data, err)
     class default
       err = "yaml file must have dictionaries at root level"
     end select
@@ -2506,76 +2391,6 @@ contains
             (A*(1.0_dp+B/(lambda*1.0e-3_dp)**2.0_dp))**2.0_dp * &
             (1.0_dp/(lambda*1.0e-3_dp)**4.0_dp)
 
-  end subroutine
-  
-  subroutine read_stellar_flux(star_file, nw, wavl, photon_flux, err)
-    use futils, only: inter2, addpnt, FileCloser
-    use photochem_const, only: c_light, plank
-    
-    character(len=*), intent(in) :: star_file
-    integer, intent(in) :: nw
-    real(dp), intent(in) :: wavl(nw+1)
-    real(dp), intent(out) :: photon_flux(nw)
-    character(:), allocatable, intent(out) :: err
-    
-    real(dp), allocatable :: file_wav(:), file_flux(:)
-    real(dp) :: flux(nw)
-    real(dp) :: dum1, dum2
-    integer :: io, i, n, ierr
-    real(dp), parameter :: rdelta = 1.0e-4_dp
-    type(FileCloser) :: file
-    
-    open(1,file=star_file,status='old',iostat=io)
-    file%unit = 1
-    if (io /= 0) then
-      err = "The input file "//star_file//' does not exist.'
-      return
-    endif
-    
-    ! count lines
-    n = -1 
-    read(1,*)
-    do while (io == 0)
-      read(1,*,iostat=io) dum1, dum2
-      n = n + 1
-    enddo
-    
-    allocate(file_wav(n+4), file_flux(n+4))
-    
-    ! read data
-    rewind(1)
-    read(1,*)
-    do i = 1,n
-      read(1,*,iostat=io) file_wav(i), file_flux(i)
-      if (io /= 0) then
-        err = "Problem reading "//star_file
-        return
-      endif
-    enddo
-    
-    i = n
-    ! interpolate 
-    call addpnt(file_wav, file_flux, n+4, i, file_wav(1)*(1.0_dp-rdelta), 0.0_dp, ierr)
-    call addpnt(file_wav, file_flux, n+4, i, 0.0_dp, 0.0_dp, ierr)
-    call addpnt(file_wav, file_flux, n+4, i, file_wav(i)*(1.0_dp+rdelta), 0.0_dp,ierr)
-    call addpnt(file_wav, file_flux, n+4, i, huge(rdelta), 0.0_dp,ierr)
-    if (ierr /= 0) then
-      err = "Problem interpolating "//trim(star_file)
-      return
-    endif
-
-    call inter2(nw+1, wavl, flux, n+4, file_wav, file_flux, ierr)
-    if (ierr /= 0) then
-      err = "Problem interpolating "//trim(star_file)
-      return
-    endif
-    
-    ! now convert to photons/cm2/s
-    do i = 1,nw
-      photon_flux(i) = (1/(plank*c_light*1.e16_dp))*flux(i)*(wavl(i+1)-wavl(i))* &
-                       ((wavl(i+1)+wavl(i))/2.0_dp)
-    enddo
-    
   end subroutine
   
   module subroutine read_atmosphere_file(atmosphere_txt, dat, profile, err)
