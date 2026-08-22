@@ -1,8 +1,11 @@
 cimport ProductionLoss_pxd as pl_pxd
 
 cdef class ProductionLoss:
-  """A class containing data describing the reactions that produce and destroy 
-  a species. This class is produced when calling the `production_and_loss` routine.
+  """Reaction-resolved production and loss rates for one chemical species.
+
+  Instances are returned by :meth:`EvoAtmosphere.production_and_loss`.
+  Reaction columns are ordered from largest to smallest vertically integrated
+  rate.
   """
 
   cdef pl_pxd.ProductionLoss *_ptr
@@ -15,9 +18,9 @@ cdef class ProductionLoss:
     self._ptr = NULL 
       
   property production:
-    """ndarray[double,dim=2], shape (nz,nproduction). The rate the molecule
-    is produced in molecules/cm^3 at each atmospheric layer from each reaction
-    that produces the molecule
+    """ndarray, shape (nz, nproduction)
+
+    Production rate from each reaction at every layer, in molecules/cm^3/s.
     """
     def __get__(self):
       cdef int dim1, dim2
@@ -27,9 +30,10 @@ cdef class ProductionLoss:
       return arr
       
   property loss:
-    """ndarray[double,dim=2], shape (nz,nloss). The rate the molecule
-    is destroyed in molecules/cm^3 at each atmospheric layer from each reaction
-    that destroys the molecule
+    """ndarray, shape (nz, nloss)
+
+    Loss rate from each reaction at every layer, in molecules/cm^3/s. Gas
+    rainout is included as an additional loss process.
     """
     def __get__(self):
       cdef int dim1, dim2
@@ -39,8 +43,10 @@ cdef class ProductionLoss:
       return arr
   
   property integrated_production:
-    """ndarray[double,dim=1], shape (nproduction). The vertically-integrated production
-    rate of the molecule in molecules/cm^2 for each reaction that produces the molecule.
+    """ndarray, shape (nproduction,)
+
+    Vertically integrated production rate from each reaction, in
+    molecules/cm^2/s.
     """
     def __get__(self):
       cdef int dim1
@@ -50,8 +56,9 @@ cdef class ProductionLoss:
       return arr
       
   property integrated_loss:
-    """ndarray[double,dim=1], shape (nloss). The vertically-integrated production
-    rate of the molecule in molecules/cm^2 for each reaction that produces the molecule.
+    """ndarray, shape (nloss,)
+
+    Vertically integrated loss rate from each reaction, in molecules/cm^2/s.
     """
     def __get__(self):
       cdef int dim1
@@ -61,7 +68,10 @@ cdef class ProductionLoss:
       return arr
       
   property production_rx:
-    "List, shape (nproduction). The reaction equations that produce the molecule."
+    """list[str], shape (nproduction,)
+
+    Reaction equations corresponding to the columns of :attr:`production`.
+    """
     def __get__(self):
       cdef int dim1
       pl_pxd.productionloss_production_rx_get_size(self._ptr, &dim1)
@@ -70,7 +80,11 @@ cdef class ProductionLoss:
       return c2stringarr(names_c, M_STR_LEN, dim1)
     
   property loss_rx:
-    "List, shape (nloss). The reaction equations that destroy the molecule."
+    """list[str], shape (nloss,)
+
+    Reaction equations or process labels corresponding to the columns of
+    :attr:`loss`. The additional gas-rainout loss is labeled ``"rainout"``.
+    """
     def __get__(self):
       cdef int dim1
       pl_pxd.productionloss_loss_rx_get_size(self._ptr, &dim1)

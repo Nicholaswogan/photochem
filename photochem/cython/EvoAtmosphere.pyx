@@ -2,9 +2,23 @@
 cimport EvoAtmosphere_pxd as ea_pxd
 
 cdef class EvoAtmosphere:
-  """A photochemical model which assumes no background gas. Once initialized,
-  this class can integrate an atmosphere forward in time to a steady
-  state.
+  """One-dimensional photochemical model without a prescribed background gas.
+
+  Construction loads the static mechanism and model configuration. The
+  atmosphere may be initialized during construction or later with one of the
+  explicit atmosphere initialization methods. Once initialized, the model can
+  prepare chemical rates and integrate toward steady state.
+
+  Attributes
+  ----------
+  dat : PhotochemData
+      Static mechanism, species, reaction, and optical data.
+  var : PhotochemVars
+      Prepared model configuration and atmospheric profiles.
+  wrk : PhotochemWrk
+      Mutable integration and atmospheric work state.
+  atmosphere_initialized : bool
+      Whether atmosphere-dependent initialization and preparation succeeded.
   """
 
   cdef ea_pxd.EvoAtmosphere *_ptr
@@ -351,42 +365,36 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
     
   property dat:
-    """The PhotochemData class. Data in this class almost never changes after the
-    class is initialized.
-    """
+    """PhotochemData: Static mechanism, species, reaction, and optical data."""
     def __get__(self):
       dat = PhotochemData()
       ea_pxd.evoatmosphere_dat_get(self._ptr, &dat._ptr)
       return dat
       
   property var:
-    """The PhotochemVars class. Data in this class can change between photochemical 
-    integrations.
-    """
+    """PhotochemVars: Prepared model configuration and atmospheric profiles."""
     def __get__(self):
       var = PhotochemVars()
       ea_pxd.evoatmosphere_var_get(self._ptr, &var._ptr)
       return var
       
   property wrk:
-    """The PhotochemWrk class. Data in this class changes during each step of 
-    integration.
-    """
+    """PhotochemWrk: Mutable integration and atmospheric work state."""
     def __get__(self):
       wrk = PhotochemWrk()
       ea_pxd.evoatmosphere_wrk_get(self._ptr, &wrk._ptr)
       return wrk
 
   def prep_atmosphere(self, ndarray[double, ndim=2] usol):
-    """Given `usol`, the densities of each species in the atmosphere,
-    this subroutine calculates reaction rates, photolysis rates, etc.
-    and puts this information into self.wrk. self.wrk contains all the
-    information needed for `dochem` to compute chemistry.
+    """Prepare all atmosphere-dependent work arrays for a density state.
+
+    On success, ``self.wrk.usol`` and the chemical, transport, pressure,
+    density, and radiative quantities in ``self.wrk`` correspond to ``usol``.
 
     Parameters
     ----------
-    usol : ndarray[double,ndim=2]
-        Number densities (molecules/cm^3)
+    usol : ndarray, shape (nq, nz)
+        Evolved-species number densities in molecules/cm^3.
     """
     cdef char err[ERR_LEN+1]
     cdef int nq = self.dat.nq
@@ -411,8 +419,8 @@ cdef class EvoAtmosphere:
     overwrite : bool, optional
         If true, then output file can be overwritten, by default False
     clip : bool, optional
-        If true, then mixing ratios are clipped at a very small 
-        positive number, by default False
+        If true, mixing ratios are clipped at a small positive value. The
+        default is true.
     """   
     cdef bytes filename_b = pystring2cstring(filename)
     cdef char *filename_c = filename_b
@@ -451,14 +459,20 @@ cdef class EvoAtmosphere:
 
   def set_lower_bc(self, str species, str bc_type, vdep = None, den = None, press = None,
                             flux = None, height = None):
-    """Sets a lower boundary condition.
+    """Set the lower boundary condition for an evolved species.
+
+    Valid ``bc_type`` values are ``'vdep'``, ``'den'``, ``'press'``,
+    ``'flux'``, ``'vdep + dist flux'``, and ``'Moses'``. They require
+    ``vdep``, ``den``, ``press``, ``flux``, all of ``vdep``, ``flux``, and
+    ``height``, or no additional argument, respectively. Particle species only
+    support ``'vdep'``.
 
     Parameters
     ----------
     species : str
         Species to set boundary condition
     bc_type : str
-        Boundary condition type
+        Boundary-condition type listed above.
     vdep : float, optional
         Deposition velocity (cm/s)
     den : float, optional
@@ -517,14 +531,18 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
   
   def set_upper_bc(self, str species, str bc_type, veff = None,flux = None):
-    """Sets upper boundary condition.
+    """Set the upper boundary condition for an evolved species.
+
+    Valid ``bc_type`` values are ``'veff'`` and ``'flux'``, requiring the
+    matching optional argument. Boundary conditions controlled by configured
+    diffusion-limited hydrogen escape cannot be replaced.
 
     Parameters
     ----------
     species : str
         Species to set boundary condition
     bc_type : str
-        Boundary condition type
+        Either ``'veff'`` or ``'flux'``.
     veff : float, optional
         effusion velocity (cm/s)
     flux : float, optional
@@ -555,16 +573,19 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
 
   def set_rate_fcn(self, str species, object fcn):
-    """Sets a function describing a custom rate for a species.
-    This could be useful for modeling external processes not in the
-    model.
+    """Set or clear a custom time-dependent production or loss rate.
+
+    The callback receives integration time, the number of layers, and an
+    output array which it must fill with a signed tendency in molecules/cm^3/s.
+    Pass ``None`` to clear the custom rate for the species.
 
     Parameters
     ----------
     species : str
         Species name
-    fcn : function
-        A Numba cfunc that describes the time-dependent rate
+    fcn : numba.cfunc or None
+        C callback with argument types ``(double, int32, double*)`` and no
+        return value.
     """
     cdef bytes species_b = pystring2cstring(species)
     cdef char *species_c = species_b
@@ -803,17 +824,26 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
     
   def update_vertical_grid(self, TOA_alt = None, TOA_pressure = None):
-    """Re-does the vertical grid so that the pressure at the top of the
-    atmosphere is at `TOA_alt` or `TOA_pressure`. If the TOA needs to be raised above the current
-    TOA, then the function constantly extrapolates mixing ratios, temperature,
-    eddy diffusion, and particle radii.
+    """Rebuild the vertical grid for a new TOA altitude or pressure.
+
+    Supply exactly one of ``TOA_alt`` and ``TOA_pressure``. Inside the old
+    domain, atmospheric properties are interpolated. Above it, normalized gas
+    mixing ratios, particle abundances relative to gas, and particle radii are
+    held constant while gas density is extended hydrostatically. Altitude-based
+    temperature and eddy diffusion are held constant above the old domain. A
+    persistent pressure-based profile is instead remapped and reconciled with
+    the hydrostatic extension.
+
+    This is a profile-preserving rather than column-conservative remap. The
+    update is failure atomic. A successful update invalidates an active CVODE
+    stepper, which must be initialized again before integration continues.
 
     Parameters
     ----------
-    TOA_alt : float
-        New top of atmosphere altitude (cm)
-    TOA_pressure : float
-        New top of atmosphere pressure (dynes/cm^2)
+    TOA_alt : float, optional
+        New top-of-atmosphere altitude in cm.
+    TOA_pressure : float, optional
+        New top-of-atmosphere pressure in dyn/cm^2.
     """
     cdef char err[ERR_LEN+1]
 
@@ -877,7 +907,13 @@ cdef class EvoAtmosphere:
     return success
 
   def check_for_convergence(self):
-    "Determines if integration has converged to photochemical steady-state."  
+    """Determine whether the integration satisfies the convergence criteria.
+
+    Returns
+    -------
+    bool
+        True when the configured photochemical steady-state criteria are met.
+    """
     cdef bool converged
     cdef char err[ERR_LEN+1]
     ea_pxd.evoatmosphere_check_for_convergence_wrapper(self._ptr, &converged, err)
@@ -886,7 +922,10 @@ cdef class EvoAtmosphere:
     return converged
 
   def initialize_stepper(self, ndarray[double, ndim=2] usol_start):
-    """Initializes an integration starting at `usol_start`.
+    """Initialize a CVODE integration at time zero from ``usol_start``.
+
+    Any existing stepper is replaced. Call :meth:`step` to advance the
+    integration and :meth:`destroy_stepper` when finished.
 
     Parameters
     ----------
@@ -904,8 +943,9 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
     
   def step(self):
-    """Takes one internal integration step. Function `initialize_stepper`.
-    must have been called before this
+    """Take one internal CVODE integration step.
+
+    :meth:`initialize_stepper` must have been called first.
 
     Returns
     -------
@@ -919,7 +959,10 @@ cdef class EvoAtmosphere:
     return tn
     
   def destroy_stepper(self):
-    "Deallocates memory created during `initialize_stepper`"
+    """Destroy the active CVODE stepper and release its resources.
+
+    It is safe to call this method when no stepper is active.
+    """
     cdef char err[ERR_LEN+1]
     ea_pxd.evoatmosphere_destroy_stepper_wrapper(self._ptr, err)
     if len(err.strip()) > 0:
@@ -1005,20 +1048,24 @@ cdef class EvoAtmosphere:
       PyErr_CheckSignals()
 
   def production_and_loss(self, str species, ndarray[double, ndim=2] usol):
-    """Computes the production and loss of input `species`.
-    See the ProductionLoss object exported by the photochem module.
+    """Compute reaction-resolved production and loss rates for ``species``.
+
+    The supplied atmosphere is prepared before rates are evaluated. Reactions
+    are sorted from largest to smallest vertically integrated rate. Gas
+    rainout is included as an additional loss process; condensation and
+    boundary fluxes are not included.
 
     Parameters
     ----------
     species : str
-        name of species
-    usol : ndarray[double,ndim=2]
-        Number densities (molecules/cm^3)
+        Species name.
+    usol : ndarray, shape (nq, nz)
+        Evolved-species number densities in molecules/cm^3.
 
     Returns
     -------
-    object
-        Type describing production and loss of species
+    ProductionLoss
+        Reaction-resolved production and loss information.
     """
     cdef bytes species_b = pystring2cstring(species)
     cdef char *species_c = species_b

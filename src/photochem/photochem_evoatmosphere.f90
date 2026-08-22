@@ -9,13 +9,17 @@ module photochem_evoatmosphere
   private
   public :: EvoAtmosphere, ProductionLoss
 
+  !> Reaction-resolved production and loss rates for one chemical species.
+  !!
+  !! Instances are returned by [[EvoAtmosphere:production_and_loss]]. Reaction
+  !! columns are ordered from largest to smallest vertically integrated rate.
   type :: ProductionLoss
-    real(dp), allocatable :: production(:,:)
-    real(dp), allocatable :: loss(:,:)
-    real(dp), allocatable :: integrated_production(:)
-    real(dp), allocatable :: integrated_loss(:)
-    character(len=m_str_len), allocatable :: production_rx(:)
-    character(len=m_str_len), allocatable :: loss_rx(:)
+    real(dp), allocatable :: production(:,:) !! Production rates, shape `(nz,nproduction)` (molecules/cm^3/s).
+    real(dp), allocatable :: loss(:,:) !! Loss rates, shape `(nz,nloss)` (molecules/cm^3/s).
+    real(dp), allocatable :: integrated_production(:) !! Column production rates (molecules/cm^2/s).
+    real(dp), allocatable :: integrated_loss(:) !! Column loss rates (molecules/cm^2/s).
+    character(len=m_str_len), allocatable :: production_rx(:) !! Reactions corresponding to `production` columns.
+    character(len=m_str_len), allocatable :: loss_rx(:) !! Reaction or process labels for `loss` columns.
   end type
 
   !> Internal transactional handoff used to validate atmospheric changes
@@ -45,10 +49,16 @@ module photochem_evoatmosphere
     procedure :: allocate => AtmosphereState_allocate
   end type
 
+  !> One-dimensional photochemical model without a prescribed background gas.
+  !!
+  !! Construction loads the static mechanism and model configuration. The
+  !! atmosphere may be initialized during construction or later with one of
+  !! the explicit atmosphere initialization procedures. Once initialized, the
+  !! model can prepare chemical rates and integrate toward steady state.
   type :: EvoAtmosphere
-    type(PhotochemData), allocatable :: dat
-    type(PhotochemVars), allocatable :: var
-    type(PhotochemWrk), allocatable :: wrk
+    type(PhotochemData), allocatable :: dat !! Static mechanism, species, reaction, and optical data.
+    type(PhotochemVars), allocatable :: var !! Prepared model configuration and atmospheric profiles.
+    type(PhotochemWrk), allocatable :: wrk !! Mutable integration and atmospheric work state.
 
     !> True only after atmosphere-dependent initialization and preparation have
     !! completed successfully.
@@ -56,6 +66,7 @@ module photochem_evoatmosphere
 
   contains
 
+    !~~ photochem_evoatmosphere_init.f90 ~~!
     procedure :: initialize_from_atmosphere_file
     procedure :: initialize_atmosphere_z
     procedure :: initialize_atmosphere_p
@@ -280,7 +291,7 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !~~ photochem_atmosphere_rhs.f90 ~~!
+    !~~ photochem_evoatmosphere_rhs.f90 ~~!
 
     !> Apply fixed-density and fixed-pressure lower boundary conditions to a
     !! bottom-layer number-density vector without modifying any other state.
@@ -321,51 +332,79 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Prepare atmospheric working state after verifying lifecycle state.
+    !> Prepare all atmosphere-dependent work arrays for a number-density state.
+    !!
+    !! `usol_in` has shape `(dat%nq,var%nz)` and contains evolved-species
+    !! number densities. On success, `wrk%usol` and the chemical, transport,
+    !! pressure, density, and radiative quantities in `wrk` correspond to that
+    !! state.
     module subroutine prep_atmosphere(self, usol_in, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:) !! Number densities (molecules/cm^3)
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    !> Compute the chemistry-only tendency for an evolved-species state.
+    !!
+    !! This prepares `usol`, evaluates chemical production and loss, and adds
+    !! configured custom rates and hydrogen escape. Transport is not included.
+    !! The result uses altitude-major flattened storage: species vary fastest
+    !! within each atmospheric layer.
     module subroutine right_hand_side_chem(self, usol, rhs, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol(:,:)
-      real(dp), intent(out) :: rhs(:)
+      real(dp), intent(in) :: usol(:,:) !! Number densities, shape `(dat%nq,var%nz)` (molecules/cm^3).
+      real(dp), intent(out) :: rhs(:) !! Chemistry tendency, size `var%neqs` (molecules/cm^3/s).
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Computes the right-hand-side of the ODEs describing atmospheric chemistry
-    !> and transport.
+    !> Compute the full chemistry-and-transport ODE right-hand side.
+    !!
+    !! `usol_flat` and `rhs` use altitude-major flattened storage: the
+    !! `dat%nq` evolved species vary fastest within each atmospheric layer.
     module subroutine rhs_evo_gas(self, neqs, tn, usol_flat, rhs, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      integer, intent(in) :: neqs
-      real(dp), intent(in) :: tn
-      real(dp), target, intent(in) :: usol_flat(neqs)
-      real(dp), intent(out) :: rhs(neqs)
+      integer, intent(in) :: neqs !! Number of ODE equations, `dat%nq*var%nz`.
+      real(dp), intent(in) :: tn !! Integration time (s).
+      real(dp), target, intent(in) :: usol_flat(neqs) !! Flattened number-density state (molecules/cm^3).
+      real(dp), intent(out) :: rhs(neqs) !! Flattened tendency (molecules/cm^3/s).
       character(:), allocatable, intent(out) :: err
     end subroutine
     
-    !> The jacobian of the rhs_background_gas.
+    !> Compute the banded Jacobian of [[EvoAtmosphere:right_hand_side]].
+    !!
+    !! The input state uses the same altitude-major flattened storage as the
+    !! right-hand side. `jac` uses the extended band-matrix storage expected by
+    !! the SUNDIALS band linear solver.
     module subroutine jac_evo_gas(self, lda_neqs, neqs, usol_flat, jac, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      integer, intent(in) :: lda_neqs, neqs
-      real(dp), target, intent(in) :: usol_flat(neqs)
-      real(dp), intent(out), target :: jac(lda_neqs)
+      integer, intent(in) :: lda_neqs !! Size of the extended band-matrix storage.
+      integer, intent(in) :: neqs !! Number of ODE equations, `dat%nq*var%nz`.
+      real(dp), target, intent(in) :: usol_flat(neqs) !! Flattened number-density state (molecules/cm^3).
+      real(dp), intent(out), target :: jac(lda_neqs) !! Extended band-matrix Jacobian storage.
       character(:), allocatable, intent(out) :: err
     end subroutine
 
+    !> Compute reaction-resolved production and loss rates for one species.
+    !!
+    !! The supplied atmosphere is prepared before rates are evaluated. The
+    !! returned reactions are sorted from largest to smallest vertically
+    !! integrated rate. Gas rainout is included as an additional loss process;
+    !! condensation and boundary fluxes are not included.
     module subroutine production_and_loss(self, species, usol, pl, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      character(len=*), intent(in) :: species
-      real(dp), intent(in) :: usol(:,:)
-      type(ProductionLoss), intent(out) :: pl
+      character(len=*), intent(in) :: species !! Species name.
+      real(dp), intent(in) :: usol(:,:) !! Number densities, shape `(dat%nq,var%nz)` (molecules/cm^3).
+      type(ProductionLoss), intent(out) :: pl !! Reaction-resolved production and loss information.
       character(:), allocatable, intent(out) :: err
     end subroutine
 
     !~~ photochem_evoatmosphere_integrate.f90 ~~!
 
-    !> Evolve atmosphere through time, and saves output in a binary Fortran file.
+    !> Evolve the atmosphere through time and save it in a binary Fortran file.
+    !!
+    !! The vertical grid remains fixed during this integration. Grid changes
+    !! must be requested explicitly with [[EvoAtmosphere:update_vertical_grid]]
+    !! or handled separately by the robust stepper's TOA-pressure maintenance.
     module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, restart_from_file, err) result(success)
       use, intrinsic :: iso_c_binding
       class(EvoAtmosphere), target, intent(inout) :: self
@@ -379,14 +418,18 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end function
 
-    !> Determines if integration has converged to photochemical steady-state.
+    !> Determine whether the prepared integration history satisfies the
+    !! configured photochemical steady-state criteria.
     module function check_for_convergence(self, err) result(converged)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
-      logical :: converged
+      logical :: converged !! True when all configured convergence criteria are satisfied.
     end function
 
-    !> Initializes an integration starting at `usol_start`
+    !> Initialize a CVODE integration at time zero from `usol_start`.
+    !!
+    !! Any existing stepper is replaced. Call [[EvoAtmosphere:step]] to advance
+    !! the integration and [[EvoAtmosphere:destroy_stepper]] when finished.
     module subroutine initialize_stepper(self, usol_start, err)      
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
@@ -449,7 +492,8 @@ module photochem_evoatmosphere
       real(dp) :: tn !! Current time in the integration.
     end function
     
-    !> Deallocates memory created during `initialize_stepper`
+    !> Destroy the active CVODE stepper and release its integration resources.
+    !! It is safe to call this procedure when no stepper is active.
     module subroutine destroy_stepper(self, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
@@ -471,7 +515,10 @@ module photochem_evoatmosphere
     !> must have been called before this. Failed steps recover from the last
     !> committed state without advancing logical time. Scheduled restarts retain
     !> logical time and total counters but discard segment-local convergence
-    !> history.
+    !> history. When TOA-pressure maintenance is enabled, an accepted step may
+    !> trigger a pressure-targeted vertical-grid update after chemistry has
+    !> converged. A successful update restarts CVODE while retaining logical
+    !> time and total integration counters.
     module subroutine robust_step(self, give_up, converged, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       logical, intent(out) :: give_up !! If .true., then the algorithm thinks it is time to give up.
@@ -517,14 +564,14 @@ module photochem_evoatmosphere
 
     !~~ photochem_evoatmosphere_output.f90 ~~!
 
-    !> Saves state of the atmosphere using the concentrations in self%wrk%usol.
+    !> Save the prepared atmosphere in the legacy text atmosphere format.
+    !! The output uses the concentrations currently stored in `self%wrk%usol`.
     module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwrite, clip, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: filename !! Output filename
       integer, intent(in) :: number_of_decimals !! Number of decimals
       logical, intent(in) :: overwrite !! If true, then output file can be overwritten, by default False
-      !> If true, then mixing ratios are clipped at a very small 
-      !> positive number, by default False
+      !> If true, mixing ratios are clipped at a small positive value.
       logical, intent(in) :: clip
       character(:), allocatable, intent(out) :: err
     end subroutine
@@ -541,7 +588,12 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Sets a lower boundary condition.
+    !> Set the lower boundary condition for an evolved species.
+    !!
+    !! Valid `bc_type` values are `vdep`, `den`, `press`, `flux`,
+    !! `vdep + dist flux`, and `Moses`. They require `vdep`, `den`, `press`,
+    !! `flux`, (`vdep`, `flux`, and `height`), and no additional argument,
+    !! respectively. Particle species only support `vdep`.
     module subroutine set_lower_bc(self, species, bc_type, vdep, den, press, flux, height, err)
       class(EvoAtmosphere), intent(inout) :: self
       character(len=*), intent(in) :: species !! Species to set boundary condition
@@ -554,7 +606,11 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
     
-    !> Sets upper boundary condition
+    !> Set the upper boundary condition for an evolved species.
+    !!
+    !! Valid `bc_type` values are `veff` and `flux`, requiring the matching
+    !! optional argument. Boundary conditions controlled by configured
+    !! diffusion-limited hydrogen escape cannot be replaced.
     module subroutine set_upper_bc(self, species, bc_type, veff, flux, err)
       class(EvoAtmosphere), intent(inout) :: self
       character(len=*), intent(in) :: species !! Species to set boundary condition
@@ -564,9 +620,11 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Sets a function describing a custom rate for a species.
-    !> This could be useful for modeling external processes not in the
-    !> model.
+    !> Set or clear a custom time-dependent production or loss rate.
+    !!
+    !! `fcn` is called as `fcn(time, nz, rate)` and fills `rate` with a signed
+    !! tendency in molecules/cm^3/s. A disassociated pointer clears the custom
+    !! rate for the species.
     module subroutine set_rate_fcn(self, species, fcn, err)
       use photochem_vars, only: time_dependent_rate_fcn
       class(EvoAtmosphere), target, intent(inout) :: self
@@ -707,8 +765,9 @@ module photochem_evoatmosphere
     !> Disables the persistent pressure-temperature-eddy profile.
     !!
     !! The most recently mapped altitude-based temperature and eddy-diffusion
-    !! profiles remain in place. This procedure cannot be called while a CVODE
-    !! stepper is initialized; call `destroy_stepper` first.
+    !! profiles remain in place, and TOA-pressure maintenance is disabled.
+    !! This procedure cannot be called while a CVODE stepper is initialized;
+    !! call `destroy_stepper` first.
     module subroutine clear_press_temp_edd_profile(self, err)
       class(EvoAtmosphere), intent(inout) :: self
       !> Allocated with an error message if a CVODE stepper is initialized.
