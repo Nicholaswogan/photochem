@@ -644,12 +644,12 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 ### Pass 7: Split EvoAtmosphere operations by responsibility
 
 - [x] Create the profiles submodule and move profile operations.
-- [ ] Create the grid submodule and move vertical-grid operations.
+- [x] Create the grid submodule and move vertical-grid operations.
 - [x] Create the boundary submodule and move boundary operations.
 - [x] Create the output submodule and move output operations.
-- [ ] Keep RHS and integration in their existing focused submodules.
-- [ ] Remove `photochem_evoatmosphere_utils.f90`.
-- [ ] Build and run the full Fortran and Python test suites.
+- [x] Keep RHS and integration in their existing focused submodules.
+- [x] Remove `photochem_evoatmosphere_utils.f90`.
+- [x] Build and run the full Fortran and Python test suites.
 
 ### Pass 8A: Standalone and compatibility cleanup
 

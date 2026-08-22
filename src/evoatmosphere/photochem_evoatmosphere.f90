@@ -94,7 +94,7 @@ module photochem_evoatmosphere
     procedure :: set_press_temp_edd_profile
     procedure :: clear_press_temp_edd_profile
 
-    !~~ photochem_evoatmosphere_utils.f90 ~~!
+    !~~ photochem_evoatmosphere_grid.f90 ~~!
     procedure :: update_vertical_grid
 
   end type
@@ -726,7 +726,7 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !~~ photochem_evoatmosphere_utils.f90 ~~!
+    !~~ photochem_evoatmosphere_grid.f90 ~~!
 
     !> Rebuilds the vertical grid for a new `TOA_alt` or `TOA_pressure`.
     !! Inside the old model domain, atmospheric properties are interpolated.

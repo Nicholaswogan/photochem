@@ -1,5 +1,5 @@
 
-submodule(photochem_evoatmosphere) photochem_evoatmosphere_utils
+submodule(photochem_evoatmosphere) photochem_evoatmosphere_grid
   implicit none
 
   ! Scratch storage used only while constructing a vertical-grid state.
