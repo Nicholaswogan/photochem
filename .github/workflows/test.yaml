@@ -72,6 +72,7 @@ jobs:
       run: |
         ./tests/test_api
         ./tests/test_input
+        ./tests/test_jacobian
 
     - name: build python
       shell: bash -el {0}

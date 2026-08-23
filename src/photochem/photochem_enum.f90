@@ -54,7 +54,8 @@ module photochem_enum
   ! jacobian_method
   enumerator :: &
     AutodiffJacobian = 1, &
-    FiniteDifferenceJacobian = 2
+    FiniteDifferenceJacobian = 2, &
+    AnalyticalJacobian = 3
 
   end enum
 end module

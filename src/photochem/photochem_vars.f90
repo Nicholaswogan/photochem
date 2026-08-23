@@ -169,7 +169,10 @@ module photochem_vars
     real(c_double) :: max_dt = sqrt(huge(1.0_dp))
     integer(c_int) :: max_err_test_failures = 15 !! CVODE max error test failures
     integer(c_int) :: max_order = 5 !! CVODE max order for BDF method.
-    !> Method used to compute the chemistry Jacobian. See photochem_enum.f90.
+    !> Method used to compute the chemistry Jacobian. `1` selects autodiff,
+    !> `2` finite differences, and `3` the analytical implementation. The
+    !> analytical method currently falls back to autodiff for terms that have
+    !> not yet been ported. See photochem_enum.f90.
     integer(c_int) :: jacobian_method = AutodiffJacobian
     !> Relative perturbation used by the finite-difference Jacobian method.
     real(dp) :: epsj = 1.0e-4_dp

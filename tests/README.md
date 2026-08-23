@@ -13,6 +13,8 @@ that directory as the working directory.
 - `test_input` contains focused input parsing and validation tests.
 - `test_api` contains focused correctness and error-behavior tests for public
   `EvoAtmosphere` operations.
+- `test_jacobian` compares the analytical and automatic-differentiation
+  chemistry Jacobians over focused numerical cases.
 - `test_memory` broadly exercises `EvoAtmosphere` workflows. It checks returned
   errors, but does not comprehensively validate numerical outputs; its primary
   purpose is execution under Valgrind.
@@ -30,6 +32,7 @@ After configuring and building the project:
 cd build
 ./tests/test_input
 ./tests/test_api
+./tests/test_jacobian
 ./tests/test_memory
 ```
 

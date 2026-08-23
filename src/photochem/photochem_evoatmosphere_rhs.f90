@@ -1074,10 +1074,109 @@ contains
     end subroutine
   end subroutine
 
+  subroutine analytical_chemistry_jacobian(self, usol, djac, err)
+    use photochem_const, only: small_real
+    use photochem_enum, only: CondensingParticle
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), target, contiguous, intent(in) :: usol(:,:)
+    real(dp), intent(out) :: djac(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: density_derivatives(:,:)
+    real(dp), allocatable :: reaction_derivative(:)
+    real(dp) :: rate_without_reactant
+    real(dp) :: rhs(self%var%neqs)
+    integer :: i, j, k, l, m, n, species
+    logical :: has_condensing_particles
+
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrk), pointer :: wrk
+
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+
+    ! These terms are added in later passes. Until then, use autodiff for any
+    ! mechanism that requires them rather than returning a partial Jacobian.
+    has_condensing_particles = .false.
+    if (dat%there_are_particles) then
+      has_condensing_particles = &
+          any(dat%particle_formation_method == CondensingParticle)
+    endif
+    if (dat%nsl > 0 .or. dat%gas_rainout .or. &
+        has_condensing_particles) then
+      call autodiff_chemistry_jacobian(self, usol, rhs, djac, err)
+      return
+    endif
+
+    allocate(density_derivatives(dat%nsp+1,dat%nq))
+    allocate(reaction_derivative(dat%nq))
+    djac = 0.0_dp
+
+    do j = 1,var%nz
+      density_derivatives = 0.0_dp
+
+      ! Gas chemistry uses evolved gas densities directly. Evolved particle
+      ! variables represent molecules/cm^3, while reaction rates use
+      ! particles/cm^3. Match the lower clamp in prepare_chemistry_state.
+      do i = 1,dat%npq
+        if (usol(i,j)/wrk%molecules_per_particle(i,j) > small_real) then
+          density_derivatives(i,i) = &
+              1.0_dp/wrk%molecules_per_particle(i,j)
+        endif
+      enddo
+      do i = dat%ng_1,dat%nq
+        density_derivatives(i,i) = 1.0_dp
+      enddo
+      n = dat%nq*(j-1) + 1
+
+      do m = 1,dat%nrT
+        reaction_derivative = 0.0_dp
+
+        ! Differentiate the mass-action product once for every reactant
+        ! occurrence. This handles repeated and zero-density reactants without
+        ! dividing by a reactant density.
+        do k = 1,dat%rx(m)%nreact
+          rate_without_reactant = wrk%rx_rates(j,m)
+          do l = 1,dat%rx(m)%nreact
+            if (l /= k) then
+              species = dat%rx(m)%react_sp_inds(l)
+              rate_without_reactant = rate_without_reactant* &
+                                      wrk%densities(species,j)
+            endif
+          enddo
+          species = dat%rx(m)%react_sp_inds(k)
+          reaction_derivative = reaction_derivative + &
+              rate_without_reactant*density_derivatives(species,:)
+        enddo
+
+        ! Reaction metadata repeats species indices for stoichiometric
+        ! coefficients greater than one, so scatter once per occurrence.
+        do k = 1,dat%rx(m)%nprod
+          species = dat%rx(m)%prod_sp_inds(k)
+          if (species <= dat%nq) then
+            djac(species,n:n+dat%nq-1) = &
+                djac(species,n:n+dat%nq-1) + reaction_derivative
+          endif
+        enddo
+        do k = 1,dat%rx(m)%nreact
+          species = dat%rx(m)%react_sp_inds(k)
+          if (species <= dat%nq) then
+            djac(species,n:n+dat%nq-1) = &
+                djac(species,n:n+dat%nq-1) - reaction_derivative
+          endif
+        enddo
+      enddo
+    enddo
+
+  end subroutine
+
   module subroutine jacobian(self, lda_neqs, neqs, usol_flat, jac, err)
     use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
     use photochem_enum, only: ZahnleHydrogenEscape
-    use photochem_enum, only: AutodiffJacobian, FiniteDifferenceJacobian
+    use photochem_enum, only: AnalyticalJacobian, AutodiffJacobian, &
+                              FiniteDifferenceJacobian
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
@@ -1096,6 +1195,7 @@ contains
     type(PhotochemWrk), pointer :: wrk
 
     integer :: i, k, j, m, mm
+    logical :: insert_chemistry_jacobian
   
     call self%require_atmosphere_initialized('jacobian', err)
     if (allocated(err)) return
@@ -1117,6 +1217,7 @@ contains
     if (allocated(err)) return
   
     jac = 0.0_dp
+    insert_chemistry_jacobian = .false.
   
     select case (var%jacobian_method)
     case (FiniteDifferenceJacobian); block
@@ -1169,20 +1270,30 @@ contains
 
     call autodiff_chemistry_jacobian(self, wrk%usol, rhs, wrk%djac_chem, err)
     if (allocated(err)) return
+    insert_chemistry_jacobian = .true.
 
-    do mm = 1,dat%nq
-      do m = 1,var%nz
-        j = mm + dat%nq*(m-1)
-        do i = 1,dat%nq
-          djac(i + 2*dat%nq - (mm-1),j) = wrk%djac_chem(i,j)
-        enddo
-      enddo
-    enddo
+    case (AnalyticalJacobian)
+
+    call analytical_chemistry_jacobian(self, wrk%usol, wrk%djac_chem, err)
+    if (allocated(err)) return
+
+    insert_chemistry_jacobian = .true.
 
     case default
       err = 'Invalid chemistry Jacobian method'
       return
     end select
+
+    if (insert_chemistry_jacobian) then
+      do mm = 1,dat%nq
+        do m = 1,var%nz
+          j = mm + dat%nq*(m-1)
+          do i = 1,dat%nq
+            djac(i + 2*dat%nq - (mm-1),j) = wrk%djac_chem(i,j)
+          enddo
+        enddo
+      enddo
+    endif
 
     ! zahnle hydrogen escape
     if (dat%H_escape_type == ZahnleHydrogenEscape) then
