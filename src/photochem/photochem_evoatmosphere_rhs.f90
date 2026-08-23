@@ -3,10 +3,45 @@
 #:set TYPES_NAMES = list(zip(TYPES, NAMES))
 
 submodule(photochem_evoatmosphere) photochem_evoatmosphere_rhs
+  use differentia, only: dual, assignment(=), operator(+), operator(-), &
+                         operator(*), operator(/), operator(**), &
+                         operator(>), operator(<=), max, atan
   implicit none
   
   interface dochem
     module procedure :: dochem_real, dochem_dual
+  end interface
+
+  interface prepare_chemistry_state
+    module procedure :: prepare_chemistry_state_real, prepare_chemistry_state_dual
+  end interface
+
+  interface set_gas_reaction_tendencies
+    module procedure :: set_gas_reaction_tendencies_real, set_gas_reaction_tendencies_dual
+  end interface
+
+  interface add_rainout_tendencies
+    module procedure :: add_rainout_tendencies_real, add_rainout_tendencies_dual
+  end interface
+
+  interface add_particle_reaction_tendencies
+    module procedure :: add_particle_reaction_tendencies_real, add_particle_reaction_tendencies_dual
+  end interface
+
+  interface add_condensation_tendencies
+    module procedure :: add_condensation_tendencies_real, add_condensation_tendencies_dual
+  end interface
+
+  interface chempl
+    module procedure :: chempl_real, chempl_dual
+  end interface
+
+  interface chempl_sl
+    module procedure :: chempl_sl_real, chempl_sl_dual
+  end interface
+
+  interface damp_condensation_rate
+    module procedure :: damp_condensation_rate_real, damp_condensation_rate_dual
   end interface
 
 contains
@@ -16,13 +51,6 @@ contains
                     gas_sat_den, molecules_per_particle, &
                     rainout_rates, scale_height, wfall, &
                     density, mix, densities, xp, xl, rhs)                 
-    use photochem_enum, only: CondensingParticle
-    use photochem_evoatmosphere_chemistry, only: chempl, chempl_sl
-    use photochem_eqns, only: damp_condensation_rate
-    use photochem_const, only: N_avo, pi, small_real
-    #:if NAME == 'dual'
-    use differentia
-    #:endif
     class(EvoAtmosphere), target, intent(in) :: self
     ${TYPE1}$, intent(in) :: usol(:,:)
     real(dp), intent(in) :: rx_rates(:,:)
@@ -34,29 +62,52 @@ contains
     ${TYPE1}$, intent(inout) :: densities(:,:), xp(:), xl(:)
     ${TYPE1}$, intent(inout) :: rhs(:) ! neqs
 
-    real(dp) :: cond_rate0
-    ${TYPE1}$ :: rh, dn_gas_dt, dn_particle_dt, cond_rate
-    integer :: i, ii, j, k, kk
-
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     
     dat => self%dat
     var => self%var
 
-    #:if NAME == 'dual'
-    rh = dual(size(usol(1,1)%der))
-    dn_gas_dt = dual(size(usol(1,1)%der))
-    dn_particle_dt = dual(size(usol(1,1)%der))
-    cond_rate = dual(size(usol(1,1)%der))
-    #:endif
+    ! Preserve this process order when adding the individual tendencies.
+    call prepare_chemistry_state(dat, var, usol, rx_rates, &
+                                 molecules_per_particle, density, mix, &
+                                 densities, xp, xl)
+    rhs = 0.0_dp
+    call set_gas_reaction_tendencies(dat, var, densities, rx_rates, &
+                                     xp, xl, rhs)
+    call add_rainout_tendencies(dat, var, usol, rainout_rates, rhs)
+    if (dat%there_are_particles) then
+      call add_particle_reaction_tendencies(dat, var, densities, rx_rates, &
+                                            xp, xl, rhs)
+      call add_condensation_tendencies(dat, var, usol, gas_sat_den, &
+                                       scale_height, wfall, rhs)
+    endif
+
+  end subroutine
+
+  ! Prepare number densities, including diagnostic short-lived species.
+  subroutine prepare_chemistry_state_${NAME}$(dat, var, usol, rx_rates, &
+                                              molecules_per_particle, density, &
+                                              mix, densities, xp, xl)
+    use photochem_const, only: small_real
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    ${TYPE1}$, intent(in) :: usol(:,:)
+    real(dp), intent(in) :: rx_rates(:,:), molecules_per_particle(:,:)
+    real(dp), intent(in) :: density(:)
+    ${TYPE1}$, intent(inout) :: mix(:,:), densities(:,:), xp(:), xl(:)
+
+    integer :: i, j, k
+
     do j = 1,var%nz
       mix(:,j) = usol(:,j)/density(j)
     enddo
 
     do j = 1,var%nz
       do i = 1,dat%npq
-        densities(i,j) = max(usol(i,j)*(1.0_dp/molecules_per_particle(i,j)), small_real)
+        densities(i,j) = max(usol(i,j)* &
+                             (1.0_dp/molecules_per_particle(i,j)), &
+                             small_real)
       enddo
       do i = dat%ng_1,dat%nq
         densities(i,j) = usol(i,j)
@@ -64,25 +115,44 @@ contains
       densities(dat%nsp+1,j) = 1.0_dp ! for hv
     enddo
 
-    ! short lived
     do k = dat%nq+1,dat%nq+dat%nsl
-      call chempl_sl(self%dat, self%var, densities, rx_rates, k, xp, xl) 
+      call chempl_sl(dat, var, densities, rx_rates, k, xp, xl)
       densities(k,:) = xp/xl
     enddo
+  end subroutine
 
-    rhs = 0.0_dp
+  ! Set the reaction tendencies for long-lived gas species.
+  subroutine set_gas_reaction_tendencies_${NAME}$(dat, var, densities, &
+                                                  rx_rates, xp, xl, rhs)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    ${TYPE1}$, intent(in) :: densities(:,:)
+    real(dp), intent(in) :: rx_rates(:,:)
+    ${TYPE1}$, intent(inout) :: xp(:), xl(:), rhs(:)
 
-    ! long lived              
+    integer :: i, j, k
+
     do i = dat%ng_1,dat%nq
-      call chempl(self%dat, self%var, densities, rx_rates, i, xp, xl)
+      call chempl(dat, var, densities, rx_rates, i, xp, xl)
       do j = 1,var%nz
         k = i + (j - 1) * dat%nq
         rhs(k) = xp(j) - xl(j)
       enddo
     enddo
+  end subroutine
+
+  ! Add tropospheric gas rainout losses.
+  subroutine add_rainout_tendencies_${NAME}$(dat, var, usol, &
+                                             rainout_rates, rhs)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    ${TYPE1}$, intent(in) :: usol(:,:)
+    real(dp), intent(in) :: rainout_rates(:,:)
+    ${TYPE1}$, intent(inout) :: rhs(:)
+
+    integer :: i, j, k
 
     if (dat%gas_rainout) then
-      ! rainout rates
       do j = 1,var%trop_ind
         do i = 1,dat%nq
           k = i + (j - 1) * dat%nq
@@ -90,83 +160,237 @@ contains
         enddo
       enddo
     endif
-
-    if (dat%there_are_particles) then
-      ! formation from reaction
-      do i = 1,dat%np
-        call chempl(self%dat, self%var, densities, rx_rates, i, xp, xl)
-        do j = 1,var%nz
-          k = i + (j - 1) * dat%nq
-          rhs(k) = rhs(k) + (xp(j) - xl(j))
-        enddo
-      enddo
-
-      ! 4 numbers for each condensing species.
-      ! condensation rate coefficient ~ 100.0
-      ! evaporation rate coefficient ~ 10.0
-      ! RH of condensation ~ 1.0
-      ! RH smoothing factor ~ 0.1
-    
-      ! particle condensation
-      do j = 1,var%nz
-        do i = 1,dat%np
-          ! if this particle forms from condensation
-          if (dat%particle_formation_method(i) == CondensingParticle) then
-            ii = dat%particle_gas_phase_ind(i) ! index of gas phase
-            kk = ii + (j - 1) * dat%nq ! gas phase rhs index
-            k = i + (j - 1) * dat%nq ! particle rhs index
-
-            ! compute the relative humidity
-            rh = max(usol(ii,j)/gas_sat_den(i,j),small_real)
-
-            if (rh > var%cond_params(i)%RHc) then
-              ! Condensation occurs
-
-              ! Condensation rate is based on how rapidly gases are mixing
-              ! in the atmosphere. We also smooth the rate to prevent stiffness.
-              cond_rate0 = var%cond_params(i)%k_cond*(var%edd(j)/scale_height(j)**2.0_dp)
-              cond_rate = damp_condensation_rate(cond_rate0, &
-                                                 var%cond_params(i)%RHc, &
-                                                 (1.0_dp + var%cond_params(i)%smooth_factor)*var%cond_params(i)%RHc, &
-                                                 rh)
-            
-              ! Rate gases are being destroyed (molecules/cm^3/s)
-              dn_gas_dt = - cond_rate*usol(ii,j)
-              rhs(kk) = rhs(kk) + dn_gas_dt          
-            
-              ! Rate particles are being produced (molecules/cm^3/s)
-              dn_particle_dt = - dn_gas_dt
-              rhs(k) = rhs(k) + dn_particle_dt
-
-            elseif (rh <= var%cond_params(i)%RHc .and. var%evaporation) then
-              ! Evaporation occurs
-
-              ! Evaporation rate is based on how rapidly particles are falling
-              ! in the atmosphere. We also smooth the rate to prevent stiffness.
-              cond_rate0 = var%cond_params(i)%k_evap*(wfall(i,j)/scale_height(j))
-              cond_rate = damp_condensation_rate(cond_rate0, &
-                                                 1.0_dp/var%cond_params(i)%RHc, &
-                                                 (1.0_dp + var%cond_params(i)%smooth_factor)/var%cond_params(i)%RHc, &
-                                                 1.0_dp/rh)
-
-              ! Rate gases are being produced (molecules/cm^3/s)                   
-              dn_gas_dt = cond_rate*usol(i,j)
-              rhs(kk) = rhs(kk) + dn_gas_dt
-
-              ! Rate particles are being destroyed (molecules/cm^3/s)
-              dn_particle_dt = - dn_gas_dt
-              rhs(k) = rhs(k) + dn_particle_dt
-
-            endif
-          endif          
-        enddo
-      enddo
-      
-    endif
-
   end subroutine
 
+  ! Add particle production and loss from chemical reactions.
+  subroutine add_particle_reaction_tendencies_${NAME}$(dat, var, &
+                                                       densities, rx_rates, &
+                                                       xp, xl, rhs)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    ${TYPE1}$, intent(in) :: densities(:,:)
+    real(dp), intent(in) :: rx_rates(:,:)
+    ${TYPE1}$, intent(inout) :: xp(:), xl(:), rhs(:)
+
+    integer :: i, j, k
+
+    do i = 1,dat%np
+      call chempl(dat, var, densities, rx_rates, i, xp, xl)
+      do j = 1,var%nz
+        k = i + (j - 1) * dat%nq
+        rhs(k) = rhs(k) + (xp(j) - xl(j))
+      enddo
+    enddo
+  end subroutine
+
+  ! Add gas-particle transfer from condensation and evaporation.
+  subroutine add_condensation_tendencies_${NAME}$(dat, var, usol, &
+                                                  gas_sat_den, scale_height, &
+                                                  wfall, rhs)
+    use photochem_enum, only: CondensingParticle
+    use photochem_const, only: small_real
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    ${TYPE1}$, intent(in) :: usol(:,:)
+    real(dp), intent(in) :: gas_sat_den(:,:), scale_height(:), wfall(:,:)
+    ${TYPE1}$, intent(inout) :: rhs(:)
+
+    real(dp) :: cond_rate0
+    ${TYPE1}$ :: rh, dn_gas_dt, dn_particle_dt, cond_rate
+    integer :: i, ii, j, k, kk
+
+    #:if NAME == 'dual'
+    rh = dual(size(usol(1,1)%der))
+    dn_gas_dt = dual(size(usol(1,1)%der))
+    dn_particle_dt = dual(size(usol(1,1)%der))
+    cond_rate = dual(size(usol(1,1)%der))
+    #:endif
+
+    do j = 1,var%nz
+      do i = 1,dat%np
+        if (dat%particle_formation_method(i) == CondensingParticle) then
+          ii = dat%particle_gas_phase_ind(i)
+          kk = ii + (j - 1) * dat%nq
+          k = i + (j - 1) * dat%nq
+
+          rh = max(usol(ii,j)/gas_sat_den(i,j),small_real)
+          if (rh > var%cond_params(i)%RHc) then
+            cond_rate0 = var%cond_params(i)%k_cond* &
+                         (var%edd(j)/scale_height(j)**2.0_dp)
+            cond_rate = damp_condensation_rate( &
+                cond_rate0, var%cond_params(i)%RHc, &
+                (1.0_dp + var%cond_params(i)%smooth_factor)* &
+                    var%cond_params(i)%RHc, rh)
+
+            dn_gas_dt = -cond_rate*usol(ii,j)
+            rhs(kk) = rhs(kk) + dn_gas_dt
+            dn_particle_dt = -dn_gas_dt
+            rhs(k) = rhs(k) + dn_particle_dt
+
+          elseif (rh <= var%cond_params(i)%RHc .and. var%evaporation) then
+            cond_rate0 = var%cond_params(i)%k_evap* &
+                         (wfall(i,j)/scale_height(j))
+            cond_rate = damp_condensation_rate( &
+                cond_rate0, 1.0_dp/var%cond_params(i)%RHc, &
+                (1.0_dp + var%cond_params(i)%smooth_factor)/ &
+                    var%cond_params(i)%RHc, 1.0_dp/rh)
+
+            dn_gas_dt = cond_rate*usol(i,j)
+            rhs(kk) = rhs(kk) + dn_gas_dt
+            dn_particle_dt = -dn_gas_dt
+            rhs(k) = rhs(k) + dn_particle_dt
+          endif
+        endif
+      enddo
+    enddo
+  end subroutine
+
+  ! Sum chemical production and loss rates for one species.
+  subroutine chempl_${NAME}$(dat, var, densities, rx_rates, k, xp, xl)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    ${TYPE1}$, intent(in) :: densities(:,:)
+    real(dp), intent(in) :: rx_rates(:,:)
+    integer, intent(in) :: k
+    ${TYPE1}$, intent(inout) :: xp(:), xl(:)
+
+    ${TYPE1}$ :: DD
+    integer :: i, ii, iii, m, l, j
+
+    #:if NAME == 'dual'
+    DD = dual(size(densities(1,1)%der))
+    #:endif
+    xp = 0.0_dp
+    xl = 0.0_dp
+
+    do i = 1,dat%pl(k)%nump
+      m = dat%pl(k)%iprod(i)
+      l = dat%rx(m)%nreact
+      do j = 1,var%nz
+        DD = 1.0_dp
+        do ii = 1,l
+          iii = dat%rx(m)%react_sp_inds(ii)
+          DD = DD*densities(iii,j)
+        enddo
+        xp(j) = xp(j) + rx_rates(j,m)*DD
+      enddo
+    enddo
+
+    do i = 1,dat%pl(k)%numl
+      m = dat%pl(k)%iloss(i)
+      l = dat%rx(m)%nreact
+      do j = 1,var%nz
+        DD = 1.0_dp
+        do ii = 1,l
+          iii = dat%rx(m)%react_sp_inds(ii)
+          DD = DD*densities(iii,j)
+        enddo
+        xl(j) = xl(j) + rx_rates(j,m)*DD
+      enddo
+    enddo
+  end subroutine
+
+  ! Compute production and pseudo-first-order loss for a short-lived species.
+  subroutine chempl_sl_${NAME}$(dat, var, densities, rx_rates, k, xp, xl)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    ${TYPE1}$, intent(in) :: densities(:,:)
+    real(dp), intent(in) :: rx_rates(:,:)
+    integer, intent(in) :: k
+    ${TYPE1}$, intent(inout) :: xp(:), xl(:)
+
+    ${TYPE1}$ :: DD
+    integer :: i, ii, iii, m, l, j
+
+    #:if NAME == 'dual'
+    DD = dual(size(densities(1,1)%der))
+    #:endif
+    xp = 0.0_dp
+    xl = 0.0_dp
+
+    do i = 1,dat%pl(k)%nump
+      m = dat%pl(k)%iprod(i)
+      l = dat%rx(m)%nreact
+      do j = 1,var%nz
+        DD = 1.0_dp
+        do ii = 1,l
+          iii = dat%rx(m)%react_sp_inds(ii)
+          DD = DD*densities(iii,j)
+        enddo
+        xp(j) = xp(j) + rx_rates(j,m)*DD
+      enddo
+    enddo
+
+    do i = 1,dat%pl(k)%numl
+      m = dat%pl(k)%iloss(i)
+      l = dat%rx(m)%nreact
+      do j = 1,var%nz
+        DD = 1.0_dp
+        do ii = 1,l
+          iii = dat%rx(m)%react_sp_inds(ii)
+          if (iii /= k) then
+            DD = DD*densities(iii,j)
+          endif
+        enddo
+        xl(j) = xl(j) + rx_rates(j,m)*DD
+      enddo
+    enddo
+  end subroutine
+
+  ! Smooth a condensation or evaporation coefficient across saturation.
+  pure function damp_condensation_rate_${NAME}$(A, rhc, rh0, rh) result(k)
+    use photochem_const, only: pi
+    real(dp), intent(in) :: A, rhc, rh0
+    ${TYPE1}$, intent(in) :: rh
+    ${TYPE1}$ :: k
+
+    k = A*(2.0_dp/pi)*atan((rh - rhc)/(rh0 - rhc))
+  end function
+
   #:endfor
+
+  ! Compute reaction-resolved chemical production and loss for one species.
+  pure subroutine chempl_t(dat, var, densities, rx_rates, k, xpT, xlT)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    real(dp), intent(in) :: densities(:,:)
+    real(dp), intent(in) :: rx_rates(:,:)
+    integer, intent(in) :: k
+    real(dp), intent(out) :: xpT(:,:), xlT(:,:)
+
+    real(dp) :: DD
+    integer :: i, ii, iii, m, l, j
+
+    xpT = 0.0_dp
+    xlT = 0.0_dp
+
+    do i = 1,dat%pl(k)%nump
+      m = dat%pl(k)%iprod(i)
+      l = dat%rx(m)%nreact
+      do j = 1,var%nz
+        DD = 1.0_dp
+        do ii = 1,l
+          iii = dat%rx(m)%react_sp_inds(ii)
+          DD = DD*densities(iii,j)
+        enddo
+        xpT(j,i) = rx_rates(j,m)*DD
+      enddo
+    enddo
+
+    do i = 1,dat%pl(k)%numl
+      m = dat%pl(k)%iloss(i)
+      l = dat%rx(m)%nreact
+      do j = 1,var%nz
+        DD = 1.0_dp
+        do ii = 1,l
+          iii = dat%rx(m)%react_sp_inds(ii)
+          DD = DD*densities(iii,j)
+        enddo
+        xlT(j,i) = rx_rates(j,m)*DD
+      enddo
+    enddo
+  end subroutine
+
   subroutine diffusion_coefficients_evo(dat, var, den, mubar, &
                                     DU, DD, DL, ADU, ADL, ADD, wfall, VH2_esc, VH_esc)
     use photochem_eqns, only: dynamic_viscosity_air, fall_velocity, slip_correction_factor, &
@@ -1087,7 +1311,6 @@ contains
 
   module subroutine production_and_loss(self, species, usol, pl, err)     
     use futils, only: argsort            
-    use photochem_evoatmosphere_chemistry, only: chempl_sl, chempl_t
     use photochem_const, only: small_real
   
     class(EvoAtmosphere), target, intent(inout) :: self
