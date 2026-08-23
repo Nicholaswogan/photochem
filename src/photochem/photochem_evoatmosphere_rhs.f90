@@ -1081,6 +1081,8 @@ contains
     character(:), allocatable, intent(out) :: err
 
     real(dp), allocatable :: density_derivatives(:,:)
+    real(dp), allocatable :: reaction_derivative(:)
+    real(dp), allocatable :: production_derivative(:), loss_derivative(:)
     integer :: j
 
     type(PhotochemData), pointer :: dat
@@ -1092,6 +1094,9 @@ contains
     wrk => self%wrk
 
     allocate(density_derivatives(dat%nsp+1,dat%nq))
+    allocate(reaction_derivative(dat%nq))
+    allocate(production_derivative(dat%nq))
+    allocate(loss_derivative(dat%nq))
     djac = 0.0_dp
 
     ! Preserve the chemistry process order used by dochem without retaining a
@@ -1099,9 +1104,11 @@ contains
     do j = 1,var%nz
       call prepare_chemistry_jacobian_layer( &
           dat, usol, wrk%rx_rates, wrk%molecules_per_particle, &
-          wrk%densities, j, density_derivatives)
+          wrk%densities, j, density_derivatives, reaction_derivative, &
+          production_derivative, loss_derivative)
       call add_reaction_jacobian_layer( &
-          dat, wrk%rx_rates, wrk%densities, density_derivatives, j, djac)
+          dat, wrk%rx_rates, wrk%densities, density_derivatives, j, &
+          reaction_derivative, djac)
       call add_rainout_jacobian_layer(dat, var, wrk%rainout_rates, j, djac)
       if (dat%there_are_particles) then
         call add_condensation_jacobian_layer( &
@@ -1116,7 +1123,8 @@ contains
   ! for one model layer.
   subroutine prepare_chemistry_jacobian_layer( &
       dat, usol, rx_rates, molecules_per_particle, densities, layer, &
-      density_derivatives)
+      density_derivatives, reaction_derivative, production_derivative, &
+      loss_derivative)
     use photochem_const, only: small_real
     type(PhotochemData), intent(in) :: dat
     real(dp), intent(in) :: usol(:,:), rx_rates(:,:)
@@ -1124,9 +1132,10 @@ contains
     real(dp), intent(inout) :: densities(:,:)
     integer, intent(in) :: layer
     real(dp), intent(out) :: density_derivatives(:,:)
+    real(dp), intent(out) :: reaction_derivative(:)
+    real(dp), intent(out) :: production_derivative(:)
+    real(dp), intent(out) :: loss_derivative(:)
 
-    real(dp) :: reaction_derivative(dat%nq)
-    real(dp) :: production_derivative(dat%nq), loss_derivative(dat%nq)
     real(dp) :: reaction_rate, production, loss
     integer :: i, k, m, species
 
@@ -1182,14 +1191,16 @@ contains
 
   ! Add mass-action reaction derivatives for one model layer.
   subroutine add_reaction_jacobian_layer( &
-      dat, rx_rates, densities, density_derivatives, layer, djac)
+      dat, rx_rates, densities, density_derivatives, layer, &
+      reaction_derivative, djac)
     type(PhotochemData), intent(in) :: dat
     real(dp), intent(in) :: rx_rates(:,:), densities(:,:)
     real(dp), intent(in) :: density_derivatives(:,:)
     integer, intent(in) :: layer
+    real(dp), intent(out) :: reaction_derivative(:)
     real(dp), intent(inout) :: djac(:,:)
 
-    real(dp) :: reaction_derivative(dat%nq), reaction_rate
+    real(dp) :: reaction_rate
     integer :: k, m, n, species
 
     n = dat%nq*(layer-1) + 1
