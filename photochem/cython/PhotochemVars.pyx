@@ -385,7 +385,7 @@ cdef class PhotochemVars:
     """int. Method used to compute the chemistry Jacobian.
 
     ``1`` selects automatic differentiation, ``2`` selects finite differences,
-    and ``3`` selects the analytical implementation.
+    and ``3`` selects the default analytical implementation.
     """
     def __get__(self):
       cdef int val

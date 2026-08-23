@@ -2,7 +2,7 @@ module photochem_vars
   use, intrinsic :: iso_c_binding, only: c_double, c_int
   use photochem_const, only: dp
   use photochem_data, only: PhotochemData, ParticleXsections
-  use photochem_enum, only: AutodiffJacobian
+  use photochem_enum, only: AnalyticalJacobian
   use photochem_settings, only: PhotoSettings, CondensationParameters
   implicit none
   private
@@ -170,9 +170,9 @@ module photochem_vars
     integer(c_int) :: max_err_test_failures = 15 !! CVODE max error test failures
     integer(c_int) :: max_order = 5 !! CVODE max order for BDF method.
     !> Method used to compute the chemistry Jacobian. `1` selects autodiff,
-    !> `2` finite differences, and `3` the analytical implementation. See
-    !> photochem_enum.f90.
-    integer(c_int) :: jacobian_method = AutodiffJacobian
+    !> `2` finite differences, and `3` the default analytical implementation.
+    !> See photochem_enum.f90.
+    integer(c_int) :: jacobian_method = AnalyticalJacobian
     !> Relative perturbation used by the finite-difference Jacobian method.
     real(dp) :: epsj = 1.0e-4_dp
     integer :: verbose = 1 !! 0 == no printing. 1 == some printing. 2 == bunch of printing.
