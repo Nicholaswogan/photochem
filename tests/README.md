@@ -24,6 +24,13 @@ that directory as the working directory.
 - `test_python.py` is a smoke test for the installed Python wrappers and is run
   from `tests/`.
 
+The analytical chemistry Jacobian is the production default. Automatic
+differentiation remains selectable as an independent correctness oracle. Any
+new composition-dependent chemistry tendency must receive a matching
+analytical derivative and analytical-versus-autodiff coverage in
+`test_jacobian`; unsupported terms must not be silently omitted from the
+analytical path.
+
 ## Running locally
 
 After configuring and building the project:

@@ -69,6 +69,11 @@ contains
     var => self%var
 
     ! Preserve this process order when adding the individual tendencies.
+    ! Maintenance rule: every new composition-dependent tendency added here
+    ! must have a matching derivative in analytical_chemistry_jacobian and
+    ! analytical-versus-autodiff coverage in test_jacobian. An unsupported
+    ! analytical term must be rejected rather than silently omitted; callers
+    ! can explicitly select the autodiff method until support is implemented.
     call prepare_chemistry_state(dat, var, usol, rx_rates, &
                                  molecules_per_particle, density, mix, &
                                  densities, xp, xl)
