@@ -2,6 +2,7 @@ module photochem_vars
   use, intrinsic :: iso_c_binding, only: c_double, c_int
   use photochem_const, only: dp
   use photochem_data, only: PhotochemData, ParticleXsections
+  use photochem_enum, only: AutodiffJacobian
   use photochem_settings, only: PhotoSettings, CondensationParameters
   implicit none
   private
@@ -146,7 +147,7 @@ module photochem_vars
     !> in the `evolve` method.
     integer :: max_error_reinit_attempts = 2
     real(c_double) :: rtol = 1.0e-3_dp !! integration relative tolerance
-    !> Integration absolute tolerance. If autodiff == .true., then the model
+    !> Integration absolute tolerance. Automatic differentiation generally
     !> works better when atol is smaller (e.g., atol = ~1.0e-18).
     real(c_double) :: atol = 1.0e-23_dp
     integer :: mxsteps = 100000 !! max number of steps before integrator will give up.
@@ -168,10 +169,9 @@ module photochem_vars
     real(c_double) :: max_dt = sqrt(huge(1.0_dp))
     integer(c_int) :: max_err_test_failures = 15 !! CVODE max error test failures
     integer(c_int) :: max_order = 5 !! CVODE max order for BDF method.
-    !> If .true., then the chemistry terms of the Jacobian are computed uses
-    !> foward mode automatic differentiation.
-    logical :: autodiff = .true.
-    !> Perturbation for finite difference Jacobian calculation, when autodiff == .false.
+    !> Method used to compute the chemistry Jacobian. See photochem_enum.f90.
+    integer(c_int) :: jacobian_method = AutodiffJacobian
+    !> Relative perturbation used by the finite-difference Jacobian method.
     real(dp) :: epsj = 1.0e-4_dp
     integer :: verbose = 1 !! 0 == no printing. 1 == some printing. 2 == bunch of printing.
     !> If True, then the code uses a 1st order upwind method for the advective molecular

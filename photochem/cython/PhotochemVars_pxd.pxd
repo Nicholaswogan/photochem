@@ -96,8 +96,8 @@ cdef extern void photochemvars_conv_longdydt_set(PhotochemVars *ptr, double *val
 cdef extern void photochemvars_max_dt_get(PhotochemVars *ptr, double *val)
 cdef extern void photochemvars_max_dt_set(PhotochemVars *ptr, double *val)
 
-cdef extern void photochemvars_autodiff_get(PhotochemVars *ptr, bool *val)
-cdef extern void photochemvars_autodiff_set(PhotochemVars *ptr, bool *val)
+cdef extern void photochemvars_jacobian_method_get(PhotochemVars *ptr, int *val)
+cdef extern void photochemvars_jacobian_method_set(PhotochemVars *ptr, int *val)
 
 cdef extern void photochemvars_epsj_get(PhotochemVars *ptr, double *val)
 cdef extern void photochemvars_epsj_set(PhotochemVars *ptr, double *val)

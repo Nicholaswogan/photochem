@@ -301,7 +301,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_rtol_set(self._ptr, &val)
       
   property atol:
-    """double. Integration absolute tolerance. If autodiff == .true., then the model
+    """double. Integration absolute tolerance. Automatic differentiation generally
     works better when atol is smaller (e.g., atol = ~1.0e-18).
     """
     def __get__(self):
@@ -381,19 +381,21 @@ cdef class PhotochemVars:
     def __set__(self, double val):
       var_pxd.photochemvars_max_dt_set(self._ptr, &val)
 
-  property autodiff:
-    """bool. If True, then the chemistry terms of the Jacobian are computed uses 
-    foward mode automatic differentiation.
+  property jacobian_method:
+    """int. Method used to compute the chemistry Jacobian.
+
+    ``1`` selects automatic differentiation and ``2`` selects finite
+    differences.
     """
     def __get__(self):
-      cdef bool val
-      var_pxd.photochemvars_autodiff_get(self._ptr, &val)
+      cdef int val
+      var_pxd.photochemvars_jacobian_method_get(self._ptr, &val)
       return val
-    def __set__(self, bool val):
-      var_pxd.photochemvars_autodiff_set(self._ptr, &val)
+    def __set__(self, int val):
+      var_pxd.photochemvars_jacobian_method_set(self._ptr, &val)
 
   property epsj:
-    "double. Perturbation for finite difference Jacobian calculation, when autodiff == .false."
+    "double. Relative perturbation used by the finite-difference Jacobian method."
     def __get__(self):
       cdef double val
       var_pxd.photochemvars_epsj_get(self._ptr, &val)

@@ -1077,6 +1077,7 @@ contains
   module subroutine jacobian(self, lda_neqs, neqs, usol_flat, jac, err)
     use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
     use photochem_enum, only: ZahnleHydrogenEscape
+    use photochem_enum, only: AutodiffJacobian, FiniteDifferenceJacobian
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real
     
@@ -1117,7 +1118,8 @@ contains
   
     jac = 0.0_dp
   
-    if (.not. var%autodiff) then; block
+    select case (var%jacobian_method)
+    case (FiniteDifferenceJacobian); block
     real(dp) :: usol_perturb(dat%nq,var%nz)
     real(dp) :: R(var%nz)
     real(dp) :: rhs_perturb(var%neqs)
@@ -1161,7 +1163,9 @@ contains
     !$omp enddo
     !$omp end parallel
     
-    endblock; else 
+    endblock
+
+    case (AutodiffJacobian)
 
     call autodiff_chemistry_jacobian(self, wrk%usol, rhs, wrk%djac_chem, err)
     if (allocated(err)) return
@@ -1175,7 +1179,10 @@ contains
       enddo
     enddo
 
-    endif
+    case default
+      err = 'Invalid chemistry Jacobian method'
+      return
+    end select
 
     ! zahnle hydrogen escape
     if (dat%H_escape_type == ZahnleHydrogenEscape) then

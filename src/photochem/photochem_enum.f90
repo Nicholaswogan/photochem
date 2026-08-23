@@ -51,5 +51,10 @@ module photochem_enum
     ZahnleHydrogenEscape, &
     NoHydrogenEscape
 
+  ! jacobian_method
+  enumerator :: &
+    AutodiffJacobian = 1, &
+    FiniteDifferenceJacobian = 2
+
   end enum
 end module

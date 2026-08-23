@@ -471,20 +471,20 @@
     var%max_dt = val
   end subroutine
 
-  subroutine photochemvars_autodiff_get(ptr, val) bind(c)
+  subroutine photochemvars_jacobian_method_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
-    logical(c_bool), intent(out) :: val
+    integer(c_int), intent(out) :: val
     type(PhotochemVars), pointer :: var
     call c_f_pointer(ptr, var)
-    val = var%autodiff
+    val = var%jacobian_method
   end subroutine
 
-  subroutine photochemvars_autodiff_set(ptr, val) bind(c)
+  subroutine photochemvars_jacobian_method_set(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
-    logical(c_bool), intent(in) :: val
+    integer(c_int), intent(in) :: val
     type(PhotochemVars), pointer :: var
     call c_f_pointer(ptr, var)
-    var%autodiff = val
+    var%jacobian_method = val
   end subroutine
 
   subroutine photochemvars_epsj_get(ptr, val) bind(c)

@@ -580,7 +580,11 @@ def test_wrapper():
     print(pc.var.conv_min_mix)
     print(pc.var.conv_longdy)
     print(pc.var.conv_longdydt)
-    print(pc.var.autodiff)
+    assert pc.var.jacobian_method == 1
+    pc.var.jacobian_method = 2
+    assert pc.var.jacobian_method == 2
+    pc.var.jacobian_method = 1
+    print(pc.var.jacobian_method)
     print(pc.var.epsj)
     print(pc.var.verbose)
     print()

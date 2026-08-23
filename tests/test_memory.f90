@@ -3,6 +3,7 @@ program test_memory
   ! checking. It verifies returned errors but does not comprehensively validate
   ! numerical outputs. See tests/README.md.
   use photochem, only: EvoAtmosphere, dp
+  use photochem, only: AutodiffJacobian, FiniteDifferenceJacobian
   implicit none
 
   call test()
@@ -215,7 +216,7 @@ contains
     real(dp) :: tn
     logical :: converged
 
-    pc%var%autodiff = .true.
+    pc%var%jacobian_method = AutodiffJacobian
     pc%var%atol = 1.0e-20_dp
     
     call pc%initialize_stepper(pc%wrk%usol, err)
@@ -242,7 +243,7 @@ contains
       stop 1
     endif
 
-    pc%var%autodiff = .false.
+    pc%var%jacobian_method = FiniteDifferenceJacobian
     
     call pc%initialize_stepper(pc%wrk%usol, err)
     if (allocated(err)) then

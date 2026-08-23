@@ -113,7 +113,6 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         # Values in photochem to adjust
         self.var.verbose = 0
         self.var.upwind_molec_diff = True
-        self.var.autodiff = True # Turn on autodiff
         self.var.atol = 1.0e-18
         self.var.conv_min_mix = 1e-10 # Min mix to consider during convergence check
         self.var.conv_longdy = 0.01 # threshold relative change that determines convergence

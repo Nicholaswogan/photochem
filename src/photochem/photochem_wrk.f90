@@ -108,11 +108,11 @@ module photochem_wrk
     real(dp), allocatable :: rainout_rates(:,:)
     ! end used in prep_all_background_gas
 
-    ! Work space for autodiff jacobian
+    ! Work space for block-diagonal chemistry Jacobians
     !> A sparse representation of the block diagonal Jacobian.
     !> chemistry terms only.
     real(dp), allocatable :: djac_chem(:,:)
-    ! end work space for autodiff jacobian
+    ! end chemistry Jacobian work space
 
     !> Surface pressure derived from the current atmospheric column (bars).
     real(dp) :: surface_pressure = 0.0_dp
