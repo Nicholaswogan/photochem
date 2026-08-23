@@ -1075,20 +1075,13 @@ contains
   end subroutine
 
   subroutine analytical_chemistry_jacobian(self, usol, djac, err)
-    use photochem_const, only: pi, small_real
-    use photochem_enum, only: CondensingParticle
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), target, contiguous, intent(in) :: usol(:,:)
     real(dp), intent(out) :: djac(:,:)
     character(:), allocatable, intent(out) :: err
 
     real(dp), allocatable :: density_derivatives(:,:)
-    real(dp), allocatable :: reaction_derivative(:)
-    real(dp), allocatable :: production_derivative(:), loss_derivative(:)
-    real(dp) :: reaction_rate, production, loss
-    real(dp) :: rh, rh_derivative, cond_rate0, cond_rate
-    real(dp) :: rate_derivative, transfer_derivative
-    integer :: i, ii, j, k, m, n, species
+    integer :: j
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -1099,218 +1092,293 @@ contains
     wrk => self%wrk
 
     allocate(density_derivatives(dat%nsp+1,dat%nq))
-    allocate(reaction_derivative(dat%nq))
-    allocate(production_derivative(dat%nq))
-    allocate(loss_derivative(dat%nq))
     djac = 0.0_dp
 
+    ! Preserve the chemistry process order used by dochem without retaining a
+    ! three-dimensional density-derivative workspace for every model layer.
     do j = 1,var%nz
-      density_derivatives = 0.0_dp
-
-      ! Gas chemistry uses evolved gas densities directly. Evolved particle
-      ! variables represent molecules/cm^3, while reaction rates use
-      ! particles/cm^3. Match the lower clamp in prepare_chemistry_state.
-      do i = 1,dat%npq
-        if (usol(i,j)/wrk%molecules_per_particle(i,j) > small_real) then
-          density_derivatives(i,i) = &
-              1.0_dp/wrk%molecules_per_particle(i,j)
-        endif
-      enddo
-      do i = dat%ng_1,dat%nq
-        density_derivatives(i,i) = 1.0_dp
-      enddo
-
-      ! Short-lived species are eliminated algebraically as n = P/L. Their
-      ! derivatives therefore follow dn = (dP - n*dL)/L. Production rates use
-      ! the complete mass-action product, while loss rates omit the one
-      ! short-lived reactant to form its pseudo-first-order loss coefficient.
-      ! Model validation forbids coupling between short-lived species, so each
-      ! derivative depends only on the evolved state and needs no implicit
-      ! short-lived-species solve.
-      do species = dat%nq+1,dat%nq+dat%nsl
-        production = 0.0_dp
-        loss = 0.0_dp
-        production_derivative = 0.0_dp
-        loss_derivative = 0.0_dp
-
-        do k = 1,dat%pl(species)%nump
-          m = dat%pl(species)%iprod(k)
-          call reaction_rate_and_derivative(m, j, 0, reaction_rate, &
-                                            reaction_derivative)
-          production = production + reaction_rate
-          production_derivative = production_derivative + &
-                                  reaction_derivative
-        enddo
-        do k = 1,dat%pl(species)%numl
-          m = dat%pl(species)%iloss(k)
-          call reaction_rate_and_derivative(m, j, species, reaction_rate, &
-                                            reaction_derivative)
-          loss = loss + reaction_rate
-          loss_derivative = loss_derivative + reaction_derivative
-        enddo
-
-        wrk%densities(species,j) = production/loss
-        density_derivatives(species,:) = &
-            (production_derivative - &
-             wrk%densities(species,j)*loss_derivative)/loss
-      enddo
-      n = dat%nq*(j-1) + 1
-
-      do m = 1,dat%nrT
-        call reaction_rate_and_derivative(m, j, 0, reaction_rate, &
-                                          reaction_derivative)
-
-        ! Reaction metadata repeats species indices for stoichiometric
-        ! coefficients greater than one, so scatter once per occurrence.
-        do k = 1,dat%rx(m)%nprod
-          species = dat%rx(m)%prod_sp_inds(k)
-          if (species <= dat%nq) then
-            djac(species,n:n+dat%nq-1) = &
-                djac(species,n:n+dat%nq-1) + reaction_derivative
-          endif
-        enddo
-        do k = 1,dat%rx(m)%nreact
-          species = dat%rx(m)%react_sp_inds(k)
-          if (species <= dat%nq) then
-            djac(species,n:n+dat%nq-1) = &
-                djac(species,n:n+dat%nq-1) - reaction_derivative
-          endif
-        enddo
-      enddo
-
-      ! Rainout coefficients are prepared before the Jacobian calculation and
-      ! are held fixed in both derivative paths. The tendency is -k_rain*n, so
-      ! its only derivative is -k_rain on the species diagonal below the
-      ! tropopause.
-      if (dat%gas_rainout .and. j <= var%trop_ind) then
-        do i = 1,dat%nq
-          djac(i,n+i-1) = djac(i,n+i-1) - wrk%rainout_rates(i,j)
-        enddo
+      call prepare_chemistry_jacobian_layer( &
+          dat, usol, wrk%rx_rates, wrk%molecules_per_particle, &
+          wrk%densities, j, density_derivatives)
+      call add_reaction_jacobian_layer( &
+          dat, wrk%rx_rates, wrk%densities, density_derivatives, j, djac)
+      call add_rainout_jacobian_layer(dat, var, wrk%rainout_rates, j, djac)
+      if (dat%there_are_particles) then
+        call add_condensation_jacobian_layer( &
+            dat, var, usol, wrk%gas_sat_den, wrk%scale_height, wrk%wfall, &
+            j, djac)
       endif
+    enddo
 
-      ! Differentiate saturation-controlled gas-particle transfer. Relative
-      ! humidity depends only on the corresponding gas density, with a zero
-      ! derivative while the same lower clamp used by the RHS is active.
-      do i = 1,dat%np
-        if (dat%particle_formation_method(i) /= CondensingParticle) cycle
+  end subroutine
 
-        ii = dat%particle_gas_phase_ind(i)
-        rh = max(usol(ii,j)/wrk%gas_sat_den(i,j),small_real)
-        rh_derivative = 0.0_dp
-        if (usol(ii,j)/wrk%gas_sat_den(i,j) > small_real) then
-          rh_derivative = 1.0_dp/wrk%gas_sat_den(i,j)
+  ! Prepare density derivatives, including diagnostic short-lived species,
+  ! for one model layer.
+  subroutine prepare_chemistry_jacobian_layer( &
+      dat, usol, rx_rates, molecules_per_particle, densities, layer, &
+      density_derivatives)
+    use photochem_const, only: small_real
+    type(PhotochemData), intent(in) :: dat
+    real(dp), intent(in) :: usol(:,:), rx_rates(:,:)
+    real(dp), intent(in) :: molecules_per_particle(:,:)
+    real(dp), intent(inout) :: densities(:,:)
+    integer, intent(in) :: layer
+    real(dp), intent(out) :: density_derivatives(:,:)
+
+    real(dp) :: reaction_derivative(dat%nq)
+    real(dp) :: production_derivative(dat%nq), loss_derivative(dat%nq)
+    real(dp) :: reaction_rate, production, loss
+    integer :: i, k, m, species
+
+    density_derivatives = 0.0_dp
+
+    ! Gas chemistry uses evolved gas densities directly. Evolved particle
+    ! variables represent molecules/cm^3, while reaction rates use
+    ! particles/cm^3. Match the lower clamp in prepare_chemistry_state.
+    do i = 1,dat%npq
+      if (usol(i,layer)/molecules_per_particle(i,layer) > small_real) then
+        density_derivatives(i,i) = &
+            1.0_dp/molecules_per_particle(i,layer)
+      endif
+    enddo
+    do i = dat%ng_1,dat%nq
+      density_derivatives(i,i) = 1.0_dp
+    enddo
+
+    ! Short-lived species are eliminated algebraically as n = P/L. Their
+    ! derivatives therefore follow dn = (dP - n*dL)/L. Model validation
+    ! forbids dependencies between short-lived species, so no implicit solve
+    ! is required.
+    do species = dat%nq+1,dat%nq+dat%nsl
+      production = 0.0_dp
+      loss = 0.0_dp
+      production_derivative = 0.0_dp
+      loss_derivative = 0.0_dp
+
+      do k = 1,dat%pl(species)%nump
+        m = dat%pl(species)%iprod(k)
+        call reaction_rate_and_derivative( &
+            dat, rx_rates, densities, density_derivatives, m, layer, 0, &
+            reaction_rate, reaction_derivative)
+        production = production + reaction_rate
+        production_derivative = production_derivative + reaction_derivative
+      enddo
+      do k = 1,dat%pl(species)%numl
+        m = dat%pl(species)%iloss(k)
+        call reaction_rate_and_derivative( &
+            dat, rx_rates, densities, density_derivatives, m, layer, &
+            species, reaction_rate, reaction_derivative)
+        loss = loss + reaction_rate
+        loss_derivative = loss_derivative + reaction_derivative
+      enddo
+
+      densities(species,layer) = production/loss
+      density_derivatives(species,:) = &
+          (production_derivative - &
+           densities(species,layer)*loss_derivative)/loss
+    enddo
+
+  end subroutine
+
+  ! Add mass-action reaction derivatives for one model layer.
+  subroutine add_reaction_jacobian_layer( &
+      dat, rx_rates, densities, density_derivatives, layer, djac)
+    type(PhotochemData), intent(in) :: dat
+    real(dp), intent(in) :: rx_rates(:,:), densities(:,:)
+    real(dp), intent(in) :: density_derivatives(:,:)
+    integer, intent(in) :: layer
+    real(dp), intent(inout) :: djac(:,:)
+
+    real(dp) :: reaction_derivative(dat%nq), reaction_rate
+    integer :: k, m, n, species
+
+    n = dat%nq*(layer-1) + 1
+    do m = 1,dat%nrT
+      call reaction_rate_and_derivative( &
+          dat, rx_rates, densities, density_derivatives, m, layer, 0, &
+          reaction_rate, reaction_derivative)
+
+      ! Reaction metadata repeats species indices for stoichiometric
+      ! coefficients greater than one, so scatter once per occurrence.
+      do k = 1,dat%rx(m)%nprod
+        species = dat%rx(m)%prod_sp_inds(k)
+        if (species <= dat%nq) then
+          djac(species,n:n+dat%nq-1) = &
+              djac(species,n:n+dat%nq-1) + reaction_derivative
         endif
-
-        if (rh > var%cond_params(i)%RHc) then
-          ! Condensation C = k_cond(RH)*n_gas. Apply -dC to the gas
-          ! equation and +dC to the corresponding particle equation.
-          cond_rate0 = var%cond_params(i)%k_cond* &
-                       (var%edd(j)/wrk%scale_height(j)**2.0_dp)
-          cond_rate = damp_condensation_rate( &
-              cond_rate0, var%cond_params(i)%RHc, &
-              (1.0_dp + var%cond_params(i)%smooth_factor)* &
-                  var%cond_params(i)%RHc, rh)
-          rate_derivative = damp_condensation_rate_derivative( &
-              cond_rate0, var%cond_params(i)%RHc, &
-              (1.0_dp + var%cond_params(i)%smooth_factor)* &
-                  var%cond_params(i)%RHc, rh)*rh_derivative
-          transfer_derivative = cond_rate + usol(ii,j)*rate_derivative
-
-          djac(ii,n+ii-1) = djac(ii,n+ii-1) - transfer_derivative
-          djac(i,n+ii-1) = djac(i,n+ii-1) + transfer_derivative
-
-        elseif (var%evaporation) then
-          ! Evaporation E = k_evap(1/RH)*n_particle. Its gas derivative
-          ! enters through the smoothed rate and its particle derivative is
-          ! the rate itself. Apply +dE to gas and -dE to particles.
-          cond_rate0 = var%cond_params(i)%k_evap* &
-                       (wrk%wfall(i,j)/wrk%scale_height(j))
-          cond_rate = damp_condensation_rate( &
-              cond_rate0, 1.0_dp/var%cond_params(i)%RHc, &
-              (1.0_dp + var%cond_params(i)%smooth_factor)/ &
-                  var%cond_params(i)%RHc, 1.0_dp/rh)
-          rate_derivative = damp_inverse_rh_rate_derivative( &
-              cond_rate0, var%cond_params(i)%RHc, &
-              var%cond_params(i)%smooth_factor, rh)*rh_derivative
-          transfer_derivative = usol(i,j)*rate_derivative
-
-          djac(ii,n+ii-1) = djac(ii,n+ii-1) + transfer_derivative
-          djac(i,n+ii-1) = djac(i,n+ii-1) - transfer_derivative
-          djac(ii,n+i-1) = djac(ii,n+i-1) + cond_rate
-          djac(i,n+i-1) = djac(i,n+i-1) - cond_rate
+      enddo
+      do k = 1,dat%rx(m)%nreact
+        species = dat%rx(m)%react_sp_inds(k)
+        if (species <= dat%nq) then
+          djac(species,n:n+dat%nq-1) = &
+              djac(species,n:n+dat%nq-1) - reaction_derivative
         endif
       enddo
     enddo
 
-  contains
+  end subroutine
 
-    subroutine reaction_rate_and_derivative(reaction, layer, &
-                                            excluded_species, rate, derivative)
-      integer, intent(in) :: reaction, layer, excluded_species
-      real(dp), intent(out) :: rate, derivative(:)
+  ! Add fixed-coefficient gas-rainout derivatives for one model layer.
+  subroutine add_rainout_jacobian_layer(dat, var, rainout_rates, layer, djac)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    real(dp), intent(in) :: rainout_rates(:,:)
+    integer, intent(in) :: layer
+    real(dp), intent(inout) :: djac(:,:)
 
-      real(dp) :: rate_without_reactant
-      integer :: reactant, other_reactant, reactant_species
+    integer :: i, n
 
-      ! Evaluate k*product(n_r), optionally omitting an algebraically
-      ! eliminated species to obtain its pseudo-first-order loss coefficient.
-      rate = wrk%rx_rates(layer,reaction)
-      do reactant = 1,dat%rx(reaction)%nreact
-        reactant_species = dat%rx(reaction)%react_sp_inds(reactant)
-        if (reactant_species /= excluded_species) then
-          rate = rate*wrk%densities(reactant_species,layer)
-        endif
-      enddo
+    if (.not.dat%gas_rainout .or. layer > var%trop_ind) return
 
-      ! Differentiate with a leave-one-reactant-out product. This avoids
-      ! division by density and remains valid for repeated or zero reactants.
-      derivative = 0.0_dp
-      do reactant = 1,dat%rx(reaction)%nreact
-        reactant_species = dat%rx(reaction)%react_sp_inds(reactant)
-        if (reactant_species == excluded_species) cycle
-
-        rate_without_reactant = wrk%rx_rates(layer,reaction)
-        do other_reactant = 1,dat%rx(reaction)%nreact
-          if (other_reactant /= reactant .and. &
-              dat%rx(reaction)%react_sp_inds(other_reactant) /= &
-                  excluded_species) then
-            rate_without_reactant = rate_without_reactant* &
-                wrk%densities( &
-                    dat%rx(reaction)%react_sp_inds(other_reactant),layer)
-          endif
-        enddo
-        derivative = derivative + rate_without_reactant* &
-                     density_derivatives(reactant_species,:)
-      enddo
-
-    end subroutine
-
-    pure function damp_condensation_rate_derivative(A, rhc, rh0, rh) &
-        result(derivative)
-      real(dp), intent(in) :: A, rhc, rh0, rh
-      real(dp) :: derivative, argument
-
-      ! Derivative with respect to RH of the arctangent smoothing function.
-      argument = (rh-rhc)/(rh0-rhc)
-      derivative = A*(2.0_dp/pi)/((rh0-rhc)*(1.0_dp+argument**2))
-
-    end function
-
-    pure function damp_inverse_rh_rate_derivative(A, rhc, smooth_factor, &
-                                                   rh) result(derivative)
-      real(dp), intent(in) :: A, rhc, smooth_factor, rh
-      real(dp) :: derivative, inverse_rhc, width
-
-      ! Derivative with respect to RH of the evaporation smoothing function
-      ! evaluated at 1/RH. This form avoids explicitly forming 1/RH**2.
-      inverse_rhc = 1.0_dp/rhc
-      width = smooth_factor/rhc
-      derivative = -A*(2.0_dp/pi)*width/ &
-                   ((width*rh)**2 + (1.0_dp-inverse_rhc*rh)**2)
-
-    end function
+    ! The tendency is -k_rain*n, so its only derivative is -k_rain on the
+    ! corresponding species diagonal.
+    n = dat%nq*(layer-1) + 1
+    do i = 1,dat%nq
+      djac(i,n+i-1) = djac(i,n+i-1) - rainout_rates(i,layer)
+    enddo
 
   end subroutine
+
+  ! Add condensation and evaporation derivatives for one model layer.
+  subroutine add_condensation_jacobian_layer( &
+      dat, var, usol, gas_sat_den, scale_height, wfall, layer, djac)
+    use photochem_const, only: small_real
+    use photochem_enum, only: CondensingParticle
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    real(dp), intent(in) :: usol(:,:), gas_sat_den(:,:)
+    real(dp), intent(in) :: scale_height(:), wfall(:,:)
+    integer, intent(in) :: layer
+    real(dp), intent(inout) :: djac(:,:)
+
+    real(dp) :: rh, rh_derivative, cond_rate0, cond_rate
+    real(dp) :: rate_derivative, transfer_derivative
+    integer :: i, ii, n
+
+    n = dat%nq*(layer-1) + 1
+    do i = 1,dat%np
+      if (dat%particle_formation_method(i) /= CondensingParticle) cycle
+
+      ii = dat%particle_gas_phase_ind(i)
+      rh = max(usol(ii,layer)/gas_sat_den(i,layer),small_real)
+      rh_derivative = 0.0_dp
+      if (usol(ii,layer)/gas_sat_den(i,layer) > small_real) then
+        rh_derivative = 1.0_dp/gas_sat_den(i,layer)
+      endif
+
+      if (rh > var%cond_params(i)%RHc) then
+        ! Condensation C = k_cond(RH)*n_gas. Apply -dC to the gas equation and
+        ! +dC to the corresponding particle equation.
+        cond_rate0 = var%cond_params(i)%k_cond* &
+                     (var%edd(layer)/scale_height(layer)**2.0_dp)
+        cond_rate = damp_condensation_rate( &
+            cond_rate0, var%cond_params(i)%RHc, &
+            (1.0_dp + var%cond_params(i)%smooth_factor)* &
+                var%cond_params(i)%RHc, rh)
+        rate_derivative = damp_condensation_rate_derivative( &
+            cond_rate0, var%cond_params(i)%RHc, &
+            (1.0_dp + var%cond_params(i)%smooth_factor)* &
+                var%cond_params(i)%RHc, rh)*rh_derivative
+        transfer_derivative = cond_rate + usol(ii,layer)*rate_derivative
+
+        djac(ii,n+ii-1) = djac(ii,n+ii-1) - transfer_derivative
+        djac(i,n+ii-1) = djac(i,n+ii-1) + transfer_derivative
+
+      elseif (var%evaporation) then
+        ! Evaporation E = k_evap(1/RH)*n_particle. Apply +dE to gas and -dE
+        ! to particles.
+        cond_rate0 = var%cond_params(i)%k_evap* &
+                     (wfall(i,layer)/scale_height(layer))
+        cond_rate = damp_condensation_rate( &
+            cond_rate0, 1.0_dp/var%cond_params(i)%RHc, &
+            (1.0_dp + var%cond_params(i)%smooth_factor)/ &
+                var%cond_params(i)%RHc, 1.0_dp/rh)
+        rate_derivative = damp_inverse_rh_rate_derivative( &
+            cond_rate0, var%cond_params(i)%RHc, &
+            var%cond_params(i)%smooth_factor, rh)*rh_derivative
+        transfer_derivative = usol(i,layer)*rate_derivative
+
+        djac(ii,n+ii-1) = djac(ii,n+ii-1) + transfer_derivative
+        djac(i,n+ii-1) = djac(i,n+ii-1) - transfer_derivative
+        djac(ii,n+i-1) = djac(ii,n+i-1) + cond_rate
+        djac(i,n+i-1) = djac(i,n+i-1) - cond_rate
+      endif
+    enddo
+
+  end subroutine
+
+  ! Evaluate one mass-action rate and its evolved-state derivative.
+  subroutine reaction_rate_and_derivative( &
+      dat, rx_rates, densities, density_derivatives, reaction, layer, &
+      excluded_species, rate, derivative)
+    type(PhotochemData), intent(in) :: dat
+    real(dp), intent(in) :: rx_rates(:,:), densities(:,:)
+    real(dp), intent(in) :: density_derivatives(:,:)
+    integer, intent(in) :: reaction, layer, excluded_species
+    real(dp), intent(out) :: rate, derivative(:)
+
+    real(dp) :: rate_without_reactant
+    integer :: reactant, other_reactant, reactant_species
+
+    ! Optionally omit an algebraically eliminated species to obtain its
+    ! pseudo-first-order loss coefficient.
+    rate = rx_rates(layer,reaction)
+    do reactant = 1,dat%rx(reaction)%nreact
+      reactant_species = dat%rx(reaction)%react_sp_inds(reactant)
+      if (reactant_species /= excluded_species) then
+        rate = rate*densities(reactant_species,layer)
+      endif
+    enddo
+
+    ! Differentiate with a leave-one-reactant-out product. This avoids
+    ! division by density and remains valid for repeated or zero reactants.
+    derivative = 0.0_dp
+    do reactant = 1,dat%rx(reaction)%nreact
+      reactant_species = dat%rx(reaction)%react_sp_inds(reactant)
+      if (reactant_species == excluded_species) cycle
+
+      rate_without_reactant = rx_rates(layer,reaction)
+      do other_reactant = 1,dat%rx(reaction)%nreact
+        if (other_reactant /= reactant .and. &
+            dat%rx(reaction)%react_sp_inds(other_reactant) /= &
+                excluded_species) then
+          rate_without_reactant = rate_without_reactant* &
+              densities( &
+                  dat%rx(reaction)%react_sp_inds(other_reactant),layer)
+        endif
+      enddo
+      derivative = derivative + rate_without_reactant* &
+                   density_derivatives(reactant_species,:)
+    enddo
+
+  end subroutine
+
+  pure function damp_condensation_rate_derivative(A, rhc, rh0, rh) &
+      result(derivative)
+    use photochem_const, only: pi
+    real(dp), intent(in) :: A, rhc, rh0, rh
+    real(dp) :: derivative, argument
+
+    ! Derivative with respect to RH of the arctangent smoothing function.
+    argument = (rh-rhc)/(rh0-rhc)
+    derivative = A*(2.0_dp/pi)/((rh0-rhc)*(1.0_dp+argument**2))
+
+  end function
+
+  pure function damp_inverse_rh_rate_derivative(A, rhc, smooth_factor, &
+                                                 rh) result(derivative)
+    use photochem_const, only: pi
+    real(dp), intent(in) :: A, rhc, smooth_factor, rh
+    real(dp) :: derivative, inverse_rhc, width
+
+    ! Derivative with respect to RH of the evaporation smoothing function
+    ! evaluated at 1/RH. This form avoids explicitly forming 1/RH**2.
+    inverse_rhc = 1.0_dp/rhc
+    width = smooth_factor/rhc
+    derivative = -A*(2.0_dp/pi)*width/ &
+                 ((width*rh)**2 + (1.0_dp-inverse_rhc*rh)**2)
+
+  end function
 
   module subroutine jacobian(self, lda_neqs, neqs, usol_flat, jac, err)
     use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
