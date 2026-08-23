@@ -864,7 +864,7 @@ contains
     
     real(dp), pointer :: usol_in(:,:)
     real(dp), pointer :: djac(:,:)
-    real(dp) :: rhs(self%var%neqs)
+    real(dp) :: rhs(self%var%neqs), boundary_correction
 
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -982,13 +982,9 @@ contains
   
     ! Lower boundary
     do i = 1,dat%nq
-      if (var%lowerboundcond(i) == VelocityBC .or. var%lowerboundcond(i) == VelocityDistributedFluxBC) then
-
-        djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
-        djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) - wrk%lower_vdep_copy(i)/var%dz(1)
-      elseif (var%lowerboundcond(i) == DensityBC .or. &
-              var%lowerboundcond(i) == PressureBC) then
-
+      select case (var%lowerboundcond(i))
+      case (DensityBC, PressureBC)
+        ! Fixed lower boundaries replace the differential equation.
         do m=1,dat%nq
           mm = dat%kd + i - m
           djac(mm,m) = 0.0_dp
@@ -997,29 +993,39 @@ contains
         ! For some reason this term makes the integration
         ! much happier. I will keep it. Jacobians don't need to be perfect.
         djac(dat%kd,i) = - wrk%DU(i,1)
-  
-      elseif (var%lowerboundcond(i) == FluxBC) then
-        djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
-        djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1)
-      elseif (var%lowerboundcond(i) == MosesBC) then
-        djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
-        djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) - &
-                         (var%edd(1)/wrk%scale_height(1))/var%dz(1)
-      endif
+        cycle
+      case (VelocityBC, VelocityDistributedFluxBC)
+        boundary_correction = -wrk%lower_vdep_copy(i)/var%dz(1)
+      case (FluxBC)
+        boundary_correction = 0.0_dp
+      case (MosesBC)
+        boundary_correction = -(var%edd(1)/wrk%scale_height(1))/var%dz(1)
+      case default
+        err = 'Invalid lower boundary condition type'
+        return
+      end select
+
+      djac(dat%ku,i+dat%nq) = wrk%DU(i,1) + wrk%ADU(i,1)
+      djac(dat%kd,i) = djac(dat%kd,i) + wrk%DD(i,1) + wrk%ADD(i,1) + &
+                       boundary_correction
     enddo
   
     ! Upper boundary
     do i = 1,dat%nq
       k = i + (var%nz-1)*dat%nq
-      if (var%upperboundcond(i) == VelocityBC) then
-  
-        djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,var%nz) + wrk%ADD(i,var%nz) &
-                        - wrk%upper_veff_copy(i)/var%dz(var%nz) 
-        djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
-      elseif (var%upperboundcond(i) == FluxBC) then
-        djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,var%nz) + wrk%ADD(i,var%nz)
-        djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
-      endif
+      select case (var%upperboundcond(i))
+      case (VelocityBC)
+        boundary_correction = -wrk%upper_veff_copy(i)/var%dz(var%nz)
+      case (FluxBC)
+        boundary_correction = 0.0_dp
+      case default
+        err = 'Invalid upper boundary condition type'
+        return
+      end select
+
+      djac(dat%kd,k) = djac(dat%kd,k) + wrk%DD(i,var%nz) + wrk%ADD(i,var%nz) + &
+                       boundary_correction
+      djac(dat%kl,k-dat%nq) = wrk%DL(i,var%nz) + wrk%ADL(i,var%nz)
     enddo
   
   end subroutine
