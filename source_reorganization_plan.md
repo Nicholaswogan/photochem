@@ -781,13 +781,13 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 8D: Photochem bindings layout
 
-- [ ] Create `bindings/photochem/c_api/` and `bindings/photochem/cython/`.
-- [ ] Move the existing Photochem Fortran/C and Cython wrappers out of the
+- [x] Create `bindings/photochem/c_api/` and `bindings/photochem/cython/`.
+- [x] Move the existing Photochem Fortran/C and Cython wrappers out of the
       Python package without changing wrapper behavior.
-- [ ] Move component binding CMake ownership under `bindings/photochem/` and
+- [x] Move component binding CMake ownership under `bindings/photochem/` and
       connect it through `bindings/CMakeLists.txt`.
-- [ ] Preserve the installed extension name `photochem._photochem`.
-- [ ] Build the wheel and run the full Fortran and Python test suites.
+- [x] Preserve the installed extension name `photochem._photochem`.
+- [x] Build the wheel and run the full Fortran and Python test suites.
 
 ### Pass 8E: Python package boundary audit
 

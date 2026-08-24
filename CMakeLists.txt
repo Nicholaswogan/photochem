@@ -71,12 +71,5 @@ if (BUILD_PYTHON_PHOTOCHEM)
   find_package(Cython REQUIRED)
   
   add_subdirectory(bindings)
-  add_subdirectory(photochem)
-  
-  if (SKBUILD)
-    install(TARGETS _photochem DESTINATION photochem)
-  else()
-    install(TARGETS _photochem DESTINATION ${CMAKE_SOURCE_DIR}/photochem)
-  endif()
                 
 endif()
