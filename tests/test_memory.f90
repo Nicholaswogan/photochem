@@ -58,7 +58,7 @@ contains
     real(dp) :: tn
     
     pc = EvoAtmosphere(filename, &
-                       "../examples/ModernEarth/settings.yaml", &
+                       "../tests/settings.yaml", &
                        "../tests/sun.txt", &
                        "../tests/atmosphere.txt", &
                        "../data", &
@@ -81,7 +81,7 @@ contains
     endif
     
     pc = EvoAtmosphere(filename, &
-                       "../examples/ModernEarth/settings.yaml", &
+                       "../tests/settings.yaml", &
                        "../tests/sun.txt", &
                        "../tests/atmosphere.txt", &
                        "../data", &

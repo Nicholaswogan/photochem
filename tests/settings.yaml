@@ -1,0 +1,116 @@
+atmosphere-grid:
+  number-of-layers: 100
+
+planet:
+  planet-mass: 5.972e27 # grams
+  planet-radius: 6.371e8 # cm. Radius to bottom of atmosphere-grid
+  surface-albedo: 0.25
+  solar-zenith-angle: 60.0 # degrees
+  hydrogen-escape:
+    type: diffusion limited
+  water:
+    gas-rainout: true
+    rainfall-rate: 1
+    tropopause-altitude: 1.1e6 # cm
+
+particles:
+- {name: H2Oaer, RH-condensation: 0.5}
+
+boundary-conditions:
+- name: H2O
+  lower-boundary: {type: press, press: 270.0e6}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: N2
+  lower-boundary: {type: press, press: 0.78e6}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: O2
+  lower-boundary: {type: press, press: 0.21e6}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: H2
+  lower-boundary: {type: press, press: 0.53}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: CO2
+  lower-boundary: {type: press, press: 360.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: CH4
+  lower-boundary: {type: flux, flux: 9.0e10}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: CO
+  lower-boundary: {type: press, press: 0.11}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: N2O
+  lower-boundary: {type: press, press: 0.31}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HCl
+  lower-boundary: {type: vdep + dist flux, vdep: 0.02, flux: 1.0e8, height: 20.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: O1D
+  type: short lived
+- name: N2D
+  type: short lived
+- name: O
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: H
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: OH
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HO2
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: H2O2
+  lower-boundary: {type: vdep, vdep: 0.2}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HCO
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: H2CO
+  lower-boundary: {type: vdep, vdep: 2e-1}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: CH3
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: "NO"
+  lower-boundary: {type: vdep, vdep: 0.0003}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: NO2
+  lower-boundary: {type: vdep, vdep: 0.003}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: O3
+  lower-boundary: {type: vdep, vdep: 0.07}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HNO3
+  lower-boundary: {type: vdep, vdep: 0.2}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: H2S
+  lower-boundary: {type: vdep + dist flux, vdep: 0.02, flux: 1.0e8, height: 10.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: OCS
+  lower-boundary: {type: vdep + dist flux, vdep: 0.003, flux: 5.0e7, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HSO
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: H2SO4
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: SO2
+  lower-boundary: {type: vdep + dist flux, vdep: 1.0, flux: 1.0e9, height: 10.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HNCO
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HCN
+  lower-boundary: {type: vdep, vdep: 0.007}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: HCCCN
+  lower-boundary: {type: vdep, vdep: 0.007}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: NCO
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: CN
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}

@@ -11,7 +11,7 @@ from photochem import EvoAtmosphere, PhotoException, zahnle_earth
 def _make_file_atmosphere():
     pc = EvoAtmosphere(
         zahnle_earth,
-        "../examples/ModernEarth/settings.yaml",
+        "settings.yaml",
         "sun.txt",
         "atmosphere.txt",
         data_dir="../data",
@@ -418,7 +418,7 @@ def test_initialize_atmosphere_z_no_particles():
 def test_initialize_atmosphere_z_particles():
     pc = EvoAtmosphere(
         zahnle_earth,
-        "../examples/ModernEarth/settings.yaml",
+        "settings.yaml",
         "sun.txt",
         "atmosphere.txt",
         data_dir="../data",
@@ -502,7 +502,7 @@ def test_initialize_atmosphere_p_no_particles():
 def test_initialize_atmosphere_p_particles():
     pc = EvoAtmosphere(
         zahnle_earth,
-        "../examples/ModernEarth/settings.yaml",
+        "settings.yaml",
         "sun.txt",
         "atmosphere.txt",
         data_dir="../data",
@@ -534,7 +534,7 @@ def test_wrapper():
 
     pc = EvoAtmosphere(
         zahnle_earth,
-        "../examples/ModernEarth/settings.yaml",
+        "settings.yaml",
         "sun.txt",
         "atmosphere.txt",
         data_dir="../data"

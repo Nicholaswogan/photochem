@@ -18,7 +18,7 @@ contains
     type(PhotochemData) :: dat
     character(:), allocatable :: err
 
-    settings = PhotoSettings('../examples/ModernEarth/settings.yaml', err)
+    settings = PhotoSettings('../tests/settings.yaml', err)
     if (allocated(err)) call fail('Could not construct test settings: '//trim(err))
 
     dat = PhotochemData('../data/reaction_mechanisms/zahnle_earth.yaml', &
@@ -60,7 +60,7 @@ contains
     type(PhotochemVars) :: var
     character(:), allocatable :: err
 
-    settings = PhotoSettings('../examples/ModernEarth/settings.yaml', err)
+    settings = PhotoSettings('../tests/settings.yaml', err)
     if (allocated(err)) call fail('Could not construct test settings: '//trim(err))
 
     dat = PhotochemData('../data/reaction_mechanisms/zahnle_earth.yaml', &

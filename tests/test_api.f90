@@ -1623,7 +1623,7 @@ contains
     call check_initialized_step(pc_file, 'legacy file', tn)
 
     pc_z = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                         '../examples/ModernEarth/settings.yaml', &
+                         '../tests/settings.yaml', &
                          '../tests/sun.txt', &
                          '../data', err)
     if (allocated(err)) then
@@ -1642,7 +1642,7 @@ contains
     call check_initialized_step(pc_z, 'altitude', tn)
 
     pc_p = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                         '../examples/ModernEarth/settings.yaml', &
+                         '../tests/settings.yaml', &
                          '../tests/sun.txt', &
                          '../data', err)
     if (allocated(err)) then
@@ -1804,7 +1804,7 @@ contains
     integer :: i, nprofile
 
     pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                       '../examples/ModernEarth/settings.yaml', &
+                       '../tests/settings.yaml', &
                        '../tests/sun.txt', &
                        '../tests/atmosphere.txt', &
                        '../data', &
@@ -1845,7 +1845,7 @@ contains
     integer :: i, nprofile
 
     pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                       '../examples/ModernEarth/settings.yaml', &
+                       '../tests/settings.yaml', &
                        '../tests/sun.txt', &
                        '../tests/atmosphere.txt', &
                        '../data', &

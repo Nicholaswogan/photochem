@@ -18,7 +18,7 @@ contains
     ! Initialize code
     pc = EvoAtmosphere(&
                       "../data/reaction_mechanisms/zahnle_earth.yaml", &
-                      "../examples/ModernEarth/settings.yaml", &
+                      "../tests/settings.yaml", &
                       "../tests/sun.txt", &
                       "../tests/atmosphere.txt", &
                       "../data", &
