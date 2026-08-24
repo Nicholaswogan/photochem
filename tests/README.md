@@ -7,6 +7,9 @@ allocation-heavy code paths that should retain memory-safety coverage.
 
 Test inputs are resolved from the source tree, so the Fortran executables and
 Python smoke test may be launched from any working directory.
+Generated Fortran test files are written under the component build directory
+and removed by the test that creates them; Python tests use temporary
+directories managed by the standard library.
 
 ## Test programs
 

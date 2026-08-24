@@ -4,7 +4,7 @@ program test_memory
   ! numerical outputs. See tests/README.md.
   use photochem, only: EvoAtmosphere, dp
   use photochem, only: AutodiffJacobian, FiniteDifferenceJacobian
-  use photochem_test_paths, only: test_file, data_file, data_dir
+  use photochem_test_paths, only: test_file, data_file, output_file, data_dir
   implicit none
 
   call test()
@@ -115,12 +115,15 @@ contains
   subroutine test_out2atmosphere(pc)
     type(EvoAtmosphere), intent(inout) :: pc
     character(:), allocatable :: err
+    character(:), allocatable :: filename
     
-    call pc%out2atmosphere_txt("test.txt", 4, .true., .false., err)
+    filename = output_file('atmosphere.txt')
+    call pc%out2atmosphere_txt(filename, 4, .true., .false., err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
     endif
+    call delete_file(filename)
   
   end subroutine
 
@@ -311,6 +314,7 @@ contains
     logical :: success
     real(dp) :: tstart
     real(dp), allocatable :: t_eval(:)
+    character(:), allocatable :: filename
 
     pc%var%max_error_reinit_attempts = 0
     pc%var%mxsteps = 3
@@ -319,12 +323,22 @@ contains
     call linspace(5.0_dp, 17.0_dp, t_eval)
     t_eval = 10.0_dp**t_eval
     tstart = 0.0_dp
-    success = pc%evolve('tmp.dat',tstart, pc%wrk%usol, t_eval, overwrite=.true., err=err)
+    filename = output_file('evolution.dat')
+    success = pc%evolve(filename, tstart, pc%wrk%usol, t_eval, overwrite=.true., err=err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
     endif
+    call delete_file(filename)
 
+  end subroutine
+
+  subroutine delete_file(filename)
+    character(*), intent(in) :: filename
+    integer :: unit
+
+    open(newunit=unit, file=filename, status='old')
+    close(unit, status='delete')
   end subroutine
 
 end program

@@ -2,10 +2,11 @@ module photochem_test_paths
   implicit none
   private
 
-  public :: test_file, data_file, data_dir
+  public :: test_file, data_file, output_file, data_dir
 
   character(len=*), parameter :: test_dir = '@CMAKE_CURRENT_SOURCE_DIR@'
   character(len=*), parameter :: data_dir = '@CMAKE_SOURCE_DIR@/data'
+  character(len=*), parameter :: output_dir = '@CMAKE_CURRENT_BINARY_DIR@/generated'
 
 contains
 
@@ -21,6 +22,13 @@ contains
     character(len=:), allocatable :: path
 
     path = data_dir//'/'//filename
+  end function
+
+  pure function output_file(filename) result(path)
+    character(len=*), intent(in) :: filename
+    character(len=:), allocatable :: path
+
+    path = output_dir//'/'//filename
   end function
 
 end module

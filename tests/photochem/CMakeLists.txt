@@ -1,6 +1,7 @@
 set(PHOTOCHEM_TESTS test_input test_api test_jacobian test_production_loss
                     test_memory test_evolution)
 
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/photochem_test_paths.f90.in"
   "${CMAKE_CURRENT_BINARY_DIR}/photochem_test_paths.f90"
