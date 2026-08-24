@@ -15,5 +15,6 @@ if (NOT EXISTS "${CMAKE_SOURCE_DIR}/data")
 endif()
 
 if (BUILD_EXECUTABLES)
+  add_subdirectory(clima)
   add_subdirectory(photochem)
 endif()

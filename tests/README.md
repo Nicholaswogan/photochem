@@ -13,6 +13,18 @@ directories managed by the standard library.
 
 ## Test programs
 
+### Clima
+
+- `test_adiabat` exercises atmospheric-profile construction, surface-temperature
+  solves, column inventories, radiative-convective equilibrium, and custom
+  particle and mixing-ratio inputs.
+- `test_radtran` exercises standalone radiative transfer, atmosphere-file
+  interpolation, opacity reporting, and custom optical properties.
+- The experimental Clima `Climate` model is intentionally excluded from this
+  repository, so its corresponding upstream test is not imported.
+
+### Photochem
+
 - `test_input` contains focused input parsing and validation tests.
 - `test_api` contains focused correctness and error-behavior tests for public
   `EvoAtmosphere` operations.
@@ -70,6 +82,8 @@ contribution with the appropriate multiplier.
 After configuring and building the project:
 
 ```sh
+./build/tests/clima/test_adiabat
+./build/tests/clima/test_radtran
 ./build/tests/photochem/test_input
 ./build/tests/photochem/test_api
 ./build/tests/photochem/test_jacobian

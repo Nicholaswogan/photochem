@@ -1,0 +1,27 @@
+module clima_test_paths
+  implicit none
+  private
+
+  public :: fixture_file, data_dir, output_file
+
+  character(len=*), parameter :: fixture_dir = '@CMAKE_CURRENT_SOURCE_DIR@'
+  character(len=*), parameter :: data_dir = '@CMAKE_SOURCE_DIR@/data'
+  character(len=*), parameter :: output_dir = '@CMAKE_CURRENT_BINARY_DIR@/generated'
+
+contains
+
+  pure function fixture_file(filename) result(path)
+    character(len=*), intent(in) :: filename
+    character(len=:), allocatable :: path
+
+    path = fixture_dir//'/'//filename
+  end function
+
+  pure function output_file(filename) result(path)
+    character(len=*), intent(in) :: filename
+    character(len=:), allocatable :: path
+
+    path = output_dir//'/'//filename
+  end function
+
+end module

@@ -808,7 +808,7 @@ Mechanical moves and behavioral changes should be separate whenever practical.
       preserving LAPACK and OpenMP behavior.
 - [x] Copy the Clima C API and Cython bindings into `bindings/clima/` while
       preserving `photochem._clima` and installed climate-data behavior.
-- [ ] Import the Clima tests and required fixtures into `tests/clima/` without
+- [x] Import the Clima tests and required fixtures into `tests/clima/` without
       importing examples or notebooks.
 - [ ] Build and test the in-tree Clima before removing its CPM dependency.
 
