@@ -2,6 +2,7 @@ program test_jacobian
   ! Focused numerical validation of Photochem Jacobian implementations.
   use photochem, only: AnalyticalJacobian, AutodiffJacobian, &
                        EvoAtmosphere, dp
+  use photochem_test_paths, only: test_file, data_file, data_dir
   implicit none
 
   call test_analytical_jacobian_core()
@@ -18,11 +19,11 @@ contains
     real(dp), allocatable :: usol_flat(:)
     integer :: h_index, j
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -57,11 +58,11 @@ contains
     character(:), allocatable :: err
     real(dp), allocatable :: usol_flat(:)
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_short_lived.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_short_lived.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -84,11 +85,11 @@ contains
     character(:), allocatable :: err
     real(dp), allocatable :: usol_flat(:)
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_rainout.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_rainout.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -118,11 +119,11 @@ contains
     real(dp), allocatable :: usol_flat(:)
     integer :: gas_index, j, k
 
-    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                       '../tests/test_settings_condensation_jacobian.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
+                       test_file('test_settings_condensation_jacobian.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1

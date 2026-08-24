@@ -7,14 +7,21 @@ import numpy as np
 
 from photochem import EvoAtmosphere, PhotoException, zahnle_earth
 
+TEST_DIR = Path(__file__).resolve().parent
+DATA_DIR = TEST_DIR.parent / "data"
+
+
+def fixture_file(filename):
+    return str(TEST_DIR / filename)
+
 
 def _make_file_atmosphere():
     pc = EvoAtmosphere(
         zahnle_earth,
-        "settings.yaml",
-        "sun.txt",
-        "atmosphere.txt",
-        data_dir="../data",
+        fixture_file("settings.yaml"),
+        fixture_file("sun.txt"),
+        fixture_file("atmosphere.txt"),
+        data_dir=str(DATA_DIR),
     )
     pc.var.verbose = 0
     return pc
@@ -54,10 +61,10 @@ def test_evolve_uses_fixed_grid():
 
 def test_static_construction():
     pc = EvoAtmosphere(
-        "no_particle_test.yaml",
-        "test_settings_minimal.yaml",
-        "sun.txt",
-        data_dir="../data",
+        fixture_file("no_particle_test.yaml"),
+        fixture_file("test_settings_minimal.yaml"),
+        fixture_file("sun.txt"),
+        data_dir=str(DATA_DIR),
     )
 
     assert not pc.atmosphere_initialized
@@ -83,10 +90,10 @@ def test_static_construction():
 def test_toa_pressure_maintenance_api():
     """The optional TOA-maintenance settings and counters are Python-visible."""
     pc = EvoAtmosphere(
-        "no_particle_test.yaml",
-        "test_settings_minimal.yaml",
-        "sun.txt",
-        data_dir="../data",
+        fixture_file("no_particle_test.yaml"),
+        fixture_file("test_settings_minimal.yaml"),
+        fixture_file("sun.txt"),
+        data_dir=str(DATA_DIR),
     )
 
     maintenance = pc.var.toa_pressure_maintenance
@@ -115,10 +122,10 @@ def test_toa_pressure_maintenance_api():
 def test_persistent_profile_controls_toa_maintenance():
     """Persistent-profile options reach the shared Fortran maintenance state."""
     pc = EvoAtmosphere(
-        "no_particle_test.yaml",
-        "test_settings_minimal.yaml",
-        "sun.txt",
-        data_dir="../data",
+        fixture_file("no_particle_test.yaml"),
+        fixture_file("test_settings_minimal.yaml"),
+        fixture_file("sun.txt"),
+        data_dir=str(DATA_DIR),
     )
     z = np.array([0.0, 5.0e6, 1.0e7])
     pc.initialize_atmosphere_z(
@@ -157,10 +164,10 @@ def test_persistent_profile_controls_toa_maintenance():
 def test_robust_initial_toa_pressure_preflight():
     """Robust initialization corrects an out-of-band TOA before CVODE starts."""
     pc = EvoAtmosphere(
-        "no_particle_test.yaml",
-        "test_settings_minimal.yaml",
-        "sun.txt",
-        data_dir="../data",
+        fixture_file("no_particle_test.yaml"),
+        fixture_file("test_settings_minimal.yaml"),
+        fixture_file("sun.txt"),
+        data_dir=str(DATA_DIR),
     )
     z = np.array([0.0, 5.0e6, 1.0e7])
     pc.initialize_atmosphere_z(
@@ -198,12 +205,12 @@ def test_gas_giant_static_construction():
     from photochem.extensions.gasgiants import EvoAtmosphereGasGiant
 
     pc = EvoAtmosphereGasGiant(
-        "no_particle_test.yaml",
-        "sun.txt",
+        fixture_file("no_particle_test.yaml"),
+        fixture_file("sun.txt"),
         5.972e27,
         6.371e8,
-        thermo_file="no_particle_test.yaml",
-        data_dir="../data",
+        thermo_file=fixture_file("no_particle_test.yaml"),
+        data_dir=str(DATA_DIR),
     )
 
     assert not pc.atmosphere_initialized
@@ -223,13 +230,13 @@ def _make_initialized_gas_giant():
     from photochem.extensions.gasgiants import EvoAtmosphereGasGiant
 
     pc = EvoAtmosphereGasGiant(
-        "no_particle_test.yaml",
-        "sun.txt",
+        fixture_file("no_particle_test.yaml"),
+        fixture_file("sun.txt"),
         5.972e27,
         6.371e8,
         nz=20,
-        thermo_file="no_particle_test.yaml",
-        data_dir="../data",
+        thermo_file=fixture_file("no_particle_test.yaml"),
+        data_dir=str(DATA_DIR),
     )
     pc.gdat.verbose = False
 
@@ -396,11 +403,11 @@ def test_gas_giant_shared_limits_and_state_restore():
 
 def test_initialize_atmosphere_z_no_particles():
     pc = EvoAtmosphere(
-        "no_particle_test.yaml",
-        "test_settings_minimal.yaml",
-        "sun.txt",
-        "atmosphere.txt",
-        data_dir="../data",
+        fixture_file("no_particle_test.yaml"),
+        fixture_file("test_settings_minimal.yaml"),
+        fixture_file("sun.txt"),
+        fixture_file("atmosphere.txt"),
+        data_dir=str(DATA_DIR),
     )
     z = np.array([0.0, 5.0e6, 1.0e7])
     temperature = np.array([300.0, 240.0, 180.0])
@@ -418,10 +425,10 @@ def test_initialize_atmosphere_z_no_particles():
 def test_initialize_atmosphere_z_particles():
     pc = EvoAtmosphere(
         zahnle_earth,
-        "settings.yaml",
-        "sun.txt",
-        "atmosphere.txt",
-        data_dir="../data",
+        fixture_file("settings.yaml"),
+        fixture_file("sun.txt"),
+        fixture_file("atmosphere.txt"),
+        data_dir=str(DATA_DIR),
     )
     z = np.array([0.0, 5.0e6, 1.0e7])
     temperature = np.array([300.0, 240.0, 180.0])
@@ -450,11 +457,11 @@ def test_initialize_atmosphere_z_particles():
 
 def test_initialize_atmosphere_p_no_particles():
     pc = EvoAtmosphere(
-        "no_particle_test.yaml",
-        "test_settings_minimal.yaml",
-        "sun.txt",
-        "atmosphere.txt",
-        data_dir="../data",
+        fixture_file("no_particle_test.yaml"),
+        fixture_file("test_settings_minimal.yaml"),
+        fixture_file("sun.txt"),
+        fixture_file("atmosphere.txt"),
+        data_dir=str(DATA_DIR),
     )
     pressure = np.array([1.0e6, 1.0e5, 1.0e4, 1.0e2])
     temperature = np.array([300.0, 260.0, 220.0, 180.0])
@@ -502,10 +509,10 @@ def test_initialize_atmosphere_p_no_particles():
 def test_initialize_atmosphere_p_particles():
     pc = EvoAtmosphere(
         zahnle_earth,
-        "settings.yaml",
-        "sun.txt",
-        "atmosphere.txt",
-        data_dir="../data",
+        fixture_file("settings.yaml"),
+        fixture_file("sun.txt"),
+        fixture_file("atmosphere.txt"),
+        data_dir=str(DATA_DIR),
     )
     pressure = np.array([1.0e6, 1.0e5, 1.0e4, 1.0e2])
     temperature = np.array([300.0, 260.0, 220.0, 180.0])
@@ -534,10 +541,10 @@ def test_wrapper():
 
     pc = EvoAtmosphere(
         zahnle_earth,
-        "settings.yaml",
-        "sun.txt",
-        "atmosphere.txt",
-        data_dir="../data"
+        fixture_file("settings.yaml"),
+        fixture_file("sun.txt"),
+        fixture_file("atmosphere.txt"),
+        data_dir=str(DATA_DIR)
     )
     
     print(pc.dat.nq)

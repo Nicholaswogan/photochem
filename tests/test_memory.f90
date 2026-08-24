@@ -4,6 +4,7 @@ program test_memory
   ! numerical outputs. See tests/README.md.
   use photochem, only: EvoAtmosphere, dp
   use photochem, only: AutodiffJacobian, FiniteDifferenceJacobian
+  use photochem_test_paths, only: test_file, data_file, data_dir
   implicit none
 
   call test()
@@ -13,8 +14,8 @@ contains
 
   subroutine test()
 
-    call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
-    call test_methods('../tests/no_particle_test.yaml')
+    call test_methods(data_file('reaction_mechanisms/zahnle_earth.yaml'))
+    call test_methods(test_file('no_particle_test.yaml'))
 
   end subroutine
 
@@ -58,10 +59,10 @@ contains
     real(dp) :: tn
     
     pc = EvoAtmosphere(filename, &
-                       "../tests/settings.yaml", &
-                       "../tests/sun.txt", &
-                       "../tests/atmosphere.txt", &
-                       "../data", &
+                       test_file("settings.yaml"), &
+                       test_file("sun.txt"), &
+                       test_file("atmosphere.txt"), &
+                       data_dir, &
                        err)
     if (allocated(err)) then
       print*,trim(err)
@@ -81,10 +82,10 @@ contains
     endif
     
     pc = EvoAtmosphere(filename, &
-                       "../tests/settings.yaml", &
-                       "../tests/sun.txt", &
-                       "../tests/atmosphere.txt", &
-                       "../data", &
+                       test_file("settings.yaml"), &
+                       test_file("sun.txt"), &
+                       test_file("atmosphere.txt"), &
+                       data_dir, &
                        err)
     if (allocated(err)) then
       print*,trim(err)

@@ -1,6 +1,7 @@
 program test_evolution
   ! This longer-running end-to-end evolution exercise is intended for manual
   ! use and is compiled, but not run, in CI. See tests/README.md.
+  use photochem_test_paths, only: test_file, data_file, data_dir
   implicit none
   call main_()
 contains
@@ -17,11 +18,11 @@ contains
 
     ! Initialize code
     pc = EvoAtmosphere(&
-                      "../data/reaction_mechanisms/zahnle_earth.yaml", &
-                      "../tests/settings.yaml", &
-                      "../tests/sun.txt", &
-                      "../tests/atmosphere.txt", &
-                      "../data", &
+                      data_file("reaction_mechanisms/zahnle_earth.yaml"), &
+                      test_file("settings.yaml"), &
+                      test_file("sun.txt"), &
+                      test_file("atmosphere.txt"), &
+                      data_dir, &
                       err)
     if (allocated(err)) then
       print*,trim(err)

@@ -1,5 +1,6 @@
 program test_input
   ! Focused input parsing and validation tests. See tests/README.md.
+  use photochem_test_paths, only: test_file, data_file, data_dir
   implicit none
   call test_parsing()
   call test_data_construction()
@@ -18,11 +19,11 @@ contains
     type(PhotochemData) :: dat
     character(:), allocatable :: err
 
-    settings = PhotoSettings('../tests/settings.yaml', err)
+    settings = PhotoSettings(test_file('settings.yaml'), err)
     if (allocated(err)) call fail('Could not construct test settings: '//trim(err))
 
-    dat = PhotochemData('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                        settings, '../data', err)
+    dat = PhotochemData(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
+                        settings, data_dir, err)
     if (allocated(err)) call fail('Could not construct PhotochemData: '//trim(err))
 
     if (dat%nsl /= settings%nsl) call fail('PhotochemData has the wrong short-lived species count')
@@ -60,14 +61,14 @@ contains
     type(PhotochemVars) :: var
     character(:), allocatable :: err
 
-    settings = PhotoSettings('../tests/settings.yaml', err)
+    settings = PhotoSettings(test_file('settings.yaml'), err)
     if (allocated(err)) call fail('Could not construct test settings: '//trim(err))
 
-    dat = PhotochemData('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                        settings, '../data', err)
+    dat = PhotochemData(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
+                        settings, data_dir, err)
     if (allocated(err)) call fail('Could not construct test data: '//trim(err))
 
-    var = PhotochemVars(dat, settings, '../tests/sun.txt', err)
+    var = PhotochemVars(dat, settings, test_file('sun.txt'), err)
     if (allocated(err)) call fail('Could not construct PhotochemVars: '//trim(err))
 
     if (var%nz /= settings%nz) call fail('PhotochemVars has the wrong grid size')
@@ -145,7 +146,7 @@ contains
     type(PhotoSettings) :: settings
     character(:), allocatable :: err
 
-    settings = PhotoSettings('../tests/test_settings1.yaml', err)
+    settings = PhotoSettings(test_file('test_settings1.yaml'), err)
     if (.not. allocated(err)) then
       call fail('The obsolete evolve-climate setting was accepted')
     endif
@@ -159,7 +160,7 @@ contains
     type(PhotoSettings) :: settings
     character(:), allocatable :: err
 
-    settings = PhotoSettings('../tests/test_settings_conserving_init.yaml', err)
+    settings = PhotoSettings(test_file('test_settings_conserving_init.yaml'), err)
     if (.not. allocated(err)) then
       call fail('The obsolete conserving-initialization setting was accepted')
     endif
@@ -173,12 +174,12 @@ contains
     type(PhotoSettings) :: settings
     character(:), allocatable :: err
 
-    settings = PhotoSettings('../tests/test_settings_water_compat.yaml', err)
+    settings = PhotoSettings(test_file('test_settings_water_compat.yaml'), err)
     if (allocated(err)) then
       call fail('Disabled legacy water settings were rejected: '//trim(err))
     endif
 
-    settings = PhotoSettings('../tests/test_settings_fix_water.yaml', err)
+    settings = PhotoSettings(test_file('test_settings_fix_water.yaml'), err)
     if (.not. allocated(err)) then
       call fail('The obsolete fix-water-in-troposphere setting was accepted')
     endif
@@ -186,7 +187,7 @@ contains
       call fail('Unexpected error for fix-water-in-troposphere: '//trim(err))
     endif
 
-    settings = PhotoSettings('../tests/test_settings_water_condensation.yaml', err)
+    settings = PhotoSettings(test_file('test_settings_water_condensation.yaml'), err)
     if (.not. allocated(err)) then
       call fail('The obsolete water-condensation setting was accepted')
     endif

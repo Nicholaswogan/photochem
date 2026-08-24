@@ -5,8 +5,8 @@ exercises, and longer integrations can evolve independently. Some overlap is
 intentional: focused API tests also run under Valgrind because they exercise
 allocation-heavy code paths that should retain memory-safety coverage.
 
-The Fortran executables use paths relative to `build/` and must be run with
-that directory as the working directory.
+Test inputs are resolved from the source tree, so the Fortran executables and
+Python smoke test may be launched from any working directory.
 
 ## Test programs
 
@@ -26,8 +26,7 @@ that directory as the working directory.
 - `test_evolution` is a longer end-to-end evolution exercise. It is built in CI
   to prevent source drift, but is intended for manual runs and is not executed
   in CI.
-- `test_python.py` is a smoke test for the installed Python wrappers and is run
-  from `tests/`.
+- `test_python.py` is a smoke test for the installed Python wrappers.
 
 The analytical chemistry Jacobian is the production default. Automatic
 differentiation remains selectable as an independent correctness oracle. Any
@@ -68,32 +67,29 @@ contribution with the appropriate multiplier.
 After configuring and building the project:
 
 ```sh
-cd build
-./tests/test_input
-./tests/test_api
-./tests/test_jacobian
-./tests/test_production_loss
-./tests/test_memory
+./build/tests/test_input
+./build/tests/test_api
+./build/tests/test_jacobian
+./build/tests/test_production_loss
+./build/tests/test_memory
 ```
 
 The longer evolution test can be run manually when needed:
 
 ```sh
-./tests/test_evolution
+./build/tests/test_evolution
 ```
 
 On a system with Valgrind, check both the broad memory harness and the focused
 API tests:
 
 ```sh
-valgrind --error-exitcode=1 --leak-check=full ./tests/test_memory
-valgrind --error-exitcode=1 --leak-check=full ./tests/test_api
+valgrind --error-exitcode=1 --leak-check=full ./build/tests/test_memory
+valgrind --error-exitcode=1 --leak-check=full ./build/tests/test_api
 ```
 
-After installing the Python package, run its smoke test from the repository's
-`tests/` directory:
+After installing the Python package, run its smoke test:
 
 ```sh
-cd tests
-python test_python.py
+python tests/test_python.py
 ```

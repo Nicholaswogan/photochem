@@ -2,6 +2,7 @@ program test_api
   ! This executable contains focused correctness and error-behavior checks for
   ! public EvoAtmosphere operations. See tests/README.md.
   use photochem, only: EvoAtmosphere, dp
+  use photochem_test_paths, only: test_file, data_file, data_dir
   implicit none
 
   call test()
@@ -29,8 +30,8 @@ contains
     call test_update_vertical_grid_repeated()
     call test_update_vertical_grid_particles()
     call test_update_vertical_grid_atomicity()
-    call test_methods('../data/reaction_mechanisms/zahnle_earth.yaml')
-    call test_methods('../tests/no_particle_test.yaml')
+    call test_methods(data_file('reaction_mechanisms/zahnle_earth.yaml'))
+    call test_methods(test_file('no_particle_test.yaml'))
   end subroutine
 
   subroutine test_update_vertical_grid_inputs()
@@ -41,11 +42,11 @@ contains
     real(dp), allocatable :: z_before(:), usol_before(:,:), gas_mix_top(:)
     real(dp) :: top_before, invalid_alt, z_top, density_top, pressure_top, temperature_top
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -719,11 +720,11 @@ contains
     character(:), allocatable, intent(out) :: err
     type(EvoAtmosphere) :: pc
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
   end function
 
   subroutine check_pressure_target(pc, expected_top, target_pressure, label)
@@ -748,11 +749,11 @@ contains
     real(dp) :: top_before, z_top, density_top, density_layer
     integer :: i, first_extended
 
-    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -796,11 +797,11 @@ contains
     integer :: nsteps_before
     integer :: i, optical_particle
 
-    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -880,11 +881,11 @@ contains
     real(dp) :: P(2), T(2), edd(2)
     real(dp), allocatable :: temperature_before(:), edd_before(:)
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -943,11 +944,11 @@ contains
     character(:), allocatable :: err
     logical :: give_up, converged
 
-    pc_errors = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                              '../tests/test_settings_minimal.yaml', &
-                              '../tests/sun.txt', &
-                              '../tests/atmosphere.txt', &
-                              '../data', err)
+    pc_errors = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                              test_file('test_settings_minimal.yaml'), &
+                              test_file('sun.txt'), &
+                              test_file('atmosphere.txt'), &
+                              data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -987,11 +988,11 @@ contains
       stop 1
     endif
 
-    pc_steps = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                             '../tests/test_settings_minimal.yaml', &
-                             '../tests/sun.txt', &
-                             '../tests/atmosphere.txt', &
-                             '../data', err)
+    pc_steps = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                             test_file('test_settings_minimal.yaml'), &
+                             test_file('sun.txt'), &
+                             test_file('atmosphere.txt'), &
+                             data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -1037,11 +1038,11 @@ contains
     integer :: max_order_original
     real(dp) :: reinit_min_density_original
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', &
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, &
                        err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1210,11 +1211,11 @@ contains
     real(dp) :: restart_time
     type(c_ptr) :: cvode_mem_before
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', &
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, &
                        err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1328,11 +1329,11 @@ contains
     real(dp) :: fraction, expected_temperature, expected_log10edd
     integer :: i, ind_H2
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', &
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, &
                        err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1457,11 +1458,11 @@ contains
     real(dp) :: top_before, target_pressure
     integer :: i
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', &
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, &
                        err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1611,21 +1612,21 @@ contains
 
     ! The legacy file path remains part of this smoke test, while the new z and
     ! P paths deliberately begin from static-only models.
-    pc_file = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                            '../tests/test_settings_minimal.yaml', &
-                            '../tests/sun.txt', &
-                            '../tests/atmosphere.txt', &
-                            '../data', err)
+    pc_file = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                            test_file('test_settings_minimal.yaml'), &
+                            test_file('sun.txt'), &
+                            test_file('atmosphere.txt'), &
+                            data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
     endif
     call check_initialized_step(pc_file, 'legacy file', tn)
 
-    pc_z = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                         '../tests/settings.yaml', &
-                         '../tests/sun.txt', &
-                         '../data', err)
+    pc_z = EvoAtmosphere(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
+                         test_file('settings.yaml'), &
+                         test_file('sun.txt'), &
+                         data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -1641,10 +1642,10 @@ contains
     endif
     call check_initialized_step(pc_z, 'altitude', tn)
 
-    pc_p = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                         '../tests/settings.yaml', &
-                         '../tests/sun.txt', &
-                         '../data', err)
+    pc_p = EvoAtmosphere(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
+                         test_file('settings.yaml'), &
+                         test_file('sun.txt'), &
+                         data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -1675,10 +1676,10 @@ contains
     ! The supplied tropopause pressure must be used before the first common
     ! finalization. The settings-file tropopause (1.0e9 cm) is deliberately
     ! above this shallow pressure-defined domain.
-    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                       '../tests/test_settings_tropopause_outside.yaml', &
-                       '../tests/sun.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
+                       test_file('test_settings_tropopause_outside.yaml'), &
+                       test_file('sun.txt'), &
+                       data_dir, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -1803,11 +1804,11 @@ contains
     real(dp), allocatable :: mix(:,:), particle_radius(:,:)
     integer :: i, nprofile
 
-    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                       '../tests/settings.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', &
+    pc = EvoAtmosphere(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
+                       test_file('settings.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, &
                        err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1844,11 +1845,11 @@ contains
     real(dp), allocatable :: mix(:,:), particle_radius(:,:)
     integer :: i, nprofile
 
-    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                       '../tests/settings.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', &
+    pc = EvoAtmosphere(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
+                       test_file('settings.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, &
                        err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1883,11 +1884,11 @@ contains
     real(dp), allocatable :: temperature_before(:)
     real(dp) :: profile_pressure(2), profile_temperature(2), profile_edd(2)
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', &
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, &
                        err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1898,11 +1899,11 @@ contains
       stop 1
     endif
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/does_not_exist.txt', &
-                       '../data', &
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('does_not_exist.txt'), &
+                       data_dir, &
                        err)
     if (.not. allocated(err)) then
       print *, 'missing atmosphere file did not produce an initialization error'
@@ -1916,10 +1917,10 @@ contains
     ! The static-only constructor succeeds without reading an atmosphere and
     ! leaves mechanism-sized state available for inspection and configuration.
     deallocate(err)
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../data', &
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       data_dir, &
                        err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1962,7 +1963,7 @@ contains
 
     ! A statically configured object can be initialized later.
     deallocate(err)
-    call pc%initialize_from_atmosphere_file('../tests/atmosphere.txt', err)
+    call pc%initialize_from_atmosphere_file(test_file('atmosphere.txt'), err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -1990,7 +1991,7 @@ contains
     endif
     temperature_before = pc%var%temperature
 
-    call pc%initialize_from_atmosphere_file('../tests/does_not_exist.txt', err)
+    call pc%initialize_from_atmosphere_file(test_file('does_not_exist.txt'), err)
     if (.not. allocated(err)) then
       print *, 'failed reinitialization did not return an error'
       stop 1
@@ -2015,7 +2016,7 @@ contains
     ! Successful reinitialization commits the replacement atmosphere and
     ! invalidates CVODE state associated with the old atmosphere.
     deallocate(err)
-    call pc%initialize_from_atmosphere_file('../tests/atmosphere.txt', err)
+    call pc%initialize_from_atmosphere_file(test_file('atmosphere.txt'), err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -2054,11 +2055,11 @@ contains
     character(:), allocatable :: err
     real(dp), parameter :: expected_top = 1.0e7_dp
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', &
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, &
                        err)
     if (allocated(err)) then
       print *, trim(err)
@@ -2082,10 +2083,10 @@ contains
     character(:), allocatable :: err
 
     pc = EvoAtmosphere(filename, &
-                       "../tests/test_settings_minimal.yaml", &
-                       "../tests/sun.txt", &
-                       "../tests/atmosphere.txt", &
-                       "../data", &
+                       test_file("test_settings_minimal.yaml"), &
+                       test_file("sun.txt"), &
+                       test_file("atmosphere.txt"), &
+                       data_dir, &
                        err)
     if (allocated(err)) then
       print *, trim(err)
@@ -2094,7 +2095,7 @@ contains
 
     ! Exercise repeated legacy-file loading for both particle-bearing and
     ! particle-free mechanisms.
-    call pc%initialize_from_atmosphere_file('../tests/atmosphere.txt', err)
+    call pc%initialize_from_atmosphere_file(test_file('atmosphere.txt'), err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1

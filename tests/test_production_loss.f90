@@ -3,6 +3,7 @@ program test_production_loss
   ! These checks cover every local chemistry, transport, boundary, and source
   ! contribution and require evolved-species diagnostics to reconstruct the RHS.
   use photochem, only: EvoAtmosphere, ProductionLoss, dp
+  use photochem_test_paths, only: test_file, data_file, data_dir
   implicit none
 
   call test_reaction_accounting()
@@ -22,11 +23,11 @@ contains
     type(ProductionLoss) :: pl
     character(:), allocatable :: err
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     call check_error(err)
 
     call pc%production_and_loss('HCN', pc%wrk%usol, pl, err)
@@ -43,11 +44,11 @@ contains
     real(dp), allocatable :: rainout_column(:), expected(:)
     integer :: i, j, rainout_ind, species_ind
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_rainout.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_rainout.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     call check_error(err)
 
     allocate(rainout_column(pc%dat%nq), source=0.0_dp)
@@ -98,11 +99,11 @@ contains
     real(dp), allocatable :: usol(:,:)
     integer :: gas_ind, i, j
 
-    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
-                       '../tests/test_settings_condensation_jacobian.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
+                       test_file('test_settings_condensation_jacobian.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     call check_error(err)
     i = findloc(pc%dat%particle_formation_method, CondensingParticle, 1)
     if (i == 0) then
@@ -147,11 +148,11 @@ contains
     procedure(time_dependent_rate_fcn), pointer :: rate_fcn
     character(:), allocatable :: err
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     call check_error(err)
     rate_fcn => signed_custom_rate
     call pc%set_rate_fcn('HCN', rate_fcn, err)
@@ -171,11 +172,11 @@ contains
     type(ProductionLoss) :: pl
     character(:), allocatable :: err
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_zahnle_escape.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_zahnle_escape.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     call check_error(err)
 
     call pc%production_and_loss('H2', pc%wrk%usol, pl, err)
@@ -191,11 +192,11 @@ contains
     character(:), allocatable :: err
     real(dp) :: balance_scale
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_short_lived.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_short_lived.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     call check_error(err)
 
     call pc%production_and_loss('O1D', pc%wrk%usol, pl, err)
@@ -216,11 +217,11 @@ contains
     real(dp) :: integrated_transport, transport_scale
     integer :: i
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     call check_error(err)
 
     call pc%production_and_loss('HCN', pc%wrk%usol, pl, err)
@@ -260,11 +261,11 @@ contains
     real(dp) :: distribution_height
     integer :: species_ind
 
-    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
-                       '../tests/test_settings_minimal.yaml', &
-                       '../tests/sun.txt', &
-                       '../tests/atmosphere.txt', &
-                       '../data', err)
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       test_file('atmosphere.txt'), &
+                       data_dir, err)
     call check_error(err)
     species_ind = findloc(pc%dat%species_names(1:pc%dat%nq), 'HCN', 1)
 

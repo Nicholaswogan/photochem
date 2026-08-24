@@ -1,0 +1,26 @@
+module photochem_test_paths
+  implicit none
+  private
+
+  public :: test_file, data_file, data_dir
+
+  character(len=*), parameter :: test_dir = '@CMAKE_CURRENT_SOURCE_DIR@'
+  character(len=*), parameter :: data_dir = '@CMAKE_SOURCE_DIR@/data'
+
+contains
+
+  pure function test_file(filename) result(path)
+    character(len=*), intent(in) :: filename
+    character(len=:), allocatable :: path
+
+    path = test_dir//'/'//filename
+  end function
+
+  pure function data_file(filename) result(path)
+    character(len=*), intent(in) :: filename
+    character(len=:), allocatable :: path
+
+    path = data_dir//'/'//filename
+  end function
+
+end module
