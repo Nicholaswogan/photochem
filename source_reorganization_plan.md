@@ -589,10 +589,10 @@ by all three codes.
 
 The import must also account for these existing repository assumptions:
 
-- Record the imported Clima and Equilibrate versions and source revisions, and
-  retain their GPL license provenance. Their version modules must use explicit
-  component versions rather than inheriting the top-level Photochem project
-  version.
+- Record the imported Clima and Equilibrate versions and source revisions for
+  provenance, and retain their GPL license provenance. Preserve their version
+  modules during the mechanical import, then remove the independent component
+  release versions once both components are owned by this repository.
 - Centralize external dependency targets in this repository. Clima currently
   creates `h5fortran`, `finterp`, `dop853`, and `minpack` targets, while
   Photochem already consumes `finterp` and `minpack` indirectly. Preserve
@@ -602,8 +602,8 @@ The import must also account for these existing repository assumptions:
   `clima_saturationdata` and `clima_useful` modules used by Photochem.
   Equilibrate is consumed through its Python extension and higher-level
   Photochem utilities rather than by the Photochem Fortran library.
-- Preserve wrapper dependency declarations, generated FYPP sources, component
-  version modules, extension install destinations, and the
+- Preserve wrapper dependency declarations, generated FYPP sources, extension
+  install destinations, and the
   `photochem_clima_data` default-data behavior.
 - Import test fixtures required by the component suites, including the Clima
   settings/species/atmosphere inputs and Equilibrate thermodynamic data. Keep
@@ -804,13 +804,13 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [x] Copy nearly all existing Clima source into a flat `src/clima/`
       implementation directory.
 - [x] Record the imported version, source revision, and license provenance.
-- [ ] Integrate Clima's external dependencies without duplicate CMake targets,
+- [x] Integrate Clima's external dependencies without duplicate CMake targets,
       preserving LAPACK and OpenMP behavior.
 - [x] Copy the Clima C API and Cython bindings into `bindings/clima/` while
       preserving `photochem._clima` and installed climate-data behavior.
 - [x] Import the Clima tests and required fixtures into `tests/clima/` without
       importing examples or notebooks.
-- [ ] Build and test the in-tree Clima before removing its CPM dependency.
+- [x] Build and test the in-tree Clima before removing its CPM dependency.
 
 ### Pass 9B: Import Equilibrate
 
@@ -832,7 +832,10 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [ ] Preserve separate public facade modules.
 - [ ] Update CMake so this repository builds all three components directly.
 - [ ] Remove CPM/external-source copies once the in-tree builds are stable.
-- [ ] Verify independent component version modules and public facade exports.
+- [ ] Remove the independent Clima and Equilibrate release versions and have
+      their Python facades report the unified Photochem package version.
+- [ ] Verify the Clima and Equilibrate public facade exports after version
+      consolidation.
 - [ ] Verify runtime data defaults, wheel contents, and source distributions.
 - [ ] Ensure macOS deployment tags produce installable Apple Silicon wheels.
 - [ ] Preserve the existing Python package API during the transition.
