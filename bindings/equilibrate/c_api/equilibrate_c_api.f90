@@ -6,13 +6,6 @@ module equilibrate_c_api
 
 contains
 
-  ! Version
-  subroutine equilibrate_version_get(version_c) bind(c)
-    use equilibrate, only: version 
-    character(kind=c_char), intent(out) :: version_c(100+1)
-    call copy_string_ftoc(version, version_c)
-  end subroutine
-
   !~~ Allocator and destroyer ~~!
 
   function allocate_chemequianalysis() result(ptr) bind(c)

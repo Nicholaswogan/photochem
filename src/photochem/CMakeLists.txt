@@ -30,9 +30,9 @@ set(PHOTOCHEM_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/../photochem.f90)
 
 add_library(photochem
-  ${PHOTOCHEM_VERSION_SOURCE}
   ${PHOTOCHEM_SOURCES})
 target_link_libraries(photochem
+  photochem_version
   fortran-yaml-c
   sundials_fcvode_mod
   sundials_cvode

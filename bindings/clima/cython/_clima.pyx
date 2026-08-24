@@ -16,16 +16,6 @@ include "ClimaRadtranWrk.pyx"
 include "Radtran.pyx"
 include "AdiabatClimate.pyx"
 
-# version
-cdef extern void clima_version_get(char *version_c)
-
-def _clima_version():
-  cdef char version_c[100+1]
-  clima_version_get(version_c)
-  return version_c.decode("utf-8").strip()
-  
-__version__ = _clima_version()
-
 # utils
 cdef pystring2cstring(str pystring):
   # add a null c char, and convert to byes

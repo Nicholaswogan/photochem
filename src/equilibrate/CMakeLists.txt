@@ -1,11 +1,4 @@
-set(EQUILIBRATE_VERSION "0.2.2")
-configure_file(
-  equilibrate_version.f90.in
-  ${CMAKE_CURRENT_BINARY_DIR}/equilibrate_version.f90
-)
-
 add_library(equilibrate
-  ${CMAKE_CURRENT_BINARY_DIR}/equilibrate_version.f90
   equilibrate_yaml.f90
   equilibrate_const.f90
   equilibrate_cea.f90

@@ -832,9 +832,9 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [ ] Preserve separate public facade modules.
 - [ ] Update CMake so this repository builds all three components directly.
 - [ ] Remove CPM/external-source copies once the in-tree builds are stable.
-- [ ] Remove the independent Clima and Equilibrate release versions and have
-      their Python facades report the unified Photochem package version.
-- [ ] Verify the Clima and Equilibrate public facade exports after version
+- [x] Remove the independent Clima and Equilibrate release versions; expose
+      the unified package version only as `photochem.__version__`.
+- [x] Verify the Clima and Equilibrate public facade exports after version
       consolidation.
 - [ ] Verify runtime data defaults, wheel contents, and source distributions.
 - [ ] Ensure macOS deployment tags produce installable Apple Silicon wheels.

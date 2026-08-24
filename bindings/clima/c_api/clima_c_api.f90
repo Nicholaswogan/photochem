@@ -12,12 +12,6 @@ contains
   include "Radtran.f90"  
   include "AdiabatClimate.f90"
 
-  subroutine clima_version_get(version_c) bind(c)
-    use clima, only: version 
-    character(kind=c_char), intent(out) :: version_c(100+1)
-    call copy_string_ftoc(version, version_c)
-  end subroutine
-
   !!!!!!!!!!!!!!!!!!
   !!! Utilities  !!!
   !!!!!!!!!!!!!!!!!!

@@ -1,11 +1,10 @@
 module equilibrate
   use equilibrate_const, only: dp, atom_str_len, reac_str_len, s_str_len
   use equilibrate_cea, only: CEAData
-  use equilibrate_version, only: version
   implicit none
   private
 
-  public :: ChemEquiAnalysis, dp, s_str_len, version
+  public :: ChemEquiAnalysis, dp, s_str_len
 
   type :: ChemEquiAnalysis
     character(atom_str_len), allocatable :: atoms_names(:) !! Names of atoms

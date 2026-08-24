@@ -1,12 +1,8 @@
-set(Clima_VERSION "0.7.5")
-configure_file(clima_version.f90.in ${CMAKE_CURRENT_BINARY_DIR}/clima_version.f90)
-
 set(clima_fpp_files
   clima_saturationdata.f90)
 fypp_f90("" "${clima_fpp_files}" clima_fpp_sources)
 
 set(CLIMA_BASE_SOURCES
-  ${CMAKE_CURRENT_BINARY_DIR}/clima_version.f90
   clima_const.f90
   clima_useful.f90
   clima_eqns.f90

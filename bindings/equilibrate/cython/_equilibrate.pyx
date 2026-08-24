@@ -330,14 +330,6 @@ cdef class ChemEquiAnalysis:
     def __set__(self, double val):
       cea_pxd.chemequianalysis_mass_tol_set(self._ptr, &val)
 
-# version
-cdef extern void equilibrate_version_get(char *version_c)
-def _equilibrate_version():
-  cdef char version_c[100+1]
-  equilibrate_version_get(version_c)
-  return version_c.decode("utf-8").strip()
-__version__ = _equilibrate_version()
-
 # utils
 cdef pystring2cstring(str pystring):
   # add a null c char, and convert to byes

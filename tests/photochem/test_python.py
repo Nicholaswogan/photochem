@@ -5,6 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
+import photochem
+from photochem import clima, equilibrate
 from photochem import EvoAtmosphere, PhotoException, zahnle_earth
 
 TEST_DIR = Path(__file__).resolve().parent
@@ -13,6 +15,12 @@ DATA_DIR = TEST_DIR.parent.parent / "data"
 
 def fixture_file(filename):
     return str(TEST_DIR / filename)
+
+
+def test_package_version_ownership():
+    assert isinstance(photochem.__version__, str)
+    assert not hasattr(clima, "__version__")
+    assert not hasattr(equilibrate, "__version__")
 
 
 def _make_file_atmosphere():
@@ -661,6 +669,7 @@ def test_wrapper():
 
 def main():
 
+    test_package_version_ownership()
     test_static_construction()
     test_evolve_uses_fixed_grid()
     test_gas_giant_static_construction()
