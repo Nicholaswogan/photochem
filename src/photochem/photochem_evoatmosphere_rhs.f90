@@ -957,15 +957,7 @@ contains
     call add_external_chemistry_tendencies( &
         dat, var, tn, wrk%mix, wrk%xp, rhs)
 
-    ! diffusion (interior grid points)
-    do j = 2,var%nz-1
-      do i = 1,dat%nq
-        k = i + (j-1)*dat%nq
-        rhs(k) = rhs(k) + wrk%DU(i,j)*wrk%usol(i,j+1) + wrk%ADU(i,j)*wrk%usol(i,j+1) &
-                        + wrk%DD(i,j)*wrk%usol(i,j) + wrk%ADD(i,j)*wrk%usol(i,j) &
-                        + wrk%DL(i,j)*wrk%usol(i,j-1) + wrk%ADL(i,j)*wrk%usol(i,j-1)
-      enddo
-    enddo
+    call add_vertical_transport_tendencies(dat, var, wrk, rhs)
     
     ! Lower boundary
     do i = 1,dat%nq
@@ -988,9 +980,7 @@ contains
         return
       end select
 
-      rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
-                      + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1) &
-                      + boundary_correction
+      rhs(i) = rhs(i) + boundary_correction
     enddo
 
     ! Upper boundary
@@ -1006,9 +996,7 @@ contains
         return
       end select
 
-      rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
-                      + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1) &
-                      + boundary_correction
+      rhs(k) = rhs(k) + boundary_correction
     enddo
 
     ! Distributed (volcanic) sources
@@ -1034,6 +1022,50 @@ contains
       endif
     enddo 
 
+  end subroutine
+
+  ! Add internal vertical transport to a caller-provided flattened tendency.
+  subroutine add_vertical_transport_tendencies( &
+      dat, var, wrk, rhs, include_fixed_lower)
+    use photochem_enum, only: DensityBC, PressureBC
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    type(PhotochemWrk), intent(in) :: wrk
+    real(dp), intent(inout) :: rhs(:)
+    logical, optional, intent(in) :: include_fixed_lower
+
+    integer :: i, j, k
+    logical :: include_fixed
+
+    include_fixed = .false.
+    if (present(include_fixed_lower)) include_fixed = include_fixed_lower
+
+    ! Interior layers.
+    do j = 2,var%nz-1
+      do i = 1,dat%nq
+        k = i + (j-1)*dat%nq
+        rhs(k) = rhs(k) + wrk%DU(i,j)*wrk%usol(i,j+1) + wrk%ADU(i,j)*wrk%usol(i,j+1) &
+                        + wrk%DD(i,j)*wrk%usol(i,j) + wrk%ADD(i,j)*wrk%usol(i,j) &
+                        + wrk%DL(i,j)*wrk%usol(i,j-1) + wrk%ADL(i,j)*wrk%usol(i,j-1)
+      enddo
+    enddo
+
+    ! Lower layer. The diagnostic may request the unconstrained transport term
+    ! for fixed boundaries even though the ODE replaces that equation.
+    do i = 1,dat%nq
+      if (.not.include_fixed .and. &
+          (var%lowerboundcond(i) == DensityBC .or. &
+           var%lowerboundcond(i) == PressureBC)) cycle
+      rhs(i) = rhs(i) + wrk%DU(i,1)*wrk%usol(i,2) + wrk%ADU(i,1)*wrk%usol(i,2) &
+                      + wrk%DD(i,1)*wrk%usol(i,1) + wrk%ADD(i,1)*wrk%usol(i,1)
+    enddo
+
+    ! Upper layer.
+    do i = 1,dat%nq
+      k = i + (var%nz-1)*dat%nq
+      rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
+                      + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1)
+    enddo
   end subroutine
 
   subroutine autodiff_chemistry_jacobian(self, usol, rhs, djac, err)
@@ -1696,6 +1728,7 @@ contains
     real(dp), allocatable :: reaction_production(:,:), reaction_loss(:,:)
     real(dp), allocatable :: production(:,:), loss(:,:)
     real(dp), allocatable :: condensation(:), evaporation(:), tendency(:)
+    real(dp), allocatable :: transport_rhs(:)
     character(len=m_str_len), allocatable :: production_rx(:), loss_rx(:)
     integer, allocatable :: production_rx_ind(:), loss_rx_ind(:)
     integer, allocatable :: prod_inds(:), loss_inds(:)
@@ -1729,8 +1762,8 @@ contains
 
     np = dat%pl(sp_ind)%nump
     nl = dat%pl(sp_ind)%numl
-    max_production = np + 2*dat%np + 1
-    max_loss = nl + 2*dat%np + 3
+    max_production = np + 2*dat%np + 2
+    max_loss = nl + 2*dat%np + 4
     allocate(production(var%nz,max_production), source=0.0_dp)
     allocate(loss(var%nz,max_loss), source=0.0_dp)
     allocate(production_rx(max_production), loss_rx(max_loss))
@@ -1801,6 +1834,17 @@ contains
       tendency = 0.0_dp
       tendency(1) = -zahnle_escape_rate(dat, var, wrk%mix)
       call append_signed_contribution(tendency, 'hydrogen escape', &
+          production, production_rx, nproduction, loss, loss_rx, nloss)
+    endif
+
+    if (sp_ind <= dat%nq) then
+      allocate(transport_rhs(var%neqs), source=0.0_dp)
+      call add_vertical_transport_tendencies( &
+          dat, var, wrk, transport_rhs, include_fixed_lower=.true.)
+      do i = 1,var%nz
+        tendency(i) = transport_rhs(sp_ind + (i - 1)*dat%nq)
+      enddo
+      call append_signed_contribution(tendency, 'vertical transport', &
           production, production_rx, nproduction, loss, loss_rx, nloss)
     endif
 

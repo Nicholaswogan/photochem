@@ -1,7 +1,7 @@
 program test_production_loss
   ! Characterization tests for the current production-and-loss diagnostic.
-  ! These checks cover the local chemistry terms completed in the current 8.8
-  ! pass. Later passes will extend reconciliation to every term in the full RHS.
+  ! These checks cover local chemistry and internal vertical transport. Later
+  ! passes will extend reconciliation to every term in the full RHS.
   use photochem, only: EvoAtmosphere, ProductionLoss, dp
   implicit none
 
@@ -10,6 +10,7 @@ program test_production_loss
   call test_condensation_and_evaporation_accounting()
   call test_custom_rate_accounting()
   call test_zahnle_escape_accounting()
+  call test_vertical_transport_accounting()
   call test_short_lived_accounting()
   print *, 'test_production_loss passed'
 
@@ -207,6 +208,50 @@ contains
     endif
   end subroutine
 
+  subroutine test_vertical_transport_accounting()
+    type(EvoAtmosphere) :: pc
+    type(ProductionLoss) :: pl
+    character(:), allocatable :: err
+    real(dp) :: integrated_transport, transport_scale
+    integer :: i
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    call check_error(err)
+
+    call pc%production_and_loss('HCN', pc%wrk%usol, pl, err)
+    call check_error(err)
+    call check_result_structure(pc, pl)
+
+    integrated_transport = 0.0_dp
+    transport_scale = 0.0_dp
+    do i = 1,size(pl%production_rx)
+      if (trim(pl%production_rx(i)) == 'vertical transport') then
+        integrated_transport = integrated_transport + &
+                               pl%integrated_production(i)
+        transport_scale = transport_scale + pl%integrated_production(i)
+      endif
+    enddo
+    do i = 1,size(pl%loss_rx)
+      if (trim(pl%loss_rx(i)) == 'vertical transport') then
+        integrated_transport = integrated_transport - pl%integrated_loss(i)
+        transport_scale = transport_scale + pl%integrated_loss(i)
+      endif
+    enddo
+    if (transport_scale == 0.0_dp) then
+      print *, 'Production-loss result omitted vertical transport'
+      stop 1
+    endif
+    if (abs(integrated_transport)/transport_scale > 5.0e-13_dp) then
+      print *, 'Internal vertical transport is not column conserving', &
+               integrated_transport
+      stop 1
+    endif
+  end subroutine
+
   subroutine check_result_structure(pc, pl)
     type(EvoAtmosphere), intent(in) :: pc
     type(ProductionLoss), intent(in) :: pl
@@ -274,7 +319,7 @@ contains
     type(EvoAtmosphere), intent(in) :: pc
     character(len=*), intent(in) :: species
     type(ProductionLoss), intent(in) :: pl
-    integer :: expected, i, j, species_ind
+    integer :: expected, actual, i, j, species_ind
 
     species_ind = findloc(pc%dat%species_names(1:pc%dat%nsp), species, 1)
     expected = 0
@@ -282,7 +327,13 @@ contains
       if (.not.any(pc%dat%pl(species_ind)%iprod(1:i-1) == &
                   pc%dat%pl(species_ind)%iprod(i))) expected = expected + 1
     enddo
-    if (size(pl%production_rx) /= expected) then
+    actual = 0
+    do i = 1,size(pl%production_rx)
+      if (any(pl%production_rx(i) == &
+              pc%dat%reaction_equations( &
+                  pc%dat%pl(species_ind)%iprod))) actual = actual + 1
+    enddo
+    if (actual /= expected) then
       print *, 'Repeated production stoichiometry was not consolidated'
       stop 1
     endif
@@ -313,8 +364,8 @@ contains
     character(len=*), intent(in) :: species
     type(ProductionLoss), intent(in) :: pl
     character(:), allocatable :: err
-    real(dp), allocatable :: rhs(:), reported(:), expected(:)
-    integer :: j, species_ind
+    real(dp), allocatable :: rhs(:), reported(:), expected(:), transport(:)
+    integer :: i, j, species_ind
 
     species_ind = findloc(pc%dat%species_names(1:pc%dat%nq), species, 1)
     if (species_ind == 0) then
@@ -322,16 +373,28 @@ contains
       stop 1
     endif
 
-    allocate(rhs(pc%var%neqs), reported(pc%var%nz), expected(pc%var%nz))
+    allocate(rhs(pc%var%neqs), reported(pc%var%nz), expected(pc%var%nz), &
+             transport(pc%var%nz), source=0.0_dp)
     call pc%chemistry_right_hand_side(pc%wrk%usol, rhs, err)
     call check_error(err)
 
     reported = sum(pl%production, dim=2) - sum(pl%loss, dim=2)
+    do i = 1,size(pl%production_rx)
+      if (trim(pl%production_rx(i)) == 'vertical transport') then
+        transport = transport + pl%production(:,i)
+      endif
+    enddo
+    do i = 1,size(pl%loss_rx)
+      if (trim(pl%loss_rx(i)) == 'vertical transport') then
+        transport = transport - pl%loss(:,i)
+      endif
+    enddo
     do j = 1,pc%var%nz
       expected(j) = rhs(species_ind + (j - 1)*pc%dat%nq)
     enddo
+    expected = expected + transport
     call check_close(reported, expected, &
-        'Reported reactions and rainout do not reconstruct chemistry RHS')
+        'Reported local and transport terms do not reconstruct their RHS')
   end subroutine
 
   subroutine check_close(actual, expected, message)
