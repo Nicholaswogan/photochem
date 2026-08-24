@@ -73,6 +73,7 @@ jobs:
         ./tests/test_api
         ./tests/test_input
         ./tests/test_jacobian
+        ./tests/test_production_loss
 
     - name: build python
       shell: bash -el {0}

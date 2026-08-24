@@ -15,6 +15,11 @@ that directory as the working directory.
   `EvoAtmosphere` operations.
 - `test_jacobian` compares the analytical and automatic-differentiation
   chemistry Jacobians over focused numerical cases.
+- `test_production_loss` characterizes the species production-and-loss
+  diagnostic and checks that its currently reported reaction and rainout
+  contributions reconstruct the corresponding chemistry tendency. As the
+  diagnostic is completed, this test will expand to reconcile all reported
+  contributions with the full right-hand side.
 - `test_memory` broadly exercises `EvoAtmosphere` workflows. It checks returned
   errors, but does not comprehensively validate numerical outputs; its primary
   purpose is execution under Valgrind.
@@ -31,6 +36,33 @@ analytical derivative and analytical-versus-autodiff coverage in
 `test_jacobian`; unsupported terms must not be silently omitted from the
 analytical path.
 
+## Production-and-loss diagnostic contract
+
+`production_and_loss` is a user-facing explanation of the tendency of one
+selected species. Every reported
+profile has units of molecules/cm^3/s, is nonnegative, and is accompanied by a
+reaction equation or process label. Column-integrated values have units of
+molecules/cm^2/s. A signed contribution is represented by its positive part in
+`production` and the magnitude of its negative part in `loss`.
+
+The completed diagnostic will account for chemical reactions, rainout,
+condensation and evaporation, internal vertical transport, lower and upper
+boundary fluxes, distributed sources, custom rates, and Zahnle hydrogen
+escape. Internal transport excludes exchange across the model boundaries, so
+its vertically integrated net contribution must vanish apart from roundoff.
+Lower and upper boundary exchange is reported simply as `lower boundary flux`
+and `upper boundary flux`, independent of the configured boundary-condition
+parameterization. Fixed-density and fixed-pressure lower boundaries receive an
+implicit reservoir contribution that makes the reported bottom-cell tendency
+match the replaced zero right-hand-side equation.
+
+For an evolved species, the sum of all production columns minus the sum of all
+loss columns must reconstruct its full right-hand-side tendency. For a
+short-lived species, the result instead describes its algebraic chemical
+balance because it has no transport ODE equation. Reaction entries with a
+stoichiometric multiplicity greater than one will ultimately be consolidated
+into one labeled contribution with the appropriate multiplier.
+
 ## Running locally
 
 After configuring and building the project:
@@ -40,6 +72,7 @@ cd build
 ./tests/test_input
 ./tests/test_api
 ./tests/test_jacobian
+./tests/test_production_loss
 ./tests/test_memory
 ```
 
