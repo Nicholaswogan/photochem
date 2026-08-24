@@ -2,14 +2,14 @@
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! allocator and destroyer !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  
+
   subroutine deallocate_productionloss(ptr) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     type(ProductionLoss), pointer :: pl
     call c_f_pointer(ptr, pl)
     deallocate(pl)
   end subroutine
-  
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! getters and setters !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -79,6 +79,78 @@
     call c_f_pointer(ptr, pl)
     arr = pl%integrated_loss
   end subroutine
+
+  subroutine productionloss_total_production_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(ProductionLoss), pointer :: pl
+    call c_f_pointer(ptr, pl)
+    dim1 = size(pl%total_production)
+  end subroutine
+  subroutine productionloss_total_production_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(ProductionLoss), pointer :: pl
+    call c_f_pointer(ptr, pl)
+    arr = pl%total_production
+  end subroutine
+
+  subroutine productionloss_total_loss_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(ProductionLoss), pointer :: pl
+    call c_f_pointer(ptr, pl)
+    dim1 = size(pl%total_loss)
+  end subroutine
+  subroutine productionloss_total_loss_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(ProductionLoss), pointer :: pl
+    call c_f_pointer(ptr, pl)
+    arr = pl%total_loss
+  end subroutine
+
+  subroutine productionloss_net_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(ProductionLoss), pointer :: pl
+    call c_f_pointer(ptr, pl)
+    dim1 = size(pl%net)
+  end subroutine
+  subroutine productionloss_net_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(ProductionLoss), pointer :: pl
+    call c_f_pointer(ptr, pl)
+    arr = pl%net
+  end subroutine
+
+  subroutine productionloss_integrated_total_production_get(ptr, value) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: value
+    type(ProductionLoss), pointer :: pl
+    call c_f_pointer(ptr, pl)
+    value = pl%integrated_total_production
+  end subroutine
+
+  subroutine productionloss_integrated_total_loss_get(ptr, value) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: value
+    type(ProductionLoss), pointer :: pl
+    call c_f_pointer(ptr, pl)
+    value = pl%integrated_total_loss
+  end subroutine
+
+  subroutine productionloss_integrated_net_get(ptr, value) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: value
+    type(ProductionLoss), pointer :: pl
+    call c_f_pointer(ptr, pl)
+    value = pl%integrated_net
+  end subroutine
   
   subroutine productionloss_production_rx_get_size(ptr, dim1) bind(c)
     type(c_ptr), value, intent(in) :: ptr
@@ -103,7 +175,7 @@
     enddo
     names(dim1*m_str_len+1) = c_null_char
   end subroutine
-  
+
   subroutine productionloss_loss_rx_get_size(ptr, dim1) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
@@ -127,4 +199,3 @@
     enddo
     names(dim1*m_str_len+1) = c_null_char
   end subroutine
-  

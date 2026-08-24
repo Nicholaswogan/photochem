@@ -46,7 +46,7 @@ cdef class ProductionLoss:
   property integrated_production:
     """ndarray, shape (nproduction,)
 
-    Vertically integrated production rate from each reaction, in
+    Vertically integrated production rate from each reaction or process, in
     molecules/cm^2/s.
     """
     def __get__(self):
@@ -59,7 +59,8 @@ cdef class ProductionLoss:
   property integrated_loss:
     """ndarray, shape (nloss,)
 
-    Vertically integrated loss rate from each reaction, in molecules/cm^2/s.
+    Vertically integrated loss rate from each reaction or process, in
+    molecules/cm^2/s.
     """
     def __get__(self):
       cdef int dim1
@@ -67,6 +68,73 @@ cdef class ProductionLoss:
       cdef ndarray arr = np.empty((dim1), np.double)
       pl_pxd.productionloss_integrated_loss_get(self._ptr, &dim1, <double *>arr.data)
       return arr
+
+  property total_production:
+    """ndarray, shape (nz,)
+
+    Total production rate at every layer, in molecules/cm^3/s.
+    """
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.productionloss_total_production_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      pl_pxd.productionloss_total_production_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property total_loss:
+    """ndarray, shape (nz,)
+
+    Total loss rate at every layer, in molecules/cm^3/s.
+    """
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.productionloss_total_loss_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      pl_pxd.productionloss_total_loss_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property net:
+    """ndarray, shape (nz,)
+
+    Net reported tendency, ``total_production - total_loss``, in
+    molecules/cm^3/s.
+    """
+    def __get__(self):
+      cdef int dim1
+      pl_pxd.productionloss_net_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      pl_pxd.productionloss_net_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property integrated_total_production:
+    """float
+
+    Total column production rate in molecules/cm^2/s.
+    """
+    def __get__(self):
+      cdef double value
+      pl_pxd.productionloss_integrated_total_production_get(self._ptr, &value)
+      return value
+
+  property integrated_total_loss:
+    """float
+
+    Total column loss rate in molecules/cm^2/s.
+    """
+    def __get__(self):
+      cdef double value
+      pl_pxd.productionloss_integrated_total_loss_get(self._ptr, &value)
+      return value
+
+  property integrated_net:
+    """float
+
+    Net column tendency in molecules/cm^2/s.
+    """
+    def __get__(self):
+      cdef double value
+      pl_pxd.productionloss_integrated_net_get(self._ptr, &value)
+      return value
       
   property production_rx:
     """list[str], shape (nproduction,)

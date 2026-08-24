@@ -638,6 +638,19 @@ def test_wrapper():
     print(pl.loss[0,0])
     print(pl.integrated_production[0])
     print(pl.integrated_loss[0])
+    np.testing.assert_allclose(pl.total_production, pl.production.sum(axis=1))
+    np.testing.assert_allclose(pl.total_loss, pl.loss.sum(axis=1))
+    np.testing.assert_allclose(pl.net, pl.total_production-pl.total_loss)
+    np.testing.assert_allclose(
+        pl.integrated_total_production, pl.integrated_production.sum()
+    )
+    np.testing.assert_allclose(
+        pl.integrated_total_loss, pl.integrated_loss.sum()
+    )
+    np.testing.assert_allclose(
+        pl.integrated_net,
+        pl.integrated_total_production-pl.integrated_total_loss
+    )
 
 def main():
 
