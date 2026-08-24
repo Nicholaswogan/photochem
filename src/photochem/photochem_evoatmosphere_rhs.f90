@@ -908,7 +908,6 @@ contains
   end subroutine
 
   module subroutine right_hand_side(self, neqs, tn, usol_flat, rhs, err)
-    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
     
@@ -918,9 +917,6 @@ contains
     real(dp), target, intent(in) :: usol_flat(neqs)
     real(dp), intent(out) :: rhs(neqs)
     character(:), allocatable, intent(out) :: err
-    
-    real(dp) :: disth, ztop, ztop1, boundary_correction
-    integer :: i, k, j, jdisth
     
     real(dp), pointer :: usol_in(:,:)
     type(PhotochemData), pointer :: dat
@@ -958,69 +954,11 @@ contains
         dat, var, tn, wrk%mix, wrk%xp, rhs)
 
     call add_vertical_transport_tendencies(dat, var, wrk, rhs)
-    
-    ! Lower boundary
-    do i = 1,dat%nq
-      select case (var%lowerboundcond(i))
-      case (DensityBC, PressureBC)
-        ! Fixed lower boundaries replace the differential equation.
-        rhs(i) = 0.0_dp
-        cycle
-      case (VelocityBC, VelocityDistributedFluxBC)
-        boundary_correction = -wrk%lower_vdep_copy(i)*wrk%usol(i,1)/var%dz(1)
-      case (FluxBC)
-        boundary_correction = var%lower_flux(i)/var%dz(1)
-      ! Moses (2001) boundary condition for gas giants
-      ! A deposition velocity controled by how quickly gases
-      ! turbulantly mix vertically
-      case (MosesBC)
-        boundary_correction = -(var%edd(1)/wrk%scale_height(1))*wrk%usol(i,1)/var%dz(1)
-      case default
-        err = 'Invalid lower boundary condition type'
-        return
-      end select
-
-      rhs(i) = rhs(i) + boundary_correction
-    enddo
-
-    ! Upper boundary
-    do i = 1,dat%nq
-      k = i + (var%nz-1)*dat%nq
-      select case (var%upperboundcond(i))
-      case (VelocityBC)
-        boundary_correction = -wrk%upper_veff_copy(i)*wrk%usol(i,var%nz)/var%dz(var%nz)
-      case (FluxBC)
-        boundary_correction = -var%upper_flux(i)/var%dz(var%nz)
-      case default
-        err = 'Invalid upper boundary condition type'
-        return
-      end select
-
-      rhs(k) = rhs(k) + boundary_correction
-    enddo
-
-    ! Distributed (volcanic) sources
-    do i = 1,dat%nq
-      if (var%lowerboundcond(i) == VelocityDistributedFluxBC) then
-        disth = var%lower_dist_height(i)*1.e5_dp        
-        if (disth < var%z(1) - 0.5_dp*var%dz(1)) then
-        ! If the height is below the model domain, then we will put all flux into
-        ! lowest layer.
-        rhs(i) = rhs(i) + var%lower_flux(i)/var%dz(1)
-        else
-        ! If the height is within the model domain, then we will distribute the flux
-        ! throught the model.
-        jdisth = minloc(var%Z,1, var%Z >= disth) - 1
-        jdisth = max(jdisth,2)
-        ztop = var%z(jdisth)-var%z(1)
-        ztop1 = var%z(jdisth) + 0.5e0_dp*var%dz(jdisth)
-        do j = 2,jdisth
-          k = i + (j-1)*dat%nq
-          rhs(k) = rhs(k) + 2.0_dp*var%lower_flux(i)*(ztop1-var%z(j))/(ztop**2.0_dp)
-        enddo
-        endif
-      endif
-    enddo 
+    call apply_lower_boundary_tendencies(dat, var, wrk, rhs, err)
+    if (allocated(err)) return
+    call add_upper_boundary_tendencies(dat, var, wrk, rhs, err)
+    if (allocated(err)) return
+    call add_distributed_source_tendencies(dat, var, rhs)
 
   end subroutine
 
@@ -1065,6 +1003,98 @@ contains
       k = i + (var%nz-1)*dat%nq
       rhs(k) = rhs(k) + wrk%DD(i,var%nz)*wrk%usol(i,var%nz) + wrk%ADD(i,var%nz)*wrk%usol(i,var%nz) &
                       + wrk%DL(i,var%nz)*wrk%usol(i,var%nz-1) + wrk%ADL(i,var%nz)*wrk%usol(i,var%nz-1)
+    enddo
+  end subroutine
+
+  ! Apply lower-boundary exchange, including fixed-equation replacement.
+  subroutine apply_lower_boundary_tendencies(dat, var, wrk, rhs, err)
+    use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, &
+                              FluxBC, VelocityDistributedFluxBC
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    type(PhotochemWrk), intent(in) :: wrk
+    real(dp), intent(inout) :: rhs(:)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp) :: boundary_correction
+    integer :: i
+
+    do i = 1,dat%nq
+      select case (var%lowerboundcond(i))
+      case (DensityBC, PressureBC)
+        rhs(i) = 0.0_dp
+        cycle
+      case (VelocityBC, VelocityDistributedFluxBC)
+        boundary_correction = &
+            -wrk%lower_vdep_copy(i)*wrk%usol(i,1)/var%dz(1)
+      case (FluxBC)
+        boundary_correction = var%lower_flux(i)/var%dz(1)
+      case (MosesBC)
+        boundary_correction = -(var%edd(1)/wrk%scale_height(1))* &
+                              wrk%usol(i,1)/var%dz(1)
+      case default
+        err = 'Invalid lower boundary condition type'
+        return
+      end select
+      rhs(i) = rhs(i) + boundary_correction
+    enddo
+  end subroutine
+
+  ! Add upper-boundary exchange tendencies.
+  subroutine add_upper_boundary_tendencies(dat, var, wrk, rhs, err)
+    use photochem_enum, only: VelocityBC, FluxBC
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    type(PhotochemWrk), intent(in) :: wrk
+    real(dp), intent(inout) :: rhs(:)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp) :: boundary_correction
+    integer :: i, k
+
+    do i = 1,dat%nq
+      k = i + (var%nz-1)*dat%nq
+      select case (var%upperboundcond(i))
+      case (VelocityBC)
+        boundary_correction = -wrk%upper_veff_copy(i)* &
+                              wrk%usol(i,var%nz)/var%dz(var%nz)
+      case (FluxBC)
+        boundary_correction = -var%upper_flux(i)/var%dz(var%nz)
+      case default
+        err = 'Invalid upper boundary condition type'
+        return
+      end select
+      rhs(k) = rhs(k) + boundary_correction
+    enddo
+  end subroutine
+
+  ! Add vertically distributed lower-boundary source fluxes.
+  subroutine add_distributed_source_tendencies(dat, var, rhs)
+    use photochem_enum, only: VelocityDistributedFluxBC
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    real(dp), intent(inout) :: rhs(:)
+
+    real(dp) :: disth, ztop, ztop1
+    integer :: i, j, jdisth, k
+
+    do i = 1,dat%nq
+      if (var%lowerboundcond(i) == VelocityDistributedFluxBC) then
+        disth = var%lower_dist_height(i)*1.0e5_dp
+        if (disth < var%z(1) - 0.5_dp*var%dz(1)) then
+          rhs(i) = rhs(i) + var%lower_flux(i)/var%dz(1)
+        else
+          jdisth = minloc(var%z, 1, var%z >= disth) - 1
+          jdisth = max(jdisth, 2)
+          ztop = var%z(jdisth) - var%z(1)
+          ztop1 = var%z(jdisth) + 0.5_dp*var%dz(jdisth)
+          do j = 2,jdisth
+            k = i + (j-1)*dat%nq
+            rhs(k) = rhs(k) + 2.0_dp*var%lower_flux(i)* &
+                    (ztop1-var%z(j))/(ztop**2.0_dp)
+          enddo
+        endif
+      endif
     enddo
   end subroutine
 
@@ -1717,7 +1747,7 @@ contains
 
   module subroutine production_and_loss(self, species, usol, pl, err)
     use futils, only: argsort
-    use photochem_enum, only: ZahnleHydrogenEscape
+    use photochem_enum, only: ZahnleHydrogenEscape, DensityBC, PressureBC
 
     class(EvoAtmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: species
@@ -1728,7 +1758,7 @@ contains
     real(dp), allocatable :: reaction_production(:,:), reaction_loss(:,:)
     real(dp), allocatable :: production(:,:), loss(:,:)
     real(dp), allocatable :: condensation(:), evaporation(:), tendency(:)
-    real(dp), allocatable :: transport_rhs(:)
+    real(dp), allocatable :: process_rhs(:)
     character(len=m_str_len), allocatable :: production_rx(:), loss_rx(:)
     integer, allocatable :: production_rx_ind(:), loss_rx_ind(:)
     integer, allocatable :: prod_inds(:), loss_inds(:)
@@ -1762,8 +1792,8 @@ contains
 
     np = dat%pl(sp_ind)%nump
     nl = dat%pl(sp_ind)%numl
-    max_production = np + 2*dat%np + 2
-    max_loss = nl + 2*dat%np + 4
+    max_production = np + 2*dat%np + 5
+    max_loss = nl + 2*dat%np + 7
     allocate(production(var%nz,max_production), source=0.0_dp)
     allocate(loss(var%nz,max_loss), source=0.0_dp)
     allocate(production_rx(max_production), loss_rx(max_loss))
@@ -1838,14 +1868,43 @@ contains
     endif
 
     if (sp_ind <= dat%nq) then
-      allocate(transport_rhs(var%neqs), source=0.0_dp)
+      allocate(process_rhs(var%neqs), source=0.0_dp)
+
       call add_vertical_transport_tendencies( &
-          dat, var, wrk, transport_rhs, include_fixed_lower=.true.)
-      do i = 1,var%nz
-        tendency(i) = transport_rhs(sp_ind + (i - 1)*dat%nq)
-      enddo
+          dat, var, wrk, process_rhs, include_fixed_lower=.true.)
+      call extract_species_tendency(dat, var, process_rhs, sp_ind, tendency)
       call append_signed_contribution(tendency, 'vertical transport', &
           production, production_rx, nproduction, loss, loss_rx, nloss)
+
+      process_rhs = 0.0_dp
+      call apply_lower_boundary_tendencies( &
+          dat, var, wrk, process_rhs, err)
+      if (allocated(err)) return
+      call extract_species_tendency(dat, var, process_rhs, sp_ind, tendency)
+      call append_signed_contribution(tendency, 'lower boundary flux', &
+          production, production_rx, nproduction, loss, loss_rx, nloss)
+
+      process_rhs = 0.0_dp
+      call add_upper_boundary_tendencies(dat, var, wrk, process_rhs, err)
+      if (allocated(err)) return
+      call extract_species_tendency(dat, var, process_rhs, sp_ind, tendency)
+      call append_signed_contribution(tendency, 'upper boundary flux', &
+          production, production_rx, nproduction, loss, loss_rx, nloss)
+
+      process_rhs = 0.0_dp
+      call add_distributed_source_tendencies(dat, var, process_rhs)
+      call extract_species_tendency(dat, var, process_rhs, sp_ind, tendency)
+      call append_signed_contribution(tendency, 'distributed source', &
+          production, production_rx, nproduction, loss, loss_rx, nloss)
+
+      if (var%lowerboundcond(sp_ind) == DensityBC .or. &
+          var%lowerboundcond(sp_ind) == PressureBC) then
+        tendency = 0.0_dp
+        tendency(1) = -(sum(production(1,1:nproduction)) - &
+                        sum(loss(1,1:nloss)))
+        call append_signed_contribution(tendency, 'lower boundary flux', &
+            production, production_rx, nproduction, loss, loss_rx, nloss)
+      endif
     endif
 
     allocate(pl%production(var%nz,nproduction))
@@ -1896,6 +1955,21 @@ contains
     pl%integrated_net = pl%integrated_total_production - &
                         pl%integrated_total_loss
 
+  end subroutine
+
+  ! Extract one species profile from an altitude-major flattened tendency.
+  subroutine extract_species_tendency(dat, var, rhs, species_ind, tendency)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    real(dp), intent(in) :: rhs(:)
+    integer, intent(in) :: species_ind
+    real(dp), intent(out) :: tendency(:)
+
+    integer :: j
+
+    do j = 1,var%nz
+      tendency(j) = rhs(species_ind + (j - 1)*dat%nq)
+    enddo
   end subroutine
 
   subroutine append_signed_contribution(tendency, label, production, &

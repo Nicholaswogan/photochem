@@ -399,8 +399,8 @@ module photochem_evoatmosphere
     !! returned contributions are sorted from largest to smallest vertically
     !! integrated rate. The current implementation includes reactions, gas
     !! rainout, condensation and evaporation, custom rates, and Zahnle hydrogen
-    !! escape, plus internal vertical transport for evolved species. Boundary
-    !! fluxes and distributed sources are not yet included.
+    !! escape. Evolved species additionally include internal vertical transport,
+    !! lower and upper boundary fluxes, and distributed sources.
     module subroutine production_and_loss(self, species, usol, pl, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: species !! Species name.

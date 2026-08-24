@@ -1,7 +1,7 @@
 program test_production_loss
   ! Characterization tests for the current production-and-loss diagnostic.
-  ! These checks cover local chemistry and internal vertical transport. Later
-  ! passes will extend reconciliation to every term in the full RHS.
+  ! These checks cover every local chemistry, transport, boundary, and source
+  ! contribution and require evolved-species diagnostics to reconstruct the RHS.
   use photochem, only: EvoAtmosphere, ProductionLoss, dp
   implicit none
 
@@ -11,6 +11,7 @@ program test_production_loss
   call test_custom_rate_accounting()
   call test_zahnle_escape_accounting()
   call test_vertical_transport_accounting()
+  call test_boundary_and_distributed_accounting()
   call test_short_lived_accounting()
   print *, 'test_production_loss passed'
 
@@ -31,7 +32,7 @@ contains
     call pc%production_and_loss('HCN', pc%wrk%usol, pl, err)
     call check_error(err)
     call check_result_structure(pc, pl)
-    call check_chemistry_reconciliation(pc, 'HCN', pl)
+    call check_rhs_reconciliation(pc, 'HCN', pl)
     call check_reaction_consolidation(pc, 'HCN', pl)
   end subroutine
 
@@ -85,7 +86,7 @@ contains
     enddo
     call check_close(pl%loss(:,rainout_ind), expected, &
                      'Reported rainout profile does not match prepared rates')
-    call check_chemistry_reconciliation( &
+    call check_rhs_reconciliation( &
         pc, trim(pc%dat%species_names(species_ind)), pl)
   end subroutine
 
@@ -127,7 +128,7 @@ contains
     call check_result_structure(pc, pl)
     call require_label(pl%loss_rx, 'condensation')
     call require_label(pl%production_rx, 'evaporation')
-    call check_chemistry_reconciliation( &
+    call check_rhs_reconciliation( &
         pc, trim(pc%dat%species_names(gas_ind)), pl)
 
     call pc%production_and_loss(trim(pc%dat%species_names(i)), usol, pl, err)
@@ -135,7 +136,7 @@ contains
     call check_result_structure(pc, pl)
     call require_label(pl%production_rx, 'condensation')
     call require_label(pl%loss_rx, 'evaporation')
-    call check_chemistry_reconciliation( &
+    call check_rhs_reconciliation( &
         pc, trim(pc%dat%species_names(i)), pl)
   end subroutine
 
@@ -162,7 +163,7 @@ contains
     call check_result_structure(pc, pl)
     call require_label(pl%production_rx, 'custom rate')
     call require_label(pl%loss_rx, 'custom rate')
-    call check_chemistry_reconciliation(pc, 'HCN', pl)
+    call check_rhs_reconciliation(pc, 'HCN', pl)
   end subroutine
 
   subroutine test_zahnle_escape_accounting()
@@ -181,7 +182,7 @@ contains
     call check_error(err)
     call check_result_structure(pc, pl)
     call require_label(pl%loss_rx, 'hydrogen escape')
-    call check_chemistry_reconciliation(pc, 'H2', pl)
+    call check_rhs_reconciliation(pc, 'H2', pl)
   end subroutine
 
   subroutine test_short_lived_accounting()
@@ -250,6 +251,57 @@ contains
                integrated_transport
       stop 1
     endif
+  end subroutine
+
+  subroutine test_boundary_and_distributed_accounting()
+    type(EvoAtmosphere) :: pc
+    type(ProductionLoss) :: pl
+    character(:), allocatable :: err
+    real(dp) :: distribution_height
+    integer :: species_ind
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    call check_error(err)
+    species_ind = findloc(pc%dat%species_names(1:pc%dat%nq), 'HCN', 1)
+
+    call pc%set_lower_bc('HCN', 'flux', flux=1.0e8_dp, err=err)
+    call check_error(err)
+    call pc%set_upper_bc('HCN', 'flux', flux=2.0e8_dp, err=err)
+    call check_error(err)
+    call pc%production_and_loss('HCN', pc%wrk%usol, pl, err)
+    call check_error(err)
+    call require_label(pl%production_rx, 'lower boundary flux')
+    call require_label(pl%loss_rx, 'upper boundary flux')
+    call check_rhs_reconciliation(pc, 'HCN', pl)
+
+    distribution_height = pc%var%z(max(2,pc%var%nz/3))/1.0e5_dp
+    call pc%set_lower_bc('HCN', 'vdep + dist flux', vdep=1.0e-4_dp, &
+                         flux=1.0e8_dp, height=distribution_height, err=err)
+    call check_error(err)
+    call pc%production_and_loss('HCN', pc%wrk%usol, pl, err)
+    call check_error(err)
+    call require_label(pl%production_rx, 'distributed source')
+    call require_label(pl%loss_rx, 'lower boundary flux')
+    call check_rhs_reconciliation(pc, 'HCN', pl)
+
+    call pc%set_lower_bc('HCN', 'den', &
+                         den=pc%wrk%usol(species_ind,1), err=err)
+    call check_error(err)
+    call pc%production_and_loss('HCN', pc%wrk%usol, pl, err)
+    call check_error(err)
+    call require_label_either(pl, 'lower boundary flux')
+    call check_rhs_reconciliation(pc, 'HCN', pl)
+
+    call pc%set_lower_bc('HCN', 'Moses', err=err)
+    call check_error(err)
+    call pc%production_and_loss('HCN', pc%wrk%usol, pl, err)
+    call check_error(err)
+    call require_label(pl%loss_rx, 'lower boundary flux')
+    call check_rhs_reconciliation(pc, 'HCN', pl)
   end subroutine
 
   subroutine check_result_structure(pc, pl)
@@ -359,13 +411,23 @@ contains
     stop 1
   end subroutine
 
-  subroutine check_chemistry_reconciliation(pc, species, pl)
+  subroutine require_label_either(pl, label)
+    type(ProductionLoss), intent(in) :: pl
+    character(len=*), intent(in) :: label
+
+    if (any(pl%production_rx == label)) return
+    if (any(pl%loss_rx == label)) return
+    print *, 'Production-loss result omitted process: ', trim(label)
+    stop 1
+  end subroutine
+
+  subroutine check_rhs_reconciliation(pc, species, pl)
     type(EvoAtmosphere), intent(inout) :: pc
     character(len=*), intent(in) :: species
     type(ProductionLoss), intent(in) :: pl
     character(:), allocatable :: err
-    real(dp), allocatable :: rhs(:), reported(:), expected(:), transport(:)
-    integer :: i, j, species_ind
+    real(dp), allocatable :: rhs(:), reported(:), expected(:), usol_flat(:)
+    integer :: j, species_ind
 
     species_ind = findloc(pc%dat%species_names(1:pc%dat%nq), species, 1)
     if (species_ind == 0) then
@@ -373,28 +435,18 @@ contains
       stop 1
     endif
 
-    allocate(rhs(pc%var%neqs), reported(pc%var%nz), expected(pc%var%nz), &
-             transport(pc%var%nz), source=0.0_dp)
-    call pc%chemistry_right_hand_side(pc%wrk%usol, rhs, err)
+    allocate(rhs(pc%var%neqs), reported(pc%var%nz), &
+             expected(pc%var%nz), usol_flat(pc%var%neqs))
+    usol_flat = reshape(pc%wrk%usol, [pc%var%neqs])
+    call pc%right_hand_side(pc%var%neqs, pc%wrk%tn, usol_flat, rhs, err)
     call check_error(err)
 
-    reported = sum(pl%production, dim=2) - sum(pl%loss, dim=2)
-    do i = 1,size(pl%production_rx)
-      if (trim(pl%production_rx(i)) == 'vertical transport') then
-        transport = transport + pl%production(:,i)
-      endif
-    enddo
-    do i = 1,size(pl%loss_rx)
-      if (trim(pl%loss_rx(i)) == 'vertical transport') then
-        transport = transport - pl%loss(:,i)
-      endif
-    enddo
+    reported = pl%net
     do j = 1,pc%var%nz
       expected(j) = rhs(species_ind + (j - 1)*pc%dat%nq)
     enddo
-    expected = expected + transport
     call check_close(reported, expected, &
-        'Reported local and transport terms do not reconstruct their RHS')
+        'Reported production and loss do not reconstruct the full RHS')
   end subroutine
 
   subroutine check_close(actual, expected, message)

@@ -1076,8 +1076,9 @@ cdef class EvoAtmosphere:
     The supplied atmosphere is prepared before rates are evaluated.
     Contributions are sorted from largest to smallest vertically integrated
     rate. Reactions, gas rainout, condensation and evaporation, custom rates,
-    Zahnle hydrogen escape, and internal vertical transport are included.
-    Boundary fluxes and distributed sources are not yet included.
+    and Zahnle hydrogen escape are included. Evolved species additionally
+    include internal vertical transport, lower and upper boundary fluxes, and
+    distributed sources.
 
     Parameters
     ----------
