@@ -43,6 +43,8 @@ Fortran executables" ON)
 option(BUILD_PYTHON_PHOTOCHEM "if ON, then will build a python
 version via Cython" OFF)
 
+option(BUILD_WITH_OPENMP "Compile with multi-threading" OFF)
+
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_Fortran_MODULE_DIRECTORY "${CMAKE_BINARY_DIR}/modules")
 

@@ -801,12 +801,12 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 9A: Import Clima
 
-- [ ] Copy nearly all existing Clima source into a flat `src/clima/`
+- [x] Copy nearly all existing Clima source into a flat `src/clima/`
       implementation directory.
-- [ ] Record the imported version, source revision, and license provenance.
+- [x] Record the imported version, source revision, and license provenance.
 - [ ] Integrate Clima's external dependencies without duplicate CMake targets,
       preserving LAPACK and OpenMP behavior.
-- [ ] Copy the Clima C API and Cython bindings into `bindings/clima/` while
+- [x] Copy the Clima C API and Cython bindings into `bindings/clima/` while
       preserving `photochem._clima` and installed climate-data behavior.
 - [ ] Import the Clima tests and required fixtures into `tests/clima/` without
       importing examples or notebooks.

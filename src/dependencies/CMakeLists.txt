@@ -7,16 +7,6 @@ CPMAddPackage(
   EXCLUDE_FROM_ALL ON
 )
 
-# CPMAddPackage(
-#   NAME finterp
-#   VERSION 1.3.0
-#   GITHUB_REPOSITORY "jacobwilliams/finterp"
-#   GIT_TAG "1.3.0"
-#   DOWNLOAD_ONLY ON
-# )
-
-# add_library(finterp ${finterp_SOURCE_DIR}/src/linear_interpolation_module.F90)
-
 CPMAddPackage(
   NAME fortran-yaml-c
   VERSION 0.2.6
@@ -38,32 +28,6 @@ CPMAddPackage(
   EXCLUDE_FROM_ALL ON
 )
 
-# CPMAddPackage(
-#   NAME minpack
-#   VERSION 2.0.0
-#   GITHUB_REPOSITORY "fortran-lang/minpack"
-#   GIT_TAG "v2.0.0-rc.1"
-#   DOWNLOAD_ONLY ON
-# )
-
-# add_library(minpack
-#   ${minpack_SOURCE_DIR}/src/minpack.f90
-# )
-
-CPMAddPackage(
-  NAME clima 
-  VERSION 0.7.5
-  OPTIONS 
-    "BUILD_EXECUTABLE OFF"
-    "BUILD_WITH_OPENMP ${BUILD_WITH_OPENMP}"
-    "SKBUILD ${SKBUILD}"
-    "BUILD_PYTHON_CLIMA ${BUILD_PYTHON_PHOTOCHEM}"
-    "PYTHON_CLIMA_DESTINATION photochem"
-  GITHUB_REPOSITORY "Nicholaswogan/clima"
-  GIT_TAG "v0.7.5"
-  EXCLUDE_FROM_ALL OFF
-)
-
 CPMAddPackage(
   NAME differentia
   VERSION 0.1.4
@@ -73,6 +37,42 @@ CPMAddPackage(
   GIT_TAG "v0.1.4"
   EXCLUDE_FROM_ALL ON
 )
+
+# This fork keeps conda library directories available to HDF5 discovery.
+CPMAddPackage(
+  NAME h5fortran
+  VERSION 4.5.0_c55f15e94300be746b22b4b840a6c4051d9fb323
+  OPTIONS
+    "CMAKE_POSITION_INDEPENDENT_CODE ON"
+  GITHUB_REPOSITORY "Nicholaswogan/h5fortran"
+  GIT_TAG "c55f15e94300be746b22b4b840a6c4051d9fb323"
+  EXCLUDE_FROM_ALL ON
+)
+
+fypp_f90("" "linear_interpolation_module.F90" finterp_sources)
+add_library(finterp ${finterp_sources})
+target_link_libraries(finterp differentia)
+
+CPMAddPackage(
+  NAME dop853
+  VERSION 1.2.0
+  GITHUB_REPOSITORY "jacobwilliams/dop853"
+  GIT_TAG "1.2.0"
+  DOWNLOAD_ONLY ON
+)
+add_library(dop853
+  ${dop853_SOURCE_DIR}/src/dop853_constants.f90
+  ${dop853_SOURCE_DIR}/src/dop853_module.f90)
+
+CPMAddPackage(
+  NAME minpack
+  VERSION 2.0.0
+  GITHUB_REPOSITORY "fortran-lang/minpack"
+  GIT_TAG "v2.0.0-rc.1"
+  DOWNLOAD_ONLY ON
+)
+add_library(minpack
+  ${minpack_SOURCE_DIR}/src/minpack.f90)
 
 CPMAddPackage(
   NAME equilibrate
