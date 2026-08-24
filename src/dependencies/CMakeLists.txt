@@ -31,6 +31,9 @@ CPMAddPackage(
   OPTIONS 
     "BUILD_SHARED_LIBS OFF" 
     "BUILD_FORTRAN_MODULE_INTERFACE ON"
+    # Its legacy F2003 probe cannot configure with CMake 4. Supported
+    # Photochem compilers already provide Fortran 2003.
+    "F2003_FOUND TRUE"
   URL "https://github.com/LLNL/sundials/releases/download/v5.7.0/cvode-5.7.0.tar.gz"
   EXCLUDE_FROM_ALL ON
 )

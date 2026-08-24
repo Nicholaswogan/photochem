@@ -791,13 +791,13 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 8E: Python package boundary audit
 
-- [ ] Confirm that the root `photochem/` directory contains only installable
+- [x] Confirm that the root `photochem/` directory contains only installable
       Python-package code after the bindings move.
-- [ ] Preserve `photochem.clima`, `photochem.equilibrate`, `extensions`,
+- [x] Preserve `photochem.clima`, `photochem.equilibrate`, `extensions`,
       `utils`, and all existing public import paths.
-- [ ] Update packaging manifests and source-distribution inputs as needed.
-- [ ] Avoid broad Python module moves until all three components are in-tree.
-- [ ] Build and test the installed package.
+- [x] Update packaging manifests and source-distribution inputs as needed.
+- [x] Avoid broad Python module moves until all three components are in-tree.
+- [x] Build and test the installed package.
 
 ### Pass 9A: Import Clima
 
@@ -834,6 +834,7 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [ ] Remove CPM/external-source copies once the in-tree builds are stable.
 - [ ] Verify independent component version modules and public facade exports.
 - [ ] Verify runtime data defaults, wheel contents, and source distributions.
+- [ ] Ensure macOS deployment tags produce installable Apple Silicon wheels.
 - [ ] Preserve the existing Python package API during the transition.
 - [ ] Stabilize clean local builds and CI.
 
