@@ -233,6 +233,16 @@ contains
     enddo
   end subroutine
 
+  ! Smooth a condensation or evaporation coefficient across saturation.
+  pure function damp_condensation_rate_${NAME}$(A, rhc, rh0, rh) result(k)
+    use photochem_const, only: pi
+    real(dp), intent(in) :: A, rhc, rh0
+    ${TYPE1}$, intent(in) :: rh
+    ${TYPE1}$ :: k
+
+    k = A*(2.0_dp/pi)*atan((rh - rhc)/(rh0 - rhc))
+  end function
+
   ! Compute the paired gas-particle tendency for one condensate in one layer.
   subroutine condensation_transfer_tendency_${NAME}$( &
       k_cond, k_evap, rhc, smooth_factor, evaporation, edd, scale_height, &
@@ -362,16 +372,6 @@ contains
       enddo
     enddo
   end subroutine
-
-  ! Smooth a condensation or evaporation coefficient across saturation.
-  pure function damp_condensation_rate_${NAME}$(A, rhc, rh0, rh) result(k)
-    use photochem_const, only: pi
-    real(dp), intent(in) :: A, rhc, rh0
-    ${TYPE1}$, intent(in) :: rh
-    ${TYPE1}$ :: k
-
-    k = A*(2.0_dp/pi)*atan((rh - rhc)/(rh0 - rhc))
-  end function
 
   #:endfor
 
