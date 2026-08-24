@@ -73,16 +73,3 @@ CPMAddPackage(
 )
 add_library(minpack
   ${minpack_SOURCE_DIR}/src/minpack.f90)
-
-CPMAddPackage(
-  NAME equilibrate
-  VERSION 0.2.2
-  OPTIONS 
-    "BUILD_EXECUTABLE OFF"
-    "SKBUILD ${SKBUILD}"
-    "BUILD_PYTHON_EQUILIBRATE ${BUILD_PYTHON_PHOTOCHEM}"
-    "PYTHON_EQUILIBRATE_DESTINATION photochem"
-  GITHUB_REPOSITORY "Nicholaswogan/Equilibrate"
-  GIT_TAG "v0.2.2"
-  EXCLUDE_FROM_ALL OFF
-)

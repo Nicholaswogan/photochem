@@ -814,14 +814,14 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 9B: Import Equilibrate
 
-- [ ] Copy nearly all existing Equilibrate source into a flat
+- [x] Copy nearly all existing Equilibrate source into a flat
       `src/equilibrate/` implementation directory.
-- [ ] Record the imported version, source revision, and license provenance.
-- [ ] Copy the Equilibrate C API and Cython bindings into
+- [x] Record the imported version, source revision, and license provenance.
+- [x] Copy the Equilibrate C API and Cython bindings into
       `bindings/equilibrate/` while preserving `photochem._equilibrate`.
-- [ ] Import the Equilibrate tests and required thermodynamic fixtures into
+- [x] Import the Equilibrate tests and required thermodynamic fixtures into
       `tests/equilibrate/` without importing examples or development scripts.
-- [ ] Build and test the in-tree Equilibrate before removing its CPM dependency.
+- [x] Build and test the in-tree Equilibrate before removing its CPM dependency.
 
 ### Pass 9C: Remove external component copies and stabilize
 

@@ -72,6 +72,7 @@ jobs:
       run: |
         ./tests/clima/test_adiabat
         ./tests/clima/test_radtran
+        ./tests/equilibrate/test_equilibrate
         ./tests/photochem/test_api
         ./tests/photochem/test_input
         ./tests/photochem/test_jacobian
@@ -90,7 +91,9 @@ jobs:
     - name: test python runtime
       shell: bash -el {0}
       working-directory: ${{github.workspace}}/tests/photochem
-      run: python test_python.py
+      run: |
+        python test_python.py
+        python ../equilibrate/test_python.py
 
     - name: check shared libs for executable stack
       shell: bash -el {0}

@@ -16,5 +16,6 @@ endif()
 
 if (BUILD_EXECUTABLES)
   add_subdirectory(clima)
+  add_subdirectory(equilibrate)
   add_subdirectory(photochem)
 endif()

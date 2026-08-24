@@ -1,0 +1,4 @@
+module equilibrate_version
+  implicit none
+  character(len=100), parameter :: version = "@EQUILIBRATE_VERSION@"
+end module

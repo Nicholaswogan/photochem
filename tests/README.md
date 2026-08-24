@@ -23,6 +23,14 @@ directories managed by the standard library.
 - The experimental Clima `Climate` model is intentionally excluded from this
   repository, so its corresponding upstream test is not imported.
 
+### Equilibrate
+
+- `test_equilibrate` checks YAML and legacy thermodynamic input, equilibrium
+  compositions, metallicity solves, the Sonora species set, repeated
+  construction, and NASA7 thermodynamic functions.
+- `test_python.py` checks the installed `photochem.equilibrate` wrapper against
+  a known equilibrium composition.
+
 ### Photochem
 
 - `test_input` contains focused input parsing and validation tests.
@@ -84,6 +92,7 @@ After configuring and building the project:
 ```sh
 ./build/tests/clima/test_adiabat
 ./build/tests/clima/test_radtran
+./build/tests/equilibrate/test_equilibrate
 ./build/tests/photochem/test_input
 ./build/tests/photochem/test_api
 ./build/tests/photochem/test_jacobian
@@ -108,5 +117,6 @@ valgrind --error-exitcode=1 --leak-check=full ./build/tests/photochem/test_api
 After installing the Python package, run its smoke test:
 
 ```sh
+python tests/equilibrate/test_python.py
 python tests/photochem/test_python.py
 ```
