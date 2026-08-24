@@ -1071,12 +1071,13 @@ cdef class EvoAtmosphere:
       PyErr_CheckSignals()
 
   def production_and_loss(self, str species, ndarray[double, ndim=2] usol):
-    """Compute reaction-resolved production and loss rates for ``species``.
+    """Compute process-resolved production and loss rates for ``species``.
 
-    The supplied atmosphere is prepared before rates are evaluated. Reactions
-    are sorted from largest to smallest vertically integrated rate. Gas
-    rainout is included as an additional loss process; condensation and
-    boundary fluxes are not included.
+    The supplied atmosphere is prepared before rates are evaluated.
+    Contributions are sorted from largest to smallest vertically integrated
+    rate. Reactions, gas rainout, condensation and evaporation, custom rates,
+    and Zahnle hydrogen escape are included. Transport and boundary fluxes are
+    not yet included.
 
     Parameters
     ----------
@@ -1088,7 +1089,7 @@ cdef class EvoAtmosphere:
     Returns
     -------
     ProductionLoss
-        Reaction-resolved production and loss information.
+        Process-resolved production and loss information.
     """
     cdef bytes species_b = pystring2cstring(species)
     cdef char *species_c = species_b

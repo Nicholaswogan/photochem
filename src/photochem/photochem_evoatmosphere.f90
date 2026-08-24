@@ -9,17 +9,24 @@ module photochem_evoatmosphere
   private
   public :: EvoAtmosphere, ProductionLoss
 
-  !> Reaction-resolved production and loss rates for one chemical species.
+  !> Process-resolved production and loss rates for one chemical species.
   !!
   !! Instances are returned by [[EvoAtmosphere:production_and_loss]]. Reaction
-  !! columns are ordered from largest to smallest vertically integrated rate.
+  !! and process columns are ordered from largest to smallest vertically
+  !! integrated rate.
   type :: ProductionLoss
     real(dp), allocatable :: production(:,:) !! Production rates, shape `(nz,nproduction)` (molecules/cm^3/s).
     real(dp), allocatable :: loss(:,:) !! Loss rates, shape `(nz,nloss)` (molecules/cm^3/s).
     real(dp), allocatable :: integrated_production(:) !! Column production rates (molecules/cm^2/s).
     real(dp), allocatable :: integrated_loss(:) !! Column loss rates (molecules/cm^2/s).
-    character(len=m_str_len), allocatable :: production_rx(:) !! Reactions corresponding to `production` columns.
+    character(len=m_str_len), allocatable :: production_rx(:) !! Reaction or process labels for `production` columns.
     character(len=m_str_len), allocatable :: loss_rx(:) !! Reaction or process labels for `loss` columns.
+    real(dp), allocatable :: total_production(:) !! Total production profile (molecules/cm^3/s).
+    real(dp), allocatable :: total_loss(:) !! Total loss profile (molecules/cm^3/s).
+    real(dp), allocatable :: net(:) !! Net reported tendency, `total_production-total_loss` (molecules/cm^3/s).
+    real(dp) :: integrated_total_production = 0.0_dp !! Total column production (molecules/cm^2/s).
+    real(dp) :: integrated_total_loss = 0.0_dp !! Total column loss (molecules/cm^2/s).
+    real(dp) :: integrated_net = 0.0_dp !! Net column tendency (molecules/cm^2/s).
   end type
 
   !> Internal transactional handoff used to validate atmospheric changes
@@ -386,12 +393,13 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Compute reaction-resolved production and loss rates for one species.
+    !> Compute process-resolved production and loss rates for one species.
     !!
     !! The supplied atmosphere is prepared before rates are evaluated. The
-    !! returned reactions are sorted from largest to smallest vertically
-    !! integrated rate. Gas rainout is included as an additional loss process;
-    !! condensation and boundary fluxes are not included.
+    !! returned contributions are sorted from largest to smallest vertically
+    !! integrated rate. The current implementation includes reactions, gas
+    !! rainout, condensation and evaporation, custom rates, and Zahnle hydrogen
+    !! escape. Transport and boundary fluxes are not yet included.
     module subroutine production_and_loss(self, species, usol, pl, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: species !! Species name.

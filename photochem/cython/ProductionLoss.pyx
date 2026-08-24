@@ -1,11 +1,11 @@
 cimport ProductionLoss_pxd as pl_pxd
 
 cdef class ProductionLoss:
-  """Reaction-resolved production and loss rates for one chemical species.
+  """Process-resolved production and loss rates for one chemical species.
 
   Instances are returned by :meth:`EvoAtmosphere.production_and_loss`.
-  Reaction columns are ordered from largest to smallest vertically integrated
-  rate.
+  Reaction and process columns are ordered from largest to smallest vertically
+  integrated rate.
   """
 
   cdef pl_pxd.ProductionLoss *_ptr
@@ -20,7 +20,8 @@ cdef class ProductionLoss:
   property production:
     """ndarray, shape (nz, nproduction)
 
-    Production rate from each reaction at every layer, in molecules/cm^3/s.
+    Production rate from each reaction or process at every layer, in
+    molecules/cm^3/s.
     """
     def __get__(self):
       cdef int dim1, dim2
@@ -32,8 +33,8 @@ cdef class ProductionLoss:
   property loss:
     """ndarray, shape (nz, nloss)
 
-    Loss rate from each reaction at every layer, in molecules/cm^3/s. Gas
-    rainout is included as an additional loss process.
+    Loss rate from each reaction or process at every layer, in
+    molecules/cm^3/s.
     """
     def __get__(self):
       cdef int dim1, dim2
@@ -70,7 +71,8 @@ cdef class ProductionLoss:
   property production_rx:
     """list[str], shape (nproduction,)
 
-    Reaction equations corresponding to the columns of :attr:`production`.
+    Reaction equations or process labels corresponding to the columns of
+    :attr:`production`.
     """
     def __get__(self):
       cdef int dim1
@@ -83,7 +85,7 @@ cdef class ProductionLoss:
     """list[str], shape (nloss,)
 
     Reaction equations or process labels corresponding to the columns of
-    :attr:`loss`. The additional gas-rainout loss is labeled ``"rainout"``.
+    :attr:`loss`.
     """
     def __get__(self):
       cdef int dim1

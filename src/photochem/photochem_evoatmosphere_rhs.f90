@@ -1651,114 +1651,253 @@ contains
                               
   end subroutine
 
-  module subroutine production_and_loss(self, species, usol, pl, err)     
-    use futils, only: argsort            
-    use photochem_const, only: small_real
-  
+  module subroutine production_and_loss(self, species, usol, pl, err)
+    use futils, only: argsort
+    use photochem_enum, only: ZahnleHydrogenEscape
+
     class(EvoAtmosphere), target, intent(inout) :: self
     character(len=*), intent(in) :: species
     real(dp), intent(in) :: usol(:,:)
     type(ProductionLoss), intent(out) :: pl
     character(:), allocatable, intent(out) :: err
-  
-    real(dp) :: xl(self%var%nz), xp(self%var%nz)
+
+    real(dp), allocatable :: reaction_production(:,:), reaction_loss(:,:)
+    real(dp), allocatable :: production(:,:), loss(:,:)
+    real(dp), allocatable :: condensation(:), evaporation(:), tendency(:)
+    character(len=m_str_len), allocatable :: production_rx(:), loss_rx(:)
+    integer, allocatable :: production_rx_ind(:), loss_rx_ind(:)
     integer, allocatable :: prod_inds(:), loss_inds(:)
-    integer :: sp_ind
-    integer :: i, j, k, np, nl, nlT
+    integer :: sp_ind, nproduction, nloss, max_production, max_loss
+    integer :: i, ii, np, nl, reaction_ind
+    logical :: participates_in_condensation
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
-  
+
     call self%require_atmosphere_initialized('production_and_loss', err)
     if (allocated(err)) return
 
     dat => self%dat
     var => self%var
     wrk => self%wrk
-  
+
     if (size(usol,1) /= dat%nq .or. size(usol,2) /= var%nz) then
       err = "Input usol to production_and_loss has the wrong dimensions"
       return
     endif
-  
-    sp_ind = findloc(dat%species_names(1:dat%nsp),species,1)
+
+    sp_ind = findloc(dat%species_names(1:dat%nsp), species, 1)
     if (sp_ind == 0) then
       err = "Species "//trim(species)//" is not in the list of species."
       return
     endif
-    
+
     call self%prep_atmosphere(usol, err)
     if (allocated(err)) return
-  
+
     np = dat%pl(sp_ind)%nump
     nl = dat%pl(sp_ind)%numl
-    nlT = nl + 1 ! + 1 for rainout
-    
-    allocate(pl%production(var%nz,np))
-    allocate(pl%loss(var%nz,nlT))
-    allocate(pl%integrated_production(np), pl%integrated_loss(nlT))
-    allocate(pl%loss_rx(nlT),pl%production_rx(np))
-    allocate(prod_inds(np), loss_inds(nlT))
-  
-    do j = 1,var%nz
-      do i = 1,dat%npq
-        wrk%densities(i,j) = max(wrk%usol(i,j)*(1.0_dp/wrk%molecules_per_particle(i,j)), small_real)
-      enddo
-      do i = dat%ng_1,dat%nq
-        wrk%densities(i,j) = wrk%usol(i,j)
-      enddo
-      wrk%densities(dat%nsp+1,j) = 1.0_dp ! for hv
-    enddo
-  
-    if (sp_ind <= dat%nq) then ! long lived or particle
-      do k = dat%nq+1,dat%nq+dat%nsl
-        call chempl_sl(self%dat, self%var, wrk%densities, wrk%rx_rates, &
-                       k, xp, xl) 
-        wrk%densities(k,:) = xp/xl
-      enddo
-    endif
-    
-    call chempl_t(self%dat, self%var, &
-                  wrk%densities, wrk%rx_rates, sp_ind, pl%production, pl%loss)
-  
+    max_production = np + 2*dat%np + 1
+    max_loss = nl + 2*dat%np + 3
+    allocate(production(var%nz,max_production), source=0.0_dp)
+    allocate(loss(var%nz,max_loss), source=0.0_dp)
+    allocate(production_rx(max_production), loss_rx(max_loss))
+    allocate(production_rx_ind(max_production), source=0)
+    allocate(loss_rx_ind(max_loss), source=0)
+    allocate(reaction_production(var%nz,np), reaction_loss(var%nz,nl))
+    allocate(condensation(var%nz), evaporation(var%nz), tendency(var%nz))
+    nproduction = 0
+    nloss = 0
+
+    call prepare_chemistry_state(dat, var, wrk%usol, wrk%rx_rates, &
+        wrk%molecules_per_particle, wrk%density, wrk%mix, wrk%densities, &
+        wrk%xp, wrk%xl)
+
+    call chempl_t(dat, var, wrk%densities, wrk%rx_rates, sp_ind, &
+                  reaction_production, reaction_loss)
+
+    ! Consolidate repeated occurrences of a species in one reaction into one
+    ! contribution with the correct stoichiometric multiplier.
     do i = 1,np
-      pl%integrated_production(i) = sum(pl%production(:,i)*var%dz)
-      k = dat%pl(sp_ind)%iprod(i) ! reaction number
-      pl%production_rx(i) = dat%reaction_equations(k)
+      reaction_ind = dat%pl(sp_ind)%iprod(i)
+      ii = findloc(production_rx_ind(1:nproduction), reaction_ind, 1)
+      if (ii == 0) then
+        nproduction = nproduction + 1
+        ii = nproduction
+        production_rx_ind(ii) = reaction_ind
+        production_rx(ii) = dat%reaction_equations(reaction_ind)
+      endif
+      production(:,ii) = production(:,ii) + reaction_production(:,i)
     enddo
     do i = 1,nl
-      pl%integrated_loss(i) = sum(pl%loss(:,i)*var%dz)
-      k = dat%pl(sp_ind)%iloss(i) ! reaction number
-      pl%loss_rx(i) = dat%reaction_equations(k)
+      reaction_ind = dat%pl(sp_ind)%iloss(i)
+      ii = findloc(loss_rx_ind(1:nloss), reaction_ind, 1)
+      if (ii == 0) then
+        nloss = nloss + 1
+        ii = nloss
+        loss_rx_ind(ii) = reaction_ind
+        loss_rx(ii) = dat%reaction_equations(reaction_ind)
+      endif
+      loss(:,ii) = loss(:,ii) + reaction_loss(:,i)
     enddo
-    
-    ! rainout
-    pl%loss_rx(nl+1) = "rainout"
-    pl%loss(:,nl+1) = 0.0_dp
-    pl%integrated_loss(nl+1) = 0.0_dp
+
     if (dat%gas_rainout .and. sp_ind <= dat%nq) then
-      pl%loss(1:var%trop_ind,nl+1) = &
-          wrk%rainout_rates(sp_ind,1:var%trop_ind)*wrk%usol(sp_ind,1:var%trop_ind)
-      pl%integrated_loss(nl+1) = sum(pl%loss(:,nl+1)*var%dz)
+      tendency = 0.0_dp
+      tendency(1:var%trop_ind) = -wrk%rainout_rates( &
+          sp_ind,1:var%trop_ind)*wrk%usol(sp_ind,1:var%trop_ind)
+      call append_signed_contribution(tendency, 'rainout', production, &
+          production_rx, nproduction, loss, loss_rx, nloss)
     endif
-    
-    ! ignoring condensation, and fluxes
-    
-    ! sort 
-    prod_inds = argsort(pl%integrated_production)
-    loss_inds = argsort(pl%integrated_loss)
-    prod_inds = prod_inds(np:1:-1)
-    loss_inds = loss_inds(nlT:1:-1)
-  
-    pl%integrated_production = pl%integrated_production(prod_inds)
-    pl%integrated_loss = pl%integrated_loss(loss_inds)
-    
-    pl%production = pl%production(:,prod_inds)
-    pl%loss = pl%loss(:,loss_inds)
-    
-    pl%production_rx = pl%production_rx(prod_inds)
-    pl%loss_rx = pl%loss_rx(loss_inds)
-    
+
+    call condensation_evaporation_for_species(dat, var, wrk, sp_ind, &
+        condensation, evaporation, participates_in_condensation)
+    if (participates_in_condensation) then
+      call append_signed_contribution(condensation, 'condensation', &
+          production, production_rx, nproduction, loss, loss_rx, nloss)
+      call append_signed_contribution(evaporation, 'evaporation', &
+          production, production_rx, nproduction, loss, loss_rx, nloss)
+    endif
+
+    if (sp_ind <= dat%nq .and. associated(var%rate_fcns(sp_ind)%fcn)) then
+      call var%rate_fcns(sp_ind)%fcn(wrk%tn, var%nz, tendency)
+      call append_signed_contribution(tendency, 'custom rate', production, &
+          production_rx, nproduction, loss, loss_rx, nloss)
+    endif
+
+    if (dat%H_escape_type == ZahnleHydrogenEscape .and. &
+        sp_ind == dat%LH2) then
+      tendency = 0.0_dp
+      tendency(1) = -dat%H_escape_coeff*wrk%mix(dat%LH2,1)/var%dz(1)
+      call append_signed_contribution(tendency, 'hydrogen escape', &
+          production, production_rx, nproduction, loss, loss_rx, nloss)
+    endif
+
+    allocate(pl%production(var%nz,nproduction))
+    allocate(pl%loss(var%nz,nloss))
+    allocate(pl%integrated_production(nproduction))
+    allocate(pl%integrated_loss(nloss))
+    allocate(pl%production_rx(nproduction), pl%loss_rx(nloss))
+    if (nproduction > 0) then
+      pl%production = production(:,1:nproduction)
+      pl%production_rx = production_rx(1:nproduction)
+    endif
+    if (nloss > 0) then
+      pl%loss = loss(:,1:nloss)
+      pl%loss_rx = loss_rx(1:nloss)
+    endif
+
+    do i = 1,nproduction
+      pl%integrated_production(i) = sum(pl%production(:,i)*var%dz)
+    enddo
+    do i = 1,nloss
+      pl%integrated_loss(i) = sum(pl%loss(:,i)*var%dz)
+    enddo
+
+    if (nproduction > 0) then
+      allocate(prod_inds(nproduction))
+      prod_inds = argsort(pl%integrated_production)
+      prod_inds = prod_inds(nproduction:1:-1)
+      pl%integrated_production = pl%integrated_production(prod_inds)
+      pl%production = pl%production(:,prod_inds)
+      pl%production_rx = pl%production_rx(prod_inds)
+    endif
+    if (nloss > 0) then
+      allocate(loss_inds(nloss))
+      loss_inds = argsort(pl%integrated_loss)
+      loss_inds = loss_inds(nloss:1:-1)
+      pl%integrated_loss = pl%integrated_loss(loss_inds)
+      pl%loss = pl%loss(:,loss_inds)
+      pl%loss_rx = pl%loss_rx(loss_inds)
+    endif
+
+    allocate(pl%total_production(var%nz), pl%total_loss(var%nz), &
+             pl%net(var%nz))
+    pl%total_production = sum(pl%production, dim=2)
+    pl%total_loss = sum(pl%loss, dim=2)
+    pl%net = pl%total_production - pl%total_loss
+    pl%integrated_total_production = sum(pl%integrated_production)
+    pl%integrated_total_loss = sum(pl%integrated_loss)
+    pl%integrated_net = pl%integrated_total_production - &
+                        pl%integrated_total_loss
+
+  end subroutine
+
+  subroutine append_signed_contribution(tendency, label, production, &
+      production_rx, nproduction, loss, loss_rx, nloss)
+    real(dp), intent(in) :: tendency(:)
+    character(len=*), intent(in) :: label
+    real(dp), intent(inout) :: production(:,:), loss(:,:)
+    character(len=m_str_len), intent(inout) :: production_rx(:), loss_rx(:)
+    integer, intent(inout) :: nproduction, nloss
+
+    if (any(tendency > 0.0_dp)) then
+      nproduction = nproduction + 1
+      production(:,nproduction) = max(tendency, 0.0_dp)
+      production_rx(nproduction) = label
+    endif
+    if (any(tendency < 0.0_dp)) then
+      nloss = nloss + 1
+      loss(:,nloss) = max(-tendency, 0.0_dp)
+      loss_rx(nloss) = label
+    endif
+  end subroutine
+
+  subroutine condensation_evaporation_for_species(dat, var, wrk, sp_ind, &
+      condensation, evaporation, participates)
+    use photochem_const, only: small_real
+    use photochem_enum, only: CondensingParticle
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    type(PhotochemWrk), intent(in) :: wrk
+    integer, intent(in) :: sp_ind
+    real(dp), intent(out) :: condensation(:), evaporation(:)
+    logical, intent(out) :: participates
+
+    real(dp) :: cond_rate, cond_rate0, dn_gas_dt, rh
+    integer :: gas_ind, i, j
+
+    condensation = 0.0_dp
+    evaporation = 0.0_dp
+    participates = .false.
+    if (.not.dat%there_are_particles) return
+
+    do i = 1,dat%np
+      if (dat%particle_formation_method(i) /= CondensingParticle) cycle
+      gas_ind = dat%particle_gas_phase_ind(i)
+      if (sp_ind /= i .and. sp_ind /= gas_ind) cycle
+      participates = .true.
+
+      do j = 1,var%nz
+        rh = max(wrk%usol(gas_ind,j)/wrk%gas_sat_den(i,j), small_real)
+        if (rh > var%cond_params(i)%RHc) then
+          cond_rate0 = var%cond_params(i)%k_cond* &
+                       (var%edd(j)/wrk%scale_height(j)**2.0_dp)
+          cond_rate = damp_condensation_rate( &
+              cond_rate0, var%cond_params(i)%RHc, &
+              (1.0_dp + var%cond_params(i)%smooth_factor)* &
+                  var%cond_params(i)%RHc, rh)
+          dn_gas_dt = -cond_rate*wrk%usol(gas_ind,j)
+          if (sp_ind == gas_ind) then
+            condensation(j) = condensation(j) + dn_gas_dt
+          else
+            condensation(j) = condensation(j) - dn_gas_dt
+          endif
+        elseif (var%evaporation) then
+          cond_rate0 = var%cond_params(i)%k_evap* &
+                       (wrk%wfall(i,j)/wrk%scale_height(j))
+          cond_rate = damp_condensation_rate( &
+              cond_rate0, 1.0_dp/var%cond_params(i)%RHc, &
+              (1.0_dp + var%cond_params(i)%smooth_factor)/ &
+                  var%cond_params(i)%RHc, 1.0_dp/rh)
+          dn_gas_dt = cond_rate*wrk%usol(i,j)
+          if (sp_ind == gas_ind) then
+            evaporation(j) = evaporation(j) + dn_gas_dt
+          else
+            evaporation(j) = evaporation(j) - dn_gas_dt
+          endif
+        endif
+      enddo
+    enddo
   end subroutine
 
 end submodule

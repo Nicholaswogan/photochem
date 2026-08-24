@@ -16,10 +16,10 @@ that directory as the working directory.
 - `test_jacobian` compares the analytical and automatic-differentiation
   chemistry Jacobians over focused numerical cases.
 - `test_production_loss` characterizes the species production-and-loss
-  diagnostic and checks that its currently reported reaction and rainout
-  contributions reconstruct the corresponding chemistry tendency. As the
-  diagnostic is completed, this test will expand to reconcile all reported
-  contributions with the full right-hand side.
+  diagnostic and checks reactions, rainout, condensation and evaporation,
+  custom rates, and Zahnle escape against the corresponding chemistry
+  tendency. As the diagnostic is completed, this test will expand to reconcile
+  all reported contributions with the full right-hand side.
 - `test_memory` broadly exercises `EvoAtmosphere` workflows. It checks returned
   errors, but does not comprehensively validate numerical outputs; its primary
   purpose is execution under Valgrind.

@@ -1,12 +1,16 @@
 program test_production_loss
   ! Characterization tests for the current production-and-loss diagnostic.
-  ! These checks intentionally cover only reactions and rainout. Later 8.8
-  ! passes will extend reconciliation to every term in the full RHS.
+  ! These checks cover the local chemistry terms completed in the current 8.8
+  ! pass. Later passes will extend reconciliation to every term in the full RHS.
   use photochem, only: EvoAtmosphere, ProductionLoss, dp
   implicit none
 
   call test_reaction_accounting()
   call test_rainout_accounting()
+  call test_condensation_and_evaporation_accounting()
+  call test_custom_rate_accounting()
+  call test_zahnle_escape_accounting()
+  call test_short_lived_accounting()
   print *, 'test_production_loss passed'
 
 contains
@@ -27,6 +31,7 @@ contains
     call check_error(err)
     call check_result_structure(pc, pl)
     call check_chemistry_reconciliation(pc, 'HCN', pl)
+    call check_reaction_consolidation(pc, 'HCN', pl)
   end subroutine
 
   subroutine test_rainout_accounting()
@@ -83,6 +88,125 @@ contains
         pc, trim(pc%dat%species_names(species_ind)), pl)
   end subroutine
 
+  subroutine test_condensation_and_evaporation_accounting()
+    use photochem_enum, only: CondensingParticle
+    type(EvoAtmosphere) :: pc
+    type(ProductionLoss) :: pl
+    character(:), allocatable :: err
+    real(dp), allocatable :: usol(:,:)
+    integer :: gas_ind, i, j
+
+    pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
+                       '../tests/test_settings_condensation_jacobian.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    call check_error(err)
+    i = findloc(pc%dat%particle_formation_method, CondensingParticle, 1)
+    if (i == 0) then
+      print *, 'Production-loss condensation case has no condensing particle'
+      stop 1
+    endif
+    gas_ind = pc%dat%particle_gas_phase_ind(i)
+    usol = pc%wrk%usol
+    do j = 1,pc%var%nz
+      if (j <= pc%var%nz/2) then
+        usol(gas_ind,j) = 1.25_dp*pc%var%cond_params(i)%RHc* &
+                          pc%wrk%gas_sat_den(i,j)
+      else
+        usol(gas_ind,j) = 0.75_dp*pc%var%cond_params(i)%RHc* &
+                          pc%wrk%gas_sat_den(i,j)
+      endif
+      usol(i,j) = max(usol(i,j), 1.0e5_dp)
+    enddo
+
+    call pc%production_and_loss(trim(pc%dat%species_names(gas_ind)), &
+                                usol, pl, err)
+    call check_error(err)
+    call check_result_structure(pc, pl)
+    call require_label(pl%loss_rx, 'condensation')
+    call require_label(pl%production_rx, 'evaporation')
+    call check_chemistry_reconciliation( &
+        pc, trim(pc%dat%species_names(gas_ind)), pl)
+
+    call pc%production_and_loss(trim(pc%dat%species_names(i)), usol, pl, err)
+    call check_error(err)
+    call check_result_structure(pc, pl)
+    call require_label(pl%production_rx, 'condensation')
+    call require_label(pl%loss_rx, 'evaporation')
+    call check_chemistry_reconciliation( &
+        pc, trim(pc%dat%species_names(i)), pl)
+  end subroutine
+
+  subroutine test_custom_rate_accounting()
+    use photochem_vars, only: time_dependent_rate_fcn
+    type(EvoAtmosphere) :: pc
+    type(ProductionLoss) :: pl
+    procedure(time_dependent_rate_fcn), pointer :: rate_fcn
+    character(:), allocatable :: err
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_minimal.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    call check_error(err)
+    rate_fcn => signed_custom_rate
+    call pc%set_rate_fcn('HCN', rate_fcn, err)
+    call check_error(err)
+    pc%wrk%tn = 7.0_dp
+
+    call pc%production_and_loss('HCN', pc%wrk%usol, pl, err)
+    call check_error(err)
+    call check_result_structure(pc, pl)
+    call require_label(pl%production_rx, 'custom rate')
+    call require_label(pl%loss_rx, 'custom rate')
+    call check_chemistry_reconciliation(pc, 'HCN', pl)
+  end subroutine
+
+  subroutine test_zahnle_escape_accounting()
+    type(EvoAtmosphere) :: pc
+    type(ProductionLoss) :: pl
+    character(:), allocatable :: err
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_zahnle_escape.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    call check_error(err)
+
+    call pc%production_and_loss('H2', pc%wrk%usol, pl, err)
+    call check_error(err)
+    call check_result_structure(pc, pl)
+    call require_label(pl%loss_rx, 'hydrogen escape')
+    call check_chemistry_reconciliation(pc, 'H2', pl)
+  end subroutine
+
+  subroutine test_short_lived_accounting()
+    type(EvoAtmosphere) :: pc
+    type(ProductionLoss) :: pl
+    character(:), allocatable :: err
+    real(dp) :: balance_scale
+
+    pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
+                       '../tests/test_settings_short_lived.yaml', &
+                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../data', err)
+    call check_error(err)
+
+    call pc%production_and_loss('O1D', pc%wrk%usol, pl, err)
+    call check_error(err)
+    call check_result_structure(pc, pl)
+    balance_scale = max(maxval(pl%total_production), &
+                        maxval(pl%total_loss), 1.0e-100_dp)
+    if (maxval(abs(pl%net))/balance_scale > 5.0e-13_dp) then
+      print *, 'Short-lived production and loss are not algebraically balanced'
+      stop 1
+    endif
+  end subroutine
+
   subroutine check_result_structure(pc, pl)
     type(EvoAtmosphere), intent(in) :: pc
     type(ProductionLoss), intent(in) :: pl
@@ -102,6 +226,18 @@ contains
       print *, 'Production-loss result contains a negative contribution'
       stop 1
     endif
+    if (size(pl%total_production) /= pc%var%nz .or. &
+        size(pl%total_loss) /= pc%var%nz .or. &
+        size(pl%net) /= pc%var%nz) then
+      print *, 'Production-loss totals have inconsistent dimensions'
+      stop 1
+    endif
+    call check_close(pl%total_production, sum(pl%production, dim=2), &
+                     'Total production is inconsistent')
+    call check_close(pl%total_loss, sum(pl%loss, dim=2), &
+                     'Total loss is inconsistent')
+    call check_close(pl%net, pl%total_production-pl%total_loss, &
+                     'Net production-loss tendency is inconsistent')
 
     do i = 1,size(pl%integrated_production)
       expected = sum(pl%production(:,i)*pc%var%dz)
@@ -122,6 +258,54 @@ contains
         stop 1
       endif
     enddo
+    call check_scalar_close(pl%integrated_total_production, &
+                            sum(pl%integrated_production), &
+                            'Integrated total production is inconsistent')
+    call check_scalar_close(pl%integrated_total_loss, &
+                            sum(pl%integrated_loss), &
+                            'Integrated total loss is inconsistent')
+    call check_scalar_close(pl%integrated_net, &
+                            pl%integrated_total_production- &
+                            pl%integrated_total_loss, &
+                            'Integrated net tendency is inconsistent')
+  end subroutine
+
+  subroutine check_reaction_consolidation(pc, species, pl)
+    type(EvoAtmosphere), intent(in) :: pc
+    character(len=*), intent(in) :: species
+    type(ProductionLoss), intent(in) :: pl
+    integer :: expected, i, j, species_ind
+
+    species_ind = findloc(pc%dat%species_names(1:pc%dat%nsp), species, 1)
+    expected = 0
+    do i = 1,pc%dat%pl(species_ind)%nump
+      if (.not.any(pc%dat%pl(species_ind)%iprod(1:i-1) == &
+                  pc%dat%pl(species_ind)%iprod(i))) expected = expected + 1
+    enddo
+    if (size(pl%production_rx) /= expected) then
+      print *, 'Repeated production stoichiometry was not consolidated'
+      stop 1
+    endif
+    do i = 1,size(pl%production_rx)
+      do j = i+1,size(pl%production_rx)
+        if (pl%production_rx(i) == pl%production_rx(j)) then
+          print *, 'Production result contains a duplicate reaction label'
+          stop 1
+        endif
+      enddo
+    enddo
+  end subroutine
+
+  subroutine require_label(labels, label)
+    character(len=*), intent(in) :: labels(:)
+    character(len=*), intent(in) :: label
+    integer :: i
+
+    do i = 1,size(labels)
+      if (trim(labels(i)) == label) return
+    enddo
+    print *, 'Production-loss result omitted process: ', trim(label)
+    stop 1
   end subroutine
 
   subroutine check_chemistry_reconciliation(pc, species, pl)
@@ -182,6 +366,16 @@ contains
       print *, trim(err)
       stop 1
     endif
+  end subroutine
+
+  subroutine signed_custom_rate(tn, nz, rate)
+    use iso_c_binding, only: c_double, c_int
+    real(c_double), value, intent(in) :: tn
+    integer(c_int), value, intent(in) :: nz
+    real(c_double), intent(out) :: rate(nz)
+
+    rate(1:nz/2) = tn*2.0e4_dp
+    rate(nz/2+1:nz) = -tn*3.0e4_dp
   end subroutine
 
 end program
