@@ -70,6 +70,7 @@ if (BUILD_PYTHON_PHOTOCHEM)
   find_package(NumPy REQUIRED)
   find_package(Cython REQUIRED)
   
+  add_subdirectory(bindings)
   add_subdirectory(photochem)
   
   if (SKBUILD)
