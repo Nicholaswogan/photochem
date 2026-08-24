@@ -32,6 +32,10 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_rhs
     module procedure :: add_condensation_tendencies_real, add_condensation_tendencies_dual
   end interface
 
+  interface condensation_transfer_tendency
+    module procedure :: condensation_transfer_tendency_real, condensation_transfer_tendency_dual
+  end interface
+
   interface chempl
     module procedure :: chempl_real, chempl_dual
   end interface
@@ -193,16 +197,14 @@ contains
                                                   gas_sat_den, scale_height, &
                                                   wfall, rhs)
     use photochem_enum, only: CondensingParticle
-    use photochem_const, only: small_real
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
     ${TYPE1}$, intent(in) :: usol(:,:)
     real(dp), intent(in) :: gas_sat_den(:,:), scale_height(:), wfall(:,:)
     ${TYPE1}$, intent(inout) :: rhs(:)
 
-    real(dp) :: cond_rate0
-    ${TYPE1}$ :: rh, dn_gas_dt, dn_particle_dt, cond_rate
-    integer :: i, ii, j, k, kk
+    ${TYPE1}$ :: rh, cond_rate, dn_gas_dt, dn_particle_dt
+    integer :: i, ii, j, k, kk, transfer_kind
 
     #:if NAME == 'dual'
     rh = dual(size(usol(1,1)%der))
@@ -217,37 +219,56 @@ contains
           ii = dat%particle_gas_phase_ind(i)
           kk = ii + (j - 1) * dat%nq
           k = i + (j - 1) * dat%nq
-
-          rh = max(usol(ii,j)/gas_sat_den(i,j),small_real)
-          if (rh > var%cond_params(i)%RHc) then
-            cond_rate0 = var%cond_params(i)%k_cond* &
-                         (var%edd(j)/scale_height(j)**2.0_dp)
-            cond_rate = damp_condensation_rate( &
-                cond_rate0, var%cond_params(i)%RHc, &
-                (1.0_dp + var%cond_params(i)%smooth_factor)* &
-                    var%cond_params(i)%RHc, rh)
-
-            dn_gas_dt = -cond_rate*usol(ii,j)
-            rhs(kk) = rhs(kk) + dn_gas_dt
-            dn_particle_dt = -dn_gas_dt
-            rhs(k) = rhs(k) + dn_particle_dt
-
-          elseif (rh <= var%cond_params(i)%RHc .and. var%evaporation) then
-            cond_rate0 = var%cond_params(i)%k_evap* &
-                         (wfall(i,j)/scale_height(j))
-            cond_rate = damp_condensation_rate( &
-                cond_rate0, 1.0_dp/var%cond_params(i)%RHc, &
-                (1.0_dp + var%cond_params(i)%smooth_factor)/ &
-                    var%cond_params(i)%RHc, 1.0_dp/rh)
-
-            dn_gas_dt = cond_rate*usol(i,j)
-            rhs(kk) = rhs(kk) + dn_gas_dt
-            dn_particle_dt = -dn_gas_dt
-            rhs(k) = rhs(k) + dn_particle_dt
-          endif
+          call condensation_transfer_tendency( &
+              var%cond_params(i)%k_cond, var%cond_params(i)%k_evap, &
+              var%cond_params(i)%RHc, &
+              var%cond_params(i)%smooth_factor, var%evaporation, &
+              var%edd(j), scale_height(j), wfall(i,j), gas_sat_den(i,j), &
+              usol(ii,j), usol(i,j), rh, cond_rate, dn_gas_dt, &
+              dn_particle_dt, transfer_kind)
+          rhs(kk) = rhs(kk) + dn_gas_dt
+          rhs(k) = rhs(k) + dn_particle_dt
         endif
       enddo
     enddo
+  end subroutine
+
+  ! Compute the paired gas-particle tendency for one condensate in one layer.
+  subroutine condensation_transfer_tendency_${NAME}$( &
+      k_cond, k_evap, rhc, smooth_factor, evaporation, edd, scale_height, &
+      wfall, gas_sat_den, gas_density, particle_density, rh, cond_rate, &
+      gas_tendency, particle_tendency, transfer_kind)
+    use photochem_const, only: small_real
+    real(dp), intent(in) :: k_cond, k_evap, rhc, smooth_factor
+    logical, intent(in) :: evaporation
+    real(dp), intent(in) :: edd, scale_height, wfall, gas_sat_den
+    ${TYPE1}$, intent(in) :: gas_density, particle_density
+    ! Caller-owned workspace avoids allocating dual derivative arrays here.
+    ${TYPE1}$, intent(inout) :: rh, cond_rate
+    ${TYPE1}$, intent(inout) :: gas_tendency, particle_tendency
+    integer, intent(out) :: transfer_kind
+
+    real(dp) :: cond_rate0
+    gas_tendency = 0.0_dp
+    particle_tendency = 0.0_dp
+    transfer_kind = 0
+    rh = max(gas_density/gas_sat_den, small_real)
+
+    if (rh > rhc) then
+      cond_rate0 = k_cond*(edd/scale_height**2.0_dp)
+      cond_rate = damp_condensation_rate( &
+          cond_rate0, rhc, (1.0_dp + smooth_factor)*rhc, rh)
+      gas_tendency = -cond_rate*gas_density
+      particle_tendency = -gas_tendency
+      transfer_kind = 1
+    elseif (evaporation) then
+      cond_rate0 = k_evap*(wfall/scale_height)
+      cond_rate = damp_condensation_rate( &
+          cond_rate0, 1.0_dp/rhc, (1.0_dp + smooth_factor)/rhc, 1.0_dp/rh)
+      gas_tendency = cond_rate*particle_density
+      particle_tendency = -gas_tendency
+      transfer_kind = -1
+    endif
   end subroutine
 
   ! Sum chemical production and loss rates for one species.
@@ -888,7 +909,6 @@ contains
 
   module subroutine right_hand_side(self, neqs, tn, usol_flat, rhs, err)
     use photochem_enum, only: MosesBC, VelocityBC, DensityBC, PressureBC, FluxBC, VelocityDistributedFluxBC
-    use photochem_enum, only: ZahnleHydrogenEscape
     use iso_c_binding, only: c_ptr, c_f_pointer
     use photochem_const, only: pi, small_real  
     
@@ -934,23 +954,8 @@ contains
                 wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
                 wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs)  
 
-    ! Extra functions specifying production or destruction
-    do i = 1,dat%nq
-      if (associated(var%rate_fcns(i)%fcn)) then
-        call var%rate_fcns(i)%fcn(tn, var%nz, wrk%xp) ! using wrk%xp space.
-        do j = 1,var%nz
-          k = i + (j-1)*dat%nq
-          rhs(k) = rhs(k) + wrk%xp(j) ! (molecules/cm^3/s)
-        enddo
-      endif
-    enddo
-    ! zahnle hydrogen escape
-    if (dat%H_escape_type == ZahnleHydrogenEscape) then
-      ! for Zahnle hydrogen escape, we pull H2 out of 
-      ! the bottom grid cell of the model.
-      rhs(dat%LH2) = rhs(dat%LH2) &
-      - dat%H_escape_coeff*wrk%mix(dat%LH2,1)/var%dz(1)
-    endif
+    call add_external_chemistry_tendencies( &
+        dat, var, tn, wrk%mix, wrk%xp, rhs)
 
     ! diffusion (interior grid points)
     do j = 2,var%nz-1
@@ -1597,13 +1602,10 @@ contains
   end subroutine
 
   module subroutine chemistry_right_hand_side(self, usol, rhs, err)
-    use photochem_enum, only: ZahnleHydrogenEscape
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol(:,:)
     real(dp), intent(out) :: rhs(:)
     character(:), allocatable, intent(out) :: err
-    
-    integer :: i, j, k
     
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
@@ -1629,27 +1631,57 @@ contains
                 wrk%rainout_rates, wrk%scale_height, wrk%wfall, &
                 wrk%density, wrk%mix, wrk%densities, wrk%xp, wrk%xl, rhs) 
 
-    ! We additionally have to add the below. I treat them as "chemistry"
-  
-    ! Extra functions specifying production or destruction
+    ! Custom rates and Zahnle escape are treated as chemistry.
+    call add_external_chemistry_tendencies( &
+        dat, var, wrk%tn, wrk%mix, wrk%xp, rhs)
+
+  end subroutine
+
+  ! Add user-supplied rates and Zahnle hydrogen escape to a chemistry RHS.
+  subroutine add_external_chemistry_tendencies( &
+      dat, var, tn, mix, work, rhs)
+    use photochem_enum, only: ZahnleHydrogenEscape
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    real(dp), intent(in) :: tn, mix(:,:)
+    real(dp), intent(inout) :: work(:), rhs(:)
+
+    integer :: i, j, k
+
     do i = 1,dat%nq
       if (associated(var%rate_fcns(i)%fcn)) then
-        call var%rate_fcns(i)%fcn(wrk%tn, var%nz, wrk%xp) ! using wrk%xp space.
+        call custom_rate_tendency(var, tn, i, work)
         do j = 1,var%nz
-          k = i + (j-1)*dat%nq
-          rhs(k) = rhs(k) + wrk%xp(j) ! (molecules/cm^3/s)
+          k = i + (j - 1)*dat%nq
+          rhs(k) = rhs(k) + work(j)
         enddo
       endif
     enddo
-    ! Zahnle hydrogen escape
+
     if (dat%H_escape_type == ZahnleHydrogenEscape) then
-      ! for Zahnle hydrogen escape, we pull H2 out of 
-      ! the bottom grid cell of the model.
-      rhs(dat%LH2) = rhs(dat%LH2) &
-      - dat%H_escape_coeff*wrk%mix(dat%LH2,1)/var%dz(1)
+      rhs(dat%LH2) = rhs(dat%LH2) - zahnle_escape_rate(dat, var, mix)
     endif
-                              
   end subroutine
+
+  ! Evaluate the user-supplied tendency for one evolved species.
+  subroutine custom_rate_tendency(var, tn, species_ind, tendency)
+    type(PhotochemVars), intent(in) :: var
+    real(dp), intent(in) :: tn
+    integer, intent(in) :: species_ind
+    real(dp), intent(out) :: tendency(:)
+
+    call var%rate_fcns(species_ind)%fcn(tn, var%nz, tendency)
+  end subroutine
+
+  ! Return the positive bottom-cell H2 loss rate from Zahnle escape.
+  pure function zahnle_escape_rate(dat, var, mix) result(rate)
+    type(PhotochemData), intent(in) :: dat
+    type(PhotochemVars), intent(in) :: var
+    real(dp), intent(in) :: mix(:,:)
+    real(dp) :: rate
+
+    rate = dat%H_escape_coeff*mix(dat%LH2,1)/var%dz(1)
+  end function
 
   module subroutine production_and_loss(self, species, usol, pl, err)
     use futils, only: argsort
@@ -1759,7 +1791,7 @@ contains
     endif
 
     if (sp_ind <= dat%nq .and. associated(var%rate_fcns(sp_ind)%fcn)) then
-      call var%rate_fcns(sp_ind)%fcn(wrk%tn, var%nz, tendency)
+      call custom_rate_tendency(var, wrk%tn, sp_ind, tendency)
       call append_signed_contribution(tendency, 'custom rate', production, &
           production_rx, nproduction, loss, loss_rx, nloss)
     endif
@@ -1767,7 +1799,7 @@ contains
     if (dat%H_escape_type == ZahnleHydrogenEscape .and. &
         sp_ind == dat%LH2) then
       tendency = 0.0_dp
-      tendency(1) = -dat%H_escape_coeff*wrk%mix(dat%LH2,1)/var%dz(1)
+      tendency(1) = -zahnle_escape_rate(dat, var, wrk%mix)
       call append_signed_contribution(tendency, 'hydrogen escape', &
           production, production_rx, nproduction, loss, loss_rx, nloss)
     endif
@@ -1844,7 +1876,6 @@ contains
 
   subroutine condensation_evaporation_for_species(dat, var, wrk, sp_ind, &
       condensation, evaporation, participates)
-    use photochem_const, only: small_real
     use photochem_enum, only: CondensingParticle
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
@@ -1853,8 +1884,8 @@ contains
     real(dp), intent(out) :: condensation(:), evaporation(:)
     logical, intent(out) :: participates
 
-    real(dp) :: cond_rate, cond_rate0, dn_gas_dt, rh
-    integer :: gas_ind, i, j
+    real(dp) :: rh, cond_rate, dn_gas_dt, dn_particle_dt
+    integer :: gas_ind, i, j, transfer_kind
 
     condensation = 0.0_dp
     evaporation = 0.0_dp
@@ -1868,32 +1899,24 @@ contains
       participates = .true.
 
       do j = 1,var%nz
-        rh = max(wrk%usol(gas_ind,j)/wrk%gas_sat_den(i,j), small_real)
-        if (rh > var%cond_params(i)%RHc) then
-          cond_rate0 = var%cond_params(i)%k_cond* &
-                       (var%edd(j)/wrk%scale_height(j)**2.0_dp)
-          cond_rate = damp_condensation_rate( &
-              cond_rate0, var%cond_params(i)%RHc, &
-              (1.0_dp + var%cond_params(i)%smooth_factor)* &
-                  var%cond_params(i)%RHc, rh)
-          dn_gas_dt = -cond_rate*wrk%usol(gas_ind,j)
+        call condensation_transfer_tendency( &
+            var%cond_params(i)%k_cond, var%cond_params(i)%k_evap, &
+            var%cond_params(i)%RHc, var%cond_params(i)%smooth_factor, &
+            var%evaporation, var%edd(j), wrk%scale_height(j), &
+            wrk%wfall(i,j), wrk%gas_sat_den(i,j), wrk%usol(gas_ind,j), &
+            wrk%usol(i,j), rh, cond_rate, dn_gas_dt, dn_particle_dt, &
+            transfer_kind)
+        if (transfer_kind == 1) then
           if (sp_ind == gas_ind) then
             condensation(j) = condensation(j) + dn_gas_dt
           else
-            condensation(j) = condensation(j) - dn_gas_dt
+            condensation(j) = condensation(j) + dn_particle_dt
           endif
-        elseif (var%evaporation) then
-          cond_rate0 = var%cond_params(i)%k_evap* &
-                       (wrk%wfall(i,j)/wrk%scale_height(j))
-          cond_rate = damp_condensation_rate( &
-              cond_rate0, 1.0_dp/var%cond_params(i)%RHc, &
-              (1.0_dp + var%cond_params(i)%smooth_factor)/ &
-                  var%cond_params(i)%RHc, 1.0_dp/rh)
-          dn_gas_dt = cond_rate*wrk%usol(i,j)
+        elseif (transfer_kind == -1) then
           if (sp_ind == gas_ind) then
             evaporation(j) = evaporation(j) + dn_gas_dt
           else
-            evaporation(j) = evaporation(j) - dn_gas_dt
+            evaporation(j) = evaporation(j) + dn_particle_dt
           endif
         endif
       enddo
