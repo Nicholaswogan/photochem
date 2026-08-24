@@ -17,9 +17,9 @@ that directory as the working directory.
   chemistry Jacobians over focused numerical cases.
 - `test_production_loss` characterizes the species production-and-loss
   diagnostic and checks reactions, rainout, condensation and evaporation,
-  custom rates, and Zahnle escape against the corresponding chemistry
-  tendency. As the diagnostic is completed, this test will expand to reconcile
-  all reported contributions with the full right-hand side.
+  vertical transport, boundary fluxes, distributed sources, custom rates, and
+  Zahnle escape. For evolved species, it verifies that all reported
+  contributions reconstruct the full right-hand side.
 - `test_memory` broadly exercises `EvoAtmosphere` workflows. It checks returned
   errors, but does not comprehensively validate numerical outputs; its primary
   purpose is execution under Valgrind.
@@ -39,13 +39,13 @@ analytical path.
 ## Production-and-loss diagnostic contract
 
 `production_and_loss` is a user-facing explanation of the tendency of one
-selected species. Every reported
-profile has units of molecules/cm^3/s, is nonnegative, and is accompanied by a
-reaction equation or process label. Column-integrated values have units of
-molecules/cm^2/s. A signed contribution is represented by its positive part in
-`production` and the magnitude of its negative part in `loss`.
+selected species. Every reported profile has units of molecules/cm^3/s, is
+nonnegative, and is accompanied by a reaction equation or process label.
+Column-integrated values have units of molecules/cm^2/s. A signed contribution
+is represented by its positive part in `production` and the magnitude of its
+negative part in `loss`.
 
-The completed diagnostic will account for chemical reactions, rainout,
+The diagnostic accounts for chemical reactions, rainout,
 condensation and evaporation, internal vertical transport, lower and upper
 boundary fluxes, distributed sources, custom rates, and Zahnle hydrogen
 escape. Internal transport excludes exchange across the model boundaries, so
@@ -60,8 +60,8 @@ For an evolved species, the sum of all production columns minus the sum of all
 loss columns must reconstruct its full right-hand-side tendency. For a
 short-lived species, the result instead describes its algebraic chemical
 balance because it has no transport ODE equation. Reaction entries with a
-stoichiometric multiplicity greater than one will ultimately be consolidated
-into one labeled contribution with the appropriate multiplier.
+stoichiometric multiplicity greater than one are consolidated into one labeled
+contribution with the appropriate multiplier.
 
 ## Running locally
 
