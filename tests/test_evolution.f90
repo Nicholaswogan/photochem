@@ -19,8 +19,8 @@ contains
     pc = EvoAtmosphere(&
                       "../data/reaction_mechanisms/zahnle_earth.yaml", &
                       "../examples/ModernEarth/settings.yaml", &
-                      "../examples/ModernEarth/Sun_now.txt", &
-                      "../examples/ModernEarth/atmosphere.txt", &
+                      "../tests/sun.txt", &
+                      "../tests/atmosphere.txt", &
                       "../data", &
                       err)
     if (allocated(err)) then

@@ -12,8 +12,8 @@ def _make_file_atmosphere():
     pc = EvoAtmosphere(
         zahnle_earth,
         "../examples/ModernEarth/settings.yaml",
-        "../examples/ModernEarth/Sun_now.txt",
-        "../examples/ModernEarth/atmosphere.txt",
+        "sun.txt",
+        "atmosphere.txt",
         data_dir="../data",
     )
     pc.var.verbose = 0
@@ -56,7 +56,7 @@ def test_static_construction():
     pc = EvoAtmosphere(
         "no_particle_test.yaml",
         "test_settings_minimal.yaml",
-        "../examples/ModernEarth/Sun_now.txt",
+        "sun.txt",
         data_dir="../data",
     )
 
@@ -85,7 +85,7 @@ def test_toa_pressure_maintenance_api():
     pc = EvoAtmosphere(
         "no_particle_test.yaml",
         "test_settings_minimal.yaml",
-        "../examples/ModernEarth/Sun_now.txt",
+        "sun.txt",
         data_dir="../data",
     )
 
@@ -117,7 +117,7 @@ def test_persistent_profile_controls_toa_maintenance():
     pc = EvoAtmosphere(
         "no_particle_test.yaml",
         "test_settings_minimal.yaml",
-        "../examples/ModernEarth/Sun_now.txt",
+        "sun.txt",
         data_dir="../data",
     )
     z = np.array([0.0, 5.0e6, 1.0e7])
@@ -159,7 +159,7 @@ def test_robust_initial_toa_pressure_preflight():
     pc = EvoAtmosphere(
         "no_particle_test.yaml",
         "test_settings_minimal.yaml",
-        "../examples/ModernEarth/Sun_now.txt",
+        "sun.txt",
         data_dir="../data",
     )
     z = np.array([0.0, 5.0e6, 1.0e7])
@@ -199,7 +199,7 @@ def test_gas_giant_static_construction():
 
     pc = EvoAtmosphereGasGiant(
         "no_particle_test.yaml",
-        "../examples/ModernEarth/Sun_now.txt",
+        "sun.txt",
         5.972e27,
         6.371e8,
         thermo_file="no_particle_test.yaml",
@@ -224,7 +224,7 @@ def _make_initialized_gas_giant():
 
     pc = EvoAtmosphereGasGiant(
         "no_particle_test.yaml",
-        "../examples/ModernEarth/Sun_now.txt",
+        "sun.txt",
         5.972e27,
         6.371e8,
         nz=20,
@@ -398,8 +398,8 @@ def test_initialize_atmosphere_z_no_particles():
     pc = EvoAtmosphere(
         "no_particle_test.yaml",
         "test_settings_minimal.yaml",
-        "../examples/ModernEarth/Sun_now.txt",
-        "../examples/ModernEarth/atmosphere.txt",
+        "sun.txt",
+        "atmosphere.txt",
         data_dir="../data",
     )
     z = np.array([0.0, 5.0e6, 1.0e7])
@@ -419,8 +419,8 @@ def test_initialize_atmosphere_z_particles():
     pc = EvoAtmosphere(
         zahnle_earth,
         "../examples/ModernEarth/settings.yaml",
-        "../examples/ModernEarth/Sun_now.txt",
-        "../examples/ModernEarth/atmosphere.txt",
+        "sun.txt",
+        "atmosphere.txt",
         data_dir="../data",
     )
     z = np.array([0.0, 5.0e6, 1.0e7])
@@ -452,8 +452,8 @@ def test_initialize_atmosphere_p_no_particles():
     pc = EvoAtmosphere(
         "no_particle_test.yaml",
         "test_settings_minimal.yaml",
-        "../examples/ModernEarth/Sun_now.txt",
-        "../examples/ModernEarth/atmosphere.txt",
+        "sun.txt",
+        "atmosphere.txt",
         data_dir="../data",
     )
     pressure = np.array([1.0e6, 1.0e5, 1.0e4, 1.0e2])
@@ -503,8 +503,8 @@ def test_initialize_atmosphere_p_particles():
     pc = EvoAtmosphere(
         zahnle_earth,
         "../examples/ModernEarth/settings.yaml",
-        "../examples/ModernEarth/Sun_now.txt",
-        "../examples/ModernEarth/atmosphere.txt",
+        "sun.txt",
+        "atmosphere.txt",
         data_dir="../data",
     )
     pressure = np.array([1.0e6, 1.0e5, 1.0e4, 1.0e2])
@@ -535,8 +535,8 @@ def test_wrapper():
     pc = EvoAtmosphere(
         zahnle_earth,
         "../examples/ModernEarth/settings.yaml",
-        "../examples/ModernEarth/Sun_now.txt",
-        "../examples/ModernEarth/atmosphere.txt",
+        "sun.txt",
+        "atmosphere.txt",
         data_dir="../data"
     )
     

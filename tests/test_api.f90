@@ -43,8 +43,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     if (allocated(err)) then
       print *, trim(err)
@@ -721,8 +721,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
   end function
 
@@ -750,8 +750,8 @@ contains
 
     pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     if (allocated(err)) then
       print *, trim(err)
@@ -798,8 +798,8 @@ contains
 
     pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     if (allocated(err)) then
       print *, trim(err)
@@ -882,8 +882,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     if (allocated(err)) then
       print *, trim(err)
@@ -945,8 +945,8 @@ contains
 
     pc_errors = EvoAtmosphere('../tests/no_particle_test.yaml', &
                               '../tests/test_settings_minimal.yaml', &
-                              '../examples/ModernEarth/Sun_now.txt', &
-                              '../examples/ModernEarth/atmosphere.txt', &
+                              '../tests/sun.txt', &
+                              '../tests/atmosphere.txt', &
                               '../data', err)
     if (allocated(err)) then
       print *, trim(err)
@@ -989,8 +989,8 @@ contains
 
     pc_steps = EvoAtmosphere('../tests/no_particle_test.yaml', &
                              '../tests/test_settings_minimal.yaml', &
-                             '../examples/ModernEarth/Sun_now.txt', &
-                             '../examples/ModernEarth/atmosphere.txt', &
+                             '../tests/sun.txt', &
+                             '../tests/atmosphere.txt', &
                              '../data', err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1039,8 +1039,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', &
                        err)
     if (allocated(err)) then
@@ -1212,8 +1212,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', &
                        err)
     if (allocated(err)) then
@@ -1330,8 +1330,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', &
                        err)
     if (allocated(err)) then
@@ -1459,8 +1459,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', &
                        err)
     if (allocated(err)) then
@@ -1613,8 +1613,8 @@ contains
     ! P paths deliberately begin from static-only models.
     pc_file = EvoAtmosphere('../tests/no_particle_test.yaml', &
                             '../tests/test_settings_minimal.yaml', &
-                            '../examples/ModernEarth/Sun_now.txt', &
-                            '../examples/ModernEarth/atmosphere.txt', &
+                            '../tests/sun.txt', &
+                            '../tests/atmosphere.txt', &
                             '../data', err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1624,7 +1624,7 @@ contains
 
     pc_z = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
                          '../examples/ModernEarth/settings.yaml', &
-                         '../examples/ModernEarth/Sun_now.txt', &
+                         '../tests/sun.txt', &
                          '../data', err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1643,7 +1643,7 @@ contains
 
     pc_p = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
                          '../examples/ModernEarth/settings.yaml', &
-                         '../examples/ModernEarth/Sun_now.txt', &
+                         '../tests/sun.txt', &
                          '../data', err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1677,7 +1677,7 @@ contains
     ! above this shallow pressure-defined domain.
     pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
                        '../tests/test_settings_tropopause_outside.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../tests/sun.txt', &
                        '../data', err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1805,8 +1805,8 @@ contains
 
     pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
                        '../examples/ModernEarth/settings.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', &
                        err)
     if (allocated(err)) then
@@ -1846,8 +1846,8 @@ contains
 
     pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
                        '../examples/ModernEarth/settings.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', &
                        err)
     if (allocated(err)) then
@@ -1885,8 +1885,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', &
                        err)
     if (allocated(err)) then
@@ -1900,7 +1900,7 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../tests/sun.txt', &
                        '../tests/does_not_exist.txt', &
                        '../data', &
                        err)
@@ -1918,7 +1918,7 @@ contains
     deallocate(err)
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
+                       '../tests/sun.txt', &
                        '../data', &
                        err)
     if (allocated(err)) then
@@ -1962,7 +1962,7 @@ contains
 
     ! A statically configured object can be initialized later.
     deallocate(err)
-    call pc%initialize_from_atmosphere_file('../examples/ModernEarth/atmosphere.txt', err)
+    call pc%initialize_from_atmosphere_file('../tests/atmosphere.txt', err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -2015,7 +2015,7 @@ contains
     ! Successful reinitialization commits the replacement atmosphere and
     ! invalidates CVODE state associated with the old atmosphere.
     deallocate(err)
-    call pc%initialize_from_atmosphere_file('../examples/ModernEarth/atmosphere.txt', err)
+    call pc%initialize_from_atmosphere_file('../tests/atmosphere.txt', err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -2056,8 +2056,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', &
                        err)
     if (allocated(err)) then
@@ -2083,8 +2083,8 @@ contains
 
     pc = EvoAtmosphere(filename, &
                        "../tests/test_settings_minimal.yaml", &
-                       "../examples/ModernEarth/Sun_now.txt", &
-                       "../examples/ModernEarth/atmosphere.txt", &
+                       "../tests/sun.txt", &
+                       "../tests/atmosphere.txt", &
                        "../data", &
                        err)
     if (allocated(err)) then
@@ -2094,7 +2094,7 @@ contains
 
     ! Exercise repeated legacy-file loading for both particle-bearing and
     ! particle-free mechanisms.
-    call pc%initialize_from_atmosphere_file('../examples/ModernEarth/atmosphere.txt', err)
+    call pc%initialize_from_atmosphere_file('../tests/atmosphere.txt', err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1

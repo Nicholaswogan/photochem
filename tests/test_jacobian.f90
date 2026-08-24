@@ -20,8 +20,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     if (allocated(err)) then
       print *, trim(err)
@@ -59,8 +59,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_short_lived.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     if (allocated(err)) then
       print *, trim(err)
@@ -86,8 +86,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_rainout.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     if (allocated(err)) then
       print *, trim(err)
@@ -120,8 +120,8 @@ contains
 
     pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
                        '../tests/test_settings_condensation_jacobian.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     if (allocated(err)) then
       print *, trim(err)

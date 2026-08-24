@@ -67,7 +67,7 @@ contains
                         settings, '../data', err)
     if (allocated(err)) call fail('Could not construct test data: '//trim(err))
 
-    var = PhotochemVars(dat, settings, '../examples/ModernEarth/Sun_now.txt', err)
+    var = PhotochemVars(dat, settings, '../tests/sun.txt', err)
     if (allocated(err)) call fail('Could not construct PhotochemVars: '//trim(err))
 
     if (var%nz /= settings%nz) call fail('PhotochemVars has the wrong grid size')

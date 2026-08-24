@@ -24,8 +24,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     call check_error(err)
 
@@ -45,8 +45,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_rainout.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     call check_error(err)
 
@@ -100,8 +100,8 @@ contains
 
     pc = EvoAtmosphere('../data/reaction_mechanisms/zahnle_earth.yaml', &
                        '../tests/test_settings_condensation_jacobian.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     call check_error(err)
     i = findloc(pc%dat%particle_formation_method, CondensingParticle, 1)
@@ -149,8 +149,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     call check_error(err)
     rate_fcn => signed_custom_rate
@@ -173,8 +173,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_zahnle_escape.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     call check_error(err)
 
@@ -193,8 +193,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_short_lived.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     call check_error(err)
 
@@ -218,8 +218,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     call check_error(err)
 
@@ -262,8 +262,8 @@ contains
 
     pc = EvoAtmosphere('../tests/no_particle_test.yaml', &
                        '../tests/test_settings_minimal.yaml', &
-                       '../examples/ModernEarth/Sun_now.txt', &
-                       '../examples/ModernEarth/atmosphere.txt', &
+                       '../tests/sun.txt', &
+                       '../tests/atmosphere.txt', &
                        '../data', err)
     call check_error(err)
     species_ind = findloc(pc%dat%species_names(1:pc%dat%nq), 'HCN', 1)
