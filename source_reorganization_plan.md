@@ -279,11 +279,12 @@ tests/
 ```
 
 Keep each component directory flat initially. Use component-prefixed CMake
-target names and CTest labels so targets remain globally unique and individual
-suites can be selected. Test fixtures must be resolved independently of the
-build directory; do not preserve assumptions that the build tree is a sibling
-of the source tree. Move existing tests mechanically before splitting truly
-cross-component coverage into `tests/integration/`.
+target names so targets remain globally unique. Test fixtures must be resolved
+independently of the build directory; do not preserve assumptions that the
+build tree is a sibling of the source tree. Move existing tests mechanically
+before splitting truly cross-component coverage into `tests/integration/`.
+Continue invoking the test executables and scripts directly; introducing CTest
+is a separate optional improvement rather than part of this reorganization.
 
 ## Target Photochem modules
 
@@ -772,11 +773,11 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 8C: Component-oriented test layout
 
-- [ ] Move existing tests and fixtures into `tests/photochem/`.
-- [ ] Make the root test CMake file coordinate component test directories.
-- [ ] Use component-prefixed CMake target names and CTest labels.
-- [ ] Remove build-location assumptions from test fixture paths.
-- [ ] Preserve current test behavior and run the full Fortran and Python suites.
+- [x] Move existing tests and fixtures into `tests/photochem/`.
+- [x] Make the root test CMake file coordinate component test directories.
+- [x] Use component-prefixed CMake target names.
+- [x] Remove build-location assumptions from test fixture paths.
+- [x] Preserve current test behavior and run the full Fortran and Python suites.
 
 ### Pass 8D: Photochem bindings layout
 

@@ -67,29 +67,29 @@ contribution with the appropriate multiplier.
 After configuring and building the project:
 
 ```sh
-./build/tests/test_input
-./build/tests/test_api
-./build/tests/test_jacobian
-./build/tests/test_production_loss
-./build/tests/test_memory
+./build/tests/photochem/test_input
+./build/tests/photochem/test_api
+./build/tests/photochem/test_jacobian
+./build/tests/photochem/test_production_loss
+./build/tests/photochem/test_memory
 ```
 
 The longer evolution test can be run manually when needed:
 
 ```sh
-./build/tests/test_evolution
+./build/tests/photochem/test_evolution
 ```
 
 On a system with Valgrind, check both the broad memory harness and the focused
 API tests:
 
 ```sh
-valgrind --error-exitcode=1 --leak-check=full ./build/tests/test_memory
-valgrind --error-exitcode=1 --leak-check=full ./build/tests/test_api
+valgrind --error-exitcode=1 --leak-check=full ./build/tests/photochem/test_memory
+valgrind --error-exitcode=1 --leak-check=full ./build/tests/photochem/test_api
 ```
 
 After installing the Python package, run its smoke test:
 
 ```sh
-python tests/test_python.py
+python tests/photochem/test_python.py
 ```

@@ -8,7 +8,7 @@ import numpy as np
 from photochem import EvoAtmosphere, PhotoException, zahnle_earth
 
 TEST_DIR = Path(__file__).resolve().parent
-DATA_DIR = TEST_DIR.parent / "data"
+DATA_DIR = TEST_DIR.parent.parent / "data"
 
 
 def fixture_file(filename):
