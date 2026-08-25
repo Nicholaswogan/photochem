@@ -176,19 +176,6 @@ contains
             (particle_density - air_density)/(viscosity)
   end function
 
-  pure function mean_free_path(den, T, mubar) result(lambda)
-    use photochem_const, only: pi, k_boltz, N_avo
-    real(dp), intent(in) :: den ! molecules/cm3
-    real(dp), intent(in) :: T ! Kelvin
-    real(dp), intent(in) :: mubar ! g/mol
-    real(dp) :: lambda ! cm
-    
-    real(dp) :: eta ! dynamic viscosity [dynes s/cm^2]
-
-    eta = dynamic_viscosity_air(T)
-    lambda = (2.0_dp*eta/den)*sqrt(N_avo*pi/(8.0_dp*k_boltz*T*mubar))
-  end function
-  
   pure function slip_correction_factor(partical_radius, density) result(correct_fac)
     real(dp), intent(in) :: partical_radius ! cm
     real(dp), intent(in) :: density ! molecules/cm3
@@ -198,7 +185,6 @@ contains
     
     ! The density dependence really is nuts. I'm going to
     ! dampen out dependence with a power.
-    ! mean_free_path = 1.0_dp/(density*area_of_molecule)
     lambda = 1.0_dp/(density**(1.0e0_dp)*area_of_molecule)
     ! slip correction factor
     ! Equation 9.34 in Seinfeld (2006) 
