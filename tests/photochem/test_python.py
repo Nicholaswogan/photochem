@@ -46,6 +46,77 @@ def test_runtime_data_defaults():
     assert c.P.size > 0
 
 
+def test_exposed_photochem_state():
+    """Useful prepared-state diagnostics are available through Python."""
+    pc = _make_file_atmosphere()
+
+    assert pc.dat.gas_rainout
+    assert pc.var.rainfall_rate == 1.0
+    assert pc.var.dz.shape == (pc.var.nz,)
+    assert np.all(np.isfinite(pc.var.dz))
+    assert np.all(pc.var.dz > 0.0)
+
+    diagnostics = (
+        (pc.wrk.scale_height, (pc.var.nz,)),
+        (pc.wrk.wfall, (pc.dat.np, pc.var.nz)),
+        (pc.wrk.gas_sat_den, (pc.dat.np, pc.var.nz)),
+        (pc.wrk.molecules_per_particle, (pc.dat.np, pc.var.nz)),
+        (pc.wrk.rainout_rates, (pc.dat.nq, pc.var.nz)),
+    )
+    for values, shape in diagnostics:
+        assert values.shape == shape
+        assert np.all(np.isfinite(values))
+
+    assert np.all(pc.wrk.scale_height > 0.0)
+    assert np.all(pc.wrk.wfall >= 0.0)
+    assert np.all(pc.wrk.gas_sat_den >= 0.0)
+    assert np.all(pc.wrk.molecules_per_particle >= 0.0)
+    assert np.all(pc.wrk.rainout_rates >= 0.0)
+    assert np.all(pc.wrk.rainout_rates[:, pc.var.trop_ind:] == 0.0)
+
+    no_particles = EvoAtmosphere(
+        fixture_file("no_particle_test.yaml"),
+        fixture_file("test_settings_minimal.yaml"),
+        fixture_file("sun.txt"),
+        data_dir=str(DATA_DIR),
+    )
+    z = np.array([0.0, 5.0e6, 1.0e7])
+    no_particles.initialize_atmosphere_z(
+        z,
+        np.array([300.0, 240.0, 180.0]),
+        np.array([1.0e5, 1.0e6, 1.0e7]),
+        1.0e6,
+        {"H2": np.ones(z.size)},
+    )
+    assert not no_particles.dat.gas_rainout
+    assert no_particles.wrk.wfall.shape == (0, no_particles.var.nz)
+    assert no_particles.wrk.gas_sat_den.shape == (0, no_particles.var.nz)
+    assert no_particles.wrk.molecules_per_particle.shape == (
+        0, no_particles.var.nz
+    )
+    assert np.all(no_particles.wrk.rainout_rates == 0.0)
+
+
+def test_solver_controls_api():
+    """All active CVODE and robust-restart controls round-trip through Python."""
+    pc = _make_file_atmosphere()
+
+    assert pc.var.initial_dt == 1.0e-6
+    assert pc.var.max_err_test_failures == 15
+    assert pc.var.max_order == 5
+    assert pc.var.reinit_min_density == 1.0e-40
+
+    controls = {
+        "initial_dt": 2.0e-6,
+        "max_err_test_failures": 12,
+        "max_order": 4,
+        "reinit_min_density": 2.0e-40,
+    }
+    for name, value in controls.items():
+        setattr(pc.var, name, value)
+        assert getattr(pc.var, name) == value
+
+
 def _make_file_atmosphere():
     pc = EvoAtmosphere(
         zahnle_earth,
@@ -694,7 +765,12 @@ def main():
 
     test_package_version_ownership()
     test_runtime_data_defaults()
+    test_exposed_photochem_state()
+    test_solver_controls_api()
     test_static_construction()
+    test_toa_pressure_maintenance_api()
+    test_persistent_profile_controls_toa_maintenance()
+    test_robust_initial_toa_pressure_preflight()
     test_evolve_uses_fixed_grid()
     test_gas_giant_static_construction()
     test_gas_giant_returns_climate_levels_above_photochemical_grid()
