@@ -49,6 +49,60 @@ cdef class PhotochemWrk:
       wrk_pxd.photochemwrk_pressure_hydro_get(self._ptr, &dim1, <double *>arr.data)
       return arr
 
+  property scale_height:
+    "ndarray[double,dim=1], shape (nz). Atmospheric scale height (cm)."
+    def __get__(self):
+      cdef int dim1
+      wrk_pxd.photochemwrk_scale_height_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      wrk_pxd.photochemwrk_scale_height_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property wfall:
+    """ndarray[double,dim=2], shape (np,nz). Particle settling velocities
+    (cm/s).
+    """
+    def __get__(self):
+      cdef int dim1, dim2
+      wrk_pxd.photochemwrk_wfall_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      wrk_pxd.photochemwrk_wfall_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+
+  property gas_sat_den:
+    """ndarray[double,dim=2], shape (np,nz). Saturation number densities
+    (molecules/cm^3) for condensing particle gas phases. Entries for
+    non-condensing particles are zero.
+    """
+    def __get__(self):
+      cdef int dim1, dim2
+      wrk_pxd.photochemwrk_gas_sat_den_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      wrk_pxd.photochemwrk_gas_sat_den_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+
+  property molecules_per_particle:
+    """ndarray[double,dim=2], shape (np,nz). Condensate molecules represented
+    by each particle.
+    """
+    def __get__(self):
+      cdef int dim1, dim2
+      wrk_pxd.photochemwrk_molecules_per_particle_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      wrk_pxd.photochemwrk_molecules_per_particle_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+
+  property rainout_rates:
+    """ndarray[double,dim=2], shape (nq,nz). First-order gas rainout loss
+    rates (1/s). Values are zero where rainout is inactive.
+    """
+    def __get__(self):
+      cdef int dim1, dim2
+      wrk_pxd.photochemwrk_rainout_rates_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      wrk_pxd.photochemwrk_rainout_rates_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+
   property nsteps_total:
     "int. Total number of steps in a robust integration."
     def __get__(self):

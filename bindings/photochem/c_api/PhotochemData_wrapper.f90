@@ -59,6 +59,14 @@
     val = dat%nw
   end subroutine
 
+  subroutine photochemdata_gas_rainout_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    logical(c_bool), intent(out) :: val
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    val = dat%gas_rainout
+  end subroutine
+
   subroutine photochemdata_planet_mass_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val

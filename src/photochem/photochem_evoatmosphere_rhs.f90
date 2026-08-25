@@ -887,6 +887,7 @@ contains
     enddo
 
     !!! rainout rates
+    wrk%rainout_rates = 0.0_dp
     if (dat%gas_rainout) then
       call rainout(self%dat, self%var, &
                    wrk%mix(dat%LH2O,:), wrk%density, wrk%rainout_rates)

@@ -67,3 +67,18 @@ cdef extern void photochemwrk_vh_esc_get(PhotochemWrk *ptr, double *val)
 cdef extern void photochemwrk_surface_pressure_get(PhotochemWrk *ptr, double *val)
 cdef extern void photochemwrk_pressure_hydro_get_size(PhotochemWrk *ptr, int *dim1)
 cdef extern void photochemwrk_pressure_hydro_get(PhotochemWrk *ptr, int *dim1, double *arr)
+
+cdef extern void photochemwrk_scale_height_get_size(PhotochemWrk *ptr, int *dim1)
+cdef extern void photochemwrk_scale_height_get(PhotochemWrk *ptr, int *dim1, double *arr)
+
+cdef extern void photochemwrk_wfall_get_size(PhotochemWrk *ptr, int *dim1, int *dim2)
+cdef extern void photochemwrk_wfall_get(PhotochemWrk *ptr, int *dim1, int *dim2, double *arr)
+
+cdef extern void photochemwrk_gas_sat_den_get_size(PhotochemWrk *ptr, int *dim1, int *dim2)
+cdef extern void photochemwrk_gas_sat_den_get(PhotochemWrk *ptr, int *dim1, int *dim2, double *arr)
+
+cdef extern void photochemwrk_molecules_per_particle_get_size(PhotochemWrk *ptr, int *dim1, int *dim2)
+cdef extern void photochemwrk_molecules_per_particle_get(PhotochemWrk *ptr, int *dim1, int *dim2, double *arr)
+
+cdef extern void photochemwrk_rainout_rates_get_size(PhotochemWrk *ptr, int *dim1, int *dim2)
+cdef extern void photochemwrk_rainout_rates_get(PhotochemWrk *ptr, int *dim1, int *dim2, double *arr)

@@ -30,6 +30,7 @@ cdef extern void photochemvars_diurnal_fac_set(PhotochemVars *ptr, double *val)
 cdef extern void photochemvars_trop_alt_get(PhotochemVars *ptr, double *val)
 
 cdef extern void photochemvars_trop_ind_get(PhotochemVars *ptr, int *val)
+cdef extern void photochemvars_rainfall_rate_get(PhotochemVars *ptr, double *val)
 
 cdef extern void photochemvars_photon_flux_fcn_set(PhotochemVars *ptr, time_dependent_flux_fcn fcn)
 
@@ -53,6 +54,9 @@ cdef extern void photochemvars_grav_get(PhotochemVars *ptr, int *dim1, double *a
 
 cdef extern void photochemvars_z_get_size(PhotochemVars *ptr, int *dim1)
 cdef extern void photochemvars_z_get(PhotochemVars *ptr, int *dim1, double *z)
+
+cdef extern void photochemvars_dz_get_size(PhotochemVars *ptr, int *dim1)
+cdef extern void photochemvars_dz_get(PhotochemVars *ptr, int *dim1, double *dz)
 
 cdef extern void photochemvars_tauc_get_size(PhotochemVars *ptr, int *dim1, int *dim2)
 cdef extern void photochemvars_tauc_get(PhotochemVars *ptr, int *dim1, int *dim2, double *val)

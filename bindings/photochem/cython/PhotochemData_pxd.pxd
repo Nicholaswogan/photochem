@@ -14,6 +14,7 @@ cdef extern void photochemdata_ng_get(PhotochemData *ptr, int *nq)
 cdef extern void photochemdata_nsl_get(PhotochemData *ptr, int *nq)
 cdef extern void photochemdata_nll_get(PhotochemData *ptr, int *nq)
 cdef extern void photochemdata_nw_get(PhotochemData *ptr, int *nq)
+cdef extern void photochemdata_gas_rainout_get(PhotochemData *ptr, bool *val)
 
 cdef extern void photochemdata_planet_mass_get(PhotochemData *ptr, double *val)
 

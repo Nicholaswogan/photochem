@@ -86,6 +86,14 @@
     val = var%trop_ind
   end subroutine
 
+  subroutine photochemvars_rainfall_rate_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%rainfall_rate
+  end subroutine
+
   subroutine photochemvars_photon_flux_fcn_set(ptr, photon_flux_fcn_c) bind(c)
     use photochem_vars, only: time_dependent_flux_fcn
     type(c_ptr), value, intent(in) :: ptr
@@ -228,6 +236,23 @@
     type(PhotochemVars), pointer :: var
     call c_f_pointer(ptr, var)
     z = var%z
+  end subroutine
+
+  subroutine photochemvars_dz_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    dim1 = size(var%dz,1)
+  end subroutine
+
+  subroutine photochemvars_dz_get(ptr, dim1, dz) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: dz(dim1)
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    dz = var%dz
   end subroutine
   
   subroutine photochemvars_tauc_get_size(ptr, dim1, dim2) bind(c)

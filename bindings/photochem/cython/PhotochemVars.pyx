@@ -123,6 +123,13 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_trop_ind_get(self._ptr, &val)
       return val
 
+  property rainfall_rate:
+    "double. Rainfall rate relative to modern Earth's global average."
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_rainfall_rate_get(self._ptr, &val)
+      return val
+
   property z:
     "ndarray[double,dim=1], shape (nz). The altitude of the center of each atmopsheric layer (cm)"
     def __get__(self):
@@ -130,6 +137,15 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_z_get_size(self._ptr, &dim1)
       cdef ndarray arr = np.empty(dim1, np.double)
       var_pxd.photochemvars_z_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property dz:
+    "ndarray[double,dim=1], shape (nz). Atmospheric layer thicknesses (cm)."
+    def __get__(self):
+      cdef int dim1
+      var_pxd.photochemvars_dz_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      var_pxd.photochemvars_dz_get(self._ptr, &dim1, <double *>arr.data)
       return arr
 
   property photon_flux_fcn:

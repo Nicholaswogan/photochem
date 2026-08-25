@@ -59,6 +59,13 @@ cdef class PhotochemData:
       dat_pxd.photochemdata_nw_get(self._ptr, &val)
       return val
 
+  property gas_rainout:
+    "bool. Whether tropospheric gas rainout is enabled."
+    def __get__(self):
+      cdef bool val
+      dat_pxd.photochemdata_gas_rainout_get(self._ptr, &val)
+      return val
+
   property planet_mass:
     "Planet mass (g)."
     def __get__(self):

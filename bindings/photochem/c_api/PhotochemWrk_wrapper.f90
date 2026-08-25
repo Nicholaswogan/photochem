@@ -352,3 +352,92 @@
     call c_f_pointer(ptr, wrk)
     arr = wrk%pressure_hydro
   end subroutine
+
+  subroutine photochemwrk_scale_height_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    dim1 = size(wrk%scale_height,1)
+  end subroutine
+
+  subroutine photochemwrk_scale_height_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    arr = wrk%scale_height
+  end subroutine
+
+  subroutine photochemwrk_wfall_get_size(ptr, dim1, dim2) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1, dim2
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    dim1 = size(wrk%wfall,1)
+    dim2 = size(wrk%wfall,2)
+  end subroutine
+
+  subroutine photochemwrk_wfall_get(ptr, dim1, dim2, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(out) :: arr(dim1,dim2)
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    arr = wrk%wfall
+  end subroutine
+
+  subroutine photochemwrk_gas_sat_den_get_size(ptr, dim1, dim2) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1, dim2
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    dim1 = size(wrk%gas_sat_den,1)
+    dim2 = size(wrk%gas_sat_den,2)
+  end subroutine
+
+  subroutine photochemwrk_gas_sat_den_get(ptr, dim1, dim2, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(out) :: arr(dim1,dim2)
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    arr = wrk%gas_sat_den
+  end subroutine
+
+  subroutine photochemwrk_molecules_per_particle_get_size(ptr, dim1, dim2) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1, dim2
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    dim1 = size(wrk%molecules_per_particle,1)
+    dim2 = size(wrk%molecules_per_particle,2)
+  end subroutine
+
+  subroutine photochemwrk_molecules_per_particle_get(ptr, dim1, dim2, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(out) :: arr(dim1,dim2)
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    arr = wrk%molecules_per_particle
+  end subroutine
+
+  subroutine photochemwrk_rainout_rates_get_size(ptr, dim1, dim2) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1, dim2
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    dim1 = size(wrk%rainout_rates,1)
+    dim2 = size(wrk%rainout_rates,2)
+  end subroutine
+
+  subroutine photochemwrk_rainout_rates_get(ptr, dim1, dim2, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1, dim2
+    real(c_double), intent(out) :: arr(dim1,dim2)
+    type(PhotochemWrk), pointer :: wrk
+    call c_f_pointer(ptr, wrk)
+    arr = wrk%rainout_rates
+  end subroutine

@@ -447,6 +447,7 @@ contains
     integer :: i, j
 
     ! compute the saturation density
+    gas_sat_den = 0.0_dp
     do j = 1,var%nz
       do i = 1,dat%np
         if (dat%particle_formation_method(i) == CondensingParticle) then
