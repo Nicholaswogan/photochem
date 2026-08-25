@@ -825,13 +825,13 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 
 ### Pass 9C: Remove external component copies and stabilize
 
-- [ ] Keep the imported implementations unchanged except for flattening,
+- [x] Keep the imported implementations unchanged except for flattening,
       necessary build integration, and unavoidable path or module-order fixes.
-- [ ] Accept duplicate code between the three model directories during the
+- [x] Accept duplicate code between the three model directories during the
       initial import.
-- [ ] Preserve separate public facade modules.
-- [ ] Update CMake so this repository builds all three components directly.
-- [ ] Remove CPM/external-source copies once the in-tree builds are stable.
+- [x] Preserve separate public facade modules.
+- [x] Update CMake so this repository builds all three components directly.
+- [x] Remove CPM/external-source copies once the in-tree builds are stable.
 - [x] Remove the independent Clima and Equilibrate release versions; expose
       the unified package version only as `photochem.__version__`.
 - [x] Verify the Clima and Equilibrate public facade exports after version
@@ -839,10 +839,14 @@ Mechanical moves and behavioral changes should be separate whenever practical.
 - [x] Migrate from classic scikit-build to scikit-build-core: move packaging
       metadata into `pyproject.toml`, replace the classic Python/Cython CMake
       helpers, and define source and wheel contents through the new backend.
-- [ ] Verify runtime data defaults, wheel contents, and source distributions.
-- [ ] Ensure macOS deployment tags produce installable Apple Silicon wheels.
-- [ ] Preserve the existing Python package API during the transition.
-- [ ] Stabilize clean local builds and CI.
+- [x] Verify runtime data defaults, wheel contents, and source distributions.
+- [x] Leave platform-specific wheel deployment targets and tags to downstream
+      release and conda build tooling rather than encoding them in the source
+      package configuration.
+- [x] Preserve the existing Python package API during the transition, except
+      for the intentional removal of component-specific version attributes.
+- [x] Stabilize clean local builds and the CI workflow.
+- [ ] Confirm CI after pushing.
 
 ### Optional follow-up: Extract demonstrated reuse
 

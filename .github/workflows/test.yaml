@@ -26,6 +26,7 @@ jobs:
           h5py 
           threadpoolctl
           scikit-build-core
+          python-build
           cmake=3 
           ninja 
           cython 
@@ -86,7 +87,8 @@ jobs:
           -DCMAKE_C_COMPILER=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-cc \
           -DCMAKE_CXX_COMPILER=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-c++ \
           -DCMAKE_Fortran_COMPILER=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gfortran"
-        python -m pip install --no-deps --no-build-isolation . -v
+        python -m build --no-isolation
+        python -m pip install --no-deps --force-reinstall dist/*.whl
 
     - name: test python runtime
       shell: bash -el {0}

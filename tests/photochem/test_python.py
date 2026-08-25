@@ -23,6 +23,29 @@ def test_package_version_ownership():
     assert not hasattr(equilibrate, "__version__")
 
 
+def test_runtime_data_defaults():
+    """Photochem and Clima resolve their default installed data package."""
+    assert Path(photochem.DATA_DIR).is_dir()
+    assert Path(zahnle_earth).is_file()
+
+    pc = EvoAtmosphere(
+        zahnle_earth,
+        fixture_file("settings.yaml"),
+        fixture_file("sun.txt"),
+        fixture_file("atmosphere.txt"),
+    )
+    assert pc.atmosphere_initialized
+
+    clima_test_dir = TEST_DIR.parent / "clima"
+    c = clima.AdiabatClimate(
+        str(clima_test_dir / "species.yaml"),
+        str(clima_test_dir / "settings_adiabat.yaml"),
+        str(clima_test_dir / "sun.txt"),
+        double_radiative_grid=False,
+    )
+    assert c.P.size > 0
+
+
 def _make_file_atmosphere():
     pc = EvoAtmosphere(
         zahnle_earth,
@@ -670,6 +693,7 @@ def test_wrapper():
 def main():
 
     test_package_version_ownership()
+    test_runtime_data_defaults()
     test_static_construction()
     test_evolve_uses_fixed_grid()
     test_gas_giant_static_construction()
