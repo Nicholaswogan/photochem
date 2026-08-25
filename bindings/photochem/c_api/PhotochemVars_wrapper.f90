@@ -496,6 +496,54 @@
     var%max_dt = val
   end subroutine
 
+  subroutine photochemvars_initial_dt_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%initial_dt
+  end subroutine
+
+  subroutine photochemvars_initial_dt_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%initial_dt = val
+  end subroutine
+
+  subroutine photochemvars_max_err_test_failures_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%max_err_test_failures
+  end subroutine
+
+  subroutine photochemvars_max_err_test_failures_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%max_err_test_failures = val
+  end subroutine
+
+  subroutine photochemvars_max_order_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%max_order
+  end subroutine
+
+  subroutine photochemvars_max_order_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%max_order = val
+  end subroutine
+
   subroutine photochemvars_jacobian_method_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
@@ -622,6 +670,22 @@
     type(PhotochemVars), pointer :: var
     call c_f_pointer(ptr, var)
     var%nsteps_before_giveup = val
+  end subroutine
+
+  subroutine photochemvars_reinit_min_density_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%reinit_min_density
+  end subroutine
+
+  subroutine photochemvars_reinit_min_density_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%reinit_min_density = val
   end subroutine
 
   subroutine photochemvars_toa_pressure_maintenance_get(ptr, ptr1) bind(c)

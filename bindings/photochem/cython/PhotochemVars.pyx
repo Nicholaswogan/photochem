@@ -397,6 +397,33 @@ cdef class PhotochemVars:
     def __set__(self, double val):
       var_pxd.photochemvars_max_dt_set(self._ptr, &val)
 
+  property initial_dt:
+    """double. Initial CVODE time step (seconds)."""
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_initial_dt_get(self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.photochemvars_initial_dt_set(self._ptr, &val)
+
+  property max_err_test_failures:
+    """int. Maximum CVODE error-test failures allowed per attempted step."""
+    def __get__(self):
+      cdef int val
+      var_pxd.photochemvars_max_err_test_failures_get(self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      var_pxd.photochemvars_max_err_test_failures_set(self._ptr, &val)
+
+  property max_order:
+    """int. Maximum order used by CVODE's BDF method."""
+    def __get__(self):
+      cdef int val
+      var_pxd.photochemvars_max_order_get(self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      var_pxd.photochemvars_max_order_set(self._ptr, &val)
+
   property jacobian_method:
     """int. Method used to compute the chemistry Jacobian.
 
@@ -481,6 +508,17 @@ cdef class PhotochemVars:
       return val
     def __set__(self, int val):
       var_pxd.photochemvars_nsteps_before_giveup_set(self._ptr, &val)
+
+  property reinit_min_density:
+    """double. Minimum number density retained when robust integration
+    restarts after a recoverable solver failure (molecules/cm^3).
+    """
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_reinit_min_density_get(self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.photochemvars_reinit_min_density_set(self._ptr, &val)
 
   property toa_pressure_maintenance:
     """TOAPressureMaintenance. Optional automatic TOA pressure maintenance settings."""

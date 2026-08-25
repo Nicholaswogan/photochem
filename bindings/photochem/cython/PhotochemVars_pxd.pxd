@@ -100,6 +100,15 @@ cdef extern void photochemvars_conv_longdydt_set(PhotochemVars *ptr, double *val
 cdef extern void photochemvars_max_dt_get(PhotochemVars *ptr, double *val)
 cdef extern void photochemvars_max_dt_set(PhotochemVars *ptr, double *val)
 
+cdef extern void photochemvars_initial_dt_get(PhotochemVars *ptr, double *val)
+cdef extern void photochemvars_initial_dt_set(PhotochemVars *ptr, double *val)
+
+cdef extern void photochemvars_max_err_test_failures_get(PhotochemVars *ptr, int *val)
+cdef extern void photochemvars_max_err_test_failures_set(PhotochemVars *ptr, int *val)
+
+cdef extern void photochemvars_max_order_get(PhotochemVars *ptr, int *val)
+cdef extern void photochemvars_max_order_set(PhotochemVars *ptr, int *val)
+
 cdef extern void photochemvars_jacobian_method_get(PhotochemVars *ptr, int *val)
 cdef extern void photochemvars_jacobian_method_set(PhotochemVars *ptr, int *val)
 
@@ -123,6 +132,9 @@ cdef extern void photochemvars_nsteps_before_reinit_set(PhotochemVars *ptr, int 
 
 cdef extern void photochemvars_nsteps_before_giveup_get(PhotochemVars *ptr, int *val)
 cdef extern void photochemvars_nsteps_before_giveup_set(PhotochemVars *ptr, int *val)
+
+cdef extern void photochemvars_reinit_min_density_get(PhotochemVars *ptr, double *val)
+cdef extern void photochemvars_reinit_min_density_set(PhotochemVars *ptr, double *val)
 
 cdef extern void photochemvars_toa_pressure_maintenance_get(PhotochemVars *ptr, TOAPressureMaintenance **ptr1)
 cdef extern void taopressuremaintenance_enabled_get(TOAPressureMaintenance *ptr, bool *val)
