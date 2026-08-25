@@ -865,8 +865,8 @@ This work is explicitly optional and does not block completion of roadmap item
 
 ### Pass 10: Completion
 
-- [ ] Audit module visibility and remove unintentionally public helpers.
-- [ ] Audit for circular or unnecessary module dependencies.
+- [x] Audit module visibility and remove unintentionally public helpers.
+- [x] Audit for circular or unnecessary module dependencies.
 - [ ] Verify installed Python modules for Photochem, Clima, and Equilibrate.
 - [ ] Verify source distributions and conda builds do not depend on deleted
       external source trees.
