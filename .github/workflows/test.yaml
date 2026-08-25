@@ -25,7 +25,7 @@ jobs:
           astropy 
           h5py 
           threadpoolctl
-          scikit-build 
+          scikit-build-core
           cmake=3 
           ninja 
           cython 

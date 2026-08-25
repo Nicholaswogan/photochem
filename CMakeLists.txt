@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION "3.14")
+cmake_minimum_required(VERSION "3.15")
 # Allow older vendored dependencies to configure with CMake 4.
 set(CMAKE_POLICY_VERSION_MINIMUM "3.5")
 cmake_policy(SET CMP0148 OLD)
@@ -33,9 +33,11 @@ include(cmake/fypp.cmake)
 find_program(FYPP fypp REQUIRED)
 
 # options
-option(SKBUILD "Should be ON of being build by skbuild, 
-and OFF of being build by regular cmake" OFF)
-message(STATUS "The project is built using scikit-build: ${SKBUILD}")
+if (SKBUILD)
+  message(STATUS "The project is built using scikit-build-core ${SKBUILD_CORE_VERSION}")
+else()
+  message(STATUS "The project is built directly with CMake")
+endif()
 
 option(BUILD_EXECUTABLES "if ON, then will build the
 Fortran executables" ON)
@@ -56,24 +58,7 @@ add_subdirectory(src)
 add_subdirectory(tests)
 
 if (BUILD_PYTHON_PHOTOCHEM)
-  if (NOT SKBUILD)
-    if (NOT DEFINED SKBUILD_CMAKE_MODULE_DIR)
-      # Here, we try to find scikit-build cmake modules
-      find_package(Python COMPONENTS Development)
-      set(SKBUILD_CMAKE_MODULE_DIR "${Python_LIBRARY_DIRS}/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}/site-packages/skbuild/resources/cmake")
-    endif()
-    if (EXISTS ${SKBUILD_CMAKE_MODULE_DIR})
-      message(STATUS "Scikit-build CMake modules: ${SKBUILD_CMAKE_MODULE_DIR}")
-    else()
-      message(FATAL_ERROR "Failed to find scikit-build CMake modules in directory: ${SKBUILD_CMAKE_MODULE_DIR}")
-    endif()
-    set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${SKBUILD_CMAKE_MODULE_DIR})
-  endif()
-  
-  find_package(PythonExtensions REQUIRED)
-  find_package(NumPy REQUIRED)
-  find_package(Cython REQUIRED)
-  
+  find_package(Python COMPONENTS Interpreter Development.Module NumPy REQUIRED)
+  include(cmake/cython.cmake)
   add_subdirectory(bindings)
-                
 endif()

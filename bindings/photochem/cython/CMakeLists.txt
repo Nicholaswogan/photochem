@@ -1,11 +1,8 @@
 
-add_cython_target(_photochem _photochem.pyx)
-
 if(WIN32)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DMS_WIN64")
 endif()
 
-add_library(_photochem MODULE ${_photochem})
 set(_photochem_deps
   AtomConservation.pyx
   AtomConservation_pxd.pxd
@@ -21,15 +18,10 @@ set(_photochem_deps
   ProductionLoss.pyx
   ProductionLoss_pxd.pxd
 )
-set_source_files_properties(_photochem.pyx PROPERTIES
-  OBJECT_DEPENDS "${_photochem_deps}"
-)
+add_cython_module(_photochem _photochem.pyx ${_photochem_deps})
 
-python_extension_module(_photochem)
-
-target_link_libraries(_photochem photochem_wrapper)
-target_include_directories(_photochem PUBLIC
-  ${NumPy_INCLUDE_DIRS}
+target_link_libraries(_photochem PRIVATE photochem_wrapper)
+target_include_directories(_photochem PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
 set_property(TARGET _photochem PROPERTY LINKER_LANGUAGE Fortran)

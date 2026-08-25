@@ -836,6 +836,9 @@ Mechanical moves and behavioral changes should be separate whenever practical.
       the unified package version only as `photochem.__version__`.
 - [x] Verify the Clima and Equilibrate public facade exports after version
       consolidation.
+- [x] Migrate from classic scikit-build to scikit-build-core: move packaging
+      metadata into `pyproject.toml`, replace the classic Python/Cython CMake
+      helpers, and define source and wheel contents through the new backend.
 - [ ] Verify runtime data defaults, wheel contents, and source distributions.
 - [ ] Ensure macOS deployment tags produce installable Apple Silicon wheels.
 - [ ] Preserve the existing Python package API during the transition.
