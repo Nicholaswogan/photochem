@@ -79,12 +79,12 @@ def atmosbc2yaml_main(species_file, short_lived = False):
                 elif lbound == 3:
                     lb = {"type": "vdep + dist flux", "vdep": vdep, "flux": sgflux, "height": disth}
                 else:
-                    raise Exception('"'+species_file+'" contains an invalid lower boundary condition')
+                    raise ValueError('"'+species_file+'" contains an invalid lower boundary condition')
 
                 if mbound == 0:
                     ub = {"type": "veff", "veff": veff}
                 elif mbound == 1:
-                    raise Exception('"'+species_file+\
+                    raise ValueError('"'+species_file+\
                         '" contains a fixed mixing ratio upper boundary '+\
                         'condition which is not compatible with Photochem')
                 elif mbound == 2:
@@ -238,7 +238,7 @@ def rx2dict(filename, with_citations = False):
             if with_citations:
                 reaction['citation'] = citation
         else:
-            raise Exception(rx_type+' is an unknown reaction type')
+            raise ValueError(rx_type+' is an unknown reaction type')
                 
         if weird:
             data['weird'].append(reaction)
@@ -314,6 +314,6 @@ def make_rx_yaml(species, particles, rx, photo_database = "Photochem"):
         out['reactions'] = rx['reactions'] + not_missing
         out['missing'] = rx['weird'] + missing
     else:
-        raise Exception('"Photochem" and "Atmos" are the only options for photo_database')
+        raise ValueError('"Photochem" and "Atmos" are the only options for photo_database')
         
     return out

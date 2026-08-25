@@ -633,7 +633,7 @@ cdef class AdiabatClimate:
       cdef int dim1
       wa_pxd.adiabatclimate_make_column_p_guess_get_size(self._ptr, &dim1)
       if arr.shape[0] != dim1:
-        raise ClimaException('"make_column_P_guess" is the wrong size')
+        raise ClimaException('make_column_P_guess must have shape (number_of_gases,).')
       wa_pxd.adiabatclimate_make_column_p_guess_set(self._ptr, &dim1, <double *>arr.data)
 
   property solve_for_T_trop:
@@ -681,7 +681,7 @@ cdef class AdiabatClimate:
       cdef int dim1
       wa_pxd.adiabatclimate_rh_get_size(self._ptr, &dim1)
       if arr.shape[0] != dim1:
-        raise ClimaException('"RH" is the wrong size')
+        raise ClimaException('RH must have shape (number_of_gases,).')
       wa_pxd.adiabatclimate_rh_set(self._ptr, &dim1, <double *>arr.data)
 
   property ocean_args_p:

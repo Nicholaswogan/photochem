@@ -420,7 +420,7 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
     def initialize_picaso_from_clima(self, filename_db, opannection_kwargs={}):
 
         if 'picaso' not in sys.modules:
-            raise Exception('To use picaso, you must first install it.')
+            raise ImportError('PICASO must be installed to use this method.')
 
         # Planet and star
         M_planet = self.thermdat.M_planet/constants.M_earth.to('g').value
@@ -467,22 +467,30 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
     
     def set_custom_albedo_picaso(self, wv, albedo):
         if self.ptherm is None:
-            raise Exception('You must first initialize picaso with `initialize_picaso_from_clima`')
+            raise RuntimeError(
+                'initialize_picaso_from_clima must be called first.'
+            )
         self.ptherm.set_custom_albedo(wv, albedo)
 
     def fpfs_picaso(self, R=100, wavl=None, atmosphere_kwargs={}, **kwargs):
         if self.ptherm is None:
-            raise Exception('You must first initialize picaso with `initialize_picaso_from_clima`')
+            raise RuntimeError(
+                'initialize_picaso_from_clima must be called first.'
+            )
         return self.ptherm.fpfs(self.make_picaso_atm(), R=R, wavl=wavl, atmosphere_kwargs=atmosphere_kwargs, **kwargs)
     
     def brightness_temperature_picaso(self, R=100, wavl=None, atmosphere_kwargs={}, **kwargs):
         if self.ptherm is None:
-            raise Exception('You must first initialize picaso with `initialize_picaso_from_clima`')
+            raise RuntimeError(
+                'initialize_picaso_from_clima must be called first.'
+            )
         return self.ptherm.brightness_temperature(self.make_picaso_atm(), R=R, wavl=wavl, atmosphere_kwargs=atmosphere_kwargs, **kwargs)
 
     def rprs2_picaso(self, R=100, wavl=None, atmosphere_kwargs={}, **kwargs):
         if self.ptherm is None:
-            raise Exception('You must first initialize picaso with `initialize_picaso_from_clima`')
+            raise RuntimeError(
+                'initialize_picaso_from_clima must be called first.'
+            )
         return self.ptherm.rprs2(self.make_picaso_atm(), R=R, wavl=wavl, atmosphere_kwargs=atmosphere_kwargs, **kwargs)
 
 ###
@@ -492,7 +500,7 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
     def create_exo_dict(self, total_observing_time, eclipse_duration, kmag, starpath, calculation):
 
         if 'pandexo' not in sys.modules:
-            raise Exception('To use pandexo, you must first install it.')
+            raise ImportError('PandExo must be installed to use this method.')
 
         exo_dict = pandexo_jdi.load_exo_dict()
 
@@ -526,7 +534,7 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
         elif calculation == 'transmission':
             exo_dict['planet']['f_unit'] = 'rp^2/r*^2'
         else:
-            raise Exception('`calculation` must be "thermal" or "transmission"')
+            raise ValueError('calculation must be "thermal" or "transmission".')
 
         return exo_dict
     
@@ -551,7 +559,7 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
     def _run_pandexo(self, total_observing_time, eclipse_duration, kmag, inst, calculation, verbose=False, **kwargs):
 
         if 'pandexo' not in sys.modules:
-            raise Exception('To use pandexo, you must first install it.')
+            raise ImportError('PandExo must be installed to use this method.')
 
         with NamedTemporaryFile('w') as f:
             

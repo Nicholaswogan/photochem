@@ -436,7 +436,10 @@ def solar_spectrum(outputfile=None, age=0.0, append_blackbody=True, Teq=None, st
 
     # Error if download didn't work.
     if response.status_code != 200:
-        raise Exception("Failed to download the Modern Sun's spectrum")
+        raise requests.HTTPError(
+            "Failed to download the Modern Sun's spectrum",
+            response=response,
+        )
     
     # Get wavelength and flux
     lines = response.content.decode().split('\n')
@@ -511,7 +514,10 @@ def hazmat_spectrum(star_name, model='model', outputfile=None, Teq=None, stellar
     response = requests.get(url)
 
     if response.status_code != 200:
-        raise Exception('Failed to download '+star_name+' from HAZMAT')
+        raise requests.HTTPError(
+            'Failed to download '+star_name+' from HAZMAT',
+            response=response,
+        )
     
     with tempfile.TemporaryFile() as f:
         f.write(response.content)
@@ -585,7 +591,7 @@ def download_muscles_spectrum(star_name, verbose):
 
     # If we didn't find it, then we report a problem
     if tmp is None:
-        raise Exception('Failed to download '+star_name+' from MUSCLES')
+        raise ValueError('No MUSCLES spectrum was found for '+star_name)
 
     # Build the URL
     uri = tmp['dataURI']
@@ -598,7 +604,10 @@ def download_muscles_spectrum(star_name, verbose):
     # Download
     response = requests.get(url)
     if response.status_code != 200:
-        raise Exception('Failed to download '+star_name+' from MUSCLES')
+        raise requests.HTTPError(
+            'Failed to download '+star_name+' from MUSCLES',
+            response=response,
+        )
 
     # Read the download  
     with tempfile.TemporaryFile() as f:

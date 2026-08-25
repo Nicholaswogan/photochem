@@ -79,7 +79,7 @@ cdef class ChemEquiAnalysis:
       species_c = list2cstring(species, S_STR_LEN)
 
     if atoms_present and species_present:
-      raise EquilibrateException('"atoms" and "species" can not both be inputs.')
+      raise EquilibrateException('atoms and species cannot both be provided.')
     
     # Initialize
     cea_pxd.chemequianalysis_create_wrapper(self._ptr, thermofile_c,
@@ -228,7 +228,9 @@ cdef class ChemEquiAnalysis:
       cdef int dim1
       cea_pxd.chemequianalysis_molfracs_atoms_sun_get_size(self._ptr, &dim1)
       if arr.shape[0] != dim1:
-        raise EquilibrateException("Input array is the wrong size.")
+        raise EquilibrateException(
+          'molfracs_atoms_sun must have shape (number_of_atoms,).'
+        )
       cea_pxd.chemequianalysis_molfracs_atoms_sun_set(self._ptr, &dim1, <double *>arr.data)
 
   property molfracs_atoms:
@@ -344,10 +346,12 @@ cdef list2cstring(list arr, int str_len):
   arr_c = np.zeros(len(arr)*str_len + 1, 'S1')
   for i in range(len(arr)):
     if len(arr[i]) > str_len:
-          raise Exception('Failed to convert Python list to a C string')
+          raise EquilibrateException(
+            'A list entry exceeds the supported string length.'
+          )
     arr_c[i*str_len:(i+1)*str_len] = b' '
     arr_c[i*str_len:i*str_len+len(arr[i])] = np.array([elem.encode('utf-8') for elem in arr[i]])
   return arr_c
 
 class EquilibrateException(Exception):
-    pass
+    """Error reported by the compiled Equilibrate model or its Python wrapper."""

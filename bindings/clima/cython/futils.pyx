@@ -10,7 +10,7 @@ cdef void rebin_error_message(int ierr):
       err
     )
     if len(err.strip()) > 0:
-      raise Exception(err.decode().strip())
+      raise ClimaException(err.decode().strip())
 
 cpdef rebin(ndarray[double, ndim=1] old_bins, ndarray[double, ndim=1]  old_vals, ndarray[double, ndim=1]  new_bins):
   """Rebins `old_vals` defined on `old_bins` to `new_bins`. An example is

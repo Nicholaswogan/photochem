@@ -193,7 +193,7 @@ cdef class PhotochemWrk:
       wrk_pxd.photochemwrk_usol_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray usol_new = np.asfortranarray(usol_new_)
       if usol_new.shape[0] != dim1 or usol_new.shape[1] != dim2:
-        raise PhotoException("Input usol is the wrong size.")
+        raise PhotoException("usol must have shape (nq, nz).")
       wrk_pxd.photochemwrk_usol_set(self._ptr, &dim1, &dim2, <double *>usol_new.data)  
   
   property pressure:

@@ -97,7 +97,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_particle_radius_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray arr_ = np.asfortranarray(arr)
       if arr_.shape[0] != dim1 or arr_.shape[1] != dim2:
-        raise PhotoException("Input array is the wrong size.")
+        raise PhotoException("particle_radius must have shape (np, nz).")
       var_pxd.photochemvars_particle_radius_set(self._ptr, &dim1, &dim2, <double *>arr_.data)
 
   property diurnal_fac:
@@ -207,7 +207,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_edd_get_size(self._ptr, &dim1)
       cdef ndarray edd_new = np.asfortranarray(edd_new_)
       if edd_new.shape[0] != dim1:
-        raise PhotoException("Input edd is the wrong size.")
+        raise PhotoException("edd must have shape (nz,).")
       var_pxd.photochemvars_edd_set(self._ptr, &dim1, <double *>edd_new.data)
 
   property custom_binary_diffusion_fcn:
@@ -261,7 +261,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_tauc_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.asfortranarray(arr_)
       if arr.shape[0] != dim1 or arr.shape[1] != dim2:
-        raise PhotoException("Input is the wrong size.")
+        raise PhotoException("tauc must have shape (nz, nw).")
       var_pxd.photochemvars_tauc_set(self._ptr, &dim1, &dim2, <double *>arr.data)  
 
   property w0c:
@@ -277,7 +277,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_w0c_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.asfortranarray(arr_)
       if arr.shape[0] != dim1 or arr.shape[1] != dim2:
-        raise PhotoException("Input is the wrong size.")
+        raise PhotoException("w0c must have shape (nz, nw).")
       var_pxd.photochemvars_w0c_set(self._ptr, &dim1, &dim2, <double *>arr.data)  
 
   property g0c:
@@ -293,7 +293,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_g0c_get_size(self._ptr, &dim1, &dim2)
       cdef ndarray arr = np.asfortranarray(arr_)
       if arr.shape[0] != dim1 or arr.shape[1] != dim2:
-        raise PhotoException("Input is the wrong size.")
+        raise PhotoException("g0c must have shape (nz, nw).")
       var_pxd.photochemvars_g0c_set(self._ptr, &dim1, &dim2, <double *>arr.data)  
 
   property max_error_reinit_attempts:

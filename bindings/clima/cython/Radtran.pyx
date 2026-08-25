@@ -137,7 +137,7 @@ cdef class Radtran:
       cdef int dim1
       rad_pxd.radtran_zenith_u_get_size(self._ptr, &dim1)
       if arr.shape[0] != dim1:
-        raise ClimaException('"zenith_u" is the wrong size')
+        raise ClimaException('zenith_u must have shape (number_of_zeniths,).')
       rad_pxd.radtran_zenith_u_set(self._ptr, &dim1, <double *>arr.data)
 
   property surface_albedo:
@@ -152,7 +152,7 @@ cdef class Radtran:
       cdef int dim1
       rad_pxd.radtran_surface_albedo_get_size(self._ptr, &dim1)
       if arr.shape[0] != dim1:
-        raise ClimaException('"surface_albedo" is the wrong size')
+        raise ClimaException('surface_albedo must match the solar wavelength grid.')
       rad_pxd.radtran_surface_albedo_set(self._ptr, &dim1, <double *>arr.data)
 
   property surface_emissivity:
@@ -167,7 +167,7 @@ cdef class Radtran:
       cdef int dim1
       rad_pxd.radtran_surface_emissivity_get_size(self._ptr, &dim1)
       if arr.shape[0] != dim1:
-        raise ClimaException('"surface_emissivity" is the wrong size')
+        raise ClimaException('surface_emissivity must match the IR wavelength grid.')
       rad_pxd.radtran_surface_emissivity_set(self._ptr, &dim1, <double *>arr.data)
 
   property has_hard_surface:

@@ -1,7 +1,7 @@
 import numpy as np
 from pathlib import Path
 
-from photochem.equilibrate import ChemEquiAnalysis
+from photochem.equilibrate import ChemEquiAnalysis, EquilibrateException
 
 def main():
     atoms = [
@@ -47,6 +47,14 @@ def main():
 
     # 
     thermofile = Path(__file__).with_name('thermo_easy_chem_simp_own.yaml')
+
+    try:
+        ChemEquiAnalysis(str(thermofile), atoms=['H' * 21])
+    except EquilibrateException as exc:
+        assert 'supported string length' in str(exc)
+    else:
+        raise AssertionError('invalid atom name did not raise EquilibrateException')
+
     cea = ChemEquiAnalysis(str(thermofile), atoms=atoms)
     converged = cea.solve(1.0e6, 1000.0, molfracs_atoms=X)
     

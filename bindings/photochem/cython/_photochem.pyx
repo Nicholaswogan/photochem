@@ -42,4 +42,4 @@ cdef c2stringarr(ndarray c_str_arr, int str_len, int arr_len):
   return [bs[i:i+str_len].decode().strip() for i in range(0, str_len*arr_len, str_len)]
 
 class PhotoException(Exception):
-    pass
+    """Error reported by the compiled Photochem model or its Python wrapper."""

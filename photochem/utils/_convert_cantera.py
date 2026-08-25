@@ -44,7 +44,7 @@ def photochem2cantera_main(data):
             
         # check for JPL falloff. 
         if rxt == "falloff" and 'JPL' in data['reactions'][i]:
-            raise Exception("Reaction "+data['reactions'][i]['equation']\
+            raise ValueError("Reaction "+data['reactions'][i]['equation']\
             +" has a JPL falloff function, which does not work with Cantera")
             
     data['reactions'] = reactions_new
@@ -59,7 +59,7 @@ def photochem2cantera_main(data):
     # delete reverse-reactions
     if "reverse-reactions" in data:
         if data['reverse-reactions'] == False:
-            raise Exception("Can only convert to Cantera if reactions are reversable")
+            raise ValueError("Can only convert to Cantera if reactions are reversible")
         del data['reverse-reactions']  
 
     # Cantera can't handle > 2 temperature ranges for thermodynamic data

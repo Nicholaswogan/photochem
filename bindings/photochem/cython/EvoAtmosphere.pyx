@@ -401,7 +401,7 @@ cdef class EvoAtmosphere:
     cdef int nz = self.var.nz
     cdef ndarray usol_ = np.asfortranarray(usol)
     if usol_.shape[0] != nq or usol_.shape[1] != nz:
-      raise PhotoException("Input usol is the wrong size.")
+      raise PhotoException("usol must have shape (nq, nz).")
       
     ea_pxd.evoatmosphere_prep_atmosphere_wrapper(self._ptr, &nq, &nz, <double *>usol_.data, err)
     if len(err.strip()) > 0:
@@ -902,7 +902,7 @@ cdef class EvoAtmosphere:
     cdef int nt = t_eval.size
     cdef ndarray usol_ = np.asfortranarray(usol)
     if usol_.shape[0] != nq or usol_.shape[1] != nz:
-      raise PhotoException("Input usol is the wrong size.")
+      raise PhotoException("usol must have shape (nq, nz).")
       
     ea_pxd.evoatmosphere_evolve_wrapper(self._ptr, filename_c, &tstart, &nq, &nz, <double *>usol_.data, &nt, <double *>t_eval.data, &overwrite, &restart_from_file, &success, err)
     if len(err.strip()) > 0:
@@ -948,7 +948,7 @@ cdef class EvoAtmosphere:
     cdef int nz = self.var.nz
     cdef ndarray usol_start_ = np.asfortranarray(usol_start)
     if usol_start_.shape[0] != nq or usol_start_.shape[1] != nz:
-      raise PhotoException("Input usol_start is the wrong size.")
+      raise PhotoException("usol_start must have shape (nq, nz).")
     ea_pxd.evoatmosphere_initialize_stepper_wrapper(self._ptr, &nq, &nz,  <double *>usol_start_.data, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -1007,7 +1007,7 @@ cdef class EvoAtmosphere:
     cdef int nz = self.var.nz
     cdef ndarray usol_start_ = np.asfortranarray(usol_start)
     if usol_start_.shape[0] != nq or usol_start_.shape[1] != nz:
-      raise PhotoException("Input usol_start is the wrong size.")
+      raise PhotoException("usol_start must have shape (nq, nz).")
     ea_pxd.evoatmosphere_initialize_robust_stepper_wrapper(self._ptr, &nq, &nz,  <double *>usol_start_.data, err)
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -1100,7 +1100,7 @@ cdef class EvoAtmosphere:
     cdef int nz = self.var.nz
     cdef ndarray usol_ = np.asfortranarray(usol)
     if usol_.shape[0] != nq or usol_.shape[1] != nz:
-      raise PhotoException("Input usol is the wrong size.")
+      raise PhotoException("usol must have shape (nq, nz).")
       
     cdef pl_pxd.ProductionLoss *pl_ptr
     ea_pxd.evoatmosphere_production_and_loss_wrapper(self._ptr, species_c, &nq, &nz, <double *>usol_.data, &pl_ptr, err)

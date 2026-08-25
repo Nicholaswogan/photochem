@@ -46,6 +46,20 @@ def test_runtime_data_defaults():
     assert c.P.size > 0
 
 
+def test_component_error_contracts():
+    """Compiled-model failures use their component-specific exceptions."""
+    try:
+        clima.rebin(
+            np.array([1.0, 2.0]),
+            np.array([1.0, 2.0]),
+            np.array([1.0, 2.0]),
+        )
+    except clima.ClimaException as exc:
+        assert "old_bins" in str(exc)
+    else:
+        raise AssertionError("invalid rebin input did not raise ClimaException")
+
+
 def test_exposed_photochem_state():
     """Useful prepared-state diagnostics are available through Python."""
     pc = _make_file_atmosphere()
@@ -316,6 +330,22 @@ def test_gas_giant_static_construction():
     )
 
     assert not pc.atmosphere_initialized
+
+    try:
+        pc.return_atmosphere()
+    except RuntimeError as exc:
+        assert "initialized gas-giant atmosphere" in str(exc)
+    else:
+        raise AssertionError("uninitialized gas-giant output did not fail")
+
+    try:
+        pc.initialize_to_climate_equilibrium_PT(
+            np.ones(2), np.ones(3), np.ones(2), 1.0, 1.0
+        )
+    except ValueError as exc:
+        assert "P_in and T_in" in str(exc)
+    else:
+        raise AssertionError("mismatched gas-giant profiles did not fail")
 
     pressure = np.array([1.0e6, 1.0e5, 1.0e4, 1.0e2])
     temperature = np.array([300.0, 260.0, 220.0, 180.0])
@@ -765,6 +795,7 @@ def main():
 
     test_package_version_ownership()
     test_runtime_data_defaults()
+    test_component_error_contracts()
     test_exposed_photochem_state()
     test_solver_controls_api()
     test_static_construction()

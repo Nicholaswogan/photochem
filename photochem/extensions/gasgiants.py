@@ -155,9 +155,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         target_pressure = self._toa_pressure_target()
 
         if P_in.shape[0] != T_in.shape[0]:
-            raise Exception('Input P and T must have same shape')
+            raise ValueError('P_in and T_in must have the same length.')
         if P_in.shape[0] != Kzz_in.shape[0]:
-            raise Exception('Input P and Kzz must have same shape')
+            raise ValueError('P_in and Kzz_in must have the same length.')
 
         # Save inputs
         gdat.P_clima_grid = P_in.copy()
@@ -236,7 +236,10 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         # Bottom of photochemical model will be at a pressure a factor
         # larger than the predicted quench pressure.
         if P1[ind]*gdat.BOA_pressure_factor > P1[0]:
-            raise Exception('BOA in photochemical model wants to be deeper than BOA of climate model.')
+            raise ValueError(
+                'The climate pressure grid does not extend deeply enough for '
+                'the requested photochemical lower boundary.'
+            )
         gdat.ind_b = np.argmin(np.abs(P1 - P1[ind]*gdat.BOA_pressure_factor))
         
         self._initialize_atmosphere(P1, T1, Kzz1, z1, mix1)
@@ -262,19 +265,25 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         target_pressure = self._toa_pressure_target()
 
         if gdat.P_clima_grid is None:
-            raise Exception('This routine can only be called after `initialize_to_climate_equilibrium_PT`')
+            raise RuntimeError(
+                'reinitialize_to_new_climate_PT requires a prior call to '
+                'initialize_to_climate_equilibrium_PT.'
+            )
         if not np.all(np.isclose(gdat.P_clima_grid,P_in)):
-            raise Exception('Input pressure grid does not match saved pressure grid')
+            raise ValueError('P_in does not match the saved climate pressure grid.')
         if P_in.shape[0] != T_in.shape[0]:
-            raise Exception('Input P and T must have same shape')
+            raise ValueError('P_in and T_in must have the same length.')
         if P_in.shape[0] != Kzz_in.shape[0]:
-            raise Exception('Input P and Kzz must have same shape')
+            raise ValueError('P_in and Kzz_in must have the same length.')
         for key in mix:
             if P_in.shape[0] != mix[key].shape[0]:
-                raise Exception('Input P and mix must have same shape')
+                raise ValueError(
+                    f'The mixing-ratio profile for {key!r} must have the '
+                    'same length as P_in.'
+                )
         # Require all gases be specified. Particles can be ignored.
         if set(list(mix.keys())) != set(self.dat.species_names[self.dat.np:(-2-self.dat.nsl)]):
-            raise Exception('Some species are missing from input mix') 
+            raise ValueError('mix must contain every gas species and no extra species.')
 
         # Save the newly prescribed climate-grid profiles. The pressure grid
         # is required to match the one saved during initial initialization.
@@ -326,13 +335,13 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         z1 = np.asarray(z1)
         top_candidates = np.flatnonzero(P1 <= target_pressure)
         if top_candidates.size == 0:
-            raise Exception(
+            raise ValueError(
                 'The supplied pressure profile does not reach the requested '
                 'photochemical model top.'
             )
         ind_t = top_candidates[0]
         if ind_t <= gdat.ind_b:
-            raise Exception('The photochemical pressure domain is empty.')
+            raise ValueError('The requested photochemical pressure domain is empty.')
 
         if np.isclose(P1[ind_t], target_pressure, rtol=1.0e-12, atol=0.0):
             inds = slice(gdat.ind_b, ind_t + 1)
@@ -425,7 +434,10 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         gdat = self.gdat
 
         if gdat.P_clima_grid is None:
-            raise Exception('This routine can only be called after `initialize_to_climate_equilibrium_PT`')
+            raise RuntimeError(
+                'return_atmosphere_climate_grid requires an initialized '
+                'gas-giant atmosphere.'
+            )
 
         # return full atmosphere
         out = self.return_atmosphere()
@@ -467,7 +479,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         gdat = self.gdat      
 
         if gdat.P_clima_grid is None:
-            raise Exception('This routine can only be called after `initialize_to_climate_equilibrium_PT`')
+            raise RuntimeError(
+                'return_atmosphere requires an initialized gas-giant atmosphere.'
+            )
 
         out = {}
         out['pressure'] = self.wrk.pressure_hydro
@@ -544,7 +558,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         gdat = self.gdat
 
         if gdat.P_clima_grid is None:
-            raise Exception('This routine can only be called after `initialize_to_climate_equilibrium_PT`')
+            raise RuntimeError(
+                'model_state_to_dict requires an initialized gas-giant atmosphere.'
+            )
 
         out = {}
         out['P_clima_grid'] = gdat.P_clima_grid
@@ -778,7 +794,7 @@ def compute_altitude_of_PT(P, P_ref, T, mubar, planet_radius, planet_mass, P_top
 
     # Make sure P_ref is in the P grid
     if P_ref > P_[0] or P_ref < P_[-1]:
-        raise Exception('Reference pressure must be within P grid.')
+        raise ValueError('P_ref must lie within the pressure grid.')
     
     # Find first index with lower pressure than P_ref
     ind = 0
@@ -789,10 +805,18 @@ def compute_altitude_of_PT(P, P_ref, T, mubar, planet_radius, planet_mass, P_top
 
     # Integrate from P_ref to TOA
     out2 = integrate.solve_ivp(hydrostatic_equation, [P_ref, P_[-1]], np.array([0.0]), t_eval=P_[ind:], args=args, rtol=1e-6)
-    assert out2.success
+    if not out2.success:
+        raise RuntimeError(
+            'Hydrostatic integration from P_ref to the model top failed: '
+            + out2.message
+        )
     # Integrate from P_ref to BOA
     out1 = integrate.solve_ivp(hydrostatic_equation, [P_ref, P_[0]], np.array([0.0]), t_eval=P_[:ind][::-1], args=args, rtol=1e-6)
-    assert out1.success
+    if not out1.success:
+        raise RuntimeError(
+            'Hydrostatic integration from P_ref to the model bottom failed: '
+            + out1.message
+        )
 
     # Stitch together
     z_ = np.append(out1.y[0][::-1],out2.y[0])
@@ -834,9 +858,9 @@ def composition_at_metallicity(gas, T, P, CtoO, metal, rainout_condensed_atoms =
     if isinstance(P, float) or isinstance(P, int):
         P = np.array([P],np.float64)
     if not isinstance(P, np.ndarray):
-        raise ValueError('"P" must by an np.ndarray')
+        raise ValueError('P must be a NumPy array.')
     if not isinstance(T, np.ndarray):
-        raise ValueError('"P" must by an np.ndarray')
+        raise ValueError('T must be a NumPy array.')
     if T.ndim != 1:
         raise ValueError('"T" must have one dimension')
     if P.ndim != 1:

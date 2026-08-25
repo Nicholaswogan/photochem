@@ -30,10 +30,10 @@ cdef list2cstring(list arr, int str_len):
   arr_c = np.zeros(len(arr)*str_len + 1, 'S1')
   for i in range(len(arr)):
     if len(arr[i]) > str_len:
-          raise Exception('Failed to convert Python list to a C string')
+          raise ClimaException('A list entry exceeds the supported string length.')
     arr_c[i*str_len:(i+1)*str_len] = b' '
     arr_c[i*str_len:i*str_len+len(arr[i])] = np.array([elem.encode('utf-8') for elem in arr[i]])
   return arr_c
 
 class ClimaException(Exception):
-    pass
+    """Error reported by the compiled Clima model or its Python wrapper."""
