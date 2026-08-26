@@ -206,6 +206,7 @@ The preferred repository layout is:
 ```text
 mkdocs.yml
 docs/
+    README.md
     index.md
     installation.md
     tutorials/
@@ -236,9 +237,12 @@ with unrelated code changes.
   and mathematical rendering.
 - [x] Configure Jupytext notebook discovery without adding real tutorials yet.
 - [x] Add placeholder pages only where needed to validate navigation.
-- [x] Document the local preview and strict-build commands.
-- [x] Verify that `mkdocs build --strict` succeeds from the configured
-  `photochem` environment. Clean-environment automation is added in Pass 9.
+- [x] Establish `docs/README.md` as the concise maintainer guide for building
+  and previewing the documentation. Keep it current as dependencies, tutorial
+  execution, validation, and deployment evolve.
+- [x] Verify that `mkdocs build --strict` succeeds from a development
+  environment containing the documented dependencies. Clean-environment
+  automation is added in Pass 9.
 
 The goal of this pass is a plain but functional website. Custom branding,
 versioning, deployment, and extensive styling should not delay it.

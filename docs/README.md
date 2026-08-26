@@ -1,17 +1,16 @@
 # Building the documentation
 
-Install the documentation dependencies into the `photochem` conda environment:
+Activate a development environment of your choice, then install the
+documentation dependencies:
 
 ```sh
-mamba install -n photochem -c conda-forge \
+mamba install -c conda-forge \
   mkdocs mkdocs-material mkdocs-jupyter jupytext matplotlib
 ```
 
-Activate the environment and start the local preview server from the repository
-root:
+From the repository root, start the local preview server with:
 
 ```sh
-conda activate photochem
 mkdocs serve
 ```
 
