@@ -26,7 +26,7 @@ module clima_adiabat_general
     real(dp), pointer :: T_surf
     real(dp), pointer :: rtol
     real(dp), pointer :: atol
-    !> Ouput
+    !> Output
     real(dp), pointer :: P(:)
     real(dp), pointer :: z(:)
     real(dp), pointer :: T(:)

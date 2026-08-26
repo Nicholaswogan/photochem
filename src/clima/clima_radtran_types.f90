@@ -260,12 +260,13 @@ module clima_radtran_types
     enumerator :: SolarChannel, IRChannel
   end enum
 
+  !> Spectral-grid metadata for one radiative-transfer channel.
   type :: RTChannel
-    integer :: channel_type
-    integer :: ind_start, ind_end
-    integer :: nw
-    real(dp), allocatable :: wavl(:)
-    real(dp), allocatable :: freq(:)
+    integer :: channel_type !! `SolarChannel` or `IRChannel`.
+    integer :: ind_start, ind_end !! Inclusive indices into the full opacity grid.
+    integer :: nw !! Number of spectral bins.
+    real(dp), allocatable :: wavl(:) !! Spectral-bin edges, shape `(nw+1)` (nm).
+    real(dp), allocatable :: freq(:) !! Spectral-bin edges, shape `(nw+1)` (Hz).
   end type
   interface
     module function create_RTChannel(datadir, channel_type, wavelength_bins_file, op, err) result(rtc)
@@ -425,15 +426,20 @@ contains
 
   end function
 
-  !> Sets custom optical properties
+  !> Set pressure-dependent custom optical properties.
+  !!
+  !! All property arrays have shape `(size(P),size(wv))`. Pressure must be
+  !! strictly decreasing and wavelengths strictly increasing; both grids must
+  !! be positive. The profiles are retained as interpolation data for subsequent
+  !! opacity calculations.
   subroutine OpticalProperties_set_custom_optical_properties(self, wv, P, dtau_dz, w0, g0, err)
     use futils, only: interp
     class(OpticalProperties), intent(inout) :: self
-    real(dp), intent(in) :: wv(:) !! Array of of wavelengths in nm
-    real(dp), intent(in) :: P(:) !! Array of pressures in dynes/cm^2. Must be decreasing.
-    real(dp), intent(in) :: dtau_dz(:,:) !! (size(P),size(wv)), Optical depth per altitude (1/cm).
-    real(dp), intent(in) :: w0(:,:) !! (size(P),size(wv)), Single scattering albedo
-    real(dp), intent(in) :: g0(:,:) !! (size(P),size(wv)), Asymmetry parameter
+    real(dp), intent(in) :: wv(:) !! Wavelengths (nm).
+    real(dp), intent(in) :: P(:) !! Pressure grid (dyn/cm^2).
+    real(dp), intent(in) :: dtau_dz(:,:) !! Optical depth per altitude (1/cm).
+    real(dp), intent(in) :: w0(:,:) !! Dimensionless single-scattering albedo.
+    real(dp), intent(in) :: g0(:,:) !! Dimensionless asymmetry parameter.
     character(:), allocatable, intent(out) :: err
     
     real(dp), allocatable :: wv1(:), log10P(:), dtau_dz_tmp(:,:), w0_tmp(:,:), g0_tmp(:,:)
@@ -532,7 +538,7 @@ contains
 
   end subroutine
 
-  !> Unsets custom optical properties set with `set_custom_optical_properties`.
+  !> Remove custom optical properties installed by `set_custom_optical_properties`.
   subroutine OpticalProperties_unset_custom_optical_properties(self)
     class(OpticalProperties), intent(inout) :: self
     if (allocated(self%dtau_dz_interp)) then
@@ -546,12 +552,12 @@ contains
   subroutine OpticalProperties_custom_optical_properties(self, log10P, dz, l, tau, w0, g0)
     use clima_eqns, only: ten2power
     class(OpticalProperties), intent(inout) :: self
-    real(dp), intent(in) :: log10P(:) !! Pressure in dynes/cm^2
+    real(dp), intent(in) :: log10P(:) !! Base-10 logarithm of pressure in dyn/cm^2.
     real(dp), intent(in) :: dz(:) !! Layer thickness in cm
     integer, intent(in) :: l !! Wavelength index
     real(dp), intent(out) :: tau(:) !! (nz), Optical depth.
     real(dp), intent(out) :: w0(:) !! (nz), Single scattering albedo
-    real(dp), intent(out) :: g0(:) !! (nz), Asymetry parameter
+    real(dp), intent(out) :: g0(:) !! Asymmetry parameter, shape `(nz)`.
 
     integer :: j
 
@@ -579,8 +585,7 @@ contains
 
     real(dp), intent(in) :: P(:) !! (nz) Pressure (bars)
     real(dp), intent(in) :: T(:) !! (nz) Temperature (K) 
-    real(dp), intent(in) :: densities(:,:) !! (nz,ng) number density of each 
-                                           !! molecule in each layer (molcules/cm3)
+    real(dp), intent(in) :: densities(:,:) !! Gas number densities, shape `(nz,ng)` (molecules/cm^3).
     real(dp), intent(in) :: dz(:) !! (nz) thickness of each layer (cm)
     real(dp), optional, intent(in) :: pdensities(:,:) !! (nz,np) particles/cm3
     real(dp), optional, intent(in) :: radii(:,:) !! (nz,np) cm

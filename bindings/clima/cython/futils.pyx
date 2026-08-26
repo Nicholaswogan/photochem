@@ -13,24 +13,31 @@ cdef void rebin_error_message(int ierr):
       raise ClimaException(err.decode().strip())
 
 cpdef rebin(ndarray[double, ndim=1] old_bins, ndarray[double, ndim=1]  old_vals, ndarray[double, ndim=1]  new_bins):
-  """Rebins `old_vals` defined on `old_bins` to `new_bins`. An example is
-  rebinning a high resolution spectra of infrared emission of Earth 
-  to a lower resolution. I have optimized the routine for downbinning
-  data. Upbinning seems like an unlikely application.
+  """Rebin piecewise-constant values by overlap-weighted averaging.
+
+  This routine is optimized for down-binning, such as reducing the resolution
+  of a spectrum. Both edge arrays must be strictly increasing. Portions of new
+  bins outside the old-bin extent receive no contribution.
 
   Parameters
   ----------
-  old_bins : ndarray[double,ndim=1]
-      Edges of bins for which old_vals are defined
-  old_vals : ndarray[double,ndim=1]
-      Values defined on old_bins.
-  new_bins : ndarray[double,ndim=1]
-      Edges of target bin that you want to rebin to.
+  old_bins : ndarray, shape (n_old + 1,)
+      Original bin edges.
+  old_vals : ndarray, shape (n_old,)
+      Piecewise-constant values in the original bins.
+  new_bins : ndarray, shape (n_new + 1,)
+      Target bin edges.
 
   Returns
   -------
-  new_vals : ndarray[double,ndim=1]
-      Values defined on new_bins.
+  ndarray, shape (n_new,)
+      Overlap-weighted values in the target bins.
+
+  Raises
+  ------
+  ClimaException
+      If array lengths are inconsistent or either edge array is not strictly
+      increasing.
   """
 
   cdef int old_bins_len = old_bins.shape[0]
@@ -53,26 +60,33 @@ cpdef rebin(ndarray[double, ndim=1] old_bins, ndarray[double, ndim=1]  old_vals,
   return new_vals
 
 cpdef rebin_with_errors(ndarray[double, ndim=1] old_bins, ndarray[double, ndim=1]  old_vals, ndarray[double, ndim=1]  old_errs, ndarray[double, ndim=1]  new_bins):
-  """Rebins `old_vals` and `old_errs` defined on `old_bins` to `new_bins`. This function has
-  the same behavior as `rebin`, except it also rebins errors.
+  """Rebin piecewise-constant values and independent standard deviations.
+
+  Values use the same overlap-weighted averaging as ``rebin``. Variances are
+  propagated in quadrature. Unlike ``rebin``, the target-bin extent must lie
+  within the original-bin extent.
 
   Parameters
   ----------
-  old_bins : ndarray[double,ndim=1]
-      Edges of bins for which old_vals are defined
-  old_vals : ndarray[double,ndim=1]
-      Values defined on old_bins.
-  old_errs : ndarray[double,ndim=1]
-      Standard deviations defined on old_bins.
-  new_bins : ndarray[double,ndim=1]
-      Edges of target bin that you want to rebin to.
+  old_bins : ndarray, shape (n_old + 1,)
+      Original bin edges.
+  old_vals : ndarray, shape (n_old,)
+      Piecewise-constant values in the original bins.
+  old_errs : ndarray, shape (n_old,)
+      Nonnegative standard deviations in the original bins.
+  new_bins : ndarray, shape (n_new + 1,)
+      Target bin edges.
 
   Returns
   -------
-  new_vals : ndarray[double,ndim=1]
-      Values defined on new_bins.
-  new_errs : ndarray[double,ndim=1]
-      Standard deviations defined on new_bins.
+  tuple[ndarray, ndarray]
+      Re-binned values and standard deviations, each with shape ``(n_new,)``.
+
+  Raises
+  ------
+  ClimaException
+      If shapes or bin extents are inconsistent, edges are not strictly
+      increasing, or an input standard deviation is negative.
   """
 
   cdef int old_bins_len = old_bins.shape[0]

@@ -153,6 +153,12 @@ cdef extern void adiabatclimate_lapse_rate_intended_get(AdiabatClimate *ptr, int
 
 cdef extern void adiabatclimate_convective_newton_step_size_get(AdiabatClimate *ptr, double *val)
 cdef extern void adiabatclimate_convective_newton_step_size_set(AdiabatClimate *ptr, double *val)
+cdef extern void adiabatclimate_convective_hysteresis_frac_on_get(AdiabatClimate *ptr, double *val)
+cdef extern void adiabatclimate_convective_hysteresis_frac_on_set(AdiabatClimate *ptr, double *val)
+cdef extern void adiabatclimate_convective_hysteresis_frac_off_get(AdiabatClimate *ptr, double *val)
+cdef extern void adiabatclimate_convective_hysteresis_frac_off_set(AdiabatClimate *ptr, double *val)
+cdef extern void adiabatclimate_convective_hysteresis_min_get(AdiabatClimate *ptr, double *val)
+cdef extern void adiabatclimate_convective_hysteresis_min_set(AdiabatClimate *ptr, double *val)
 
 cdef extern void adiabatclimate_convective_max_boundary_shift_get(AdiabatClimate *ptr, int *val)
 cdef extern void adiabatclimate_convective_max_boundary_shift_set(AdiabatClimate *ptr, int *val)
@@ -188,6 +194,8 @@ cdef extern void adiabatclimate_max_rc_iters_set(AdiabatClimate *ptr, int *val)
 
 cdef extern void adiabatclimate_max_rc_iters_convection_get(AdiabatClimate *ptr, int *val)
 cdef extern void adiabatclimate_max_rc_iters_convection_set(AdiabatClimate *ptr, int *val)
+cdef extern void adiabatclimate_compute_solar_in_jac_get(AdiabatClimate *ptr, bool *val)
+cdef extern void adiabatclimate_compute_solar_in_jac_set(AdiabatClimate *ptr, bool *val)
 
 cdef extern void adiabatclimate_verbose_get(AdiabatClimate *ptr, bool *val)
 cdef extern void adiabatclimate_verbose_set(AdiabatClimate *ptr, bool *val)

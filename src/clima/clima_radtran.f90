@@ -8,18 +8,23 @@ module clima_radtran
   public :: ClimaRadtranWrk ! Work type that holds results
   public :: Radtran ! IR and solar radiative transfer
   
+  !> Radiative-transfer results for one spectral channel.
+  !!
+  !! Vertical index 1 is the lower boundary and index `nz+1` is the
+  !! top-of-atmosphere boundary. Spectral indices follow the corresponding
+  !! `RTChannel` bins.
   type :: ClimaRadtranWrk
     
-    !> (nz+1,nw) mW/m2/Hz in each wavelength bin
-    !> at the edges of the vertical grid
+    !> Upward and downward spectral flux densities at layer boundaries, shape
+    !! `(nz+1,nw)` (mW/m^2/Hz).
     real(dp), allocatable :: fup_a(:,:), fdn_a(:,:)
-    !> (nz+1) mW/m2 at the edges of the vertical grid 
-    !> (integral of fup_a and fdn_a over wavelength grid)
+    !> Upward and downward spectrally integrated fluxes at layer boundaries,
+    !! shape `(nz+1)` (mW/m^2).
     real(dp), allocatable :: fup_n(:), fdn_n(:)
-    !> (nz+1,nw) Mean intensity in photons/cm^2/s. Only used
-    !> in solar radiative transfer.
+    !> Mean photon intensity, shape `(nz+1,nw)` (photons/cm^2/s). Only populated
+    !! for solar radiative transfer.
     real(dp), allocatable :: amean(:,:)
-    !> Band optical thickness (nz,nw)
+    !> Band optical thickness, shape `(nz,nw)` (dimensionless).
     real(dp), allocatable :: tau_band(:,:)
     
   end type
@@ -28,6 +33,10 @@ module clima_radtran
   !!! IR and Solar Radiative Transfer !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+  !> Longwave and shortwave radiative-transfer model.
+  !!
+  !! Atmospheric arrays are ordered from the surface upward. Calling `radiate`
+  !! or `TOA_fluxes` overwrites `wrk_ir`, `wrk_sol`, and `f_total`.
   type :: Radtran
 
     integer :: ng
@@ -49,22 +58,22 @@ module clima_radtran
     type(RadiateWork) :: rw
     
     real(dp) :: diurnal_fac = 0.5_dp
-    real(dp), allocatable :: zenith_u(:) !! cosine of the zenith angle in radians
+    real(dp), allocatable :: zenith_u(:) !! Cosines of the solar zenith angles.
     real(dp), allocatable :: zenith_weights(:)
-    !> surface albedo in each solar wavelength bin (sol%nw) 
+    !> Surface albedo in each solar spectral bin, shape `(sol%nw)`.
     real(dp), allocatable :: surface_albedo(:) 
-    !> surface emissivity in each IR wavelength bin (ir%nw) 
+    !> Surface emissivity in each longwave spectral bin, shape `(ir%nw)`.
     real(dp), allocatable :: surface_emissivity(:) 
     !> If true, use a hard-surface lower thermal boundary; if false, use
     !> a gas-giant style no-hard-surface diffusion boundary.
     logical :: has_hard_surface = .true.
-    !> Minimum optical depth used in IR two-stream thin-layer guard.
+    !> Dimensionless minimum optical depth used by the longwave two-stream
+    !! thin-layer guard.
     real(dp) :: ir_tau_min = 1.0e-6_dp
-    !> (nw) mW/m2/Hz in each bin from the input star file. This is 
-    !> later scaled by the variable `photon_scale_factor`.
+    !> Stellar spectral flux from the input file, shape `(sol%nw)` (mW/m^2/Hz),
+    !! before multiplication by `photon_scale_factor`.
     real(dp), allocatable :: photons_sol(:)
-    !> A scale factor that is applied to `photons_sol` so that
-    !> bolometric luminosity can be easily changed.
+    !> Dimensionless multiplier applied to `photons_sol`.
     real(dp) :: photon_scale_factor = 1.0_dp 
   
     type(ClimaRadtranWrk) :: wrk_ir
@@ -95,6 +104,10 @@ contains
   !!! IR and Solar Radiative Transfer !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+  !> Construct a radiative-transfer model from a Clima settings file.
+  !!
+  !! The settings must define gas opacity information. Invalid files, missing
+  !! data, and invalid dimensions are reported through `err`.
   function create_Radtran_1(settings_f, star_f, num_zenith_angles, surface_albedo, nz, datadir, err) result(rad)
     use clima_types, only: ClimaSettings
     
@@ -125,6 +138,8 @@ contains
     
   end function
   
+  !> Construct a radiative-transfer model from parsed settings and explicit
+  !! gas and particle names.
   function create_Radtran_2(species_names, particle_names, s, star_f, &
                             num_zenith_angles, surface_albedo, nz, datadir, err) result(rad)
     use clima_radtran_types, only: SolarChannel, IRChannel, read_stellar_flux
@@ -218,18 +233,25 @@ contains
 
   end function
 
+  !> Compute longwave and, optionally, shortwave radiative transfer.
+  !!
+  !! Atmospheric inputs have `nz` layers ordered from the surface upward.
+  !! Particle inputs are required together when the model contains particles.
+  !! By default both opacity and solar radiation are recomputed. Setting
+  !! `compute_opacity` false reuses the previously prepared opacity, and setting
+  !! `compute_solar` false leaves the current shortwave result unchanged.
   subroutine Radtran_radiate(self, T_surface, T, P, densities, dz, pdensities, radii, compute_solar, compute_opacity, err)
     use clima_radtran_radiate, only: radiate
     class(Radtran), target, intent(inout) :: self
-    real(dp), intent(in) :: T_surface
-    real(dp), intent(in) :: T(:) !! (nz) Temperature (K) 
-    real(dp), intent(in) :: P(:) !! (nz) Pressure (bars)
-    real(dp), intent(in) :: densities(:,:) !! (nz,ng) number density of each 
-                                           !! molecule in each layer (molcules/cm3)
-    real(dp), optional, target, intent(in) :: pdensities(:,:), radii(:,:)
+    real(dp), intent(in) :: T_surface !! Surface temperature (K).
+    real(dp), intent(in) :: T(:) !! Layer temperature, shape `(nz)` (K).
+    real(dp), intent(in) :: P(:) !! Layer pressure, shape `(nz)` (bar).
+    real(dp), intent(in) :: densities(:,:) !! Gas number densities, shape `(nz,ng)` (molecules/cm^3).
+    real(dp), optional, target, intent(in) :: pdensities(:,:) !! Particle number densities, shape `(nz,np)` (particles/cm^3).
+    real(dp), optional, target, intent(in) :: radii(:,:) !! Particle radii, shape `(nz,np)` (cm).
     logical, optional, intent(in) :: compute_solar
     logical, optional, intent(in) :: compute_opacity
-    real(dp), intent(in) :: dz(:) !! (nz) thickness of each layer (cm)
+    real(dp), intent(in) :: dz(:) !! Layer thickness, shape `(nz)` (cm).
     character(:), allocatable, intent(out) :: err
 
     logical :: compute_solar_, compute_opacity_
@@ -317,17 +339,22 @@ contains
 
   end subroutine
 
+  !> Compute radiative transfer and return the top-of-atmosphere incoming
+  !! stellar radiation and outgoing longwave radiation.
+  !!
+  !! Inputs and side effects are identical to `radiate`. Returned fluxes are in
+  !! mW/m^2 and are positive in their named directions.
   subroutine Radtran_TOA_fluxes(self, T_surface, T, P, densities, dz, pdensities, radii, &
       compute_solar, compute_opacity, ISR, OLR, err)
     use clima_radtran_radiate, only: radiate
     class(Radtran), target, intent(inout) :: self
-    real(dp), intent(in) :: T_surface
-    real(dp), intent(in) :: T(:) !! (nz) Temperature (K) 
-    real(dp), intent(in) :: P(:) !! (nz) Pressure (bars)
-    real(dp), intent(in) :: densities(:,:) !! (nz,ng) number density of each 
-                                           !! molecule in each layer (molcules/cm3)
-    real(dp), intent(in) :: dz(:) !! (nz) thickness of each layer (cm)
-    real(dp), optional, target, intent(in) :: pdensities(:,:), radii(:,:) !! (nz,np)
+    real(dp), intent(in) :: T_surface !! Surface temperature (K).
+    real(dp), intent(in) :: T(:) !! Layer temperature, shape `(nz)` (K).
+    real(dp), intent(in) :: P(:) !! Layer pressure, shape `(nz)` (bar).
+    real(dp), intent(in) :: densities(:,:) !! Gas number densities, shape `(nz,ng)` (molecules/cm^3).
+    real(dp), intent(in) :: dz(:) !! Layer thickness, shape `(nz)` (cm).
+    real(dp), optional, target, intent(in) :: pdensities(:,:) !! Particle number densities, shape `(nz,np)` (particles/cm^3).
+    real(dp), optional, target, intent(in) :: radii(:,:) !! Particle radii, shape `(nz,np)` (cm).
     logical, optional, intent(in) :: compute_solar
     logical, optional, intent(in) :: compute_opacity
     real(dp), intent(out) :: ISR, OLR
@@ -341,18 +368,18 @@ contains
 
   end subroutine
 
-  !> Sets the bolometric stellar flux by adjusting the `photon_scale_factor`.
+  !> Set the bolometric stellar flux by adjusting `photon_scale_factor`.
   subroutine Radtran_set_bolometric_flux(self, flux)
     class(Radtran), target, intent(inout) :: self
-    real(dp), intent(in) :: flux !! Bolometric flux (W/m^2)
+    real(dp), intent(in) :: flux !! Bolometric stellar flux at the planet (W/m^2).
     self%photon_scale_factor = 1.0_dp
     self%photon_scale_factor = flux/self%bolometric_flux()
   end subroutine
 
-  !> The bolometric stellar flux at the planet in W/m^2
+  !> Return the bolometric stellar flux at the planet (W/m^2).
   function Radtran_bolometric_flux(self) result(flux)
     class(Radtran), target, intent(inout) :: self
-    real(dp) :: flux !! Bolometric flux (W/m^2)
+    real(dp) :: flux !! Bolometric stellar flux (W/m^2).
     integer :: i
 
     flux = 0.0_dp
@@ -363,25 +390,25 @@ contains
 
   end function
 
-  !> The skin temperature
+  !> Return the radiative skin temperature (K) for a Bond albedo.
   function Radtran_skin_temperature(self, bond_albedo) result(T_skin)
     use clima_eqns, only: skin_temperature
     class(Radtran), target, intent(inout) :: self
-    real(dp), intent(in) :: bond_albedo !! The bond albedo of a planet
-    real(dp) :: T_skin
+    real(dp), intent(in) :: bond_albedo !! Dimensionless Bond albedo.
+    real(dp) :: T_skin !! Skin temperature (K).
     T_skin = skin_temperature(self%bolometric_flux(), bond_albedo)
   end function
 
-  !> The equilibrium temperature
+  !> Return the planetary equilibrium temperature (K) for a Bond albedo.
   function Radtran_equilibrium_temperature(self, bond_albedo) result(T_eq)
     use clima_eqns, only: equilibrium_temperature
     class(Radtran), target, intent(inout) :: self
-    real(dp), intent(in) :: bond_albedo !! The bond albedo of a planet
-    real(dp) :: T_eq
+    real(dp), intent(in) :: bond_albedo !! Dimensionless Bond albedo.
+    real(dp) :: T_eq !! Equilibrium temperature (K).
     T_eq = equilibrium_temperature(self%bolometric_flux(), bond_albedo)
   end function
 
-  !> Returns a yaml string representing all opacities in the model.
+  !> Return a YAML fragment describing all configured model opacities.
   function Radtran_opacities2yaml(self) result(out)
     class(Radtran), target, intent(inout) :: self
     character(:), allocatable :: out
@@ -399,9 +426,14 @@ contains
 
   end function
 
+  !> Multiply the current shortwave flux results by a dimensionless factor.
+  !!
+  !! This operates on the most recently computed `wrk_sol` values and updates
+  !! `f_total`; it does not change the input stellar spectrum or
+  !! `photon_scale_factor`.
   subroutine Radtran_apply_radiation_enhancement(self, rad_enhancement)
     class(Radtran), target, intent(inout) :: self
-    real(dp), intent(in) :: rad_enhancement
+    real(dp), intent(in) :: rad_enhancement !! Dimensionless shortwave-flux multiplier.
     self%wrk_sol%fdn_n = self%wrk_sol%fdn_n*rad_enhancement
     self%wrk_sol%fdn_a = self%wrk_sol%fdn_a*rad_enhancement
     self%wrk_sol%fup_n = self%wrk_sol%fup_n*rad_enhancement
@@ -466,8 +498,7 @@ contains
     integer, intent(in) :: nz, ng
     real(dp), intent(in) :: T(:) !! (nz) Temperature (K) 
     real(dp), intent(in) :: P(:) !! (nz) Pressure (bars)
-    real(dp), intent(in) :: densities(:,:) !! (nz,ng) number density of each 
-                                           !! molecule in each layer (molcules/cm3)
+    real(dp), intent(in) :: densities(:,:) !! Gas number densities, shape `(nz,ng)` (molecules/cm^3).
     real(dp), intent(in) :: dz(:) !! (nz) thickness of each layer (cm)
     character(:), allocatable, intent(out) :: err
     
@@ -490,14 +521,19 @@ contains
     
   end subroutine
 
-  !> Sets custom optical properties
+  !> Set pressure-dependent custom optical properties.
+  !!
+  !! All property arrays have shape `(size(P),size(wv))`. Pressure must be
+  !! strictly decreasing and wavelengths must be strictly increasing; both grids
+  !! must be positive. The profiles are retained as interpolation data and
+  !! included in subsequent opacity calculations.
   subroutine Radtran_set_custom_optical_properties(self, wv, P, dtau_dz, w0, g0, err)
     class(Radtran), intent(inout) :: self
-    real(dp), intent(in) :: wv(:) !! Array of of wavelengths in nm
-    real(dp), intent(in) :: P(:) !! Array of pressures in dynes/cm^2. Must be decreasing.
-    real(dp), intent(in) :: dtau_dz(:,:) !! (size(P),size(wv)), Optical depth per altitude (1/cm).
-    real(dp), intent(in) :: w0(:,:) !! (size(P),size(wv)), Single scattering albedo
-    real(dp), intent(in) :: g0(:,:) !! (size(P),size(wv)), Asymetry parameter
+    real(dp), intent(in) :: wv(:) !! Wavelengths (nm).
+    real(dp), intent(in) :: P(:) !! Pressure grid (dyn/cm^2).
+    real(dp), intent(in) :: dtau_dz(:,:) !! Optical depth per altitude (1/cm).
+    real(dp), intent(in) :: w0(:,:) !! Dimensionless single-scattering albedo.
+    real(dp), intent(in) :: g0(:,:) !! Dimensionless asymmetry parameter.
     character(:), allocatable, intent(out) :: err
 
     call self%op%set_custom_optical_properties(wv, P, dtau_dz, w0, g0, err)
@@ -505,7 +541,7 @@ contains
 
   end subroutine
 
-  !> Unsets custom optical properties set with `set_custom_optical_properties`.
+  !> Remove custom optical properties installed by `set_custom_optical_properties`.
   subroutine Radtran_unset_custom_optical_properties(self)
     class(Radtran), intent(inout) :: self
     call self%op%unset_custom_optical_properties()

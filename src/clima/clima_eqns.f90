@@ -3,21 +3,21 @@ module clima_eqns
   implicit none
 
   interface
-    !> A temperature dependent surface albedo
+    !> Return dimensionless surface albedo as a function of surface temperature.
     function temp_dependent_albedo_fcn(T_surf) result(albedo)
       use iso_c_binding, only: c_double
-      real(c_double), value, intent(in) :: T_surf !! K
-      real(c_double) :: albedo
+      real(c_double), value, intent(in) :: T_surf !! Surface temperature (K).
+      real(c_double) :: albedo !! Dimensionless surface albedo.
     end function
 
-    !> Function describing how gases dissolved in an ocean.
+    !> Compute gas solubilities in an ocean at the surface state.
     subroutine ocean_solubility_fcn(T_surf, ng, P_i, m_i, args_p) 
       use iso_c_binding, only: c_double, c_int, c_ptr
-      real(c_double), value, intent(in) :: T_surf !! K
-      integer(c_int), value, intent(in) :: ng
-      real(c_double), intent(in) :: P_i(ng) !! surface pressure of all gases (bars)
-      real(c_double), intent(out) :: m_i(ng) !! concentration of each gas in ocean (mol/kg)
-      type(c_ptr), value, intent(in) :: args_p !! For passing in data
+      real(c_double), value, intent(in) :: T_surf !! Surface temperature (K).
+      integer(c_int), value, intent(in) :: ng !! Number of gases.
+      real(c_double), intent(in) :: P_i(ng) !! Gas partial pressures (bar).
+      real(c_double), intent(out) :: m_i(ng) !! Gas solubilities (mol/kg).
+      type(c_ptr), value, intent(in) :: args_p !! Opaque user-data pointer.
     end subroutine
   end interface
     

@@ -12,60 +12,68 @@ module clima_adiabat
   public :: AdiabatClimate
   public :: RCE_SOLVE_HYBRJ_ONLY, RCE_SOLVE_PTC_THEN_HYBRJ, RCE_SOLVE_HYBRJ_THEN_PTC_THEN_HYBRJ
 
-  integer, parameter :: RCE_SOLVE_HYBRJ_ONLY = 1
-  integer, parameter :: RCE_SOLVE_PTC_THEN_HYBRJ = 2
-  integer, parameter :: RCE_SOLVE_HYBRJ_THEN_PTC_THEN_HYBRJ = 3
+  integer, parameter :: RCE_SOLVE_HYBRJ_ONLY = 1 !! Use the HYBRJ nonlinear solver only.
+  integer, parameter :: RCE_SOLVE_PTC_THEN_HYBRJ = 2 !! Use PTC, then tighten with HYBRJ.
+  integer, parameter :: RCE_SOLVE_HYBRJ_THEN_PTC_THEN_HYBRJ = 3 !! Try HYBRJ, then PTC and HYBRJ fallback.
 
+  !> One-dimensional multispecies adiabatic and radiative-convective climate model.
+  !!
+  !! The model constructs a pseudoadiabatic troposphere connected to an
+  !! isothermal stratosphere and can compute top-of-atmosphere radiative fluxes
+  !! or solve for radiative-convective equilibrium. Arrays indexed by gas use
+  !! the order in `species_names`; arrays indexed by particle use
+  !! `particle_names`. Atmospheric profiles run from the surface upward.
   type :: AdiabatClimate
 
     ! settings and free parameters
-    integer :: nz
-    real(dp) :: P_top = 1.0_dp !! (dynes/cm2)
-    real(dp) :: T_trop = 180.0_dp !! (T)
-    real(dp), allocatable :: RH(:) !! relative humidity (ng)
-    !> If .true., then any function that calls `make_column` will
-    !> use the initial guess in `self%make_column_P_guess`
+    integer :: nz !! Number of physical atmospheric layers.
+    real(dp) :: P_top = 1.0_dp !! Target pressure at the model top (dyn/cm^2).
+    real(dp) :: T_trop = 180.0_dp !! Isothermal-stratosphere temperature (K).
+    real(dp), allocatable :: RH(:) !! Relative humidity of each gas, shape `(ng)`.
+    !> If true, routines that call `make_column` first use
+    !! `make_column_P_guess` as the surface-partial-pressure guess.
     logical :: use_make_column_P_guess = .true.
-    !> Initial guess for surface pressure of all gases for `make_column`
-    !> routine (ng).
+    !> Surface-partial-pressure guess used by `make_column`, shape `(ng)`
+    !! (dyn/cm^2).
     real(dp), allocatable :: make_column_P_guess(:)
 
-    !> If .true., then Tropopause temperature is non-linearly solved for such that
-    !> it matches the skin temperature. The initial guess will always be self%T_trop.
+    !> If true, equilibrium-temperature solvers also solve for a tropopause
+    !! temperature equal to the radiative skin temperature, using `T_trop` as
+    !! the initial guess.
     logical :: solve_for_T_trop = .false.
     !> Callback that sets the surface albedo based on the surface temperature.
-    !> This can be used to parameterize the ice-albedo feedback.
+    !! This can be used to parameterize ice-albedo feedback.
     procedure(temp_dependent_albedo_fcn), nopass, pointer :: albedo_fcn => null()
 
-    !> Function describing how gases disolve in oceans. This allows for multiple oceans, each
-    !> made of different condensed volatiles.
+    !> Solubility callbacks for oceans made from different condensed species,
+    !! shape `(ng)`.
     type(OceanFunction), allocatable :: ocean_fcns(:)
-    !> A c-ptr which will be passed to each ocean solubility function.
+    !> Opaque user-data pointer passed to every ocean-solubility callback.
     type(c_ptr) :: ocean_args_p = c_null_ptr
 
     ! Heat re-distribution terms for Equation (10) in Koll (2020), ApJ when
     ! considering tidally locked planets. Default values are from the paper.
-    !> If true, then will attempt to compute the climate corresponding to the
-    !> observed dayside temperature of a tidally locked planet.
+    !> If true, equilibrium-temperature solvers apply the tidally locked
+    !! dayside redistribution treatment.
     logical :: tidally_locked_dayside = .false.
-    real(dp) :: L !! = planet radius. Circulation’s horizontal scale (cm)
-    real(dp) :: chi = 0.2_dp !! Heat engine efficiency term (no units)
-    real(dp) :: n_LW = 2.0_dp !! = 1 or 2 (no units)
-    real(dp) :: Cd = 1.9e-3_dp !! Drag coefficient (no units)
+    real(dp) :: L !! Circulation horizontal scale (cm); initialized to the planet radius.
+    real(dp) :: chi = 0.2_dp !! Dimensionless heat-engine efficiency.
+    real(dp) :: n_LW = 2.0_dp !! Dimensionless longwave-opacity exponent, normally 1 or 2.
+    real(dp) :: Cd = 1.9e-3_dp !! Dimensionless drag coefficient.
 
     !> Heat flow from the surface into the atmosphere (mW/m^2)
     real(dp) :: surface_heat_flow = 0.0_dp
     
     ! planet properties
-    real(dp) :: planet_mass !! (g)
-    real(dp) :: planet_radius !! (cm)
-    !> Reference pressure for which `planet_radius` is defined (dynes/cm^2).
-    !> If <= 0, then `planet_radius` is defined at the surface pressure.
+    real(dp) :: planet_mass !! Planet mass (g).
+    real(dp) :: planet_radius !! Planet radius (cm).
+    !> Pressure at which `planet_radius` is defined (dyn/cm^2).
+    !! If nonpositive, `planet_radius` is defined at `P_surf`.
     real(dp) :: reference_pressure = -1.0_dp
     
     ! species in the model
-    character(s_str_len), allocatable :: species_names(:) !! copy of species names
-    character(s_str_len), allocatable :: particle_names(:) !! copy of particle names
+    character(s_str_len), allocatable :: species_names(:) !! Gas names, shape `(ng)`.
+    character(s_str_len), allocatable :: particle_names(:) !! Particle names, shape `(np)`.
     type(Species) :: sp
     
     ! Radiative transfer
@@ -83,7 +91,7 @@ module clima_adiabat
     ! For custom mixing ratios
     !> Length ng. If true, then the species has a custom dry mixing ratio
     logical, private, allocatable :: sp_custom(:)
-    !> Length ng. Contains 1-D interpolators for log10P (dynes/cm^2) and 
+    !> Length `ng`. Contains one-dimensional interpolators for log10(P) (dyn/cm^2) and
     !> log10mix (vmr) for each custom species, if specified
     type(linear_interp_1d), private, allocatable :: mix_custom(:)
 
@@ -97,22 +105,25 @@ module clima_adiabat
     integer, private, allocatable :: ind_conv_lower_x(:)
     !> Indicates if a layer is super-saturated
     logical, private, allocatable :: super_saturated(:)
-    !> Another representation of where convection is occuring. If True,
-    !> then the layer below is convecting with the current layer. Index 1 determines
-    !> if the first atomspheric layer is convecting with the ground.
+    !> Convective connectivity, shape `(nz)`. A true element means that the
+    !! corresponding layer convects with the layer below; element 1 refers to
+    !! convection between the lowest atmospheric layer and the surface.
     logical, allocatable :: convecting_with_below(:)
     integer, allocatable :: inds_Tx(:)
-    real(dp), allocatable :: lapse_rate(:) !! The true lapse rate (dlnT/dlnP)
-    real(dp), allocatable :: lapse_rate_intended(:) !! The computed lapse rate (dlnT/dlnP)
-    !> Fraction of the Newton step used in convective classification (0..1).
+    real(dp), allocatable :: lapse_rate(:) !! Actual `dln(T)/dln(P)`, shape `(nz)`.
+    real(dp), allocatable :: lapse_rate_intended(:) !! Adiabatic target `dln(T)/dln(P)`, shape `(nz)`.
+    !> Fraction of the Newton step used in convective classification, from 0 to 1.
     real(dp) :: convective_newton_step_size = 1.0e-1_dp
-    ! Hysteresis parameters for updating convective mask in RCE.
-    ! A radiative layer becomes convective only if superadiabaticity exceeds
-    ! `max(convective_hysteresis_min, convective_hysteresis_frac_on*|lapse_rate_intended|)`.
-    ! A convective layer becomes radiative only if it is stable by more than
-    ! `max(convective_hysteresis_min, convective_hysteresis_frac_off*|lapse_rate_intended|)`.
+    !> Fractional superadiabaticity threshold for making an RCE layer convective.
+    !! The applied threshold is the maximum of `convective_hysteresis_min` and
+    !! this value times the magnitude of `lapse_rate_intended`.
     real(dp) :: convective_hysteresis_frac_on = 2.0e-2_dp
+    !> Fractional stability threshold for making an RCE layer radiative.
+    !! The applied threshold is the maximum of `convective_hysteresis_min` and
+    !! this value times the magnitude of `lapse_rate_intended`.
     real(dp) :: convective_hysteresis_frac_off = 2.0e-2_dp
+    !> Minimum absolute `dln(T)/dln(P)` threshold used by both convective-mask
+    !! hysteresis tests.
     real(dp) :: convective_hysteresis_min = 1.0e-3_dp
     !> Boundary-motion limiter for convective mask updates. If < 0, no limiter
     !> is applied. Set to 1 to limit expansion of convective zones to 1 layer at
@@ -129,60 +140,61 @@ module clima_adiabat
     integer, allocatable :: prevent_overconvection_lock(:)
 
     ! tolerances
-    !> Relative tolerance of integration
+    !> Relative tolerance used by adiabatic-profile integrations.
     real(dp) :: rtol = 1.0e-9_dp
-    !> Absolute tolerance of integration
+    !> Absolute tolerance used by adiabatic-profile integrations.
     real(dp) :: atol = 1.0e-12_dp
-    !> Tolerance for nonlinear solve in make_column
+    !> Nonlinear-solver tolerance used by `make_column`.
     real(dp) :: tol_make_column = 1.0e-8_dp
-    !> Perturbation for the jacobian
+    !> Temperature perturbation (K) used for the RCE finite-difference Jacobian.
     real(dp) :: epsj = 1.0e-2_dp
-    !> xtol for RC equilibrium
+    !> Nonlinear-solver step tolerance used by the RCE solve.
     real(dp) :: xtol_rc = 1.0e-5_dp
     !> Multiplicative growth factor for PTC timestep updates.
     !> Values > 1 increase `dt` after successful steps.
     real(dp) :: dt_increment = 1.5_dp
-    !> Max number of iterations in the RCE routine
+    !> Maximum number of outer iterations in `RCE`.
     integer :: max_rc_iters = 30
-    !> Max number of iterations for which convective layers can
-    !> be converged to radiative layers in the RCE routine
+    !> Maximum number of RCE iterations used to convert convective layers to
+    !! radiative layers.
     integer :: max_rc_iters_convection = 5
-    !> If False, then the jacobian calculation in RCE does not recompute
-    !> solar radiative transfer.
+    !> If false, the RCE Jacobian reuses the base-state shortwave calculation
+    !! rather than recomputing shortwave transfer for every perturbation.
     logical :: compute_solar_in_jac = .false.
     !> Strategy for nonlinear solve inside each RCE outer iteration.
     !> 1 = HYBRJ only.
     !> 2 = PTC then HYBRJ tighten if no convergence.
     !> 3 = HYBRJ first, then fallback to PTC then HYBRJ tighten if no convergence.
     integer :: rce_solve_strategy = RCE_SOLVE_HYBRJ_THEN_PTC_THEN_HYBRJ
-    logical :: verbose = .true. !! verbosity
+    logical :: verbose = .true. !! Enable RCE progress output.
     
     ! State of the atmosphere
-    real(dp), allocatable :: f_i_surf(:) !! Surface mixing ratios (ng)
-    real(dp) :: P_surf !! Surface pressure (dynes/cm^2)
-    real(dp) :: P_trop !! Tropopause pressure (dynes/cm^2)
-    real(dp), allocatable :: P(:) !! pressure in each grid cell, dynes/cm^2 (nz)
-    real(dp) :: T_surf !! Surface Temperature (K)
-    real(dp), allocatable :: T(:) !! Temperature in each grid cell, K (nz) 
-    real(dp), allocatable :: f_i(:,:) !! mixing ratios of species in each grid cell (nz,ng)
-    real(dp), allocatable :: z(:) !! Altitude at the center of the grid cell, cm (nz)
-    real(dp), allocatable :: dz(:) !! Thickness of each grid cell, cm (nz)
-    real(dp) :: gravity_surf !! Surface gravity (cm/s^2)
-    real(dp), allocatable :: gravity(:) !! Gravity at each layer center (cm/s^2) (nz)
-    real(dp), allocatable :: densities(:,:) !! densities in each grid cell, molecules/cm^3 (nz,ng)
-    real(dp), allocatable :: N_atmos(:) !! reservoir of gas in atmosphere mol/cm^2 (ng)
-    !> reservoir of gas on surface mol/cm^2 (ng).
-    !> Strictly consistent when `reference_pressure <= 0` (i.e., `planet_radius` at `P_surf`).
+    real(dp), allocatable :: f_i_surf(:) !! Surface gas volume mixing ratios, shape `(ng)`.
+    real(dp) :: P_surf !! Surface pressure (dyn/cm^2).
+    real(dp) :: P_trop !! Tropopause pressure (dyn/cm^2).
+    real(dp), allocatable :: P(:) !! Layer-center pressure, shape `(nz)` (dyn/cm^2).
+    real(dp) :: T_surf !! Surface temperature (K).
+    real(dp), allocatable :: T(:) !! Layer-center temperature, shape `(nz)` (K).
+    real(dp), allocatable :: f_i(:,:) !! Gas volume mixing ratios, shape `(nz,ng)`.
+    real(dp), allocatable :: z(:) !! Layer-center altitude, shape `(nz)` (cm).
+    real(dp), allocatable :: dz(:) !! Layer thickness, shape `(nz)` (cm).
+    real(dp) :: gravity_surf !! Surface gravitational acceleration (cm/s^2).
+    real(dp), allocatable :: gravity(:) !! Layer-center gravity, shape `(nz)` (cm/s^2).
+    real(dp), allocatable :: densities(:,:) !! Gas number densities, shape `(nz,ng)` (molecules/cm^3).
+    real(dp), allocatable :: N_atmos(:) !! Atmospheric gas reservoirs, shape `(ng)` (mol/cm^2).
+    !> Surface gas reservoirs, shape `(ng)` (mol/cm^2).
+    !! Strictly consistent when `reference_pressure <= 0`, meaning that
+    !! `planet_radius` is defined at `P_surf`.
     real(dp), allocatable :: N_surface(:)
-    !> reservoir of gas dissolved in oceans in mol/cm^2 (ng, ng). There can be multiple oceans.
-    !> The gases dissolved in ocean made of species 1 is given by `N_ocean(:,1)`.
-    !> Strictly consistent when `reference_pressure <= 0` (i.e., `planet_radius` at `P_surf`).
+    !> Ocean-dissolved gas reservoirs, shape `(ng,ng)` (mol/cm^2).
+    !! `N_ocean(:,j)` contains gases dissolved in the ocean made from species
+    !! `j`. Strictly consistent when `reference_pressure <= 0`.
     real(dp), allocatable :: N_ocean(:,:)
-    !> particle densities in particles/cm^3. (nz,np)
+    !> Particle number densities, shape `(nz,np)` (particles/cm^3).
     real(dp), allocatable :: pdensities(:,:)
     !> For interpolating particle densities
     type(linear_interp_1d), private, allocatable :: pdensities_interp(:)
-    !> particle radii in cm. (nz,np)
+    !> Particle radii, shape `(nz,np)` (cm).
     real(dp), allocatable :: pradii(:,:)
     !> For interpolating particle radii
     type(linear_interp_1d), private, allocatable :: pradii_interp(:)
@@ -226,7 +238,7 @@ module clima_adiabat
   interface
     module subroutine AdiabatClimate_make_profile_rc(self, P_i_surf, T_in, err)
       class(AdiabatClimate), intent(inout) :: self
-      real(dp), intent(in) :: P_i_surf(:) !! dynes/cm^2
+      real(dp), intent(in) :: P_i_surf(:) !! Surface partial pressures (dyn/cm^2).
       real(dp), intent(in) :: T_in(:)
       character(:), allocatable, intent(out) :: err
     end subroutine
@@ -236,24 +248,33 @@ module clima_adiabat
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !> Compute full radiative-convective equilibrium.
+    !> Solve for full radiative-convective equilibrium.
+    !!
+    !! The solution and convective classification are stored in the atmospheric
+    !! state fields. The returned flag reports convergence; invalid inputs and
+    !! model failures are returned through `err`.
     module function AdiabatClimate_RCE(self, P_i_surf, T_surf_guess, T_guess, convecting_with_below, &
       sp_custom, P_custom, mix_custom, err) result(converged)
       class(AdiabatClimate), intent(inout) :: self
-      !> Array of surface pressures of each species (dynes/cm^2)
+      !> Surface partial pressures in `species_names` order, shape `(ng)`
+      !! (dyn/cm^2).
       real(dp), intent(in) :: P_i_surf(:)
-      !> A guess for the surface temperature (K)
+      !> Initial surface-temperature guess (K).
       real(dp), intent(in) :: T_surf_guess
-      !> A guess for the temperature in each atmospheric layer (K)
+      !> Initial layer-temperature guess, shape `(nz)` (K).
       real(dp), intent(in) :: T_guess(:)
-      !> An array describing a guess for the radiative vs. convective 
-      !> regions of the atmosphere
+      !> Optional initial convective connectivity, shape `(nz)`, using the same
+      !! indexing convention as `convecting_with_below`.
       logical, optional, intent(in) :: convecting_with_below(:)
+      !> Optional names of dry gases whose vertical mixing ratios are prescribed.
       character(*), optional, intent(in) :: sp_custom(:)
+      !> Strictly decreasing pressure grid for `mix_custom` (dyn/cm^2).
       real(dp), optional, intent(in) :: P_custom(:)
+      !> Dry-gas mixing ratios relative to the custom gases, shape
+      !! `(size(P_custom),size(sp_custom))`.
       real(dp), optional, intent(in) :: mix_custom(:,:)
       character(:), allocatable, intent(out) :: err
-      logical :: converged !! Whether the routine converged or not.
+      logical :: converged !! True if the RCE solve converged.
     end function
   end interface
 
@@ -268,13 +289,20 @@ module clima_adiabat
 
 contains
   
+  !> Construct an `AdiabatClimate` model from species, settings, stellar-flux,
+  !! and radiative-data inputs.
+  !!
+  !! Construction allocates the model and initializes configurable defaults,
+  !! but it does not construct a physical atmospheric profile. Profile-building
+  !! methods update the atmospheric state. Invalid or inconsistent input files
+  !! are reported through `err`.
   function create_AdiabatClimate(species_f, settings_f, star_f, data_dir, double_radiative_grid, err) result(c)
     use futils, only: linspace
     use clima_types, only: ClimaSettings 
-    character(*), intent(in) :: species_f !! Species yaml file
-    character(*), intent(in) :: settings_f !! Settings yaml file
-    character(*), intent(in) :: star_f !! Star text file
-    character(*), intent(in) :: data_dir !! Directory with radiative transfer data
+    character(*), intent(in) :: species_f !! Species YAML file.
+    character(*), intent(in) :: settings_f !! Climate-settings YAML file.
+    character(*), intent(in) :: star_f !! Stellar-flux text file.
+    character(*), intent(in) :: data_dir !! Directory containing radiative-transfer data.
     !> If true, radiative transfer is computed on a refined vertical grid.
     !> Each physical layer is split into two RT layers, and two ghost RT layers
     !> are added above the physical top to stabilize TOA behavior.
@@ -302,7 +330,7 @@ contains
       c%particle_names(i) = c%sp%p(i)%name
     enddo
 
-    ! default relative humidty is 1
+    ! Default relative humidity is 1.
     allocate(c%RH(c%sp%ng))
     c%RH(:) = 1.0_dp
 
@@ -395,15 +423,19 @@ contains
 
   end function
   
-  !> Constructs an atmosphere using a multispecies pseudoadiabat (Eq. 1 in Graham et al. 2021, PSJ)
-  !> troposphere connected to an isothermal stratosphere. Input are surface partial pressures
-  !> of each gas.
+  !> Construct a multispecies pseudoadiabatic troposphere connected to an
+  !! isothermal stratosphere.
+  !!
+  !! The pseudoadiabat follows Equation 1 of Graham et al. (2021, PSJ).
+  !! Atmospheric state fields, particle profiles, reservoirs, lapse rates, and
+  !! the convective mask are updated on success. The gas input must have shape
+  !! `(ng)` and follow `species_names` order.
   subroutine AdiabatClimate_make_profile(self, T_surf, P_i_surf, err)
     use clima_adiabat_general, only: make_profile
     use clima_const, only: k_boltz, N_avo
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), intent(in) :: T_surf !! K
-    real(dp), intent(in) :: P_i_surf(:) !! dynes/cm^2
+    real(dp), intent(in) :: T_surf !! Surface temperature (K).
+    real(dp), intent(in) :: P_i_surf(:) !! Surface partial pressures (dyn/cm^2).
     character(:), allocatable, intent(out) :: err
     
     real(dp), allocatable :: P_e(:), z_e(:), T_e(:), f_i_e(:,:)
@@ -471,16 +503,20 @@ contains
     
   end subroutine
 
-  !> Similar to `make_profile`, but instead the input is column reservoirs 
-  !> of each gas (mol/cm^2). 
+  !> Construct a profile whose total gas reservoirs match prescribed columns.
+  !!
+  !! The routine repeatedly calls `make_profile` while solving for surface
+  !! partial pressures. `N_i_surf` has shape `(ng)`, follows `species_names`
+  !! order, and includes atmospheric, surface, and ocean reservoirs. On success,
+  !! `make_column_P_guess` is updated to the solved surface partial pressures.
   subroutine AdiabatClimate_make_column(self, T_surf, N_i_surf, err)
     use minpack_module, only: hybrd1
     use clima_useful, only: MinpackHybrd1Vars
     use clima_eqns, only: gravity
     use ieee_arithmetic, only: ieee_positive_inf, ieee_value
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), intent(in) :: T_surf !! K
-    real(dp), intent(in) :: N_i_surf(:) !! mole/cm^2
+    real(dp), intent(in) :: T_surf !! Surface temperature (K).
+    real(dp), intent(in) :: N_i_surf(:) !! Total gas reservoirs (mol/cm^2).
     character(:), allocatable, intent(out) :: err
     
     type(MinpackHybrd1Vars) :: mv
@@ -518,7 +554,7 @@ contains
     if (mv%info /= 1) then
       do ii = 1,size(scale_factors)
         ! Initial guess will be crude conversion of moles/cm2 (column) to 
-        ! to dynes/cm2 (pressure). I try a few different `scale_factors` 
+        ! to dyn/cm^2 (pressure). Try a few different `scale_factors`
         ! to this guess.
         do i = 1,mv%n
           mv%x(i) = log10(max(N_i_surf(i)*self%sp%g(i)%mass*grav*scale_factors(ii), sqrt(tiny(1.0_dp))))
@@ -580,17 +616,19 @@ contains
 
   end subroutine
 
-  !> Similar to `make_profile`, but instead imposes a background gas and fixed
-  !> surface pressure. We do a non-linear solve for the background gas pressure
-  !> so that the desired total surface pressure is satisfied.
+  !> Construct a profile with a named background gas and fixed total surface pressure.
+  !!
+  !! The routine adjusts the background gas partial pressure until the profile's
+  !! total surface pressure equals `P_surf`. Other entries of `P_i_surf` are
+  !! retained. The background gas must occur in `species_names`.
   subroutine AdiabatClimate_make_profile_bg_gas(self, T_surf, P_i_surf, P_surf, bg_gas, err)
     use minpack_module, only: hybrd1
     use clima_useful, only: MinpackHybrd1Vars
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), intent(in) :: T_surf !! K
-    real(dp), intent(in) :: P_i_surf(:) !! dynes/cm^2
-    real(dp), intent(in) :: P_surf !! dynes/cm^2
-    character(*), intent(in) :: bg_gas !! background gas
+    real(dp), intent(in) :: T_surf !! Surface temperature (K).
+    real(dp), intent(in) :: P_i_surf(:) !! Initial surface partial pressures (dyn/cm^2).
+    real(dp), intent(in) :: P_surf !! Target total surface pressure (dyn/cm^2).
+    character(*), intent(in) :: bg_gas !! Background-gas name.
     character(:), allocatable, intent(out) :: err
 
     real(dp), allocatable :: P_i_surf_copy(:)
@@ -650,15 +688,18 @@ contains
     end subroutine
   end subroutine
 
-  !> Given a P, T and mixing ratios, this function will update all atmospheric variables
-  !> (except self%P_trop and self%convecting_with_below) to reflect these inputs. 
-  !> The atmosphere is assumed to be dry (no condensibles). Any gas exceeding saturation 
-  !> will not be altered.
+  !> Construct a dry atmosphere from pressure, temperature, and gas mixing-ratio profiles.
+  !!
+  !! `P` is ordered from the surface upward and must span the requested model
+  !! domain. `T` is defined on `P`, and `f_i` has shape `(size(P),ng)` in
+  !! `species_names` order. Condensation is not applied, so supersaturated gas is
+  !! retained. All atmospheric state fields except `P_trop` and
+  !! `convecting_with_below` are updated on success.
   subroutine AdiabatClimate_make_profile_dry(self, P, T, f_i, err)
     use clima_adiabat_dry, only: make_profile_dry
     use clima_const, only: k_boltz, N_avo
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), intent(in) :: P(:) !! Pressure (dynes/cm^2). The first element is the surface.
+    real(dp), intent(in) :: P(:) !! Pressure (dyn/cm^2); the first element is the surface.
     real(dp), intent(in) :: T(:) !! Temperature (K) defined on `P`.
     real(dp), intent(in) :: f_i(:,:) !! Mixing ratios defined on `P` of shape (size(P),ng).
     character(:), allocatable, intent(out) :: err
@@ -772,11 +813,11 @@ contains
 
   end subroutine
   
-  !> Calls `make_profile`, then does radiative transfer on the constructed atmosphere
+  !> Construct a pseudoadiabatic profile and return its top-of-atmosphere fluxes.
   subroutine AdiabatClimate_TOA_fluxes(self, T_surf, P_i_surf, ISR, OLR, err)
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), target, intent(in) :: T_surf !! K
-    real(dp), target, intent(in) :: P_i_surf(:) !! dynes/cm^2
+    real(dp), target, intent(in) :: T_surf !! Surface temperature (K).
+    real(dp), target, intent(in) :: P_i_surf(:) !! Surface partial pressures (dyn/cm^2).
     real(dp), intent(out) :: ISR !! Top-of-atmosphere incoming solar radiation (mW/m^2)
     real(dp), intent(out) :: OLR !! Top-of-atmosphere outgoing longwave radiation (mW/m^2)
     character(:), allocatable, intent(out) :: err
@@ -798,11 +839,11 @@ contains
     
   end subroutine
 
-  !> Calls `make_column`, then does radiative transfer on the constructed atmosphere
+  !> Construct a column-reservoir profile and return its top-of-atmosphere fluxes.
   subroutine AdiabatClimate_TOA_fluxes_column(self, T_surf, N_i_surf, ISR, OLR, err)
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), target, intent(in) :: T_surf !! K
-    real(dp), target, intent(in) :: N_i_surf(:) !! mole/cm^2
+    real(dp), target, intent(in) :: T_surf !! Surface temperature (K).
+    real(dp), target, intent(in) :: N_i_surf(:) !! Total gas reservoirs (mol/cm^2).
     real(dp), intent(out) :: ISR !! Top-of-atmosphere incoming solar radiation (mW/m^2)
     real(dp), intent(out) :: OLR !! Top-of-atmosphere outgoing longwave radiation (mW/m^2)
     character(:), allocatable, intent(out) :: err    
@@ -824,13 +865,14 @@ contains
 
   end subroutine
 
-  !> Calls `make_profile_bg_gas`, then does radiative transfer on the constructed atmosphere
+  !> Construct a fixed-pressure background-gas profile and return its
+  !! top-of-atmosphere fluxes.
   subroutine AdiabatClimate_TOA_fluxes_bg_gas(self, T_surf, P_i_surf, P_surf, bg_gas, ISR, OLR, err)
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), target, intent(in) :: T_surf !! K
-    real(dp), target, intent(in) :: P_i_surf(:) !! dynes/cm^2
-    real(dp), intent(in) :: P_surf !! dynes/cm^2
-    character(*), intent(in) :: bg_gas !! background gas
+    real(dp), target, intent(in) :: T_surf !! Surface temperature (K).
+    real(dp), target, intent(in) :: P_i_surf(:) !! Initial surface partial pressures (dyn/cm^2).
+    real(dp), intent(in) :: P_surf !! Target total surface pressure (dyn/cm^2).
+    character(*), intent(in) :: bg_gas !! Background-gas name.
     real(dp), intent(out) :: ISR !! Top-of-atmosphere incoming solar radiation (mW/m^2)
     real(dp), intent(out) :: OLR !! Top-of-atmosphere outgoing longwave radiation (mW/m^2)
     character(:), allocatable, intent(out) :: err
@@ -852,10 +894,10 @@ contains
 
   end subroutine
 
-  !> Calls `make_profile_dry`, then does radiative transfer on the constructed atmosphere
+  !> Construct a dry prescribed profile and return its top-of-atmosphere fluxes.
   subroutine AdiabatClimate_TOA_fluxes_dry(self, P, T, f_i, ISR, OLR, err)
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), intent(in) :: P(:) !! Pressure (dynes/cm^2). The first element is the surface.
+    real(dp), intent(in) :: P(:) !! Pressure (dyn/cm^2); the first element is the surface.
     real(dp), intent(in) :: T(:) !! Temperature (K) defined on `P`.
     real(dp), intent(in) :: f_i(:,:) !! Mixing ratios defined on `P` of shape (size(P),ng).
     real(dp), intent(out) :: ISR !! Top-of-atmosphere incoming solar radiation (mW/m^2)
@@ -960,12 +1002,17 @@ contains
     end subroutine    
   end function
   
-  !> Does a non-linear solve for the surface temperature that balances incoming solar
-  !> and outgoing longwave radiation. Uses `make_profile`.
+  !> Solve for the surface temperature that balances absorbed stellar and
+  !! outgoing longwave radiation, using `make_profile`.
+  !!
+  !! The default initial guess is 280 K. If `solve_for_T_trop` is true, the
+  !! tropopause temperature is solved simultaneously. If `tidally_locked_dayside`
+  !! is true, the dayside redistribution correction is included. The converged
+  !! atmospheric and radiative state remains stored in the model.
   function AdiabatClimate_surface_temperature(self, P_i_surf, T_guess, err) result(T_surf)
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), intent(in) :: P_i_surf(:) !! dynes/cm^2
-    real(dp), optional, intent(in) :: T_guess !! K
+    real(dp), intent(in) :: P_i_surf(:) !! Surface partial pressures (dyn/cm^2).
+    real(dp), optional, intent(in) :: T_guess !! Initial surface-temperature guess (K).
     character(:), allocatable, intent(out) :: err
     real(dp) :: T_surf
     T_surf = AdiabatClimate_simple_solver(self, fcn, T_guess, err)
@@ -979,10 +1026,14 @@ contains
     end subroutine
   end function
 
+  !> Solve for radiative-equilibrium surface temperature using `make_column`.
+  !!
+  !! `N_i_surf` contains the total reservoir of every gas in `species_names`
+  !! order. Other solver behavior matches `surface_temperature`.
   function AdiabatClimate_surface_temperature_column(self, N_i_surf, T_guess, err) result(T_surf)
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), intent(in) :: N_i_surf(:)
-    real(dp), optional, intent(in) :: T_guess
+    real(dp), intent(in) :: N_i_surf(:) !! Total gas reservoirs, shape `(ng)` (mol/cm^2).
+    real(dp), optional, intent(in) :: T_guess !! Initial surface-temperature guess (K).
     character(:), allocatable, intent(out) :: err
     real(dp) :: T_surf
     T_surf = AdiabatClimate_simple_solver(self, fcn, T_guess, err)
@@ -996,16 +1047,19 @@ contains
     end subroutine
   end function
 
-  !> Similar to surface_temperature. The difference is that this function imposes
-  !> a background gas and fixed surface pressure.
+  !> Solve for radiative-equilibrium surface temperature with a named background
+  !! gas and fixed total surface pressure.
+  !!
+  !! Profile construction uses `make_profile_bg_gas`; other solver behavior
+  !! matches `surface_temperature`.
   function AdiabatClimate_surface_temperature_bg_gas(self, P_i_surf, P_surf, bg_gas, T_guess, err) result(T_surf)
     use minpack_module, only: hybrd1
     use clima_useful, only: MinpackHybrd1Vars
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), intent(in) :: P_i_surf(:) !! dynes/cm^2
-    real(dp), intent(in) :: P_surf !! dynes/cm^2
-    character(*), intent(in) :: bg_gas !! background gas
-    real(dp), optional, intent(in) :: T_guess
+    real(dp), intent(in) :: P_i_surf(:) !! Initial surface partial pressures (dyn/cm^2).
+    real(dp), intent(in) :: P_surf !! Target total surface pressure (dyn/cm^2).
+    character(*), intent(in) :: bg_gas !! Background-gas name.
+    real(dp), optional, intent(in) :: T_guess !! Initial surface-temperature guess (K).
     character(:), allocatable, intent(out) :: err
     real(dp) :: T_surf
     T_surf = AdiabatClimate_simple_solver(self, fcn, T_guess, err)
@@ -1043,15 +1097,19 @@ contains
 
   end subroutine
 
-  !> Sets particle densities and radii
+  !> Set pressure-dependent particle number-density and radius profiles.
+  !!
+  !! Inputs are retained as log-pressure interpolation functions and are sampled
+  !! onto the model pressure grid whenever a profile is constructed. `P` must be
+  !! strictly decreasing. Values outside its range are held at the nearest
+  !! endpoint. Zero particle densities or radii are represented internally by a
+  !! small positive interpolation floor.
   subroutine AdiabatClimate_set_particle_density_and_radii(self, P, pdensities, pradii, err)
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), intent(in) :: P(:) !! Array of pressures in dynes/cm^2
-    !> Particle densities in particles/cm^3 at each pressure and for each particle
-    !> in the model. Shape (nz, np).
+    real(dp), intent(in) :: P(:) !! Pressure grid, shape `(n)` (dyn/cm^2).
+    !> Particle number densities, shape `(n,np)` (particles/cm^3).
     real(dp), intent(in) :: pdensities(:,:) 
-    !> Particle radii in cm at each pressure and for each particle
-    !> in the model. Shape (nz, np).
+    !> Particle radii, shape `(n,np)` (cm).
     real(dp), intent(in) :: pradii(:,:)
     character(:), allocatable, intent(out) :: err
 
@@ -1122,11 +1180,15 @@ contains
 
   end subroutine
 
-  !> Sets a function for describing how gases dissolve in a liquid ocean.
+  !> Set the solubility callback for an ocean made from a modeled species.
+  !!
+  !! The callback receives surface temperature, gas partial pressures in bars,
+  !! and `ocean_args_p`, and returns gas solubilities in mol/kg. The procedure
+  !! pointer must remain valid while the model uses it.
   subroutine AdiabatClimate_set_ocean_solubility_fcn(self, sp, fcn, err)
     class(AdiabatClimate), intent(inout) :: self
-    character(*), intent(in) :: sp !! name of species that makes the ocean
-    !> Function describing solubility of other gases in ocean
+    character(*), intent(in) :: sp !! Name of the species that makes up the ocean.
+    !> Callback describing the solubility of other gases in the ocean.
     procedure(ocean_solubility_fcn), pointer, intent(in) :: fcn 
     character(:), allocatable, intent(out) :: err
 
@@ -1142,7 +1204,11 @@ contains
 
   end subroutine
 
-  !> Re-grids atmosphere so that each grid cell is equally spaced in altitude.
+  !> Regrid the current atmosphere to equal-width altitude layers.
+  !!
+  !! Gas number densities are conservatively rebinned, while temperature is
+  !! interpolated to the new layer centers. Pressure and mixing ratios are then
+  !! recomputed. This operation mutates the stored atmospheric grid and state.
   subroutine AdiabatClimate_to_regular_grid(self, err)
     use futils, only: rebin, interp
     use clima_eqns, only: vertical_grid
@@ -1213,13 +1279,20 @@ contains
 
   end subroutine
 
+  !> Write the current atmosphere in Photochem's legacy atmosphere-text format.
+  !!
+  !! The method first calls `to_regular_grid`, so it mutates the stored atmosphere
+  !! even if a later file validation or write error occurs. Output altitude is in
+  !! km, pressure in bar, total gas density in molecules/cm^3, temperature in K,
+  !! and eddy diffusion in cm^2/s. Gas columns contain volume mixing ratios.
   subroutine AdiabatClimate_out2atmosphere_txt(self, filename, eddy, number_of_decimals, overwrite, clip, err)
     use futils, only: FileCloser
     class(AdiabatClimate), target, intent(inout) :: self
-    character(len=*), intent(in) :: filename
-    real(dp), intent(in) :: eddy(:)
-    integer, intent(in) :: number_of_decimals
-    logical, intent(in) :: overwrite, clip
+    character(len=*), intent(in) :: filename !! Output path.
+    real(dp), intent(in) :: eddy(:) !! Eddy diffusion, shape `(nz)` (cm^2/s).
+    integer, intent(in) :: number_of_decimals !! Decimal places, from 2 through 17.
+    logical, intent(in) :: overwrite !! Allow replacement of an existing file.
+    logical, intent(in) :: clip !! Clip output mixing ratios below `1.0e-40`.
     character(:), allocatable, intent(out) :: err
     
     character(len=100) :: tmp
@@ -1316,17 +1389,19 @@ contains
     
   end subroutine
 
-  !> For considering a tidally locked planet. This function computes key parameters for
-  !> Equation (10) in Koll (2022), ApJ. The function must be called after calling a function
-  !> `self%TOA_fluxes`, because it uses atmosphere properties, and radiative properties.
+  !> Compute the tidally locked heat-redistribution parameters from Equation 10
+  !! of Koll (2022, ApJ).
+  !!
+  !! A top-of-atmosphere flux method must be called first because this calculation
+  !! uses the current atmospheric state and radiative-transfer results.
   subroutine AdiabatClimate_heat_redistribution_parameters(self, tau_LW, k_term, f_term, err)
     use clima_const, only: c_light
     use clima_eqns, only: k_term_heat_redistribution, f_heat_redistribution, &
                           gravity, heat_capacity_eval, planck_fcn
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), intent(out) :: tau_LW !! Long wavelength optical depth
-    real(dp), intent(out) :: k_term !! k term in Equation (10)
-    real(dp), intent(out) :: f_term !! The heat redistribution parameter, f in Equation (10)
+    real(dp), intent(out) :: tau_LW !! Dimensionless Planck-weighted longwave optical depth.
+    real(dp), intent(out) :: k_term !! Dimensionless `k` term in Equation 10.
+    real(dp), intent(out) :: f_term !! Dimensionless redistribution factor `f` in Equation 10.
     character(:), allocatable, intent(out) :: err
 
     integer :: i

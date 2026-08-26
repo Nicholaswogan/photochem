@@ -20,6 +20,8 @@ directories managed by the standard library.
   particle and mixing-ratio inputs.
 - `test_radtran` exercises standalone radiative transfer, atmosphere-file
   interpolation, opacity reporting, and custom optical properties.
+- `test_python.py` checks the installed Clima wrapper's public state, nested
+  radiative-transfer views, solver controls, and rebin utilities.
 - The experimental Clima `Climate` model is intentionally excluded from this
   repository, so its corresponding upstream test is not imported.
 
@@ -118,5 +120,6 @@ After installing the Python package, run its smoke test:
 
 ```sh
 python tests/equilibrate/test_python.py
+python tests/clima/test_python.py
 python tests/photochem/test_python.py
 ```

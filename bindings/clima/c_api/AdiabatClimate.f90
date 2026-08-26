@@ -960,6 +960,60 @@ subroutine adiabatclimate_convective_newton_step_size_set(ptr, val) bind(c)
   c%convective_newton_step_size = val
 end subroutine
 
+subroutine adiabatclimate_convective_hysteresis_frac_on_get(ptr, val) bind(c)
+  use clima, only: AdiabatClimate
+  type(c_ptr), value, intent(in) :: ptr
+  real(c_double), intent(out) :: val
+  type(AdiabatClimate), pointer :: c
+  call c_f_pointer(ptr, c)
+  val = c%convective_hysteresis_frac_on
+end subroutine
+
+subroutine adiabatclimate_convective_hysteresis_frac_on_set(ptr, val) bind(c)
+  use clima, only: AdiabatClimate
+  type(c_ptr), value, intent(in) :: ptr
+  real(c_double), intent(in) :: val
+  type(AdiabatClimate), pointer :: c
+  call c_f_pointer(ptr, c)
+  c%convective_hysteresis_frac_on = val
+end subroutine
+
+subroutine adiabatclimate_convective_hysteresis_frac_off_get(ptr, val) bind(c)
+  use clima, only: AdiabatClimate
+  type(c_ptr), value, intent(in) :: ptr
+  real(c_double), intent(out) :: val
+  type(AdiabatClimate), pointer :: c
+  call c_f_pointer(ptr, c)
+  val = c%convective_hysteresis_frac_off
+end subroutine
+
+subroutine adiabatclimate_convective_hysteresis_frac_off_set(ptr, val) bind(c)
+  use clima, only: AdiabatClimate
+  type(c_ptr), value, intent(in) :: ptr
+  real(c_double), intent(in) :: val
+  type(AdiabatClimate), pointer :: c
+  call c_f_pointer(ptr, c)
+  c%convective_hysteresis_frac_off = val
+end subroutine
+
+subroutine adiabatclimate_convective_hysteresis_min_get(ptr, val) bind(c)
+  use clima, only: AdiabatClimate
+  type(c_ptr), value, intent(in) :: ptr
+  real(c_double), intent(out) :: val
+  type(AdiabatClimate), pointer :: c
+  call c_f_pointer(ptr, c)
+  val = c%convective_hysteresis_min
+end subroutine
+
+subroutine adiabatclimate_convective_hysteresis_min_set(ptr, val) bind(c)
+  use clima, only: AdiabatClimate
+  type(c_ptr), value, intent(in) :: ptr
+  real(c_double), intent(in) :: val
+  type(AdiabatClimate), pointer :: c
+  call c_f_pointer(ptr, c)
+  c%convective_hysteresis_min = val
+end subroutine
+
 subroutine adiabatclimate_convective_max_boundary_shift_get(ptr, val) bind(c)
   use clima, only: AdiabatClimate
   type(c_ptr), value, intent(in) :: ptr
@@ -1174,6 +1228,24 @@ subroutine adiabatclimate_max_rc_iters_convection_set(ptr, val) bind(c)
   type(AdiabatClimate), pointer :: c
   call c_f_pointer(ptr, c)
   c%max_rc_iters_convection = val
+end subroutine
+
+subroutine adiabatclimate_compute_solar_in_jac_get(ptr, val) bind(c)
+  use clima, only: AdiabatClimate
+  type(c_ptr), value, intent(in) :: ptr
+  logical(c_bool), intent(out) :: val
+  type(AdiabatClimate), pointer :: c
+  call c_f_pointer(ptr, c)
+  val = c%compute_solar_in_jac
+end subroutine
+
+subroutine adiabatclimate_compute_solar_in_jac_set(ptr, val) bind(c)
+  use clima, only: AdiabatClimate
+  type(c_ptr), value, intent(in) :: ptr
+  logical(c_bool), intent(in) :: val
+  type(AdiabatClimate), pointer :: c
+  call c_f_pointer(ptr, c)
+  c%compute_solar_in_jac = val
 end subroutine
 
 subroutine adiabatclimate_verbose_get(ptr, val) bind(c)

@@ -20,7 +20,7 @@ module clima_adiabat_dry
     real(dp), pointer :: P_top
     real(dp), pointer :: rtol
     real(dp), pointer :: atol
-    ! Ouput
+    ! Output
     real(dp), pointer :: P(:)
     real(dp), pointer :: z(:)
     real(dp), pointer :: T(:)

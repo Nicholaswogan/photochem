@@ -37,3 +37,9 @@ cdef list2cstring(list arr, int str_len):
 
 class ClimaException(Exception):
     """Error reported by the compiled Clima model or its Python wrapper."""
+
+# Keep these public selectors synchronized with the authoritative constants in
+# ``src/clima/clima_adiabat.f90``.
+RCE_SOLVE_HYBRJ_ONLY = 1
+RCE_SOLVE_PTC_THEN_HYBRJ = 2
+RCE_SOLVE_HYBRJ_THEN_PTC_THEN_HYBRJ = 3

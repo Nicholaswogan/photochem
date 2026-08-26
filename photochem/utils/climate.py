@@ -3,14 +3,18 @@ import os
 from ._format import yaml, Loader, MyDumper, FormatReactions_main, flowmap
 
 def species_dict_for_climate(species, condensates, particles=None):
-    """Generates a species dictionary for climate simulations with AdiabatClimate.
+    """Generate species-file data for ``AdiabatClimate``.
+
+    Gas thermodynamic and saturation data are selected from the installed
+    Zahnle Earth mechanism. Requested names absent from that mechanism are not
+    included.
 
     Parameters
     ----------
-    species : list
-        List of species to include in the file.
-    condensates : list
-        List of species that should be condensates.
+    species : sequence of str
+        Gas species to include.
+    condensates : sequence of str
+        Included gas species that should be allowed to condense.
     particles : list[dict], optional
         Particle definitions and their elemental compositions, for example
         ``[{'name': 'HCaer', 'composition': {'C': 6, 'H': 2}}]``.
@@ -19,6 +23,11 @@ def species_dict_for_climate(species, condensates, particles=None):
     -------
     dict
         Climate species-file data.
+
+    Raises
+    ------
+    ValueError
+        If ``condensates`` is not a subset of ``species``.
     """
 
     if not set(condensates).issubset(species):
@@ -71,11 +80,11 @@ def species_file_for_climate(filename, species, condensates, particles=None):
     Parameters
     ----------
     filename : str
-        Path of the output yaml file.
-    species : list
-        List of species to include in the file.
-    condensates : list
-        List of species that should be condensates.
+        Output YAML path. An existing file is replaced.
+    species : sequence of str
+        Gas species to include.
+    condensates : sequence of str
+        Included gas species that should be allowed to condense.
     particles : list[dict], optional
         Particle definitions and their elemental compositions, for example
         ``[{'name': 'HCaer', 'composition': {'C': 6, 'H': 2}}]``.
@@ -90,7 +99,7 @@ def species_file_for_climate(filename, species, condensates, particles=None):
 def settings_dict_for_climate(planet_mass, planet_radius, surface_albedo, 
                               number_of_layers=50, number_of_zenith_angles=4, 
                               photon_scale_factor=1.0, opacities=None):
-    """Generates a settings dictionary for the AdiabatClimate model.
+    """Generate settings-file data for ``AdiabatClimate``.
 
     Parameters
     ----------
@@ -99,21 +108,23 @@ def settings_dict_for_climate(planet_mass, planet_radius, surface_albedo,
     planet_radius : float
         Planet radius in cm.
     surface_albedo : float
-        Surface albedo of the planet.
+        Dimensionless surface albedo.
     number_of_layers : int, optional
         Number of atmospheric layers, by default 50.
     number_of_zenith_angles : int, optional
-        Number of solar zenith angles to do solar radiative transfer at, 
+        Number of solar zenith angles used for shortwave radiative transfer,
         by default 4.
     photon_scale_factor : float, optional
-        A value to multiply the stellar flux by, by default 1.0.
-    opacities: dict, optional
-        A dictionary describing the opacities, by default None.
+        Dimensionless stellar-flux multiplier, by default 1.0.
+    opacities : dict, optional
+        Opacity configuration. By default, enable the standard gas, scattering,
+        photolysis, and MT_CKD water-continuum sources.
     
     Returns
     -------
-    settings : dict
-        Dictionary of the settings file.
+    dict
+        Climate settings-file data. The supplied ``opacities`` object is stored
+        by reference rather than copied.
     """    
     
     if opacities is None:
@@ -147,27 +158,28 @@ def settings_dict_for_climate(planet_mass, planet_radius, surface_albedo,
 def settings_file_for_climate(filename, planet_mass, planet_radius, surface_albedo, 
                               number_of_layers=50, number_of_zenith_angles=4, 
                               photon_scale_factor=1.0, opacities=None):
-    """Generates a settings file for the AdiabatClimate model.
+    """Write an ``AdiabatClimate`` settings file.
 
     Parameters
     ----------
     filename : str
-        Path to output file.
+        Output YAML path. An existing file is replaced.
     planet_mass : float
         Planet mass in grams.
     planet_radius : float
         Planet radius in cm.
     surface_albedo : float
-        Surface albedo of the planet.
+        Dimensionless surface albedo.
     number_of_layers : int, optional
         Number of atmospheric layers, by default 50.
     number_of_zenith_angles : int, optional
-        Number of solar zenith angles to do solar radiative transfer at, 
+        Number of solar zenith angles used for shortwave radiative transfer,
         by default 4.
     photon_scale_factor : float, optional
-        A value to multiply the stellar flux by, by default 1.0.
-    opacities: dict, optional
-        A dictionary describing the opacities, by default None.
+        Dimensionless stellar-flux multiplier, by default 1.0.
+    opacities : dict, optional
+        Opacity configuration. By default, enable the standard gas, scattering,
+        photolysis, and MT_CKD water-continuum sources.
     """
     settings = settings_dict_for_climate(
         planet_mass, 
