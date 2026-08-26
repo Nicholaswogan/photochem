@@ -336,20 +336,22 @@ module photochem_evoatmosphere
     !> information needed for `dochem` to compute chemistry.
     module subroutine prep_atmosphere_unchecked(self, usol_in, apply_persistent_profile, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_in(:,:) !! Number densities (molecules/cm^3)
+      !> Evolved gas and condensed-material number densities (molecules/cm^3).
+      real(dp), intent(in) :: usol_in(:,:)
       logical, optional, intent(in) :: apply_persistent_profile
       character(:), allocatable, intent(out) :: err
     end subroutine
 
     !> Prepare all atmosphere-dependent work arrays for a number-density state.
     !!
-    !! `usol_in` has shape `(dat%nq,var%nz)` and contains evolved-species
-    !! number densities. On success, `wrk%usol` and the chemical, transport,
-    !! pressure, density, and radiative quantities in `wrk` correspond to that
-    !! state.
+    !! `usol_in` has shape `(dat%nq,var%nz)` and contains evolved gas and
+    !! condensed-material number densities. On success, `wrk%usol` and the
+    !! chemical, transport, pressure, density, and radiative quantities in
+    !! `wrk` correspond to that state.
     module subroutine prep_atmosphere(self, usol_in, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_in(:,:) !! Number densities (molecules/cm^3)
+      !> Evolved gas and condensed-material number densities (molecules/cm^3).
+      real(dp), intent(in) :: usol_in(:,:)
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -361,7 +363,9 @@ module photochem_evoatmosphere
     !! within each atmospheric layer.
     module subroutine chemistry_right_hand_side(self, usol, rhs, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol(:,:) !! Number densities, shape `(dat%nq,var%nz)` (molecules/cm^3).
+      !> Evolved gas and condensed-material number densities, shape
+      !! `(dat%nq,var%nz)` (molecules/cm^3).
+      real(dp), intent(in) :: usol(:,:)
       real(dp), intent(out) :: rhs(:) !! Chemistry tendency, size `var%neqs` (molecules/cm^3/s).
       character(:), allocatable, intent(out) :: err
     end subroutine
@@ -374,7 +378,9 @@ module photochem_evoatmosphere
       class(EvoAtmosphere), target, intent(inout) :: self
       integer, intent(in) :: neqs !! Number of ODE equations, `dat%nq*var%nz`.
       real(dp), intent(in) :: tn !! Integration time (s).
-      real(dp), target, intent(in) :: usol_flat(neqs) !! Flattened number-density state (molecules/cm^3).
+      !> Flattened evolved gas and condensed-material number densities
+      !! (molecules/cm^3).
+      real(dp), target, intent(in) :: usol_flat(neqs)
       real(dp), intent(out) :: rhs(neqs) !! Flattened tendency (molecules/cm^3/s).
       character(:), allocatable, intent(out) :: err
     end subroutine
@@ -388,7 +394,9 @@ module photochem_evoatmosphere
       class(EvoAtmosphere), target, intent(inout) :: self
       integer, intent(in) :: lda_neqs !! Size of the extended band-matrix storage.
       integer, intent(in) :: neqs !! Number of ODE equations, `dat%nq*var%nz`.
-      real(dp), target, intent(in) :: usol_flat(neqs) !! Flattened number-density state (molecules/cm^3).
+      !> Flattened evolved gas and condensed-material number densities
+      !! (molecules/cm^3).
+      real(dp), target, intent(in) :: usol_flat(neqs)
       real(dp), intent(out), target :: jac(lda_neqs) !! Extended band-matrix Jacobian storage.
       character(:), allocatable, intent(out) :: err
     end subroutine
@@ -404,7 +412,9 @@ module photochem_evoatmosphere
     module subroutine production_and_loss(self, species, usol, pl, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: species !! Species name.
-      real(dp), intent(in) :: usol(:,:) !! Number densities, shape `(dat%nq,var%nz)` (molecules/cm^3).
+      !> Evolved gas and condensed-material number densities, shape
+      !! `(dat%nq,var%nz)` (molecules/cm^3).
+      real(dp), intent(in) :: usol(:,:)
       type(ProductionLoss), intent(out) :: pl !! Reaction-resolved production and loss information.
       character(:), allocatable, intent(out) :: err
     end subroutine
@@ -422,9 +432,11 @@ module photochem_evoatmosphere
       use, intrinsic :: iso_c_binding
       class(EvoAtmosphere), target, intent(inout) :: self
       character(len=*), intent(in) :: filename !! Filename to save results.
-      real(c_double), intent(inout) :: tstart !! start time in seconds
-      real(dp), intent(inout) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
-      real(c_double), intent(in) :: t_eval(:) !! times to evaluate the solution
+      real(c_double), intent(inout) :: tstart !! Start time (seconds).
+      !> Initial evolved gas and condensed-material number densities
+      !! (molecules/cm^3).
+      real(dp), intent(inout) :: usol_start(:,:)
+      real(c_double), intent(in) :: t_eval(:) !! Times at which to save the solution (seconds).
       logical, optional, intent(in) :: overwrite !! If true, then overwrites pre-existing files with `filename`
       logical, optional, intent(in) :: restart_from_file !! If true, then the integration restarts from the input file.
       logical :: success !! If True, then integration was successful.
@@ -456,7 +468,9 @@ module photochem_evoatmosphere
     !! [[EvoAtmosphere:destroy_stepper]] when finished.
     module subroutine initialize_stepper(self, usol_start, err)      
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
+      !> Initial evolved gas and condensed-material number densities
+      !! (molecules/cm^3).
+      real(dp), intent(in) :: usol_start(:,:)
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -518,7 +532,7 @@ module photochem_evoatmosphere
     module function step(self, err) result(tn)
       class(EvoAtmosphere), target, intent(inout) :: self
       character(:), allocatable, intent(out) :: err
-      real(dp) :: tn !! Current time in the integration.
+      real(dp) :: tn !! Current integration time (seconds).
     end function
     
     !> Destroy the active basic or robust CVODE stepper and release its
@@ -537,12 +551,16 @@ module photochem_evoatmosphere
     !! recovery, scheduled restarts, convergence management, and integration
     !! counters. When TOA-pressure maintenance is enabled, the starting
     !! composition is prepared and the model top is brought inside the
-    !! configured pressure band before CVODE is initialized. This preflight
-    !! allows pressure-based atmosphere initialization to retain its requested
-    !! domain endpoints. Total accepted-step and failed-step counters are reset.
+    !! configured pressure band before CVODE is initialized. Maintenance
+    !! requires a persistent pressure-based temperature and eddy-diffusion
+    !! profile. This preflight allows pressure-based atmosphere initialization
+    !! to retain its requested domain endpoints. Total accepted-step and
+    !! failed-step counters are reset.
     module subroutine initialize_robust_stepper(self, usol_start, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
+      !> Initial evolved gas and condensed-material number densities
+      !! (molecules/cm^3).
+      real(dp), intent(in) :: usol_start(:,:)
       character(:), allocatable, intent(out) :: err
     end subroutine
     
@@ -610,9 +628,9 @@ module photochem_evoatmosphere
     !! The output uses the concentrations currently stored in `self%wrk%usol`.
     module subroutine out2atmosphere_txt(self, filename, number_of_decimals, overwrite, clip, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      character(len=*), intent(in) :: filename !! Output filename
-      integer, intent(in) :: number_of_decimals !! Number of decimals
-      logical, intent(in) :: overwrite !! If true, then output file can be overwritten, by default False
+      character(len=*), intent(in) :: filename !! Output filename.
+      integer, intent(in) :: number_of_decimals !! Number of decimal places in numeric values.
+      logical, intent(in) :: overwrite !! Allow an existing file to be overwritten.
       !> If true, mixing ratios are clipped at a small positive value.
       logical, intent(in) :: clip
       character(:), allocatable, intent(out) :: err
@@ -620,9 +638,8 @@ module photochem_evoatmosphere
 
     !~~ photochem_evoatmosphere_boundary.f90 ~~!
 
-    !> Computes gas fluxes at model boundaries in order to maintain
-    !> current atmospheric concentrations. Uses the densities stored in
-    !> self%wrk%usol.
+    !> Compute gas fluxes at model boundaries that maintain the current
+    !! atmospheric concentrations, using the state in `self%wrk%usol`.
     module subroutine gas_fluxes(self, surf_fluxes, top_fluxes, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(out) :: surf_fluxes(:) !! surface fluxes (molecules/cm^2/s)
@@ -642,7 +659,7 @@ module photochem_evoatmosphere
       character(len=*), intent(in) :: bc_type !! Boundary condition type
       real(dp), optional, intent(in) :: vdep !! Deposition velocity (cm/s)
       real(dp), optional, intent(in) :: den !! density (molecules/cm^3)
-      real(dp), optional, intent(in) :: press !! pressure (dynes/cm^2)
+      real(dp), optional, intent(in) :: press !! Pressure (dyn/cm^2).
       real(dp), optional, intent(in) :: flux !! Flux (molecules/cm^2/s)
       real(dp), optional, intent(in) :: height !! Height in atmosphere (km)
       character(:), allocatable, intent(out) :: err
@@ -677,14 +694,14 @@ module photochem_evoatmosphere
 
     !~~ photochem_evoatmosphere_profiles.f90 ~~!
 
-    !> Changes the altitude-based temperature profile.
+    !> Change the altitude-based temperature profile.
     !!
     !! This procedure cannot be used while a CVODE stepper is initialized or
     !! while a persistent pressure-temperature-eddy profile is enabled. Call
     !! `destroy_stepper` or `clear_press_temp_edd_profile` first, respectively.
     module subroutine set_temperature(self, temperature, trop_alt, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: temperature(:) !! new temperature at each atomspheric layer
+      real(dp), intent(in) :: temperature(:) !! New layer temperatures (K).
       real(dp), optional, intent(in) :: trop_alt !! Tropopause altitude (cm). Only necessary if
                                                  !! gas rainout is enabled.
       character(:), allocatable, intent(out) :: err
@@ -716,10 +733,10 @@ module photochem_evoatmosphere
     !! `destroy_stepper` or `clear_press_temp_edd_profile` first, respectively.
     module subroutine set_press_temp_edd(self, P, T, edd, trop_p, hydro_pressure, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dynes/cm^2)
+      real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dyn/cm^2).
       real(dp), intent(in) :: T(:) !! Temperature corresponding to `P` (K)
       real(dp), intent(in) :: edd(:) !! Eddy diffusion corresponding to `P` (cm^2/s)
-      !> Tropopause pressure (dynes/cm^2). Only valid and required when gas
+      !> Tropopause pressure (dyn/cm^2). Only valid and required when gas
       !! rainout is enabled; omit it otherwise.
       real(dp), optional, intent(in) :: trop_p
       !> If .true., then use hydrostatic pressure. If .false. then use the
@@ -775,8 +792,8 @@ module photochem_evoatmosphere
     !!
     !! A persistent pressure profile enables TOA-pressure maintenance by
     !! default. Supply `maintain_toa_pressure=.false.` to disable it, or
-    !! supply `target_pressure` (dynes/cm^2) to choose an explicit target;
-    !! when omitted, a target of 0.1 dynes/cm^2 is used.
+    !! supply `target_pressure` (dyn/cm^2) to choose an explicit target;
+    !! when omitted, a target of 0.1 dyn/cm^2 is used.
     !! This procedure cannot be called while a CVODE stepper is initialized.
     !! Call `destroy_stepper` first. While the persistent mode is enabled,
     !! `set_temperature` and `set_press_temp_edd` cannot be used; call
@@ -785,10 +802,10 @@ module photochem_evoatmosphere
     module subroutine set_press_temp_edd_profile(self, P, T, edd, trop_p, hydro_pressure, &
                                                  maintain_toa_pressure, target_pressure, err)
       class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dynes/cm^2)
+      real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dyn/cm^2).
       real(dp), intent(in) :: T(:) !! Temperature corresponding to `P` (K)
       real(dp), intent(in) :: edd(:) !! Eddy diffusion corresponding to `P` (cm^2/s)
-      !> Tropopause pressure (dynes/cm^2). Only valid and required when gas
+      !> Tropopause pressure (dyn/cm^2). Only valid and required when gas
       !! rainout is enabled; omit it otherwise.
       real(dp), optional, intent(in) :: trop_p
       !> If .true., use hydrostatic pressure. If .false., use actual gas
@@ -796,8 +813,8 @@ module photochem_evoatmosphere
       logical, optional, intent(in) :: hydro_pressure
       !> Enable automatic TOA-pressure maintenance. Default is .true..
       logical, optional, intent(in) :: maintain_toa_pressure
-      !> Explicit TOA-pressure maintenance target (dynes/cm^2). If omitted
-      !! while maintenance is enabled, 0.1 dynes/cm^2 is used.
+      !> Explicit TOA-pressure maintenance target (dyn/cm^2). If omitted
+      !! while maintenance is enabled, 0.1 dyn/cm^2 is used.
       real(dp), optional, intent(in) :: target_pressure
       !> Allocated with an error message if the profiles are invalid, cannot be
       !! mapped, or a CVODE stepper is currently initialized.
@@ -848,7 +865,7 @@ module photochem_evoatmosphere
     module subroutine update_vertical_grid(self, TOA_alt, TOA_pressure, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), optional, intent(in) :: TOA_alt !! New top of atmosphere altitude (cm)
-      real(dp), optional, intent(in) :: TOA_pressure !! New top of atmosphere pressure (dynes/cm^2)
+      real(dp), optional, intent(in) :: TOA_pressure !! New top of atmosphere pressure (dyn/cm^2).
       character(:), allocatable, intent(out) :: err
     end subroutine
 

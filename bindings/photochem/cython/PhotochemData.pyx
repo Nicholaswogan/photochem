@@ -1,8 +1,10 @@
 cimport PhotochemData_pxd as dat_pxd
 
 cdef class PhotochemData:
-  """This class contains data which rarely changes once a photochemical model has
-  has been initialized.
+  """Read-mostly mechanism and planetary data owned by a model.
+
+  This object is a live borrowed view available as :attr:`EvoAtmosphere.dat`;
+  it should not be constructed directly. Array-valued properties return copies.
   """
 
   cdef dat_pxd.PhotochemData *_ptr
@@ -11,49 +13,49 @@ cdef class PhotochemData:
     self._ptr = NULL
 
   property nq:
-    "The number of atmospheric species which evolve according to the PDEs"
+    """int. Number of particle and gas species evolved by transport."""
     def __get__(self):
       cdef int nq
       dat_pxd.photochemdata_nq_get(self._ptr, &nq)
       return nq
       
   property np:
-    "The number of particles"
+    """int. Number of particle species."""
     def __get__(self):
       cdef int val
       dat_pxd.photochemdata_np_get(self._ptr, &val)
       return val
       
   property ng:
-    "The number of gases in the model"
+    """int. Number of gas species, including short-lived gases."""
     def __get__(self):
       cdef int val
       dat_pxd.photochemdata_ng_get(self._ptr, &val)
       return val
 
   property nsl:
-    "The number of short-lived gases"
+    """int. Number of short-lived gas species."""
     def __get__(self):
       cdef int val
       dat_pxd.photochemdata_nsl_get(self._ptr, &val)
       return val
       
   property nll:
-    "The number of long-lived gases"
+    """int. Number of long-lived gas species."""
     def __get__(self):
       cdef int val
       dat_pxd.photochemdata_nll_get(self._ptr, &val)
       return val
       
   property nsp:
-    "The total number of species"
+    """int. Total number of chemical species, excluding ``hv`` and ``M``."""
     def __get__(self):
       cdef int val
       dat_pxd.photochemdata_nsp_get(self._ptr, &val)
       return val
       
   property nw:
-    "The number of wavelength bins"
+    """int. Number of wavelength bins."""
     def __get__(self):
       cdef int val
       dat_pxd.photochemdata_nw_get(self._ptr, &val)
@@ -83,8 +85,10 @@ cdef class PhotochemData:
       dat_pxd.photochemdata_planet_radius_set(self._ptr, &val)
 
   property species_names:
-    """List, shape (nsp+2). A list of the species in the model (particles and gases). 
-    The last two elements are 'hv' and 'M'.
+    """list[str], length ``nsp + 2``. Ordered model species names.
+
+    Particle species precede gases; the final two entries are ``"hv"`` and
+    ``"M"``.
     """
     def __get__(self):
       cdef int dim1
@@ -94,7 +98,7 @@ cdef class PhotochemData:
       return c2stringarr(species_names_c, S_STR_LEN, dim1)
       
   property species_composition:
-    "ndarray[int,dim=2], shape (natoms,nsp+2)."
+    """ndarray[int], shape (natoms, nsp + 2). Species elemental composition."""
     def __get__(self):
       cdef int dim1, dim2
       dat_pxd.photochemdata_species_composition_get_size(self._ptr, &dim1, &dim2)
@@ -103,7 +107,7 @@ cdef class PhotochemData:
       return arr
 
   property atoms_names:
-    "List, shape (natoms). The atoms in the model"
+    """list[str], length ``natoms``. Element names in composition-array order."""
     def __get__(self):
       cdef int dim1
       dat_pxd.photochemdata_atoms_names_get_size(self._ptr, &dim1)
@@ -112,7 +116,7 @@ cdef class PhotochemData:
       return c2stringarr(names_c, S_STR_LEN, dim1)
       
   property reaction_equations:
-    "List, shape (nRT). A list of all reaction equations"
+    """list[str], length ``nrT``. Reaction equations in reaction-rate order."""
     def __get__(self):
       cdef int dim1
       dat_pxd.photochemdata_reaction_equations_get_size(self._ptr, &dim1)
@@ -121,7 +125,7 @@ cdef class PhotochemData:
       return c2stringarr(names_c, M_STR_LEN, dim1)
       
   property photonums:
-    "ndarray[int,dim=1], shape (kj). The reaction number of each photolysis reaction"
+    """ndarray[int], shape (kj,). One-based reaction numbers for photolysis."""
     def __get__(self):
       cdef int dim1
       dat_pxd.photochemdata_photonums_get_size(self._ptr, &dim1)
@@ -130,7 +134,7 @@ cdef class PhotochemData:
       return arr
       
   property wavl:
-    "ndarray[int,dim=1], shape (nw). The wavelength bins (nm)"
+    """ndarray[float], shape (nw + 1,). Wavelength-bin edges in nm."""
     def __get__(self):
       cdef int dim1
       dat_pxd.photochemdata_wavl_get_size(self._ptr, &dim1)
@@ -139,7 +143,7 @@ cdef class PhotochemData:
       return arr
 
   property species_mass:
-    "ndarray[double,dim=1], shape (nsp). The molar mass of each species (g/mol)"
+    """ndarray[float], shape (nsp,). Species molar masses in g/mol."""
     def __get__(self):
       cdef int dim1
       dat_pxd.photochemdata_species_mass_get_size(self._ptr, &dim1)
@@ -148,7 +152,7 @@ cdef class PhotochemData:
       return arr
       
   property species_redox:
-    "ndarray[double,dim=1], shape (nsp). The redox state of each molecule"
+    """ndarray[float], shape (nsp,). Redox coefficient of each species."""
     def __get__(self):
       cdef int dim1
       dat_pxd.photochemdata_species_redox_get_size(self._ptr, &dim1)
@@ -157,7 +161,10 @@ cdef class PhotochemData:
       return arr
 
   property particle_sat:
-    "list, shape(np)."
+    """list[SaturationData], length ``np``. Particle saturation models.
+
+    Entries are live borrowed views owned by the model.
+    """
     def __get__(self):
       cdef int dim1
       dat_pxd.photochemdata_particle_sat_get_size(self._ptr, &dim1)
@@ -172,7 +179,7 @@ cdef class PhotochemData:
       return arr1
     
   property H_escape_coeff:
-    "double. Zahnle hydrogen escape coefficient."
+    """float. Zahnle hydrogen-escape coefficient in molecules/cm^2/s."""
     def __get__(self):
       cdef double val
       dat_pxd.photochemdata_h_escape_coeff_get(self._ptr, &val)

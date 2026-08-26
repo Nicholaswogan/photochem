@@ -1,8 +1,12 @@
 cimport PhotochemWrk_pxd as wrk_pxd
 
 cdef class PhotochemWrk:
-  """This class contains data that changes during each step
-  when integrating the photochemical model
+  """Prepared atmosphere, solver state, and runtime diagnostics.
+
+  This object is a live borrowed view available as :attr:`EvoAtmosphere.wrk`;
+  it should not be constructed directly. Most diagnostics describe the most
+  recently prepared atmospheric state. Array-valued getters return copies;
+  assigning ``usol`` or ``tn`` updates the live model state.
   """
 
   cdef wrk_pxd.PhotochemWrk *_ptr
@@ -40,7 +44,7 @@ cdef class PhotochemWrk:
 
   property pressure_hydro:
     """ndarray[double,dim=1], shape (nz). The hydrostatic pressure at the center of each
-    atmospheric layer (dynes/cm^2).
+    atmospheric layer (dyn/cm^2).
     """
     def __get__(self):
       cdef int dim1
@@ -104,7 +108,7 @@ cdef class PhotochemWrk:
       return arr
 
   property nsteps_total:
-    "int. Total number of steps in a robust integration."
+    "int. Total number of accepted steps in a robust integration."
     def __get__(self):
       cdef int val
       wrk_pxd.photochemwrk_nsteps_total_get(self._ptr, &val)
@@ -125,15 +129,17 @@ cdef class PhotochemWrk:
       return val
 
   property nsteps:
-    "int. Number of integration steps excuted. Updated after every successful step."
+    """int. Number of accepted steps in the current integration segment."""
     def __get__(self):
       cdef int val
       wrk_pxd.photochemwrk_nsteps_get(self._ptr, &val)
       return val
 
   property t_history:
-    """ndarray[double,dim=1], shape (500). History of times at previous integration steps. 
-    Index 1 is current, while index 2, 3, 4 are previous steps. Updated after every successful step.
+    """ndarray[float], shape (500,). Recent accepted integration times.
+
+    Element 0 is current; subsequent elements contain progressively older
+    entries, in seconds. Updated after each accepted step.
     """
     def __get__(self):
       cdef int dim1
@@ -143,8 +149,10 @@ cdef class PhotochemWrk:
       return arr
 
   property mix_history:
-    """ndarray[double,dim=3], shape (nq,nz,500). History of mixing ratios at previous integration steps. 
-    Index 1 is current, while index 2, 3, 4 are previous steps. Updated after every successful step.
+    """ndarray[float], shape (nq, nz, 500). Recent mixing-ratio history.
+
+    ``mix_history[:, :, 0]`` is current; subsequent slices contain
+    progressively older entries. Updated after each accepted step.
     """
     def __get__(self):
       cdef int dim1,dim2,dim3
@@ -154,23 +162,25 @@ cdef class PhotochemWrk:
       return arr
 
   property longdy:
-    "double. Normalized change in mixing ratios over some number of integrations steps."
+    """float. Normalized mixing-ratio change over the convergence interval."""
     def __get__(self):
       cdef double val
       wrk_pxd.photochemwrk_longdy_get(self._ptr, &val)
       return val
 
   property longdydt:
-    """double. Normalized change in mixing ratios divided by change in time over some 
-    number of integrations steps.
-    """
+    """float. ``longdy`` divided by elapsed history time, in s^-1."""
     def __get__(self):
       cdef double val
       wrk_pxd.photochemwrk_longdydt_get(self._ptr, &val)
       return val
 
   property tn:
-    "double. The current time of integration."
+    """float. Current integration time in seconds.
+
+    Right-hand-side and Jacobian evaluations update this value and pass it to
+    the time-dependent photon-flux callback.
+    """
     def __get__(self):
       cdef double val
       wrk_pxd.photochemwrk_tn_get(self._ptr, &val)
@@ -179,8 +189,9 @@ cdef class PhotochemWrk:
       wrk_pxd.photochemwrk_tn_set(self._ptr, &val)
 
   property usol:
-    """ndarray[double,dim=2], shape (nq,nz). Current gas concentrations in the atmosphere
-    in units and molecules/cm^3.
+    """ndarray[float], shape (nq, nz). Current evolved number densities.
+
+    Gas and condensed-material entries are in molecules/cm^3.
     """
     def __get__(self):
       cdef int dim1, dim2
@@ -198,7 +209,7 @@ cdef class PhotochemWrk:
   
   property pressure:
     """ndarray[double,dim=1], shape (nz). The pressure at the center of each 
-    atmospheric layer (dynes/cm^2).
+    atmospheric layer (dyn/cm^2).
     """
     def __get__(self):
       cdef int dim1
@@ -219,9 +230,11 @@ cdef class PhotochemWrk:
       return arr
       
   property densities:
-    """ndarray[double,dim=2], shape (nsp+1,nz). The number density (molecules/cm^3)
-    or particle density (particles/cm^3) of each molecules or particle at each atmospheric
-    layer.
+    """ndarray[float], shape (nsp + 1, nz). Chemistry number densities.
+
+    The first ``nsp`` rows follow ``dat.species_names[:nsp]``. Particle rows
+    are in particles/cm^3, gas rows are in molecules/cm^3, and the final row
+    is the unit density used for ``hv``.
     """
     def __get__(self):
       cdef int dim1, dim2
@@ -231,8 +244,10 @@ cdef class PhotochemWrk:
       return arr
 
   property rx_rates:
-    """ndarray[double,dim=2], shape (nz,nrT). Reaction rate constants in various units
-    involving molecules cm^3 and s. These rates include 3rd body contributions.
+    """ndarray[float], shape (nz, nrT). Effective reaction rate coefficients.
+
+    Units depend on reaction order. Falloff and third-body contributions are
+    already included.
     """
     def __get__(self):
       cdef int dim1, dim2
@@ -253,7 +268,7 @@ cdef class PhotochemWrk:
       return arr
       
   property prates:
-    "ndarray[double,dim=2], shape (nz,kj). The rates of each photolysis reaction (1/s)"
+    """ndarray[float], shape (nz, kj). Photolysis frequencies in s^-1."""
     def __get__(self):
       cdef int dim1, dim2
       wrk_pxd.photochemwrk_prates_get_size(self._ptr, &dim1, &dim2)
@@ -262,9 +277,9 @@ cdef class PhotochemWrk:
       return arr
   
   property amean_grd:
-    """ndarray[double,dim=2], shape (nz,nw). The mean irradiance at each 
-    atmospheric layer in each wavelength bin. Assumes the total flux is 1.
-    So, `amean_grd*photon_flux` is [photons/cm^2/s]
+    """ndarray[float], shape (nz, nw). Dimensionless mean-radiance factors.
+
+    Multiplying by ``var.photon_flux`` gives photons/cm^2/s in each bin.
     """
     def __get__(self):
       cdef int dim1, dim2
@@ -274,9 +289,7 @@ cdef class PhotochemWrk:
       return arr
       
   property optical_depth:
-    """ndarray[double,dim=2], shape (nz,nw). The optical depth at each atmospheric
-    layer in each wavelength bin.
-    """
+    """ndarray[float], shape (nz, nw). Dimensionless layer optical depth."""
     def __get__(self):
       cdef int dim1, dim2
       wrk_pxd.photochemwrk_optical_depth_get_size(self._ptr, &dim1, &dim2)
@@ -285,8 +298,9 @@ cdef class PhotochemWrk:
       return arr
       
   property surf_radiance:
-    """ndarray[double,dim=1], shape (nw). The light hitting the ground.
-    Assumes the total flux is 1. So, `surf_radiance*photon_flux` is [photons/cm^2/s]
+    """ndarray[float], shape (nw,). Dimensionless surface-radiance factors.
+
+    Multiplying by ``var.photon_flux`` gives photons/cm^2/s at the surface.
     """
     def __get__(self):
       cdef int dim1
@@ -296,14 +310,14 @@ cdef class PhotochemWrk:
       return arr
 
   property VH2_esc:
-    "double. H2 escape velocity."
+    """float. Effective H2 effusion velocity representing escape, in cm/s."""
     def __get__(self):
       cdef double val
       wrk_pxd.photochemwrk_vh2_esc_get(self._ptr, &val)
       return val
 
   property VH_esc:
-    "double. H escape velocity."
+    """float. Effective H effusion velocity representing escape, in cm/s."""
     def __get__(self):
       cdef double val
       wrk_pxd.photochemwrk_vh_esc_get(self._ptr, &val)

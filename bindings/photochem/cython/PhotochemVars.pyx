@@ -1,7 +1,11 @@
 cimport PhotochemVars_pxd as var_pxd
 
 cdef class TOAPressureMaintenance:
-  """Configuration for optional robust-stepper TOA pressure maintenance."""
+  """Live configuration for optional robust-stepper TOA pressure maintenance.
+
+  Instances are borrowed views owned by an :class:`EvoAtmosphere` model.
+  Assigning a property immediately changes that model's configuration.
+  """
 
   cdef var_pxd.TOAPressureMaintenance *_ptr
 
@@ -18,7 +22,7 @@ cdef class TOAPressureMaintenance:
       var_pxd.taopressuremaintenance_enabled_set(self._ptr, &val)
 
   property target_pressure:
-    """double. Target TOA pressure in dynes/cm^2."""
+    """float. Target TOA pressure in dyn/cm^2."""
     def __get__(self):
       cdef double val
       var_pxd.taopressuremaintenance_target_pressure_get(self._ptr, &val)
@@ -54,8 +58,13 @@ cdef class TOAPressureMaintenance:
       var_pxd.taopressuremaintenance_max_failures_set(self._ptr, &val)
 
 cdef class PhotochemVars:
-  """This class contains data that can change between independent
-  model integrations.
+  """Prepared atmospheric state and mutable model configuration.
+
+  This object is a live borrowed view available as :attr:`EvoAtmosphere.var`;
+  it should not be constructed directly. Array-valued getters return copies,
+  while assignments to settable properties update the model. Atmospheric
+  profile values become valid only after ``EvoAtmosphere.atmosphere_initialized``
+  is true.
   """
 
   cdef var_pxd.PhotochemVars *_ptr
@@ -64,28 +73,28 @@ cdef class PhotochemVars:
     self._ptr = NULL
   
   property nz:
-    "The number of vertical atmospheric layers"
+    """int. Number of vertical atmospheric layers."""
     def __get__(self):
       cdef int nz
       var_pxd.photochemvars_nz_get(self._ptr, &nz)
       return nz
 
   property top_atmos:
-    "The top of the model domain (cm)"
+    """float. Altitude of the top of the model domain in cm."""
     def __get__(self):
       cdef double val
       var_pxd.photochemvars_top_atmos_get(self._ptr, &val)
       return val
 
   property bottom_atmos:
-    "The bottom of the model domain (cm)"
+    """float. Altitude of the bottom of the model domain in cm."""
     def __get__(self):
       cdef double val
       var_pxd.photochemvars_bottom_atmos_get(self._ptr, &val)
       return val
       
   property particle_radius:
-    "ndarray[double,dim=2], shape (npq,nz). cm"
+    """ndarray[float], shape (np, nz). Particle radii in cm."""
     def __get__(self):
       cdef int dim1, dim2
       var_pxd.photochemvars_particle_radius_get_size(self._ptr, &dim1, &dim2)
@@ -101,7 +110,10 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_particle_radius_set(self._ptr, &dim1, &dim2, <double *>arr_.data)
 
   property diurnal_fac:
-    "double. Default is 0.5, to account for half planet facing the sun."
+    """float. Factor multiplying photon flux in photolysis-rate calculations.
+
+    The default 0.5 accounts for half the planet facing the star.
+    """
     def __get__(self):
       cdef double val
       var_pxd.photochemvars_diurnal_fac_get(self._ptr, &val)
@@ -110,28 +122,28 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_diurnal_fac_set(self._ptr, &val)
 
   property trop_alt:
-    "double. Tropopause altitude."
+    """float. Tropopause altitude in cm."""
     def __get__(self):
       cdef double val
       var_pxd.photochemvars_trop_alt_get(self._ptr, &val)
       return val
 
   property trop_ind:
-    "int. Tropopause index."
+    """int. Internal tropopause index using the model's Fortran convention."""
     def __get__(self):
       cdef int val
       var_pxd.photochemvars_trop_ind_get(self._ptr, &val)
       return val
 
   property rainfall_rate:
-    "double. Rainfall rate relative to modern Earth's global average."
+    """float. Rainfall relative to Earth's average of 1.1e17 molecules/cm^2/s."""
     def __get__(self):
       cdef double val
       var_pxd.photochemvars_rainfall_rate_get(self._ptr, &val)
       return val
 
   property z:
-    "ndarray[double,dim=1], shape (nz). The altitude of the center of each atmopsheric layer (cm)"
+    """ndarray[float], shape (nz,). Layer-center altitudes in cm."""
     def __get__(self):
       cdef int dim1
       var_pxd.photochemvars_z_get_size(self._ptr, &dim1)
@@ -140,7 +152,7 @@ cdef class PhotochemVars:
       return arr
 
   property dz:
-    "ndarray[double,dim=1], shape (nz). Atmospheric layer thicknesses (cm)."
+    """ndarray[float], shape (nz,). Atmospheric layer thicknesses in cm."""
     def __get__(self):
       cdef int dim1
       var_pxd.photochemvars_dz_get_size(self._ptr, &dim1)
@@ -149,7 +161,12 @@ cdef class PhotochemVars:
       return arr
 
   property photon_flux_fcn:
-    "A function for altering the photon flux over time"
+    """Numba callback that supplies stellar photon flux with time.
+
+    Assign ``None`` to disable the callback. Otherwise supply a compiled C
+    callback with signature ``void(double time, int32 nw, double* flux)``;
+    the callback must fill ``flux`` with ``nw`` values in photons/cm^2/s.
+    """
     def __set__(self, object fcn):
       cdef uintptr_t fcn_l
       cdef var_pxd.time_dependent_flux_fcn fcn_c
@@ -169,8 +186,10 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_photon_flux_fcn_set(self._ptr, fcn_c)
 
   property cond_params:
-    """list, shape (np). Parameters describing condensation and evaporation rates and
-    the RH needed for condensation.
+    """list[CondensationParameters], length ``np``. Condensation and evaporation parameters.
+
+    Entries are live borrowed views; assigning their properties changes the
+    model configuration.
     """
     def __get__(self):
       cdef int dim1
@@ -186,7 +205,7 @@ cdef class PhotochemVars:
       return arr1
 
   property temperature:
-    "ndarray[double,dim=1], shape (nz). The temperature of each atmospheric layer (K)"
+    """ndarray[float], shape (nz,). Layer temperatures in K."""
     def __get__(self):
       cdef int dim1
       var_pxd.photochemvars_temperature_get_size(self._ptr, &dim1)
@@ -195,7 +214,7 @@ cdef class PhotochemVars:
       return arr
       
   property edd:
-    "ndarray[double,dim=1], shape (nz). The eddy diffusion of each atmospheric layer (cm^2/s)"
+    """ndarray[float], shape (nz,). Eddy diffusion coefficients in cm^2/s."""
     def __get__(self):
       cdef int dim1
       var_pxd.photochemvars_edd_get_size(self._ptr, &dim1)
@@ -211,7 +230,13 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_edd_set(self._ptr, &dim1, <double *>edd_new.data)
 
   property custom_binary_diffusion_fcn:
-    "A function for specifying a custom binary diffusion parameter (b_ij)"
+    """Numba callback for a custom binary diffusion parameter.
+
+    Assign ``None`` to restore the built-in calculation. Otherwise supply a
+    compiled C callback with signature ``double(double mu_i, double mubar,
+    double T)``. The molar masses are in g/mol, temperature is in K, and the
+    callback returns the binary diffusion parameter in molecules cm^-1 s^-1.
+    """
     def __set__(self, object fcn):
       cdef uintptr_t fcn_l
       cdef var_pxd.binary_diffusion_fcn fcn_c
@@ -231,7 +256,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_custom_binary_diffusion_fcn_set(self._ptr, fcn_c)
       
   property photon_flux:
-    "ndarray[double,dim=1], shape (nw). photon/cm^2/s in each wavelength bin hitting planet."
+    """ndarray[float], shape (nw,). Incident photons/cm^2/s per wavelength bin."""
     def __get__(self):
       cdef int dim1
       var_pxd.photochemvars_photon_flux_get_size(self._ptr, &dim1)
@@ -240,7 +265,7 @@ cdef class PhotochemVars:
       return arr
   
   property grav:
-    "ndarray[double,dim=1], shape (nz). The gravitational acceleration at the center of each grid cell (cm/s^2)."
+    """ndarray[float], shape (nz,). Layer-center gravity in cm/s^2."""
     def __get__(self):
       cdef int dim1
       var_pxd.photochemvars_grav_get_size(self._ptr, &dim1)
@@ -249,7 +274,7 @@ cdef class PhotochemVars:
       return arr
       
   property tauc:
-    "ndarray[double,dim=2], shape (nz,nw). Custom optical depth in each layer."
+    """ndarray[float], shape (nz, nw). Custom layer optical depth."""
     def __get__(self):
       cdef int dim1, dim2
       var_pxd.photochemvars_tauc_get_size(self._ptr, &dim1, &dim2)
@@ -265,7 +290,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_tauc_set(self._ptr, &dim1, &dim2, <double *>arr.data)  
 
   property w0c:
-    "ndarray[double,dim=2], shape (nz,nw). Custom single scattering albedo."
+    """ndarray[float], shape (nz, nw). Custom single-scattering albedo."""
     def __get__(self):
       cdef int dim1, dim2
       var_pxd.photochemvars_w0c_get_size(self._ptr, &dim1, &dim2)
@@ -281,7 +306,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_w0c_set(self._ptr, &dim1, &dim2, <double *>arr.data)  
 
   property g0c:
-    "ndarray[double,dim=2], shape (nz,nw). Custom asymmetry parameter."
+    """ndarray[float], shape (nz, nw). Custom scattering asymmetry parameter."""
     def __get__(self):
       cdef int dim1, dim2
       var_pxd.photochemvars_g0c_get_size(self._ptr, &dim1, &dim2)
@@ -297,8 +322,8 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_g0c_set(self._ptr, &dim1, &dim2, <double *>arr.data)  
 
   property max_error_reinit_attempts:
-    """int. number of times to reinitialize CVODE when it returns
-    a potentially recoverable error.
+    """int. Number of times to reinitialize CVODE when it returns
+    a potentially recoverable error during :meth:`EvoAtmosphere.evolve`.
     """
     def __get__(self):
       cdef int val
@@ -317,8 +342,10 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_rtol_set(self._ptr, &val)
       
   property atol:
-    """double. Integration absolute tolerance. Automatic differentiation generally
-    works better when atol is smaller (e.g., atol = ~1.0e-18).
+    """float. Dimensionless absolute tolerance in mixing ratio.
+
+    The model multiplies this value by each layer's hydrostatic number density
+    to construct the CVODE absolute-tolerance vector.
     """
     def __get__(self):
       cdef double val
@@ -337,7 +364,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_mxsteps_set(self._ptr, &val)
       
   property equilibrium_time:
-    "double. Atomsphere considered in equilibrium if integrations reaches this time (seconds)"
+    """float. Time in s at which an integration is considered converged."""
     def __get__(self):
       cdef double val
       var_pxd.photochemvars_equilibrium_time_get(self._ptr, &val)
@@ -366,7 +393,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_conv_min_mix_set(self._ptr, &val)
 
   property conv_longdy:
-    """double. Threshold normalized change in mixing ratios for converchecking check.
+    """double. Threshold normalized change in mixing ratios for convergence.
     A reasonable value is ~1.0e-2.
     """
     def __get__(self):
@@ -377,9 +404,7 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_conv_longdy_set(self._ptr, &val)
 
   property conv_longdydt:
-    """double. Threshold normalized change in mixing ratios per time change for 
-    convergence checking.
-    """
+    """double. Threshold mixing-ratio change rate for convergence, in s^-1."""
     def __get__(self):
       cdef double val
       var_pxd.photochemvars_conv_longdydt_get(self._ptr, &val)
@@ -458,7 +483,7 @@ cdef class PhotochemVars:
   property upwind_molec_diff:
     """bool. If True, then the code uses a 1st order upwind method for the advective molecular
     diffusion terms instead of a centered scheme. This permits stability (at the cost 
-    of accuracy) for atmospheres with strong molcular advection in the upper atmosphere.
+    of accuracy) for atmospheres with strong molecular advection in the upper atmosphere.
     """
     def __get__(self):
       cdef bool val
@@ -521,7 +546,11 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_reinit_min_density_set(self._ptr, &val)
 
   property toa_pressure_maintenance:
-    """TOAPressureMaintenance. Optional automatic TOA pressure maintenance settings."""
+    """TOAPressureMaintenance. Live automatic TOA-pressure settings.
+
+    Automatic maintenance requires a persistent pressure-based temperature
+    and eddy-diffusion profile.
+    """
     def __get__(self):
       cdef TOAPressureMaintenance maintenance = TOAPressureMaintenance()
       var_pxd.photochemvars_toa_pressure_maintenance_get(self._ptr, &maintenance._ptr)

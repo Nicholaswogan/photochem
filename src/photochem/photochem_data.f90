@@ -124,8 +124,8 @@ module photochem_data
   !> Mechanism and supporting data fixed after model construction.
   type :: PhotochemData
 
-    integer :: natoms !! number of atoms
-    character(len=s_str_len), allocatable :: atoms_names(:) !! (natoms)
+    integer :: natoms !! Number of elements.
+    character(len=s_str_len), allocatable :: atoms_names(:) !! Element names, shape (natoms).
     real(dp), allocatable :: atoms_mass(:) !! g/mol (natoms)
     real(dp), allocatable :: atoms_redox(:) !!  (natoms)
 
@@ -137,31 +137,32 @@ module photochem_data
     ! |_______|
     !     |
     ! Only np + ng = nq evolve through time. nsl are assumed to be in equilibrium.
-    integer :: nq !! number of gases + particles which evolve over time from integration
+    integer :: nq !! Number of particle and gas species evolved by the transport equations.
     integer :: ng_1 !! index of first gas
-    integer :: nll !! number of long-lived gas molecules
-    integer :: nsl !! number of short-lived gas molecules
-    integer :: ng  !! number of gases
-    integer :: nsp !! total number of species (nq + nsl + 1)
+    integer :: nll !! Number of long-lived gas species.
+    integer :: nsl !! Number of short-lived gas species.
+    integer :: ng  !! Number of gas species, including short-lived gases.
+    integer :: nsp !! Total number of chemical species, excluding hv and M.
     integer :: kd, kl, ku !! not read in. It is nq + nq + 1 (diagonal width of jacobian)
     integer :: lda !! not read in. It is nq + nq + nq + 1. leading dimension of array which stores jacobian
     character(len=s_str_len), allocatable :: SL_names(:) !! (nsl)
-    character(len=s_str_len), allocatable :: species_names(:) !! (nsp+2) + 2 for hv and M
-    integer, allocatable :: species_composition(:,:) !! (natoms, nsp+2)
-    real(dp), allocatable :: species_mass(:) !! (nsp)
-    real(dp), allocatable :: species_redox(:) !! (nsp)
+    !> (nsp+2) Ordered species names: particles, gases, then hv and M.
+    character(len=s_str_len), allocatable :: species_names(:)
+    integer, allocatable :: species_composition(:,:) !! Element counts (natoms,nsp+2).
+    real(dp), allocatable :: species_mass(:) !! Species molar masses (g/mol), shape (nsp).
+    real(dp), allocatable :: species_redox(:) !! Species redox coefficients, shape (nsp).
     type(ThermodynamicData), allocatable :: thermo_data(:) !! (ng)
     real(dp), allocatable :: henry_data(:,:) !! (2, nsp).
     ! henry_data(:,i) = [A, B], and [mol/(kg * Pa)] = A*exp(B*(1.0_dp/298.15e0_dp - 1.0_dp/T))
 
     ! particles
     logical :: there_are_particles
-    integer :: np !! number of particles
+    integer :: np !! Number of particle species.
     integer :: npq !! number of particle equations. for now nq = npq.
     character(len=s_str_len), allocatable :: particle_names(:) !! np
     integer, allocatable :: particle_formation_method(:) !! np. 1 == saturation, 2 == reaction
     real(dp), allocatable :: particle_density(:) !! np (g/cm3)
-    type(SaturationData), allocatable :: particle_sat(:) !! (np)
+    type(SaturationData), allocatable :: particle_sat(:) !! Saturation models, shape (np).
     character(len=s_str_len), allocatable :: particle_gas_phase(:) !! (np). gas phase of particle.
     ! Only for saturation particles
     integer, allocatable :: particle_gas_phase_ind(:) !! np. index of gas phase of particle
@@ -175,14 +176,14 @@ module photochem_data
     integer :: nrR !! number of reverse reactions
     integer :: nrT !! number of total reactions
     type(Reaction), allocatable :: rx(:) !! (nrT) array of reaction objects
-    character(len=m_str_len), allocatable :: reaction_equations(:) !! (nrT)
+    character(len=m_str_len), allocatable :: reaction_equations(:) !! Reaction equations, shape (nrT).
     type(ProdLoss), allocatable :: pl(:) !! (nsp) reactions producing and destroying each species
     integer :: kj !! number of photolysis reactions
-    integer, allocatable :: photonums(:) !! (kj) the reaction number of each photolysis reaction
+    integer, allocatable :: photonums(:) !! (kj) Fortran reaction number of each photolysis reaction.
 
     ! radiative transfer
-    integer :: nw !! number of wavelength bins
-    real(dp), allocatable :: wavl(:) !! (nw+1) wavelength bins in nm
+    integer :: nw !! Number of wavelength bins.
+    real(dp), allocatable :: wavl(:) !! Wavelength-bin edges in nm, shape (nw+1).
     type(XsectionData), allocatable :: absorp_xs(:) !! Contains photoabsorption species
     real(dp), allocatable :: photolysis_xs(:,:) !! (kj,nw) The xs time qy for each photolysis reaction
     integer :: nray !! number of species with rayleigh scattering
@@ -198,12 +199,12 @@ module photochem_data
     type(ParticleXsections), allocatable :: part_xs_file(:) !! np in length
 
     ! settings
-    real(dp) :: planet_mass !! grams
-    real(dp) :: planet_radius !! cm
+    real(dp) :: planet_mass !! Planet mass (g).
+    real(dp) :: planet_radius !! Planet radius (cm).
     integer :: LH2O !! index of H2O; used by gas rainout
-    logical :: gas_rainout !! True if gas rains out
+    logical :: gas_rainout !! Whether tropospheric gas rainout is enabled.
     integer :: H_escape_type !! Diffusion-limited, Zahnle, or None
-    real(dp) :: H_escape_coeff ! Coefficient for zahnle hydrogen escape
+    real(dp) :: H_escape_coeff !! Zahnle hydrogen-escape coefficient (molecules/cm^2/s).
     integer :: LH2 !! H2 index
     integer :: LH !! H index
   end type

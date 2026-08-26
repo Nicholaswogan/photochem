@@ -41,9 +41,9 @@ module photochem_wrk
     !> True while the CVODE stepper belongs to an initialized robust
     !> integration session.
     logical :: robust_stepper_initialized = .false.
-    !> Total number of steps in a robust integration.
+    !> Total number of accepted steps in a robust integration.
     integer :: nsteps_total = -1
-    !> Total number of errors experienced in the robust integration.
+    !> Total number of failed steps in a robust integration.
     integer :: nerrors_total = -1
 
     ! used in cvode
@@ -51,10 +51,10 @@ module photochem_wrk
     type(SundialsData) :: sun !! CVODE data
 
     ! All for determining convergence
-    integer :: nsteps = 0 !! Number of integration steps excuted. Updated
-                          !! after every successful step.
-    !> History of times at previous integration steps. Index 1 is current,
-    !> while index 2, 3, 4 are previous steps. Updated after every successful step.
+    integer :: nsteps = 0 !! Accepted steps in the current integration segment.
+    !> History of times (seconds) at previous integration steps. Index 1 is
+    !> current, while index 2, 3, 4 are previous steps. Updated after every
+    !> successful step.
     real(dp), allocatable :: t_history(:)
     !> History of mixing ratios at previous integration steps. Index 1 is
     !> current, while index 2, 3, 4 are previous steps. Updated after
@@ -63,30 +63,39 @@ module photochem_wrk
     !> Change in mixing ratio over some number of integrations steps. Updated
     !> during convergence checking.
     real(dp), allocatable :: dmix(:,:)
-    !> Normalized change in mixing ratios over some number of integrations steps
+    !> Normalized mixing-ratio change over the convergence-history interval.
     real(dp) :: longdy = 0.0_dp
-    !> Normalized change in mixing ratios divided by change in time
-    !> over some number of integrations steps.
+    !> longdy divided by elapsed convergence-history time (s^-1).
     real(dp) :: longdydt = 0.0_dp
     ! end stuff for determining convergence
 
-    !> The current time (seconds). The is updated with each call to the
-    !> right hand side, and jacobian. It is only important if
-    !> var%photon_flux_fcn is set.
+    !> Current integration time (seconds). This is updated by right-hand-side
+    !> and Jacobian evaluations and is passed to var%photon_flux_fcn.
     real(dp) :: tn = 0.0_dp
 
     ! Used in prep_all_background_gas
     ! work arrays
-    real(dp), allocatable :: usol(:,:) !! (nq,nz)
-    real(dp), allocatable :: densities(:,:) !! (nsp+1,nz)
-    real(dp), allocatable :: density(:) !! (nz)
-    real(dp), allocatable :: rx_rates(:,:) !! (nz,nrT)
-    real(dp), allocatable :: mubar(:) !! (nz)
-    real(dp), allocatable :: pressure(:) !! (nz)
-    real(dp), allocatable :: prates(:,:) !! (nz,kj)
-    real(dp), allocatable :: surf_radiance(:) !! (nw)
-    real(dp), allocatable :: amean_grd(:,:) !! (nz,nw)
-    real(dp), allocatable :: optical_depth(:,:) !! (nz,nw)
+    !> Evolved gas and condensed-material number densities
+    !> (molecules/cm^3), shape (nq,nz).
+    real(dp), allocatable :: usol(:,:)
+    !> Chemistry number densities, shape (nsp+1,nz). Particle rows are in
+    !> particles/cm^3, gas rows are in molecules/cm^3, and the final row is
+    !> the unit density used for hv.
+    real(dp), allocatable :: densities(:,:)
+    real(dp), allocatable :: density(:) !! Total number density (molecules/cm^3), shape (nz).
+    !> Effective reaction-rate coefficients, shape (nz,nrT). Units depend on
+    !> reaction order; falloff and third-body contributions are included.
+    real(dp), allocatable :: rx_rates(:,:)
+    real(dp), allocatable :: mubar(:) !! Mean molar mass (g/mol), shape (nz).
+    real(dp), allocatable :: pressure(:) !! Pressure (dyn/cm^2), shape (nz).
+    real(dp), allocatable :: prates(:,:) !! Photolysis frequencies (s^-1), shape (nz,kj).
+    !> Dimensionless surface-radiance factors, shape (nw). Multiplication by
+    !> var%photon_flux gives photons/cm^2/s at the surface.
+    real(dp), allocatable :: surf_radiance(:)
+    !> Dimensionless mean-radiance factors, shape (nz,nw). Multiplication by
+    !> var%photon_flux gives photons/cm^2/s in each wavelength bin.
+    real(dp), allocatable :: amean_grd(:,:)
+    real(dp), allocatable :: optical_depth(:,:) !! Dimensionless optical depth, shape (nz,nw).
     real(dp), allocatable :: upper_veff_copy(:) !! (nq)
     real(dp), allocatable :: lower_vdep_copy(:) !! (nq)
     real(dp), allocatable :: xp(:) !! (nz)
@@ -98,13 +107,17 @@ module photochem_wrk
     real(dp), allocatable :: ADU(:,:) !! (nq,nz)
     real(dp), allocatable :: ADL(:,:) !! (nq,nz)
     real(dp), allocatable :: ADD(:,:) !! (nq,nz)
-    real(dp) :: VH2_esc
-    real(dp) :: VH_esc
+    real(dp) :: VH2_esc !! Effective H2 effusion velocity representing escape (cm/s).
+    real(dp) :: VH_esc !! Effective H effusion velocity representing escape (cm/s).
     ! other
-    real(dp), allocatable :: scale_height(:)
-    real(dp), allocatable :: wfall(:,:)
+    real(dp), allocatable :: scale_height(:) !! Atmospheric scale height (cm), shape (nz).
+    real(dp), allocatable :: wfall(:,:) !! Particle settling velocity (cm/s), shape (np,nz).
+    !> Saturation number densities of condensable gas phases
+    !! (molecules/cm^3), shape (np,nz).
     real(dp), allocatable :: gas_sat_den(:,:)
+    !> Condensate molecules represented by each particle, shape (np,nz).
     real(dp), allocatable :: molecules_per_particle(:,:)
+    !> First-order gas rainout loss rates (s^-1), shape (nq,nz).
     real(dp), allocatable :: rainout_rates(:,:)
     ! end used in prep_all_background_gas
 
@@ -117,13 +130,13 @@ module photochem_wrk
     !> Surface pressure derived from the current atmospheric column (bars).
     real(dp) :: surface_pressure = 0.0_dp
     real(dp), allocatable :: mix(:,:) !! (nq,nz) mixing ratio.
-    real(dp), allocatable :: pressure_hydro(:) !! (nz)
+    real(dp), allocatable :: pressure_hydro(:) !! Hydrostatic pressure (dyn/cm^2), shape (nz).
     real(dp), allocatable :: density_hydro(:) !! (nz)
 
     ! Runtime bookkeeping for optional robust-stepper TOA maintenance.
-    integer :: n_toa_pressure_updates = 0
-    integer :: n_toa_pressure_failures = 0
-    integer :: nsteps_since_toa_pressure_update = 0
+    integer :: n_toa_pressure_updates = 0 !! Successful automatic TOA-pressure updates.
+    integer :: n_toa_pressure_failures = 0 !! Failed automatic TOA-pressure updates.
+    integer :: nsteps_since_toa_pressure_update = 0 !! Accepted steps since the last successful update.
   end type
 
   interface PhotochemWrk

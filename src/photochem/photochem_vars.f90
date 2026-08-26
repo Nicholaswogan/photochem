@@ -26,8 +26,8 @@ module photochem_vars
   !> Settings for optional robust-stepper maintenance of model-top pressure.
   !! This requires a persistent pressure-based temperature and eddy-diffusion profile.
   type :: TOAPressureMaintenance
-    logical :: enabled = .false.
-    real(dp) :: target_pressure = 0.0_dp !! Target pressure (dynes/cm^2)
+    logical :: enabled = .false. !! Enable automatic TOA-pressure maintenance.
+    real(dp) :: target_pressure = 0.0_dp !! Target pressure (dyn/cm^2).
     real(dp) :: pressure_factor = 3.0_dp !! Multiplicative acceptable pressure factor
     integer :: nsteps_between_updates = 100 !! Minimum accepted steps between updates
     integer :: max_failures = 0 !! Failed updates allowed before robust integration stops
@@ -89,26 +89,27 @@ module photochem_vars
     type(time_dependent_rate_fcns), allocatable :: rate_fcns(:)
 
     ! Atmospheres structure
-    real(dp) :: bottom_atmos = 0.0_dp !! cm
-    real(dp) :: top_atmos = 0.0_dp !! cm; determined during atmosphere initialization
-    integer :: nz !! number of vertical layers
+    real(dp) :: bottom_atmos = 0.0_dp !! Bottom altitude of the model domain (cm).
+    real(dp) :: top_atmos = 0.0_dp !! Top altitude of the model domain (cm).
+    integer :: nz !! Number of vertical layers.
     real(dp) :: surface_albedo
-    real(dp) :: diurnal_fac = 0.5_dp !! Default is 0.5, to account for half planet facing the sun.
+    !> Factor multiplying the incident photon flux during photolysis-rate calculations.
+    !! The default 0.5 accounts for half the planet facing the star.
+    real(dp) :: diurnal_fac = 0.5_dp
     real(dp) :: solar_zenith !! degrees
-    real(dp) :: trop_alt = 0.0_dp !! cm (only for gas_rainout == true)
-    real(dp) :: rainfall_rate !! relative to modern Earth's average rainfall rate of 1.1e17 molecules/cm2/s
-    integer :: trop_ind !! index of troposphere (only for gas_rainout == true)
+    real(dp) :: trop_alt = 0.0_dp !! Tropopause altitude (cm); used for gas rainout.
+    real(dp) :: rainfall_rate !! Relative to Earth's average rainfall of 1.1e17 molecules/cm^2/s.
+    integer :: trop_ind !! Internal Fortran tropopause index; used for gas rainout.
 
     ! radiative transfer
     real(dp), allocatable :: photon_flux(:) !! (nw) photon/cm^2/s in each wavelength bin hitting planet.
     !> for scaling photon flux for different planets in a solar system
     real(dp) :: photon_scale_factor
-    !> A function for altering the photon flux over time
+    !> Callback that supplies the photon flux as a function of model time.
     procedure(time_dependent_flux_fcn), nopass, pointer :: photon_flux_fcn => null()
 
     ! particles
-    !> Parameters describing condensation and evaporation rates and
-    !> the RH needed for condensation
+    !> Condensation and evaporation parameters for each particle species (np).
     type(CondensationParameters), allocatable :: cond_params(:) ! (np)
     logical :: evaporation = .true. !! If true, then evaporation occurs.
 
@@ -122,49 +123,48 @@ module photochem_vars
     ! single authoritative prepared values; successful integration routines
     ! leave them consistent with the committed wrk%usol before returning.
     integer :: neqs !! number of equations nq*nz
-    real(dp), allocatable :: temperature(:) !! (nz) K
-    real(dp), allocatable :: z(:) !! (nz) cm
-    real(dp), allocatable :: dz(:) !! (nz) cm
-    real(dp), allocatable :: edd(:) !! (nz) cm2/s
+    real(dp), allocatable :: temperature(:) !! Layer temperatures (K), shape (nz).
+    real(dp), allocatable :: z(:) !! Layer-center altitudes (cm), shape (nz).
+    real(dp), allocatable :: dz(:) !! Layer thicknesses (cm), shape (nz).
+    real(dp), allocatable :: edd(:) !! Eddy diffusion coefficients (cm^2/s), shape (nz).
     !> State for a persistent pressure-based temperature and Kzz profile.
     type(PressureTempEddProfile) :: press_temp_edd_profile
-    !> A function for specifying a custom binary diffusion parameter (b_ij)
+    !> Callback for specifying a custom binary diffusion parameter (b_ij).
     procedure(binary_diffusion_fcn), nopass, pointer :: custom_binary_diffusion_fcn => null()
-    real(dp), allocatable :: grav(:) !! (nz) cm/s2
-    real(dp), allocatable :: particle_radius(:,:) !! (np,nz) cm
+    real(dp), allocatable :: grav(:) !! Layer-center gravity (cm/s^2), shape (nz).
+    real(dp), allocatable :: particle_radius(:,:) !! Particle radii (cm), shape (np,nz).
     real(dp), allocatable :: xs_x_qy(:,:,:) !! (nz,kj,nw) photolysis cross sections times quantum yields (cm2/molecule)
     type(ParticleXsections), allocatable :: particle_xs(:) !! (np)
     real(dp), allocatable :: gibbs_energy(:,:) !! (nz,ng) Joules/mol
 
     ! Custom optical properties
-    real(dp), allocatable :: tauc(:,:) !! (nz,nw) Custom optical depth in each layer
-    real(dp), allocatable :: w0c(:,:) !! (nz,nw) Custom single scattering albedo
-    real(dp), allocatable :: g0c(:,:) !! (nz,nw) Custom asymetry parameter
+    real(dp), allocatable :: tauc(:,:) !! Custom layer optical depth, shape (nz,nw).
+    real(dp), allocatable :: w0c(:,:) !! Custom single-scattering albedo, shape (nz,nw).
+    real(dp), allocatable :: g0c(:,:) !! Custom scattering asymmetry parameter, shape (nz,nw).
 
     ! other
-    !> number of times we initialize CVODE when it returns
+    !> Number of times to reinitialize CVODE when it returns
     !> a potentially recoverable error. ONLY USED IN EVOATMOSPHERE (NOT ATMOSPHERE)
     !> in the `evolve` method.
     integer :: max_error_reinit_attempts = 2
     real(c_double) :: rtol = 1.0e-3_dp !! integration relative tolerance
-    !> Integration absolute tolerance. Automatic differentiation generally
-    !> works better when atol is smaller (e.g., atol = ~1.0e-18).
+    !> Dimensionless absolute tolerance in mixing ratio. This is multiplied by
+    !> each layer's hydrostatic number density for CVODE.
     real(c_double) :: atol = 1.0e-23_dp
     integer :: mxsteps = 100000 !! max number of steps before integrator will give up.
-    !> seconds. atomsphere considered in equilibrium if integrations reaches this time.
+    !> Time in seconds at which an integration is considered converged.
     real(dp) :: equilibrium_time = 1.0e17_dp
     !> For convergence checking. Considers mixing ratio change between t_now and time
     !> t = t_now*conv_hist_factor to see if atmosphere is changing.
     real(dp) :: conv_hist_factor = 0.5_dp
     !> Minimum mixing ratio considered in convergence checking.
     real(dp) :: conv_min_mix = 1.0e-20_dp
-    !> Threshold normalized change in mixing ratios for converchecking check.
+    !> Threshold normalized change in mixing ratios for convergence.
     !> A reasonable value is ~1.0e-2.
     real(dp) :: conv_longdy = 0.0_dp
-    !> Threshold normalized change in mixing ratios per time change for
-    !> convergence checking.
+    !> Threshold normalized mixing-ratio change rate for convergence (s^-1).
     real(dp) :: conv_longdydt = 1.0e-6_dp
-    real(c_double) :: initial_dt = 1.0e-6_dp !! intial timestep size (seconds)
+    real(c_double) :: initial_dt = 1.0e-6_dp !! Initial CVODE time step (seconds).
     !> Maximum time step size (seconds).
     real(c_double) :: max_dt = sqrt(huge(1.0_dp))
     integer(c_int) :: max_err_test_failures = 15 !! CVODE max error test failures
@@ -178,7 +178,7 @@ module photochem_vars
     integer :: verbose = 1 !! 0 == no printing. 1 == some printing. 2 == bunch of printing.
     !> If True, then the code uses a 1st order upwind method for the advective molecular
     !> diffusion terms instead of a centered scheme. This permits stability (at the cost
-    !> of accuracy) for atmospheres with strong molcular advection in the upper atmosphere.
+    !> of accuracy) for atmospheres with strong molecular advection in the upper atmosphere.
     logical :: upwind_molec_diff = .false.
 
     ! Settings for the `robust_stepper` and `find_steady_state` methods
@@ -191,7 +191,7 @@ module photochem_vars
     !> Accepted steps per integration segment. At this count CVODE is restarted
     !> and the segment-local convergence history is discarded.
     integer :: nsteps_before_reinit = 1000
-    !> Maximum total accepted steps before returning give_up.
+    !> Maximum total accepted steps before `robust_step` returns give_up.
     integer :: nsteps_before_giveup = 100000
     !> When the integrator reinitializes, this is the minimum
     !> density allowed (molecules/cm^3)

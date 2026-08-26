@@ -15,6 +15,14 @@ from ..utils._format import yaml, FormatSettings_main, MyDumper
 ###
 
 class GasGiantData():
+    """Configuration and saved climate profiles for a gas-giant model.
+
+    An instance is created as :attr:`EvoAtmosphereGasGiant.gdat`. Pressure is
+    in dyn/cm^2, temperature in K, eddy diffusion in cm^2/s, radius in cm, and
+    mass in g. Attributes ending in ``_clima_grid`` retain the user's climate
+    grid; ``P_desired``, ``T_desired``, and ``Kzz_desired`` contain the profile
+    extended or truncated for photochemical initialization.
+    """
     
     def __init__(self, planet_radius, planet_mass, P_ref, thermo_file):
         
@@ -53,12 +61,24 @@ class GasGiantData():
         self.ind_b = None
 
 class EvoAtmosphereGasGiant(EvoAtmosphere):
-    "An extension to the EvoAtmosphere class for modeling gas-rich planets."
+    """Pressure-grid workflow for modeling gas-rich planets.
+
+    The constructor configures static photochemical data. Call
+    :meth:`initialize_to_climate_equilibrium_PT` before integrating, or restore
+    a previously saved state with :meth:`initialize_from_dict`.
+
+    Attributes
+    ----------
+    gdat : GasGiantData
+        Gas-giant configuration and saved climate-grid profiles.
+    dat, var, wrk
+        Live views inherited from :class:`photochem.EvoAtmosphere`.
+    """
 
     def __init__(self, mechanism_file, stellar_flux_file, planet_mass, planet_radius, 
                  nz=100, photon_scale_factor=1.0, solar_zenith_angle=60.0, P_ref=1.0e6, 
                  thermo_file=None, data_dir=None):
-        """Initializes the code
+        """Configure a gas-giant photochemical model.
 
         Parameters
         ----------
@@ -73,16 +93,22 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         nz : int, optional
             The number of layers in the photochemical model, by default 100
         photon_scale_factor : float, optional
-            description
+            Factor multiplying the input stellar photon flux, by default 1.
         solar_zenith_angle : float, optional
-            description
+            Solar zenith angle in degrees, by default 60.
         P_ref : float, optional
-            Pressure level corresponding to the planet_radius, by default 1e6 dynes/cm^2
+            Pressure corresponding to ``planet_radius``, by default 1e6 dyn/cm^2.
         thermo_file : str, optional
             Optionally include a dedicated thermodynamic file.
         data_dir : str, optional
             Path to the data directory containing photolysis cross sections and other data
-            needed to run the model
+            needed to run the model. The packaged data are used by default.
+
+        Notes
+        -----
+        Construction does not initialize an atmosphere. The pressure,
+        temperature, eddy-diffusion, and composition profiles are supplied by
+        a subsequent initialization method.
         """        
         
         # Configure the photochemical model. The atmosphere is initialized
@@ -126,29 +152,35 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         self.var.nsteps_before_reinit = 1000
         self.var.nsteps_before_giveup = 100_000
         maintenance = self.var.toa_pressure_maintenance
-        maintenance.target_pressure = 0.1 # dynes/cm^2
+        maintenance.target_pressure = 0.1 # dyn/cm^2
         maintenance.pressure_factor = 3.0
         maintenance.nsteps_between_updates = 1000
         maintenance.max_failures = 2
 
     def initialize_to_climate_equilibrium_PT(self, P_in, T_in, Kzz_in, metallicity, CtoO, rainout_condensed_atoms=True):
-        """Initialized the photochemical model to a climate model result that assumes chemical equilibrium
-        at some metallicity and C/O ratio.
+        """Initialize from a climate profile and equilibrium composition.
+
+        Input arrays must be one-dimensional, equal in length, and ordered
+        from highest pressure (deepest) to lowest pressure. The initialized
+        photochemical domain begins below the estimated quench levels and ends
+        at ``var.toa_pressure_maintenance.target_pressure``.
 
         Parameters
         ----------
-        P_in : ndarray[dim=1,double]
-            The pressures in the climate grid (dynes/cm^2). P_in[0] is pressure at
-            the deepest layer of the atmosphere
-        T_in : ndarray[dim1,double]
-            The temperatures in the climate grid corresponding to P_in (K)
-        Kzz_in : ndarray[dim1,double]
-            The eddy diffusion at each pressure P_in (cm^2/s)
+        P_in : ndarray, shape (nprofile,)
+            Climate-grid pressure in dyn/cm^2, decreasing with index.
+        T_in : ndarray, shape (nprofile,)
+            Climate-grid temperature in K.
+        Kzz_in : ndarray, shape (nprofile,)
+            Climate-grid eddy diffusion in cm^2/s.
         metallicity : float
             Metallicity relative to solar.
         CtoO : float
             C/O ratio relative to solar. So CtoO = 1 is solar C/O ratio.
             CtoO = 2 is twice the solar C/O ratio.
+        rainout_condensed_atoms : bool, optional
+            Remove condensed atoms during equilibrium calculations, by default
+            True.
         """
 
         gdat = self.gdat
@@ -245,19 +277,23 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         self._initialize_atmosphere(P1, T1, Kzz1, z1, mix1)
 
     def reinitialize_to_new_climate_PT(self, P_in, T_in, Kzz_in, mix):
-        """Reinitializes the photochemical model to the input P, T, Kzz, and mixing ratios
-        from the climate model.
+        """Reinitialize from updated climate profiles and composition.
+
+        This method requires a prior call to
+        :meth:`initialize_to_climate_equilibrium_PT`, and ``P_in`` must match
+        that original climate pressure grid.
 
         Parameters
         ----------
-        P_in : ndarray[ndim=1,double]
-            Pressure grid in climate model (dynes/cm^2).
-        T_in : ndarray[ndim=1,double]
-            Temperatures corresponding to P_in (K)
-        Kzz_in : ndarray[ndim,double]
-            Eddy diffusion coefficients at each pressure level (cm^2/s)
-        mix : dict
-            Mixing ratios of all species in the atmosphere
+        P_in : ndarray, shape (nprofile,)
+            Climate-grid pressure in dyn/cm^2, decreasing with index.
+        T_in : ndarray, shape (nprofile,)
+            Climate-grid temperature in K.
+        Kzz_in : ndarray, shape (nprofile,)
+            Climate-grid eddy diffusion in cm^2/s.
+        mix : dict[str, ndarray]
+            Mixing-ratio profile for every gas species. Each value has shape
+            ``(nprofile,)``.
 
         """
 
@@ -422,13 +458,17 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         return target_pressure
 
     def return_atmosphere_climate_grid(self):
-        """Returns a dictionary with temperature, Kzz and mixing ratios
-        on the climate model grid.
+        """Return prescribed profiles and composition on the climate grid.
+
+        Temperature and eddy diffusion are the saved climate inputs. Species
+        mixing ratios are log-interpolated or constant-extrapolated from the
+        photochemical result.
 
         Returns
         -------
-        dict
-            Contains temperature, Kzz, and mixing ratios.
+        dict[str, ndarray]
+            ``pressure`` (dyn/cm^2), ``temperature`` (K), ``Kzz`` (cm^2/s),
+            and a mixing-ratio array for each modeled species.
         """
 
         gdat = self.gdat
@@ -461,19 +501,25 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         return sol
 
     def return_atmosphere(self, include_deep_atmosphere = True, equilibrium = False, rainout_condensed_atoms = True):
-        """Returns a dictionary with temperature, Kzz and mixing ratios
-        on the photochemical grid.
+        """Return atmospheric profiles on the photochemical pressure grid.
 
         Parameters
         ----------
         include_deep_atmosphere : bool, optional
-            If True, then results will include portions of the deep
-            atomsphere that are not part of the photochemical grid, by default True
+            Prepend the deeper prescribed atmosphere, evaluated in chemical
+            equilibrium, by default True.
+        equilibrium : bool, optional
+            Return equilibrium rather than photochemical mixing ratios on the
+            photochemical grid, by default False.
+        rainout_condensed_atoms : bool, optional
+            Remove condensed atoms in equilibrium calculations, by default
+            True.
 
         Returns
         -------
-        dict
-            Contains temperature, Kzz, and mixing ratios.
+        dict[str, ndarray]
+            ``pressure`` (dyn/cm^2), ``temperature`` (K), ``Kzz`` (cm^2/s),
+            and a mixing-ratio array for each modeled species.
         """
 
         gdat = self.gdat      
@@ -551,8 +597,12 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         return give_up, reached_steady_state
     
     def model_state_to_dict(self):
-        """Returns a dictionary containing all information needed to reinitialize the atmospheric
-        state. This dictionary can be used as an input to "initialize_from_dict".
+        """Serialize the initialized gas-giant atmospheric state.
+
+        Returns
+        -------
+        dict
+            State accepted by :meth:`initialize_from_dict`.
         """
 
         gdat = self.gdat
@@ -583,7 +633,14 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         return out
 
     def initialize_from_dict(self, out):
-        """Initializes the model from a dictionary created by the "model_state_to_dict" routine.
+        """Restore a state produced by :meth:`model_state_to_dict`.
+
+        Any active stepper and pressure-profile prescription are replaced.
+
+        Parameters
+        ----------
+        out : dict
+            Serialized gas-giant state.
         """
 
         gdat = self.gdat
@@ -647,28 +704,28 @@ def custom_binary_diffusion_fcn(mu_i, mubar, T):
 
 @nb.njit()
 def CH4_CO_quench_timescale(T, P):
-    "T in K, P in dynes/cm^2, tq in s. Equation 11."
+    "T in K, P in dyn/cm^2, tq in s. Equation 11."
     P_bars = P/1.0e6
     tq = 3.0e-6*P_bars**-1*np.exp(42_000.0/T)
     return tq
 
 @nb.njit()
 def NH3_quench_timescale(T, P):
-    "T in K, P in dynes/cm^2, tq in s. Equation 32."
+    "T in K, P in dyn/cm^2, tq in s. Equation 32."
     P_bars = P/1.0e6
     tq = 1.0e-7*P_bars**-1*np.exp(52_000.0/T)
     return tq
 
 @nb.njit()
 def HCN_quench_timescale(T, P):
-    "T in K, P in dynes/cm^2, tq in s. From PICASO."
+    "T in K, P in dyn/cm^2, tq in s. From PICASO."
     P_bars = P/1.0e6
     tq = (1.5e-4/(P_bars*(3.0**0.7)))*np.exp(36_000.0/T)
     return tq
 
 @nb.njit()
 def CO2_quench_timescale(T, P):
-    "T in K, P in dynes/cm^2, tq in s. Equation 44."
+    "T in K, P in dyn/cm^2, tq in s. Equation 44."
     P_bars = P/1.0e6
     tq = 1.0e-10*P_bars**-0.5*np.exp(38_000.0/T)
     return tq
@@ -837,7 +894,7 @@ def composition_at_metallicity(gas, T, P, CtoO, metal, rainout_condensed_atoms =
     T : ndarray[dim=1,float64]
         Temperature in K
     P : ndarray[dim=1,float64]
-        Pressure in dynes/cm^2
+        Pressure in dyn/cm^2.
     CtoO : float
         The C / O ratio relative to solar. CtoO = 1 would be the same
         composition as solar.

@@ -2,6 +2,19 @@ from scipy.io import FortranFile, FortranEOFError
 import numpy as np
    
 def reformat_output_dict(sol):
+    """Convert raw evolution output to a species-keyed dictionary.
+
+    Parameters
+    ----------
+    sol : dict
+        Output from :func:`evo_read_evolve_output`.
+
+    Returns
+    -------
+    dict[str, ndarray]
+        ``time`` in seconds, ``alt`` in km, and one ``(nz, nt)`` number-density
+        array in molecules/cm^3 for each evolved species.
+    """
     out = {}
     out['time'] = sol['time']
     out['alt'] = sol['alt']
@@ -10,6 +23,23 @@ def reformat_output_dict(sol):
     return out
     
 def evo_read_evolve_output(filename):
+    """Read the unformatted binary file written by ``EvoAtmosphere.evolve``.
+
+    A partially written final record is discarded, so output from an
+    interrupted integration can still be inspected.
+
+    Parameters
+    ----------
+    filename : str or path-like
+        Evolution output file.
+
+    Returns
+    -------
+    dict
+        Species names; ``time`` in seconds; ``top_atmos`` in cm; ``alt`` in km
+        with shape ``(nz, nt)``; and evolved gas and condensed-material number
+        densities in molecules/cm^3 with shape ``(nq, nz, nt)``.
+    """
     f = FortranFile(filename, 'r')
     # metadata
     nq = f.read_record(np.int32)[0]

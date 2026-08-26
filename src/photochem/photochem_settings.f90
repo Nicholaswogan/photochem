@@ -16,13 +16,18 @@ module photochem_settings
     real(dp) :: press
   end type
 
-  !> Condensation parameters
+  !> Parameters controlling finite-rate condensation and evaporation.
   type :: CondensationParameters
-    real(dp) :: k_cond = 100.0_dp !! rate coefficient for condensation
-    real(dp) :: k_evap = 10.0_dp !! rate coefficient for evaporation
-    real(dp) :: RHc = 1.0_dp !! RH where condensation occurs
-    real(dp) :: smooth_factor = 0.2_dp !! A factor that smooths condensation/evaporation
-                                       !! rate to prevents stiffness
+    !> Dimensionless multiplier applied to the eddy-mixing rate, Kzz/H^2,
+    !> for condensation.
+    real(dp) :: k_cond = 100.0_dp
+    !> Dimensionless multiplier applied to the particle-settling rate,
+    !> wfall/H, for evaporation.
+    real(dp) :: k_evap = 10.0_dp
+    real(dp) :: RHc = 1.0_dp !! Relative humidity where condensation begins.
+    !> Fractional width used to smooth condensation and evaporation rates
+    !> near their thresholds to reduce stiffness.
+    real(dp) :: smooth_factor = 0.2_dp
   end type
 
   type :: SettingsParticle

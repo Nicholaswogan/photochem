@@ -386,7 +386,7 @@ cdef class EvoAtmosphere:
       return wrk
 
   def prep_atmosphere(self, ndarray[double, ndim=2] usol):
-    """Prepare all atmosphere-dependent work arrays for a density state.
+    """Prepare all atmosphere-dependent work arrays for a number-density state.
 
     On success, ``self.wrk.usol`` and the chemical, transport, pressure,
     density, and radiative quantities in ``self.wrk`` correspond to ``usol``.
@@ -394,7 +394,7 @@ cdef class EvoAtmosphere:
     Parameters
     ----------
     usol : ndarray, shape (nq, nz)
-        Evolved-species number densities in molecules/cm^3.
+        Evolved gas and condensed-material number densities in molecules/cm^3.
     """
     cdef char err[ERR_LEN+1]
     cdef int nq = self.dat.nq
@@ -408,16 +408,18 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
 
   def out2atmosphere_txt(self,str filename, int number_of_decimals=5, bool overwrite = False, bool clip = True):
-    """Saves state of the atmosphere using the concentrations in self.wrk.usol.
+    """Save the prepared atmosphere in the legacy text atmosphere format.
+
+    The output uses the concentrations currently stored in ``self.wrk.usol``.
 
     Parameters
     ----------
     filename : str
-        Output filename
+        Output filename.
     number_of_decimals : int, optional
-        Number of decimals
+        Number of decimal places in numeric values.
     overwrite : bool, optional
-        If true, then output file can be overwritten, by default False
+        Allow an existing file to be overwritten, by default False.
     clip : bool, optional
         If true, mixing ratios are clipped at a small positive value. The
         default is true.
@@ -430,15 +432,14 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
 
   def gas_fluxes(self):
-    """Computes gas fluxes at model boundaries in order to maintain
-    current atmospheric concentrations. Uses the densities stored in
-    self.wrk.usol.
+    """Compute gas fluxes at model boundaries that maintain the current
+    atmospheric concentrations, using the state in ``self.wrk.usol``.
 
     Returns
     -------
-    tuple
-        First element are the surface fluxes, and the second are top-of-atmosphere
-        fluxes. Units molecules/cm^2/s.
+    tuple[dict, dict]
+        Surface and top-of-atmosphere fluxes, respectively, in
+        molecules/cm^2/s.
     """
     cdef ndarray surf_fluxes = np.empty(self.dat.nq, np.double)
     cdef ndarray top_fluxes = np.empty(self.dat.nq, np.double)
@@ -478,7 +479,7 @@ cdef class EvoAtmosphere:
     den : float, optional
         Density (molecules/cm^3)
     press : float, optional
-        Pressure (dynes/cm^2)
+        Pressure (dyn/cm^2)
     flux : float, optional
         Flux (molecules/cm^2/s)
     height : float, optional
@@ -612,7 +613,7 @@ cdef class EvoAtmosphere:
        raise PhotoException(err.decode("utf-8").strip())
 
   def set_temperature(self, ndarray[double, ndim=1] temperature, trop_alt = None):
-    """Changes the temperature profile.
+    """Change the altitude-based temperature profile.
 
     This method cannot be used while a CVODE stepper is initialized or while
     a persistent pressure-temperature-eddy profile is enabled. Call
@@ -622,7 +623,7 @@ cdef class EvoAtmosphere:
     Parameters
     ----------
     temperature : ndarray[double,ndim=1]
-        new temperature at each atomspheric layer
+        New temperature at each atmospheric layer, in K.
     trop_alt : float, optional
         Tropopause altitude (cm). Only necessary if gas rainout is enabled.
     """
@@ -664,7 +665,7 @@ cdef class EvoAtmosphere:
     Parameters
     ----------
     P : ndarray of float64, shape (n,)
-        Strictly decreasing pressure profile in dynes/cm^2. Must contain at
+        Strictly decreasing pressure profile in dyn/cm^2. Must contain at
         least two finite, positive values. ``T`` and ``edd`` must have the
         same shape.
     T : ndarray of float64, shape (n,)
@@ -674,7 +675,7 @@ cdef class EvoAtmosphere:
         Eddy diffusion corresponding to ``P``, in cm^2/s. Must be finite and
         positive.
     trop_p : float, optional
-        Tropopause pressure in dynes/cm^2. Required when gas rainout is
+        Tropopause pressure in dyn/cm^2. Required when gas rainout is
         enabled and invalid otherwise. Omit it when rainout is disabled. When
         supplied, the mapped pressure must decrease strictly with altitude so
         the tropopause altitude is unambiguous.
@@ -743,7 +744,7 @@ cdef class EvoAtmosphere:
     Parameters
     ----------
     P : ndarray of float64, shape (n,)
-        Strictly decreasing pressure profile in dynes/cm^2. Must contain at
+        Strictly decreasing pressure profile in dyn/cm^2. Must contain at
         least two finite, positive values. ``T`` and ``edd`` must have the
         same shape.
     T : ndarray of float64, shape (n,)
@@ -753,7 +754,7 @@ cdef class EvoAtmosphere:
         Eddy diffusion corresponding to ``P``, in cm^2/s. Must be finite and
         positive.
     trop_p : float, optional
-        Tropopause pressure in dynes/cm^2. Required when gas rainout is
+        Tropopause pressure in dyn/cm^2. Required when gas rainout is
         enabled and invalid otherwise. Omit it when rainout is disabled. When
         supplied, the mapped pressure must decrease strictly with altitude so
         the tropopause altitude is unambiguous.
@@ -764,7 +765,7 @@ cdef class EvoAtmosphere:
         Enable approximate TOA-pressure maintenance during robust stepping.
         This option is only meaningful while the persistent profile is active.
     target_pressure : float, optional, default=0.1
-        Target TOA pressure for approximate maintenance, in dynes/cm^2. Must
+        Target TOA pressure for approximate maintenance, in dyn/cm^2. Must
         be finite and positive when supplied.
     """
     cdef char err[ERR_LEN+1]
@@ -834,9 +835,12 @@ cdef class EvoAtmosphere:
     persistent pressure-based profile is instead remapped and reconciled with
     the hydrostatic extension.
 
-    This is a profile-preserving rather than column-conservative remap. The
-    update is failure atomic. A successful update invalidates an active CVODE
-    stepper, which must be initialized again before integration continues.
+    This is a profile-preserving rather than column-conservative remap: gas
+    mixing ratios are normalized on the new grid, but integrated species
+    columns are not constrained to retain their old values. The update is
+    failure atomic, so an error leaves the atmosphere and active stepper
+    unchanged. A successful update invalidates an active CVODE stepper, which
+    must be initialized again before integration continues.
 
     Parameters
     ----------
@@ -878,11 +882,12 @@ cdef class EvoAtmosphere:
     filename : str
         Filename to save results.
     tstart : float
-        start time in seconds
-    usol : ndarray[double,ndim=2]
-        Initial number densities (molecules/cm^3)
-    t_eval : ndarray[double,ndim=1]
-        times to evaluate the solution
+        Start time in seconds.
+    usol : ndarray, shape (nq, nz)
+        Initial evolved gas and condensed-material number densities in
+        molecules/cm^3.
+    t_eval : ndarray, shape (nt,)
+        Times in seconds at which to save the solution.
     overwrite : bool
         If true, then overwrites pre-existing files with `filename`
     restart_from_file : bool
@@ -910,7 +915,7 @@ cdef class EvoAtmosphere:
     return success
 
   def check_for_convergence(self):
-    """Check an active stepper's history for photochemical convergence.
+    """Check whether an active stepper satisfies the steady-state criteria.
 
     This check is valid for both the basic :meth:`step` pathway and the
     policy-managed :meth:`robust_step` pathway. It does not advance the
@@ -940,8 +945,9 @@ cdef class EvoAtmosphere:
 
     Parameters
     ----------
-    usol_start : ndarray[double,ndim=2]
-        Initial number densities (molecules/cm^3)
+    usol_start : ndarray, shape (nq, nz)
+        Initial evolved gas and condensed-material number densities in
+        molecules/cm^3.
     """   
     cdef char err[ERR_LEN+1]
     cdef int nq = self.dat.nq
@@ -965,7 +971,7 @@ cdef class EvoAtmosphere:
     Returns
     -------
     float
-        Current time in the integration.
+        Current integration time in seconds.
     """
     cdef char err[ERR_LEN+1]
     cdef double tn = ea_pxd.evoatmosphere_step_wrapper(self._ptr, err)
@@ -974,7 +980,7 @@ cdef class EvoAtmosphere:
     return tn
     
   def destroy_stepper(self):
-    """Destroy the active basic or robust CVODE stepper and its resources.
+    """Destroy the active basic or robust CVODE stepper and integration resources.
 
     It is safe to call this method when no stepper is active.
     """
@@ -999,8 +1005,9 @@ cdef class EvoAtmosphere:
 
     Parameters
     ----------
-    usol_start : ndarray[double,ndim=2]
-        Initial number densities (molecules/cm^3)
+    usol_start : ndarray, shape (nq, nz)
+        Initial evolved gas and condensed-material number densities in
+        molecules/cm^3.
     """   
     cdef char err[ERR_LEN+1]
     cdef int nq = self.dat.nq
@@ -1085,7 +1092,7 @@ cdef class EvoAtmosphere:
     species : str
         Species name.
     usol : ndarray, shape (nq, nz)
-        Evolved-species number densities in molecules/cm^3.
+        Evolved gas and condensed-material number densities in molecules/cm^3.
 
     Returns
     -------
@@ -1111,18 +1118,17 @@ cdef class EvoAtmosphere:
     return pl
 
   def mole_fraction_dict(self):
-    """Makes a dictionary describing the atmospheric composition and structure
-    using the densities in `self.wrk.usol`
+    """Return atmospheric structure and abundances from ``self.wrk.usol``.
+
+    Gas values are volume mixing ratios. Particle values are condensed-material
+    molecule equivalents divided by the total gas number density.
 
     Returns
     -------
     dict
-        Atmospheric composition and structure.
-        - Key "alt" is altitude in cm
-        - Key "temp" is temperature in K
-        - Key "pressure" is pressure in dynes/cm^2
-        - Key "density" is number density in molecules/cm^3
-        - There is a key for each species giving its volume mixing ratio
+        ``alt`` is altitude in cm, ``temp`` is temperature in K, ``pressure``
+        is pressure in dyn/cm^2, ``density`` is total gas number density in
+        molecules/cm^3, and each modeled species has an abundance profile.
     """   
     out = {}
     out['alt'] = self.var.z

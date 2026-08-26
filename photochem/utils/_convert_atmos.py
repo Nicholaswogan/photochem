@@ -2,7 +2,7 @@ from ._format import FormatReactions_main, FormatSettings_main, MyDumper, yaml
 from ._convert_utils import generate_photo_yaml_entries, sort_photos
     
 def atmos2yaml(rx_file, species_file, outfile, photo_database = "Photochem", with_citations = False):
-    """Converts Atmos reactions to .yaml format compatable with Photochem
+    """Convert an Atmos mechanism to Photochem YAML format.
 
     Parameters
     ----------
@@ -17,8 +17,8 @@ def atmos2yaml(rx_file, species_file, outfile, photo_database = "Photochem", wit
         possible photolysis reactions given the cross section data contained
         within Photochem. If "Atmos", then will photolysis reactions in
         rx_file that are possible, given Photochem cross section data.
-        
-
+    with_citations : bool, optional
+        Preserve reaction citations from the Atmos input when available.
     """
     data = rx2dict(rx_file, with_citations = with_citations)
     species, particles = get_species(species_file)
@@ -35,8 +35,10 @@ def atmosbc2yaml(species_file, outfile, short_lived = False):
     ----------
     species_file : str
         Path to Atmos species file which contains boundary conditions (e.g. species.dat)
-    outfile : _type_
+    outfile : str
         Name of output .yaml file which will contain boundary conditions
+    short_lived : bool, optional
+        Include Atmos short-lived species declarations, by default False.
     """
     out = atmosbc2yaml_main(species_file, short_lived = short_lived)
     with open(outfile,'w') as f:

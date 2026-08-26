@@ -26,14 +26,14 @@ class MyDumper(yaml.Dumper):
 
 
 def FormatReactions(filename, outfile):
-    """Formats .yaml chemical reaction network
+    """Format a YAML chemical reaction network.
 
     Parameters
     ----------
     filename : str
         Path of input reaction network file.
     outfile : str
-        Path of output formated reaction network file.
+        Path of output formatted reaction network file.
 
     """
     fil = open(filename,'r')
@@ -130,7 +130,7 @@ def FormatReactions_main(data):
     return data
     
 def FormatSettings(infile, outfile):
-    """Formats a photochem settings file (e.g. settings_ModernEarth.yaml)
+    """Format a Photochem settings YAML file.
 
     Parameters
     ----------

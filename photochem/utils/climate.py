@@ -11,15 +11,14 @@ def species_dict_for_climate(species, condensates, particles=None):
         List of species to include in the file.
     condensates : list
         List of species that should be condensates.
-    particles : dict, optional
-        List of particles with their composition. For example, 
-        `particles = [{'name': 'HCaer', 'composition': {'C': 6, 'H': 2}}`, 
-        by default {}.
+    particles : list[dict], optional
+        Particle definitions and their elemental compositions, for example
+        ``[{'name': 'HCaer', 'composition': {'C': 6, 'H': 2}}]``.
     
     Returns
     -------
-    species_file : dict
-        Dictionary of the species file.
+    dict
+        Climate species-file data.
     """
 
     if not set(condensates).issubset(species):
@@ -67,7 +66,7 @@ def species_dict_for_climate(species, condensates, particles=None):
     return species_file
     
 def species_file_for_climate(filename, species, condensates, particles=None):
-    """Generates a species dict for climate simulations with AdiabatClimate.
+    """Write a species file for climate simulations with AdiabatClimate.
 
     Parameters
     ----------
@@ -77,15 +76,9 @@ def species_file_for_climate(filename, species, condensates, particles=None):
         List of species to include in the file.
     condensates : list
         List of species that should be condensates.
-    particles : dict, optional
-        List of particles with their composition. For example, 
-        `particles = [{'name': 'HCaer', 'composition': {'C': 6, 'H': 2}}`, 
-        by default {}.
-    
-    Returns
-    -------
-    species_file : dict
-        Dictionary of the species file.
+    particles : list[dict], optional
+        Particle definitions and their elemental compositions, for example
+        ``[{'name': 'HCaer', 'composition': {'C': 6, 'H': 2}}]``.
     """
 
     species_file = species_dict_for_climate(species, condensates, particles)
