@@ -230,14 +230,15 @@ with unrelated code changes.
 
 ### Pass 1: Establish the MkDocs site
 
-1. Create the root `mkdocs.yml` and `docs/` directory structure.
-2. Add the minimal documentation dependency file.
-3. Configure Material, navigation, search, code highlighting, admonitions, and
-   mathematical rendering.
-4. Configure Jupytext notebook discovery without adding real tutorials yet.
-5. Add placeholder pages only where needed to validate navigation.
-6. Document the local preview and strict-build commands.
-7. Verify that `mkdocs build --strict` succeeds from a clean environment.
+- [x] Create the root `mkdocs.yml` and `docs/` directory structure.
+- [x] Add the minimal documentation dependency file.
+- [x] Configure Material, navigation, search, code highlighting, admonitions,
+  and mathematical rendering.
+- [x] Configure Jupytext notebook discovery without adding real tutorials yet.
+- [x] Add placeholder pages only where needed to validate navigation.
+- [x] Document the local preview and strict-build commands.
+- [x] Verify that `mkdocs build --strict` succeeds from the configured
+  `photochem` environment. Clean-environment automation is added in Pass 9.
 
 The goal of this pass is a plain but functional website. Custom branding,
 versioning, deployment, and extensive styling should not delay it.
