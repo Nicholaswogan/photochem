@@ -5,6 +5,18 @@ exercises, and longer integrations can evolve independently. Some overlap is
 intentional: focused API tests also run under Valgrind because they exercise
 allocation-heavy code paths that should retain memory-safety coverage.
 
+CI uses one rolling, recent conda Python and GNU compiler toolchain and records
+the resolved versions in its log. The full Fortran correctness suite and
+installed Python smoke tests run normally. Valgrind covers both Clima tests,
+the Equilibrate test, and Photochem's focused API and broad memory tests.
+
+CI deliberately uses bounded solver exercises rather than requiring complete
+photochemical steady states or a converged radiative-convective-equilibrium
+calculation. The focused suites take real rocky-planet and gas-giant steps, and
+the Clima adiabat test performs a partial RCE solve. Longer end-to-end models
+remain appropriate for documentation examples and release validation when the
+documentation is built.
+
 Test inputs are resolved from the source tree, so the Fortran executables and
 Python smoke test may be launched from any working directory.
 Generated Fortran test files are written under the component build directory
@@ -109,10 +121,13 @@ The longer evolution test can be run manually when needed:
 ./build/tests/photochem/test_evolution
 ```
 
-On a system with Valgrind, check both the broad memory harness and the focused
-API tests:
+On a system with Valgrind, check all three components. The Photochem commands
+cover both the broad memory harness and the focused API tests:
 
 ```sh
+valgrind --error-exitcode=1 --leak-check=full ./build/tests/clima/test_adiabat
+valgrind --error-exitcode=1 --leak-check=full ./build/tests/clima/test_radtran
+valgrind --error-exitcode=1 --leak-check=full ./build/tests/equilibrate/test_equilibrate
 valgrind --error-exitcode=1 --leak-check=full ./build/tests/photochem/test_memory
 valgrind --error-exitcode=1 --leak-check=full ./build/tests/photochem/test_api
 ```

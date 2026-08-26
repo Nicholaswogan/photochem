@@ -48,6 +48,9 @@ jobs:
         export CC="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-cc"
         export CXX="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-c++"
         export FC="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gfortran"
+        python --version
+        "$CC" --version
+        "$CXX" --version
         "$FC" --version
         cmake -B "${{github.workspace}}/build" \
           -DCMAKE_BUILD_TYPE="${{env.BUILD_TYPE}}" \
@@ -64,6 +67,9 @@ jobs:
       shell: bash -el {0}
       working-directory: ${{github.workspace}}/build
       run: |
+        valgrind --error-exitcode=1 --leak-check=full ./tests/clima/test_adiabat
+        valgrind --error-exitcode=1 --leak-check=full ./tests/clima/test_radtran
+        valgrind --error-exitcode=1 --leak-check=full ./tests/equilibrate/test_equilibrate
         valgrind --error-exitcode=1 --leak-check=full ./tests/photochem/test_api
         valgrind --error-exitcode=1 --leak-check=full ./tests/photochem/test_memory
 
