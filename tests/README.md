@@ -31,7 +31,8 @@ directories managed by the standard library.
   compositions, metallicity solves, the Sonora species set, repeated
   construction, and NASA7 thermodynamic functions.
 - `test_python.py` checks the installed `photochem.equilibrate` wrapper against
-  a known equilibrium composition.
+  a known equilibrium composition, including public mixture properties,
+  control round trips, and copy semantics.
 
 ### Photochem
 

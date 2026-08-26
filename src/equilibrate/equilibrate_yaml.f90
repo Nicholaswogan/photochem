@@ -5,6 +5,7 @@ module equilibrate_yaml
 
   public :: ReactantList, ShomatePolynomial, Nasa9Polynomial, Nasa7Polynomial, check_for_duplicates
 
+  !> Supported thermodynamic-polynomial representations.
   enum, bind(c)
   enumerator :: &
     ShomatePolynomial = 1, &
@@ -30,13 +31,14 @@ module equilibrate_yaml
     
   end type
 
+  !> Parsed atoms, species, compositions, and thermodynamic data from a YAML file.
   type :: ReactantList
-    integer :: natoms
-    character(s_str_len), allocatable :: atoms_names(:)
-    real(dp), allocatable :: atoms_mass(:)
+    integer :: natoms !! Number of atoms.
+    character(s_str_len), allocatable :: atoms_names(:) !! Atom names, shape `(natoms)`.
+    real(dp), allocatable :: atoms_mass(:) !! Atom molar masses, shape `(natoms)` (g/mol).
 
-    integer :: nr
-    type(Reactant), allocatable :: r(:) ! (nr)
+    integer :: nr !! Number of species/reactants.
+    type(Reactant), allocatable :: r(:) !! Reactant data, shape `(nr)`.
   end type
   interface ReactantList
     module procedure create_ReactantList
@@ -44,10 +46,11 @@ module equilibrate_yaml
 
 contains
 
+  !> Parses an Equilibrate thermodynamic YAML file.
   function create_ReactantList(filename, err) result(rl)
     use fortran_yaml_c, only: YamlFile, type_dictionary
-    character(*), intent(in) :: filename
-    character(:), allocatable, intent(out) :: err 
+    character(*), intent(in) :: filename !! Input YAML path.
+    character(:), allocatable, intent(out) :: err !! Error description; unallocated on success.
     
     type(ReactantList) :: rl
     
@@ -60,7 +63,7 @@ contains
       class is (type_dictionary)
         call unpack_speciesfile(root, filename, rl, err)
       class default
-        err = 'yaml file "'//filename//'" must have dictionaries at the root level.'
+        err = 'YAML file "'//filename//'" must have a dictionary at the root level.'
         return
     end select
     call file%finalize()
@@ -103,7 +106,7 @@ contains
         sp%atoms_mass(j) = element%get_real("mass",error = io_err)
         if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
       class default
-        err = '"atoms" in "'//trim(filename)//'" must made of dictionaries.'
+        err = '"atoms" in "'//trim(filename)//'" must be a list of dictionaries.'
         return 
       end select
       j = j + 1
@@ -172,7 +175,7 @@ contains
         if (allocated(err)) return
         
       class default
-        err = '"species" in "'//trim(filename)//'" must made of dictionaries.'
+        err = '"species" in "'//trim(filename)//'" must be a list of dictionaries.'
         return 
       end select
       j = j + 1
@@ -335,9 +338,10 @@ contains
                             
   end subroutine
 
+  !> Returns the first index participating in a duplicate string pair, or zero.
   pure function check_for_duplicates(str_list) result(ind)
-    character(*), intent(in) :: str_list(:)
-    integer :: ind
+    character(*), intent(in) :: str_list(:) !! Strings to compare exactly.
+    integer :: ind !! First duplicate index, or zero if all entries are unique.
     integer :: i, j
     ind = 0
     do i = 1,size(str_list)-1

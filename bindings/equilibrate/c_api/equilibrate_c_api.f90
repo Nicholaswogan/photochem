@@ -214,6 +214,25 @@ contains
     
   end subroutine
 
+  subroutine chemequianalysis_species_mass_get_size(ptr, dim1) bind(c)
+    use equilibrate, only: ChemEquiAnalysis
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(ChemEquiAnalysis), pointer :: cea
+    call c_f_pointer(ptr, cea)
+    dim1 = size(cea%species_mass)
+  end subroutine
+
+  subroutine chemequianalysis_species_mass_get(ptr, dim1, arr) bind(c)
+    use equilibrate, only: ChemEquiAnalysis
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(ChemEquiAnalysis), pointer :: cea
+    call c_f_pointer(ptr, cea)
+    arr = cea%species_mass
+  end subroutine
+
   subroutine chemequianalysis_gas_names_get_size(ptr, dim1) bind(c)
     use equilibrate, only: ChemEquiAnalysis
     type(c_ptr), value, intent(in) :: ptr
@@ -241,6 +260,25 @@ contains
     enddo
     arr(dim1*s_str_len+1) = c_null_char
     
+  end subroutine
+
+  subroutine chemequianalysis_gas_mass_get_size(ptr, dim1) bind(c)
+    use equilibrate, only: ChemEquiAnalysis
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(ChemEquiAnalysis), pointer :: cea
+    call c_f_pointer(ptr, cea)
+    dim1 = size(cea%gas_mass)
+  end subroutine
+
+  subroutine chemequianalysis_gas_mass_get(ptr, dim1, arr) bind(c)
+    use equilibrate, only: ChemEquiAnalysis
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(ChemEquiAnalysis), pointer :: cea
+    call c_f_pointer(ptr, cea)
+    arr = cea%gas_mass
   end subroutine
 
   subroutine chemequianalysis_condensate_names_get_size(ptr, dim1) bind(c)
@@ -272,6 +310,25 @@ contains
     
   end subroutine
 
+  subroutine chemequianalysis_condensate_mass_get_size(ptr, dim1) bind(c)
+    use equilibrate, only: ChemEquiAnalysis
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(ChemEquiAnalysis), pointer :: cea
+    call c_f_pointer(ptr, cea)
+    dim1 = size(cea%condensate_mass)
+  end subroutine
+
+  subroutine chemequianalysis_condensate_mass_get(ptr, dim1, arr) bind(c)
+    use equilibrate, only: ChemEquiAnalysis
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(ChemEquiAnalysis), pointer :: cea
+    call c_f_pointer(ptr, cea)
+    arr = cea%condensate_mass
+  end subroutine
+
   subroutine chemequianalysis_molfracs_atoms_sun_get_size(ptr, dim1) bind(c)
     use equilibrate, only: ChemEquiAnalysis
     type(c_ptr), value, intent(in) :: ptr
@@ -295,7 +352,7 @@ contains
     use equilibrate, only: ChemEquiAnalysis
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: dim1
-    real(c_double), intent(out) :: arr(dim1)
+    real(c_double), intent(in) :: arr(dim1)
     type(ChemEquiAnalysis), pointer :: cea
     call c_f_pointer(ptr, cea)
     cea%molfracs_atoms_sun = arr
@@ -441,6 +498,42 @@ contains
     type(ChemEquiAnalysis), pointer :: cea
     call c_f_pointer(ptr, cea)
     val = cea%mubar
+  end subroutine
+
+  subroutine chemequianalysis_nabla_ad_get(ptr, val) bind(c)
+    use equilibrate, only: ChemEquiAnalysis
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(ChemEquiAnalysis), pointer :: cea
+    call c_f_pointer(ptr, cea)
+    val = cea%nabla_ad
+  end subroutine
+
+  subroutine chemequianalysis_gamma2_get(ptr, val) bind(c)
+    use equilibrate, only: ChemEquiAnalysis
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(ChemEquiAnalysis), pointer :: cea
+    call c_f_pointer(ptr, cea)
+    val = cea%gamma2
+  end subroutine
+
+  subroutine chemequianalysis_rho_get(ptr, val) bind(c)
+    use equilibrate, only: ChemEquiAnalysis
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(ChemEquiAnalysis), pointer :: cea
+    call c_f_pointer(ptr, cea)
+    val = cea%rho
+  end subroutine
+
+  subroutine chemequianalysis_c_pe_get(ptr, val) bind(c)
+    use equilibrate, only: ChemEquiAnalysis
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(ChemEquiAnalysis), pointer :: cea
+    call c_f_pointer(ptr, cea)
+    val = cea%c_pe
   end subroutine
 
   subroutine chemequianalysis_verbose_get(ptr, val) bind(c)

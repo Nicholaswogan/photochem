@@ -19,7 +19,7 @@ contains
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, ieee_value
     use futils, only: brent_class
     class(EvoAtmosphere), target, intent(in) :: self
-    real(dp), intent(in) :: TOA_pressure !! dynes/cm^2
+    real(dp), intent(in) :: TOA_pressure !! Target top-of-atmosphere pressure (dyn/cm^2).
     type(AtmosphereState), intent(inout) :: state
     type(VerticalGridWork), intent(inout) :: work
     character(:), allocatable, intent(out) :: err
@@ -590,7 +590,7 @@ contains
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), optional, intent(in) :: TOA_alt !! cm
-    real(dp), optional, intent(in) :: TOA_pressure !! dynes/cm^2
+    real(dp), optional, intent(in) :: TOA_pressure !! Target top-of-atmosphere pressure (dyn/cm^2).
     character(:), allocatable, intent(out) :: err
 
     real(dp) :: top_atmos_new
@@ -611,7 +611,7 @@ contains
     if (allocated(err)) return
 
     if (present(TOA_alt) .and. present(TOA_pressure)) then
-      err = 'Both "TOA_alt" and "TOA_pressure" can not be specified'
+      err = 'Both "TOA_alt" and "TOA_pressure" cannot be specified.'
       return
     endif
     if (.not.present(TOA_alt) .and. .not.present(TOA_pressure)) then

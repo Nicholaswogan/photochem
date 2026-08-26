@@ -7,6 +7,7 @@ module equilibrate_cea
    public :: CEAData
    public :: entropy_nasa7, enthalpy_nasa7, heat_capacity_nasa7
 
+   !> Internal Chemical Equilibrium with Applications (CEA) solver state.
    type :: CEAData
 
       real(dp) :: mass_tol = 1.0e-2_dp !! Degree to which mass will be balanced. 
@@ -64,7 +65,7 @@ module equilibrate_cea
 
 contains
 
-   !> INITIALIZE ALL DATA
+   !> Loads thermodynamic data and selects the atoms and reactants to solve.
    subroutine SET_DATA(self, fpath, atoms_names, reactants_names)
       use equilibrate_const, only: N_coeffs, N_temps
       use equilibrate_yaml, only: check_for_duplicates, ReactantList
@@ -758,7 +759,7 @@ contains
       end do
    end subroutine da_REORDER_SPECS
 
-   !> MAIN SUBROUTINE
+   !> Runs the internal CEA equilibrium iteration and computes mixture properties.
    subroutine solve(self,mode,verbo,verbose2,N_atoms_in,N_reactants_in,molfracs_atoms,mass_tol, &
       molfracs_reactants,massfracs_reactants,temp,press,nabla_ad,gamma2,MMW,rho,c_pe, use_prev_guess)
 
@@ -958,10 +959,11 @@ contains
                - coeffs(5)/(2.0_dp * TT**2) + coeffs(7)
    end function
 
+   !> Evaluates molar heat capacity from seven-coefficient NASA polynomial data.
    pure function heat_capacity_nasa7(coeffs, T) result(cp)
       use equilibrate_const, only: R
-      real(dp), intent(in) :: coeffs(:)
-      real(dp), intent(in) :: T
+      real(dp), intent(in) :: coeffs(:) !! NASA7 coefficients; at least five values are required.
+      real(dp), intent(in) :: T !! Temperature (K).
       real(dp) :: cp !! J/(mol K)
 
       real(dp) :: a0, a1, a2, a3, a4
@@ -977,10 +979,11 @@ contains
 
    end function
 
+   !> Evaluates molar enthalpy from seven-coefficient NASA polynomial data.
    pure function enthalpy_nasa7(coeffs, T) result(enthalpy)
       use equilibrate_const, only: R
-      real(dp), intent(in) :: coeffs(:)
-      real(dp), intent(in) :: T
+      real(dp), intent(in) :: coeffs(:) !! NASA7 coefficients; at least six values are required.
+      real(dp), intent(in) :: T !! Temperature (K).
       real(dp) :: enthalpy !! J/mol
 
       real(dp) :: a0, a1, a2, a3, a4, a5
@@ -1003,10 +1006,11 @@ contains
   
    end function
 
+   !> Evaluates molar entropy from seven-coefficient NASA polynomial data.
    pure function entropy_nasa7(coeffs, T) result(entropy)
       use equilibrate_const, only: R
-      real(dp), intent(in) :: coeffs(:)
-      real(dp), intent(in) :: T
+      real(dp), intent(in) :: coeffs(:) !! NASA7 coefficients; at least seven values are required.
+      real(dp), intent(in) :: T !! Temperature (K).
       real(dp) :: entropy !! J/(mol K)
 
       real(dp) :: a0, a1, a2, a3, a4, a6

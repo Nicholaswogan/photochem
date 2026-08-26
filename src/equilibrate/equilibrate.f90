@@ -6,44 +6,49 @@ module equilibrate
 
   public :: ChemEquiAnalysis, dp, s_str_len
 
+  !> Chemical-equilibrium solver and the state from its most recent solve.
+  !>
+  !> Name and mass arrays are established during construction. Composition and
+  !> thermodynamic outputs are updated by [[ChemEquiAnalysis:solve]] and
+  !> [[ChemEquiAnalysis:solve_metallicity]]; check the returned convergence flag
+  !> before using them. Array ordering follows the corresponding name array.
   type :: ChemEquiAnalysis
-    character(atom_str_len), allocatable :: atoms_names(:) !! Names of atoms
-    character(reac_str_len), allocatable :: species_names(:) !! Names of species
-    real(dp), allocatable :: species_mass(:) !! Molar mass of species (g/mol)
-    character(reac_str_len), allocatable :: gas_names(:) !! Names of gases
-    real(dp), allocatable :: gas_mass(:) !! molar mass of gases (g/mol)
-    character(reac_str_len), allocatable :: condensate_names(:) !! Names of condensates
-    real(dp), allocatable :: condensate_mass(:) !! molar mass of condensates (g/mol)
+    character(atom_str_len), allocatable :: atoms_names(:) !! Atom names, shape `(na)`.
+    character(reac_str_len), allocatable :: species_names(:) !! All species names, shape `(ns)`.
+    real(dp), allocatable :: species_mass(:) !! Species molar masses, shape `(ns)` (g/mol).
+    character(reac_str_len), allocatable :: gas_names(:) !! Gas species names, shape `(ng)`.
+    real(dp), allocatable :: gas_mass(:) !! Gas molar masses, shape `(ng)` (g/mol).
+    character(reac_str_len), allocatable :: condensate_names(:) !! Condensed species names, shape `(nc)`.
+    real(dp), allocatable :: condensate_mass(:) !! Condensate molar masses, shape `(nc)` (g/mol).
 
     !> Describes the composition of each species (i.e., how many atoms)
     real(dp), allocatable, private :: species_composition(:,:)
 
-    !> Composition of the Sun.
+    !> Reference solar atom mole fractions in `atoms_names` order, shape `(na)`.
     real(dp), allocatable :: molfracs_atoms_sun(:)
 
-    ! All below are results of an equilibrium solve.
+    ! Results from the most recent equilibrium solve.
 
-    real(dp), allocatable :: molfracs_atoms(:) !! Mole fractions of each atom (size(atoms_names))
-    real(dp), allocatable :: molfracs_species(:) !! Mole fractions of each species (size(species_names))
-    real(dp), allocatable :: massfracs_species(:) !! Mass fractions of each species (size(species_names))
+    real(dp), allocatable :: molfracs_atoms(:) !! Atom mole fractions across all phases, shape `(na)`.
+    real(dp), allocatable :: molfracs_species(:) !! Species mole fractions across all phases, shape `(ns)`.
+    real(dp), allocatable :: massfracs_species(:) !! Species mass fractions across all phases, shape `(ns)`.
 
-    real(dp), allocatable :: molfracs_atoms_gas(:) !! Mole fractions of atoms in gas phase (size(atoms_names))
-    real(dp), allocatable :: molfracs_species_gas(:) !! Mole fractions of species in gas phase (size(gas_names))
+    real(dp), allocatable :: molfracs_atoms_gas(:) !! Gas-phase atom mole fractions, shape `(na)`.
+    real(dp), allocatable :: molfracs_species_gas(:) !! Gas-phase species mole fractions, shape `(ng)`.
 
-    real(dp), allocatable :: molfracs_atoms_condensate(:) !! Mole fractions of atoms in condensed phase (size(atoms_names))
-    real(dp), allocatable :: molfracs_species_condensate(:) !! Mole fractions of species in condensed 
-                                                            !! phase (size(condensate_names))
+    real(dp), allocatable :: molfracs_atoms_condensate(:) !! Condensed-phase atom mole fractions, shape `(na)`.
+    real(dp), allocatable :: molfracs_species_condensate(:) !! Condensed species mole fractions, shape `(nc)`.
 
-    ! A few undocumented outputs.
-    real(dp) :: nabla_ad, gamma2, rho, c_pe
+    real(dp) :: nabla_ad !! Adiabatic logarithmic temperature gradient, `dln(T)/dln(P)`.
+    real(dp) :: gamma2 !! Second adiabatic exponent, `1/(1 - nabla_ad)`.
+    real(dp) :: rho !! Equilibrium gas mass density (g/cm^3).
+    real(dp) :: c_pe !! Equilibrium specific heat at constant pressure (erg/(g K)).
 
-    real(dp) :: mubar !! Mean molecular weight of gas
+    real(dp) :: mubar !! Mean molecular weight of the gas phase (g/mol).
 
-    logical :: verbose = .false. !! Determines amount of printing.
-    real(dp) :: mass_tol = 1.0e-6_dp !! Degree to which mass will be balanced. 
-                                     !! Gordon & McBride's default is 1.0e-6, but
-                                     !! it seems like 1.0e-2 is OK.
-    logical :: use_prev_guess = .false. !! Use previous converged solution as initial guess.
+    logical :: verbose = .false. !! Whether the equilibrium solver prints iteration details.
+    real(dp) :: mass_tol = 1.0e-6_dp !! Dimensionless mass-balance convergence tolerance.
+    logical :: use_prev_guess = .false. !! Whether to initialize from the previous converged solution.
 
     !> Driver class
     type(CEAData), allocatable :: dat
@@ -58,44 +63,40 @@ module equilibrate
 
 contains
     
-  !> Initializes the chemical equilibrium solver given an input thermodynamic file.
-  !> The file can have ".inp" or ".yaml" formats. If the file is ".inp" format, then
-  !> both `atoms` and `species` must be inputs, describing the atoms and species to 
-  !> consider in equilibrium chemistry. If the file is ".yaml" format, then
-  !> `atoms` and `species` become optional inputs with the following effects:
-  !> - If `atoms` are specified but not `species`, then the code will consider all 
-  !>   species with the input `atoms`.
-  !> - If `species` are specified but not `atoms`, then the code will consider all
-  !>   atoms corresponding to the input `species`.
-  !> - If neither `atoms` or `species` are specified, then the code will consider all
-  !>   atoms and species in the input file.
+  !> Initializes a chemical-equilibrium solver from thermodynamic data.
+  !>
+  !> Legacy `.inp` files require both `atoms` and `species`. For YAML files:
+  !>
+  !> - If both lists are supplied, exactly those atoms and species are used.
+  !> - If only `atoms` is supplied, every compatible species is used.
+  !> - If only `species` is supplied, every atom in those species is used.
+  !> - If neither is supplied, every atom and species in the file is used.
   function create_ChemEquiAnalysis(thermopath, atoms, species, err) result(cea)
-    character(*), intent(in) :: thermopath !! Path to file describing the thermodynamic 
-                                           !! data of each species
-    character(*), optional, intent(in) :: atoms(:) !! Names of atoms to include.
-    character(*), optional, intent(in) :: species(:) !! Names of species to include.
-    character(:), allocatable, intent(out) :: err
+    character(*), intent(in) :: thermopath !! Path to a `.yaml` or legacy `.inp` thermodynamic file.
+    character(*), optional, intent(in) :: atoms(:) !! Nonempty atom-name selection.
+    character(*), optional, intent(in) :: species(:) !! Nonempty species-name selection.
+    character(:), allocatable, intent(out) :: err !! Error description; unallocated on success.
     type(ChemEquiAnalysis) :: cea
 
     integer :: i, j, jj, k
 
     if (present(atoms)) then
       if (size(atoms) < 1) then
-        err = 'atoms and species must have size larger than 0'
+        err = '"atoms" must not be empty.'
         return
       endif
       if (len(atoms(1)) > atom_str_len) then
-        err = 'atoms character array must have larger len'
+        err = 'Entries in "atoms" exceed the supported string length.'
         return
       endif
     endif
     if (present(species)) then
       if (size(species) < 1) then
-        err = 'atoms and species must have size larger than 0'
+        err = '"species" must not be empty.'
         return
       endif 
       if (len(species(1)) > reac_str_len) then
-        err = 'species character array must have larger len'
+        err = 'Entries in "species" exceed the supported string length.'
         return
       endif
     endif
@@ -190,19 +191,21 @@ contains
 
   end function
 
-  !> Computes chemical equilibrium given input atom or species mole fractions.
-  !> If successful, then the equilibrium composition will be stored in a number
-  !> of attributes (e.g., self%molfracs_species).
+  !> Computes chemical equilibrium from atom or species mole fractions.
+  !>
+  !> Supply exactly one composition array. The input is normalized internally.
+  !> On a completed solve, the returned flag reports convergence and the result
+  !> fields of `self` contain the latest equilibrium state.
   function solve(self, P, T, molfracs_atoms, molfracs_species, err) result(converged)
     class(ChemEquiAnalysis), intent(inout) :: self
-    real(dp), intent(in) :: P !! Pressure in dynes/cm^2
-    real(dp), intent(in) :: T !! Temperature in Kelvin
-    !> Atom mole fractions in the same order and length as self%atoms_names.
+    real(dp), intent(in) :: P !! Pressure (dyn/cm^2).
+    real(dp), intent(in) :: T !! Temperature (K).
+    !> Nonnegative atom mole fractions in `atoms_names` order, shape `(na)`.
     real(dp), optional, intent(in) :: molfracs_atoms(:)
-    !> Species mole fractions in the same order and length as self%species_names.
+    !> Nonnegative species mole fractions in `species_names` order, shape `(ns)`.
     real(dp), optional, intent(in) :: molfracs_species(:)
-    character(:), allocatable, intent(out) :: err
-    logical :: converged
+    character(:), allocatable, intent(out) :: err !! Error description; unallocated on a completed solve.
+    logical :: converged !! Whether the equilibrium iteration met its tolerances.
 
     real(dp), allocatable :: molfracs_atoms_(:)
     real(dp) :: P_bars
@@ -216,7 +219,7 @@ contains
       return
     endif
     if (.not.present(molfracs_atoms) .and. .not.present(molfracs_species)) then
-      err = 'Neither "molfracs_atoms" or "molfracs_species" are inputs, but one is needed.'
+      err = 'Neither "molfracs_atoms" nor "molfracs_species" was provided; exactly one is required.'
       return
     endif
 
@@ -227,7 +230,7 @@ contains
         return
       endif
       if (any(molfracs_atoms < 0)) then
-        err = 'Input "molfracs_atoms" can not be less than zero'
+        err = 'Input "molfracs_atoms" cannot contain negative values.'
         return
       endif
       molfracs_atoms_ = molfracs_atoms/max(sum(molfracs_atoms),tiny(1.0_dp))
@@ -240,7 +243,7 @@ contains
         return
       endif
       if (any(molfracs_species < 0)) then
-        err = 'Input "molfracs_species" can not be less than zero'
+        err = 'Input "molfracs_species" cannot contain negative values.'
         return
       endif
 
@@ -309,19 +312,21 @@ contains
 
   end function
 
-  !> Computes chemical equilibrium given an input metallicity and, optionally,
-  !> a C/O ratio. If successful, then the equilibrium composition will be stored in a number
-  !> of attributes (e.g., self%molfracs_species).
+  !> Computes chemical equilibrium from metallicity and an optional C/O ratio.
+  !>
+  !> Heavy-element abundances in `molfracs_atoms_sun` are scaled relative to H
+  !> and He. If `CtoO` is present, carbon and oxygen are redistributed while
+  !> preserving their combined abundance. Result fields are updated as in
+  !> [[ChemEquiAnalysis:solve]].
   function solve_metallicity(self, P, T, metallicity, CtoO, err) result(converged)
     class(ChemEquiAnalysis), intent(inout) :: self
-    real(dp), intent(in) :: P !! Pressure in dynes/cm^2
-    real(dp), intent(in) :: T !! Temperature in Kelvin
-    real(dp), intent(in) :: metallicity !! Metallicity relative to the Sun
-    !> The C/O ratio relative to solar. CtoO = 1 would be the same
-    !> composition as solar.
+    real(dp), intent(in) :: P !! Pressure (dyn/cm^2).
+    real(dp), intent(in) :: T !! Temperature (K).
+    real(dp), intent(in) :: metallicity !! Positive metallicity relative to the reference solar composition.
+    !> Positive C/O ratio relative to the reference solar value; `1` preserves solar C/O.
     real(dp), optional, intent(in) :: CtoO
-    character(:), allocatable, intent(out) :: err
-    logical :: converged
+    character(:), allocatable, intent(out) :: err !! Error description; unallocated on a completed solve.
+    logical :: converged !! Whether the equilibrium iteration met its tolerances.
 
     real(dp), allocatable :: molfracs_atoms(:)
     integer :: i, indC, indO

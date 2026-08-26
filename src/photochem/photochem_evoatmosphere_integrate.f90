@@ -298,7 +298,7 @@ contains
           error_reinit_attempts = error_reinit_attempts + 1
           reinitialize = .true.
         endblock; elseif (ierr <= -5) then
-          ! bunch of errors that we can not recover from
+          ! Bunch of errors that we cannot recover from.
           return
         elseif (ierr == 0 .or. ierr == 1 .or. ierr == 99) then
           ! Successful return. Go save the results, and continue integrating.
@@ -531,7 +531,7 @@ contains
     if (wrk%nsteps == 0) return 
 
     ! Find index in history closest to time of interest. Note that this will only
-    ! consider a limited step history. We can not save all history.
+    ! Consider a limited step history. We cannot save all history.
     ind = minloc(abs(wrk%t_history - var%conv_hist_factor*wrk%t_history(1)),1)
 
     ! Can't be current time, so we will check the previous step if needed.

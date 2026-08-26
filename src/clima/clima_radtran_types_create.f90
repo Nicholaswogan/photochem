@@ -1351,7 +1351,7 @@ contains
 
     call h%close()
 
-    ! initalize interpolators
+    ! Initialize interpolators.
     allocate(k%log10k(k%ngauss,k%nwav))
     do i = 1,k%nwav
       do j = 1,k%ngauss

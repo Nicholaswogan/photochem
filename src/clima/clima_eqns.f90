@@ -285,7 +285,7 @@ contains
   !> The heat redistribution parameter `f` from Equation (10) in Koll (2022), ApJ.
   pure function f_heat_redistribution(tau_LW, Ps, Teq, k) result(f)
     real(dp), intent(in) :: tau_LW !! Long wavelength optical depth
-    real(dp), intent(in) :: Ps !! Surface pressure (dynes/cm^2)
+    real(dp), intent(in) :: Ps !! Surface pressure (dyn/cm^2).
     real(dp), intent(in) :: Teq !! Planetary equilibrium temperature (K)
     real(dp), intent(in) :: k !! k term
 

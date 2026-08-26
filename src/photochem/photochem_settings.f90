@@ -446,7 +446,7 @@ contains
 
     elseif (bctype == "vdep + dist flux") then
       if (bc_kind == "upper") then
-        err = 'Upper boundary conditions can not be "vdep + dist flux" for '//trim(sp_name)
+        err = 'Upper boundary conditions cannot be "vdep + dist flux" for '//trim(sp_name)
         return
       endif
 
@@ -472,7 +472,7 @@ contains
       endif
     elseif (bctype == "den") then
       if (bc_kind == "upper") then
-        err = 'Upper boundary conditions can not be "den" for '//trim(sp_name)
+        err = 'Upper boundary conditions cannot be "den" for '//trim(sp_name)
         return
       endif
 
@@ -487,7 +487,7 @@ contains
       endif
     elseif (bctype == "press") then
       if (bc_kind == "upper") then
-        err = 'Upper boundary conditions can not be "press" for '//trim(sp_name)
+        err = 'Upper boundary conditions cannot be "press" for '//trim(sp_name)
         return
       endif
 

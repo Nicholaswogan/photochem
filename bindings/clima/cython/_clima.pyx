@@ -18,7 +18,7 @@ include "AdiabatClimate.pyx"
 
 # utils
 cdef pystring2cstring(str pystring):
-  # add a null c char, and convert to byes
+  # Add a null C character and convert to bytes.
   cdef bytes cstring = (pystring+'\0').encode('utf-8')
   return cstring
 

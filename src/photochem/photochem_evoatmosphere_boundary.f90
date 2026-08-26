@@ -72,7 +72,7 @@ contains
 
     ind = findloc(self%dat%species_names(1:self%dat%nq), trim(species), 1)
     if (ind == 0) then
-      err = "Can not change boundary condition of '"//trim(species)// &
+      err = "Cannot change boundary condition of '"//trim(species)// &
             "' because it is not in the list of species"
       return
     endif
@@ -154,19 +154,19 @@ contains
 
     ind = findloc(self%dat%species_names(1:self%dat%nq), trim(species))
     if (ind(1) == 0) then
-      err = "Can not change boundary condition of '"//trim(species)// &
+      err = "Cannot change boundary condition of '"//trim(species)// &
             "' because it is not in the list of species"
       return
     endif
 
     if (self%dat%H_escape_type == DiffusionLimHydrogenEscape) then
       if (species == "H2") then
-        err = "You can not change the boundary condition for H2 because"// &
+        err = "You cannot change the boundary condition for H2 because"// &
               " diffusion limited H2 escape is on."
         return
       endif
       if (species == "H") then
-        err = "You can not change the boundary condition for H because"// &
+        err = "You cannot change the boundary condition for H because"// &
               " diffusion limited H escape is on."
         return
       endif

@@ -16,7 +16,7 @@ module clima_saturationdata
   type :: SaturationData
     real(dp) :: mu !! molar mass (g/mol)
     real(dp) :: T_ref !! Reference Temperature (K)
-    real(dp) :: P_ref !! Reference pressure (dynes/cm^2)
+    real(dp) :: P_ref !! Reference pressure (dyn/cm^2).
     real(dp) :: T_triple !! Triple point temperature
     real(dp) :: T_critical !! Critical temperature (K)
 
@@ -101,7 +101,7 @@ contains
     use clima_const, only: Rgas
     class(SaturationData), intent(inout) :: self
     ${TYPE1}$, intent(in) :: T !! K
-    ${TYPE1}$ :: p_sat !! dynes/cm2
+    ${TYPE1}$ :: p_sat !! Saturation pressure (dyn/cm^2).
     ${TYPE1}$ :: tmp
     tmp = (integral_fcn(self%a_v, self%b_v, self%T_critical) - integral_fcn(self%a_v, self%b_v, self%T_ref)) + &
           (integral_fcn(self%a_c, self%b_c, T) - integral_fcn(self%a_c, self%b_c, self%T_critical))
@@ -116,7 +116,7 @@ contains
     use clima_const, only: Rgas
     class(SaturationData), intent(inout) :: self
     ${TYPE1}$, intent(in) :: T !! K
-    ${TYPE1}$ :: p_sat !! dynes/cm2
+    ${TYPE1}$ :: p_sat !! Saturation pressure (dyn/cm^2).
     ${TYPE1}$ :: tmp
     tmp = integral_fcn(self%a_v, self%b_v, T) - integral_fcn(self%a_v, self%b_v, self%T_ref)
     p_sat = self%P_ref*exp((self%mu/Rgas)*(tmp))
@@ -130,7 +130,7 @@ contains
     use clima_const, only: Rgas
     class(SaturationData), intent(inout) :: self
     ${TYPE1}$, intent(in) :: T !! K
-    ${TYPE1}$ :: p_sat !! dynes/cm2
+    ${TYPE1}$ :: p_sat !! Saturation pressure (dyn/cm^2).
     ${TYPE1}$ :: tmp
     tmp = (integral_fcn(self%a_v, self%b_v, self%T_triple) - integral_fcn(self%a_v, self%b_v, self%T_ref)) + &
           (integral_fcn(self%a_s, self%b_s, T) - integral_fcn(self%a_s, self%b_s, self%T_triple))
@@ -144,7 +144,7 @@ contains
     #:endif
     class(SaturationData), intent(inout) :: self
     ${TYPE1}$, intent(in) :: T !! K
-    ${TYPE1}$ :: p_sat !! dynes/cm2
+    ${TYPE1}$ :: p_sat !! Saturation pressure (dyn/cm^2).
     if (T >= self%T_critical) then
       p_sat = sat_pressure_crit(self, T) ! non-physical
     elseif (T > self%T_triple .and. T < self%T_critical) then
@@ -171,7 +171,7 @@ contains
     use differentia, only: derivative
     class(SaturationData), intent(inout) :: self
     real(dp), intent(in) :: T !! K
-    real(dp) :: dPdT !! dP/dT where P is dynes/cm^2 and T is K
+    real(dp) :: dPdT !! Saturation-pressure derivative (dyn/(cm^2 K)).
     real(dp) :: p_sat
     call derivative(fcn, T, p_sat, dPdT)
   contains

@@ -64,7 +64,7 @@ def photochem2cantera_main(data):
 
     # Cantera can't handle > 2 temperature ranges for thermodynamic data
     for i in range(len(data['species'])):
-        data['species'][i]['thermo']['reference-pressure'] = '1.0e6' # dynes/cm^2
+        data['species'][i]['thermo']['reference-pressure'] = '1.0e6' # dyn/cm^2
         if len(data['species'][i]['thermo']['temperature-ranges']) > 3 and data['species'][i]['thermo']['model'] == 'Shomate':
             data['species'][i]['thermo']['temperature-ranges'] = data['species'][i]['thermo']['temperature-ranges'][:3]
             data['species'][i]['thermo']['data'] = data['species'][i]['thermo']['data'][:2] 

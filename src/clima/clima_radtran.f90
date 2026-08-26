@@ -162,7 +162,7 @@ contains
     real(dp) :: photon_scale_factor
     
     if (nz < 1) then
-      err = '"nz" can not be less than 1.'
+      err = '"nz" cannot be less than 1.'
       return
     endif
     

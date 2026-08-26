@@ -8,7 +8,7 @@ contains
     use clima_const, only: k_boltz, N_avo
     use clima_adiabat_rc, only: make_profile_rc
     class(AdiabatClimate), intent(inout) :: self
-    real(dp), intent(in) :: P_i_surf(:) !! dynes/cm^2
+    real(dp), intent(in) :: P_i_surf(:) !! Surface partial pressures (dyn/cm^2).
     real(dp), intent(in) :: T_in(:)
     character(:), allocatable, intent(out) :: err
 
@@ -129,7 +129,7 @@ contains
       return
     endif
     if (any(mix_custom < 0.0_dp)) then
-      err = '`mix_custom` can not have negative values'
+      err = '`mix_custom` cannot have negative values.'
       return
     endif
     if (any(P_custom <= 0.0_dp)) then

@@ -68,7 +68,7 @@ contains
     call self%require_atmosphere_initialized('set_temperature', err)
     if (allocated(err)) return
     if (c_associated(self%wrk%sun%cvode_mem)) then
-      err = "Can not change the temperature profile while a CVODE stepper "// &
+      err = "Cannot change the temperature profile while a CVODE stepper "// &
             "is initialized. Call 'destroy_stepper' first."
       return
     endif
@@ -172,7 +172,7 @@ contains
     if (allocated(err)) return
 
     if (c_associated(self%wrk%sun%cvode_mem)) then
-      err = "Can not set a pressure-temperature-eddy profile while a CVODE "// &
+      err = "Cannot set a pressure-temperature-eddy profile while a CVODE "// &
             "stepper is initialized. Call 'destroy_stepper' first."
       return
     endif
@@ -276,7 +276,7 @@ contains
     if (allocated(err)) return
 
     if (c_associated(self%wrk%sun%cvode_mem)) then
-      err = "Can not set a persistent pressure-temperature-eddy profile while "// &
+      err = "Cannot set a persistent pressure-temperature-eddy profile while "// &
             "a stepper is initialized. Call 'destroy_stepper' first."
       return
     endif
@@ -347,7 +347,7 @@ contains
     character(:), allocatable, intent(out) :: err
 
     if (c_associated(self%wrk%sun%cvode_mem)) then
-      err = "Can not clear the persistent pressure-temperature-eddy profile while "// &
+      err = "Cannot clear the persistent pressure-temperature-eddy profile while "// &
             "a stepper is initialized. Call 'destroy_stepper' first."
       return
     endif

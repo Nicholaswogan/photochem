@@ -3,15 +3,15 @@ module equilibrate_const
   implicit none
   public
 
-  integer, parameter :: s_str_len = 20
-  integer, parameter :: atom_str_len = s_str_len
-  integer, parameter :: reac_str_len = s_str_len
+  integer, parameter :: s_str_len = 20 !! Public short-string length.
+  integer, parameter :: atom_str_len = s_str_len !! Atom-name storage length.
+  integer, parameter :: reac_str_len = s_str_len !! Species/reactant-name storage length.
 
   ! Constants
   real(dp), parameter :: R = 8.3144598d0 !! J/(K*mol)
-  real(dp), parameter :: amu = 1.660538921d-24
-  real(dp), parameter :: kB = 1.3806488d-16
-  real(dp), parameter :: mol = 6.02214129d23
+  real(dp), parameter :: amu = 1.660538921d-24 !! Atomic mass unit (g).
+  real(dp), parameter :: kB = 1.3806488d-16 !! Boltzmann constant (erg/K).
+  real(dp), parameter :: mol = 6.02214129d23 !! Avogadro constant (1/mol).
 
   !> Atoms & masses, from http://www.science.co.il/PTelements.asp
   integer, parameter      :: N_atoms_save = 104

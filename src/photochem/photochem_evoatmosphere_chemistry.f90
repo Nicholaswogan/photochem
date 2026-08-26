@@ -360,7 +360,7 @@ contains
     real(dp), parameter :: fz = 0.05e0_dp ! fraction of the time it rains
     real(dp), parameter :: gamma = 4.e5_dp ! average time of storm cycles (s)
     real(dp), parameter :: LLL = 1.0_dp ! g H2O/m3 of clouds
-    real(dp), parameter :: C1 = 1.d-6 !dynes/bar
+    real(dp), parameter :: C1 = 1.d-6 ! bar/(dyn/cm^2)
     real(dp), parameter :: C2 = 1.d-9 ![m3/cm3][L H2O/g H2O]
     real(dp), parameter :: MH2O = 18.0_dp ! g H2O/mol H2O
     real(dp), parameter :: rho_H2O = 1000.0_dp ! g H2O/L H2O

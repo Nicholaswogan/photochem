@@ -31,12 +31,18 @@ cdef extern void chemequianalysis_atoms_names_get(ChemEquiAnalysis *ptr, int *di
 
 cdef extern void chemequianalysis_species_names_get_size(ChemEquiAnalysis *ptr, int *dim1)
 cdef extern void chemequianalysis_species_names_get(ChemEquiAnalysis *ptr, int *dim1, char* arr)
+cdef extern void chemequianalysis_species_mass_get_size(ChemEquiAnalysis *ptr, int *dim1)
+cdef extern void chemequianalysis_species_mass_get(ChemEquiAnalysis *ptr, int *dim1, double *arr)
 
 cdef extern void chemequianalysis_gas_names_get_size(ChemEquiAnalysis *ptr, int *dim1)
 cdef extern void chemequianalysis_gas_names_get(ChemEquiAnalysis *ptr, int *dim1, char* arr)
+cdef extern void chemequianalysis_gas_mass_get_size(ChemEquiAnalysis *ptr, int *dim1)
+cdef extern void chemequianalysis_gas_mass_get(ChemEquiAnalysis *ptr, int *dim1, double *arr)
 
 cdef extern void chemequianalysis_condensate_names_get_size(ChemEquiAnalysis *ptr, int *dim1)
 cdef extern void chemequianalysis_condensate_names_get(ChemEquiAnalysis *ptr, int *dim1, char* arr)
+cdef extern void chemequianalysis_condensate_mass_get_size(ChemEquiAnalysis *ptr, int *dim1)
+cdef extern void chemequianalysis_condensate_mass_get(ChemEquiAnalysis *ptr, int *dim1, double *arr)
 
 cdef extern void chemequianalysis_molfracs_atoms_sun_get_size(ChemEquiAnalysis *ptr, int *dim1)
 cdef extern void chemequianalysis_molfracs_atoms_sun_get(ChemEquiAnalysis *ptr, int *dim1, double *arr)
@@ -64,6 +70,10 @@ cdef extern void chemequianalysis_molfracs_species_condensate_get_size(ChemEquiA
 cdef extern void chemequianalysis_molfracs_species_condensate_get(ChemEquiAnalysis *ptr, int *dim1, double *arr)
 
 cdef extern void chemequianalysis_mubar_get(ChemEquiAnalysis *ptr, double *val)
+cdef extern void chemequianalysis_nabla_ad_get(ChemEquiAnalysis *ptr, double *val)
+cdef extern void chemequianalysis_gamma2_get(ChemEquiAnalysis *ptr, double *val)
+cdef extern void chemequianalysis_rho_get(ChemEquiAnalysis *ptr, double *val)
+cdef extern void chemequianalysis_c_pe_get(ChemEquiAnalysis *ptr, double *val)
 
 cdef extern void chemequianalysis_verbose_get(ChemEquiAnalysis *ptr, cbool *val)
 cdef extern void chemequianalysis_verbose_set(ChemEquiAnalysis *ptr, cbool *val)

@@ -99,7 +99,7 @@ contains
     use iso_c_binding, only: c_ptr
 
     real(dp), target, intent(in) :: T_surf !! K
-    real(dp), intent(in) :: P_i_surf(:) !! (ng) dynes/cm2
+    real(dp), intent(in) :: P_i_surf(:) !! Surface partial pressures, shape `(ng)` (dyn/cm^2).
 
     type(Species), target, intent(inout) :: sp
     integer, intent(in) :: nz
@@ -111,7 +111,7 @@ contains
 
     real(dp), target, intent(out) :: P(:), z(:), T(:) ! (ng)
     real(dp), target, intent(out) :: f_i(:,:) ! (nz,ng)
-    real(dp), target, intent(out) :: P_trop !! Tropopause pressure (dynes/cm^2). 
+    real(dp), target, intent(out) :: P_trop !! Tropopause pressure (dyn/cm^2).
                                             !! Value is negative if no tropopause is found.
     real(dp), target, intent(out) :: N_surface(:), N_ocean(:,:)
     character(:), allocatable, intent(out) :: err
@@ -233,7 +233,7 @@ contains
         call ocean_fcns(j)%fcn(T_surf, sp%ng, d%P_i_cur/1.0e6_dp, m_i_cur, args_p)
         
         ! Compute mol/cm^2 of each gas dissolved in ocean
-        N_ocean(j,j) = 0.0_dp ! ocean can not dissolve into itself
+        N_ocean(j,j) = 0.0_dp ! An ocean cannot dissolve into itself.
         do i = 1,sp%ng
           if (i /= j) then
             N_ocean(i,j) = m_i_cur(i)*N_surface(j)*(sp%g(j)%mass/1.0e3_dp)
@@ -643,7 +643,7 @@ contains
     ! Units are SI
     dlnT_dlnP = 1.0_dp/(f_dry*((cp_dry*f_dry + first_sumation)/(Rgas_si*(f_dry + second_sumation))) + second_sumation)
     ! Convert to dT/dP. Here we introduce CGS units
-    ! P = [dynes/cm2]
+    ! P = [dyn/cm^2]
     ! T = [K]
     dT_dP = dlnT_dlnP*(T/P)
 

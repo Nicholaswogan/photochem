@@ -28,7 +28,7 @@ module clima_eqns_water
   ! We compute the saturation vapor pressure of H2O
   ! relative to its value at T = 373.15 K
   real(dp), parameter :: T0 = 373.15_dp ! K
-  real(dp), parameter :: P0 = 1.0142e6_dp ! dynes/cm2
+  real(dp), parameter :: P0 = 1.0142e6_dp ! dyn/cm^2
 
   real(dp), parameter :: T_freeze = 273.15_dp ! K, freezing temperature
 
@@ -70,7 +70,7 @@ contains
   !> Saturation pressure of H2O over water
   function sat_pressure_H2O_vap(T) result(p_H2O_sat)
     real(dp), intent(in) :: T !! K
-    real(dp) :: p_H2O_sat !! dynes/cm2
+    real(dp) :: p_H2O_sat !! dyn/cm^2
     real(dp) :: tmp
     ! tmp = integral_fcn(A_v, B_v, C_v, T) - integral_fcn(A_v, B_v, C_v, T0)
     tmp = integral_fcn(A_v, B_v, C_v, T) - (-20369368.110596914_dp)
@@ -80,7 +80,7 @@ contains
   !> Saturation pressure of H2O over ice
   function sat_pressure_H2O_sub(T) result(p_H2O_sat)
     real(dp), intent(in) :: T !! K
-    real(dp) :: p_H2O_sat !! dynes/cm2
+    real(dp) :: p_H2O_sat !! dyn/cm^2
     real(dp) :: tmp
     ! tmp = (integral_fcn(A_v, B_v, C_v, T_freeze) - integral_fcn(A_v, B_v, C_v, T0)) + &
     !       (integral_fcn(A_s, B_s, C_s, T) - integral_fcn(A_s, B_s, C_s, T_freeze))
@@ -92,7 +92,7 @@ contains
   !> Saturation pressure of H2O over ice or water
   function sat_pressure_H2O(T) result(p_H2O_sat)
     real(dp), intent(in) :: T !! K
-    real(dp) :: p_H2O_sat !! dynes/cm2
+    real(dp) :: p_H2O_sat !! dyn/cm^2
     if (T > T_freeze) then
       p_H2O_sat = sat_pressure_H2O_vap(T)
     else ! (T <= T_freeze) then

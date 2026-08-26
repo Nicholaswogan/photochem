@@ -105,7 +105,7 @@ contains
 
     real(dp), target, intent(in) :: T_surf !! K
     real(dp), target, intent(inout) :: T(:) !! (nz)
-    real(dp), intent(in) :: P_i_surf(:) !! (ng) dynes/cm2
+    real(dp), intent(in) :: P_i_surf(:) !! Surface partial pressures, shape `(ng)` (dyn/cm^2).
     logical, intent(in) :: sp_custom(:)
     type(linear_interp_1d), target, intent(inout) :: mix_custom(:)
     logical, target, intent(in) :: convecting_with_below(:)
@@ -276,7 +276,7 @@ contains
         call ocean_fcns(j)%fcn(T_surf, sp%ng, d%P_i_cur/1.0e6_dp, m_i_cur, args_p)
         
         ! Compute mol/cm^2 of each gas dissolved in ocean
-        N_ocean(j,j) = 0.0_dp ! ocean can not dissolve into itself
+        N_ocean(j,j) = 0.0_dp ! An ocean cannot dissolve into itself.
         do i = 1,sp%ng
           if (i /= j) then
             N_ocean(i,j) = m_i_cur(i)*N_surface(j)*(sp%g(j)%mass/1.0e3_dp)

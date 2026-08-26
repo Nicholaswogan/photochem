@@ -62,7 +62,7 @@ contains
         sp%atoms_mass(j) = element%get_real("mass",error = io_err)
         if (allocated(io_err)) then; err = trim(filename)//trim(io_err%message); return; endif
       class default
-        err = '"atoms" in "'//trim(filename)//'" must made of dictionaries.'
+        err = '"atoms" in "'//trim(filename)//'" must be a list of dictionaries.'
         return 
       end select
       j = j + 1
@@ -136,7 +136,7 @@ contains
         endif
         
       class default
-        err = '"species" in "'//trim(filename)//'" must made of dictionaries.'
+        err = '"species" in "'//trim(filename)//'" must be a list of dictionaries.'
         return 
       end select
       j = j + 1
@@ -210,7 +210,7 @@ contains
         sp%p(j)%mass = sum(sp%p(j)%composition*sp%atoms_mass)
         
       class default
-        err = '"particles" in "'//trim(filename)//'" must made of dictionaries.'
+        err = '"particles" in "'//trim(filename)//'" must be a list of dictionaries.'
         return 
       end select
       j = j + 1
@@ -368,7 +368,7 @@ contains
     
     open(4, file=trim(atm_file),status='old',iostat=io)
     if (io /= 0) then
-      err = 'Can not open file '//trim(atm_file)
+      err = 'Cannot open file '//trim(atm_file)
       return
     endif
     read(4,'(A)') line
@@ -1026,4 +1026,3 @@ contains
   end subroutine
   
 end submodule
-

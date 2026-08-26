@@ -57,10 +57,32 @@ def main():
 
     cea = ChemEquiAnalysis(str(thermofile), atoms=atoms)
     converged = cea.solve(1.0e6, 1000.0, molfracs_atoms=X)
+    assert converged
     
     # Check the solution
     ind = cea.species_names.index('H2')
     assert np.isclose(cea.molfracs_species[ind],8.531731613887943e-01,rtol=1e-4)
+
+    # Public metadata and equilibrium outputs have consistent ordering and units.
+    assert cea.species_mass.shape == (len(cea.species_names),)
+    assert cea.gas_mass.shape == (len(cea.gas_names),)
+    assert cea.condensate_mass.shape == (len(cea.condensate_names),)
+    assert np.all(cea.species_mass > 0.0)
+    assert np.isfinite([cea.mubar, cea.nabla_ad, cea.gamma2, cea.rho, cea.c_pe]).all()
+    assert cea.mubar > 0.0
+    assert cea.rho > 0.0
+    assert cea.c_pe > 0.0
+
+    masses = cea.species_mass
+    masses[0] = -1.0
+    assert cea.species_mass[0] > 0.0
+
+    cea.verbose = True
+    cea.use_prev_guess = True
+    cea.mass_tol = 1.0e-5
+    assert cea.verbose
+    assert cea.use_prev_guess
+    assert cea.mass_tol == 1.0e-5
 
 if __name__ == '__main__':
     main()

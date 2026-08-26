@@ -176,7 +176,7 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
         self.solve_for_T_trop = True # Enable solving for T_trop
         self.tidally_locked_dayside = True # Enable Tidally locked dayside calculations
         self.max_rc_iters = 30 # Lots of iterations
-        self.P_top = 10.0 # 10 dynes/cm^2 top, or 1e-5 bars.
+        self.P_top = 10.0 # 10 dyn/cm^2 at the top, or 1e-5 bar.
 
         # Tack on new object
         self.thermdat = ThermalEmissionData()
@@ -201,7 +201,7 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
         Parameters
         ----------
         P_i : ndarray[double,ndim=1]
-            Array of surface pressures of each species (dynes/cm^2)
+            Surface partial pressures in species order (dyn/cm^2).
         T_guess_mid : float, optional
             Middle T_surface guess, by default None
         T_perturbs : float, optional
@@ -237,7 +237,7 @@ class AdiabatClimateThermalEmission(AdiabatClimate):
         Parameters
         ----------
         P_i : ndarray[double,ndim=1]
-            Array of surface pressures of each species (dynes/cm^2)
+            Surface partial pressures in species order (dyn/cm^2).
         T_guess_mid : float, optional
             Middle temperature guess, by default None
         T_perturbs : float, optional

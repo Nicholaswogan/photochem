@@ -11,7 +11,12 @@ DEF S_STR_LEN = 20;
 DEF ERR_LEN = 1024;
 
 cdef class ChemEquiAnalysis:
-  """A chemical equilibrium solver.
+  """Chemical-equilibrium solver and state from its most recent solve.
+
+  Name and mass properties are established during construction. Composition
+  and thermodynamic result properties are updated by ``solve`` and
+  ``solve_metallicity``; check the returned convergence flag before using
+  them. Array-valued properties return copies.
   """
 
   cdef cea_pxd.ChemEquiAnalysis *_ptr
@@ -35,24 +40,27 @@ cdef class ChemEquiAnalysis:
     PyObject_GenericSetAttr(self, name, value)
 
   def __init__(self, str thermofile, atoms = None, species = None):           
-    """Initializes the chemical equilibrium solver given an input thermodynamic file.
-    The file can only have ".yaml" format. `atoms` and `species` are optional inputs 
-    with the following effects:
-    - If `atoms` are specified but not `species`, then the code will consider all 
-      species with the input `atoms`.
-    - If `species` are specified but not `atoms`, then the code will consider all
-      atoms corresponding to the input `species`.
-    - If neither `atoms` or `species` are specified, then the code will consider all
-      atoms and species in the input file.
+    """Initialize a chemical-equilibrium solver from thermodynamic data.
+
+    Python accepts YAML thermodynamic files. Supplying only ``atoms`` selects
+    every compatible species; supplying only ``species`` selects every atom in
+    those species; and supplying neither uses the entire file. The two
+    selections are mutually exclusive in Python.
 
     Parameters
     ----------
     thermofile : str
-        Path to file describing the thermodynamic data of all species.
-    atoms : list, optional
-        Names of atoms to include.
-    species : list, optional
-        Names of species to include.
+        Path to a YAML thermodynamic file.
+    atoms : sequence of str, optional
+        Nonempty atom-name selection.
+    species : sequence of str, optional
+        Nonempty species-name selection.
+
+    Raises
+    ------
+    EquilibrateException
+        If the file or selections are invalid, or an entry exceeds the
+        supported 20-character length.
     """
 
     self._init_called = True
@@ -80,7 +88,7 @@ cdef class ChemEquiAnalysis:
 
     if atoms_present and species_present:
       raise EquilibrateException('atoms and species cannot both be provided.')
-    
+
     # Initialize
     cea_pxd.chemequianalysis_create_wrapper(self._ptr, thermofile_c,
                                             &atoms_present, &atoms_dim, <char *>atoms_c.data,
@@ -90,26 +98,32 @@ cdef class ChemEquiAnalysis:
       raise EquilibrateException(err.decode("utf-8").strip())
 
   def solve(self, double P, double T, molfracs_atoms = None, molfracs_species = None):
-    """Computes chemical equilibrium given input atom or species mole fractions.
-    If successful, then the equilibrium composition will be stored in a number
-    of attributes (e.g., self%molfracs_species).
+    """Compute chemical equilibrium from atom or species mole fractions.
+
+    Supply exactly one composition array. It is normalized internally. On a
+    completed solve, the result properties contain the latest equilibrium
+    state and the return value reports whether the iteration converged.
 
     Parameters
     ----------
-    P : double
-        Pressure in dynes/cm^2
-    T : double
-        Temperature in Kelvin
-    molfracs_atoms : ndarray[double,ndim=1], optional
-        Atom mole fractions in the same order and length as self.atoms_names.
-    molfracs_species : ndarray[double,ndim=1], optional
-        Species mole fractions in the same order and length as self.species_names.
+    P : float
+        Pressure (dyn/cm^2).
+    T : float
+        Temperature (K).
+    molfracs_atoms : ndarray, shape (na,), optional
+        Nonnegative atom mole fractions in ``atoms_names`` order.
+    molfracs_species : ndarray, shape (ns,), optional
+        Nonnegative species mole fractions in ``species_names`` order.
 
-    Results
+    Returns
     -------
-    converged : bool
-        If true, then the calculation successfully achieved chemical equilibrium
-        to within the specified tolerances.
+    bool
+        Whether the equilibrium iteration met its tolerances.
+
+    Raises
+    ------
+    EquilibrateException
+        If the inputs are invalid or the compiled solver reports an error.
     """
 
     cdef ndarray[double, ndim=1] molfracs_atoms_ = np.empty(1,dtype=np.double)
@@ -140,26 +154,35 @@ cdef class ChemEquiAnalysis:
     return converged
 
   def solve_metallicity(self, double P, double T, double metallicity, CtoO = None):
-    """Computes chemical equilibrium given an input metallicity and, optionally,
-    a C/O ratio. If successful, then the equilibrium composition will be stored in a number
-    of attributes (e.g., self%molfracs_species).
+    """Compute chemical equilibrium from metallicity and an optional C/O ratio.
+
+    Heavy-element abundances in ``molfracs_atoms_sun`` are scaled relative to
+    H and He. If ``CtoO`` is supplied, carbon and oxygen are redistributed while
+    preserving their combined abundance. Result properties are updated as in
+    ``solve``.
 
     Parameters
     ----------
-    P : double
-        Pressure in dynes/cm^2
-    T : double
-        Temperature in Kelvin
-    metallicity : double
-        Metallicity relative to the Sun
-    CtoO : double, optional
-        The C/O ratio relative to solar. CtoO = 1 would be the same composition as solar.
+    P : float
+        Pressure (dyn/cm^2).
+    T : float
+        Temperature (K).
+    metallicity : float
+        Positive metallicity relative to the reference solar composition.
+    CtoO : float, optional
+        Positive C/O ratio relative to the reference solar value. A value of 1
+        preserves solar C/O.
 
-    Results
+    Returns
     -------
-    converged : bool
-        If true, then the calculation successfully achieved chemical equilibrium
-        to within the specified tolerances.
+    bool
+        Whether the equilibrium iteration met its tolerances.
+
+    Raises
+    ------
+    EquilibrateException
+        If metallicity or C/O is nonpositive, required C or O atoms are absent,
+        or the compiled solver reports an error.
     """
 
     cdef double CtoO_ = 1.0
@@ -181,7 +204,7 @@ cdef class ChemEquiAnalysis:
     return converged
 
   property atoms_names:
-    "List. Names of atoms"
+    """list[str]: Atom names in the ordering used by atom-indexed arrays."""
     def __get__(self):
       cdef int dim1
       cea_pxd.chemequianalysis_atoms_names_get_size(self._ptr, &dim1)
@@ -190,7 +213,7 @@ cdef class ChemEquiAnalysis:
       return c2stringarr(arr_c, S_STR_LEN, dim1)
 
   property species_names:
-    "List. Names of species"
+    """list[str]: All species names in the ordering used by full-species arrays."""
     def __get__(self):
       cdef int dim1
       cea_pxd.chemequianalysis_species_names_get_size(self._ptr, &dim1)
@@ -198,8 +221,17 @@ cdef class ChemEquiAnalysis:
       cea_pxd.chemequianalysis_species_names_get(self._ptr, &dim1, <char *>arr_c.data)
       return c2stringarr(arr_c, S_STR_LEN, dim1)
 
+  property species_mass:
+    """ndarray, shape (ns,): Read-only copy of species molar masses (g/mol)."""
+    def __get__(self):
+      cdef int dim1
+      cea_pxd.chemequianalysis_species_mass_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      cea_pxd.chemequianalysis_species_mass_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
   property gas_names:
-    "List. Names of gases"
+    """list[str]: Gas names in the ordering used by gas-phase arrays."""
     def __get__(self):
       cdef int dim1
       cea_pxd.chemequianalysis_gas_names_get_size(self._ptr, &dim1)
@@ -207,8 +239,17 @@ cdef class ChemEquiAnalysis:
       cea_pxd.chemequianalysis_gas_names_get(self._ptr, &dim1, <char *>arr_c.data)
       return c2stringarr(arr_c, S_STR_LEN, dim1)
 
+  property gas_mass:
+    """ndarray, shape (ng,): Read-only copy of gas molar masses (g/mol)."""
+    def __get__(self):
+      cdef int dim1
+      cea_pxd.chemequianalysis_gas_mass_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      cea_pxd.chemequianalysis_gas_mass_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
   property condensate_names:
-    "List. Names of condensates"
+    """list[str]: Condensate names in condensed-phase array ordering."""
     def __get__(self):
       cdef int dim1
       cea_pxd.chemequianalysis_condensate_names_get_size(self._ptr, &dim1)
@@ -216,8 +257,22 @@ cdef class ChemEquiAnalysis:
       cea_pxd.chemequianalysis_condensate_names_get(self._ptr, &dim1, <char *>arr_c.data)
       return c2stringarr(arr_c, S_STR_LEN, dim1)
 
+  property condensate_mass:
+    """ndarray, shape (nc,): Read-only copy of condensate molar masses (g/mol)."""
+    def __get__(self):
+      cdef int dim1
+      cea_pxd.chemequianalysis_condensate_mass_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      cea_pxd.chemequianalysis_condensate_mass_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
   property molfracs_atoms_sun:
-    "ndarray[double,ndim=1]. Assumed mole fractions of each atom in the Sun."
+    """ndarray, shape (na,): Writable reference solar atom mole fractions.
+
+    Values follow ``atoms_names`` order. Getting this property returns a copy;
+    assign the complete array to update the reference used by
+    ``solve_metallicity``.
+    """
     def __get__(self):
       cdef int dim1
       cea_pxd.chemequianalysis_molfracs_atoms_sun_get_size(self._ptr, &dim1)
@@ -234,7 +289,7 @@ cdef class ChemEquiAnalysis:
       cea_pxd.chemequianalysis_molfracs_atoms_sun_set(self._ptr, &dim1, <double *>arr.data)
 
   property molfracs_atoms:
-    "ndarray[double,ndim=1]. Mole fractions of each atom."
+    """ndarray, shape (na,): Read-only copy of atom mole fractions across all phases."""
     def __get__(self):
       cdef int dim1
       cea_pxd.chemequianalysis_molfracs_atoms_get_size(self._ptr, &dim1)
@@ -243,7 +298,7 @@ cdef class ChemEquiAnalysis:
       return arr
 
   property molfracs_species:
-    "ndarray[double,ndim=1]. Mole fractions of each species."
+    """ndarray, shape (ns,): Read-only copy of species mole fractions across all phases."""
     def __get__(self):
       cdef int dim1
       cea_pxd.chemequianalysis_molfracs_species_get_size(self._ptr, &dim1)
@@ -252,7 +307,7 @@ cdef class ChemEquiAnalysis:
       return arr
 
   property massfracs_species:
-    "ndarray[double,ndim=1]. Mass fractions of each species."
+    """ndarray, shape (ns,): Read-only copy of species mass fractions across all phases."""
     def __get__(self):
       cdef int dim1
       cea_pxd.chemequianalysis_massfracs_species_get_size(self._ptr, &dim1)
@@ -261,7 +316,7 @@ cdef class ChemEquiAnalysis:
       return arr
 
   property molfracs_atoms_gas:
-    "ndarray[double,ndim=1]. Mole fractions of atoms in gas phase."
+    """ndarray, shape (na,): Read-only copy of gas-phase atom mole fractions."""
     def __get__(self):
       cdef int dim1
       cea_pxd.chemequianalysis_molfracs_atoms_gas_get_size(self._ptr, &dim1)
@@ -270,7 +325,7 @@ cdef class ChemEquiAnalysis:
       return arr
 
   property molfracs_species_gas:
-    "ndarray[double,ndim=1]. Mole fractions of species in gas phase."
+    """ndarray, shape (ng,): Read-only copy of gas-phase species mole fractions."""
     def __get__(self):
       cdef int dim1
       cea_pxd.chemequianalysis_molfracs_species_gas_get_size(self._ptr, &dim1)
@@ -279,7 +334,7 @@ cdef class ChemEquiAnalysis:
       return arr
 
   property molfracs_atoms_condensate:
-    "ndarray[double,ndim=1]. Mole fractions of atoms in condensed phase."
+    """ndarray, shape (na,): Read-only copy of condensed-phase atom mole fractions."""
     def __get__(self):
       cdef int dim1
       cea_pxd.chemequianalysis_molfracs_atoms_condensate_get_size(self._ptr, &dim1)
@@ -288,7 +343,7 @@ cdef class ChemEquiAnalysis:
       return arr
 
   property molfracs_species_condensate:
-    "ndarray[double,ndim=1]. Mole fractions of species in condensed phase."
+    """ndarray, shape (nc,): Read-only copy of condensed species mole fractions."""
     def __get__(self):
       cdef int dim1
       cea_pxd.chemequianalysis_molfracs_species_condensate_get_size(self._ptr, &dim1)
@@ -297,14 +352,42 @@ cdef class ChemEquiAnalysis:
       return arr
 
   property mubar:
-    "float. Mean molecular weight (g/mol)."
+    """float: Mean molecular weight of the equilibrium gas phase (g/mol)."""
     def __get__(self):
       cdef double val
       cea_pxd.chemequianalysis_mubar_get(self._ptr, &val)
       return val
 
+  property nabla_ad:
+    """float: Adiabatic logarithmic temperature gradient, ``dln(T)/dln(P)``."""
+    def __get__(self):
+      cdef double val
+      cea_pxd.chemequianalysis_nabla_ad_get(self._ptr, &val)
+      return val
+
+  property gamma2:
+    """float: Second adiabatic exponent, ``1 / (1 - nabla_ad)``."""
+    def __get__(self):
+      cdef double val
+      cea_pxd.chemequianalysis_gamma2_get(self._ptr, &val)
+      return val
+
+  property rho:
+    """float: Equilibrium gas mass density (g/cm^3)."""
+    def __get__(self):
+      cdef double val
+      cea_pxd.chemequianalysis_rho_get(self._ptr, &val)
+      return val
+
+  property c_pe:
+    """float: Equilibrium specific heat at constant pressure (erg/(g K))."""
+    def __get__(self):
+      cdef double val
+      cea_pxd.chemequianalysis_c_pe_get(self._ptr, &val)
+      return val
+
   property verbose:
-    "bool. Determines amount of printing."
+    """bool: Whether the equilibrium solver prints iteration details."""
     def __get__(self):
       cdef cbool val
       cea_pxd.chemequianalysis_verbose_get(self._ptr, &val)
@@ -313,7 +396,7 @@ cdef class ChemEquiAnalysis:
       cea_pxd.chemequianalysis_verbose_set(self._ptr, &val)
 
   property use_prev_guess:
-    "bool. Use previous converged solution as initial guess."
+    """bool: Whether to initialize from the previous converged solution."""
     def __get__(self):
       cdef cbool val
       cea_pxd.chemequianalysis_use_prev_guess_get(self._ptr, &val)
@@ -322,9 +405,7 @@ cdef class ChemEquiAnalysis:
       cea_pxd.chemequianalysis_use_prev_guess_set(self._ptr, &val)
 
   property mass_tol:
-    """float. Degree to which mass will be balanced. Gordon & McBride's default 
-    is 1.0e-6, but it seems like 1.0e-2 is OK.
-    """
+    """float: Dimensionless mass-balance convergence tolerance."""
     def __get__(self):
       cdef double val
       cea_pxd.chemequianalysis_mass_tol_get(self._ptr, &val)
@@ -334,7 +415,7 @@ cdef class ChemEquiAnalysis:
 
 # utils
 cdef pystring2cstring(str pystring):
-  # add a null c char, and convert to byes
+  # Add a null C character and convert to bytes.
   cdef bytes cstring = (pystring+'\0').encode('utf-8')
   return cstring
 

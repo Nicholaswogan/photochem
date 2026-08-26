@@ -76,11 +76,11 @@ contains
 
     ! Check inputs
     if (any(T_in < 0.0_dp)) then
-      err = '`T` can not have negative elements'
+      err = '`T` cannot have negative elements.'
       return
     endif
     if (any(P_in < 0.0_dp)) then
-      err = '`P` can not have negative elements'
+      err = '`P` cannot have negative elements.'
       return
     endif
     if (P_in(1) < P_top) then
@@ -102,7 +102,7 @@ contains
       endif
     enddo
     if (any(f_i_in < 0.0_dp)) then
-      err = '`f_i` can not have negative elements'
+      err = '`f_i` cannot have negative elements.'
       return
     endif
     if (size(f_i_in,1) /= size(P_in)) then

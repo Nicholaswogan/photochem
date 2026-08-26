@@ -407,7 +407,7 @@ contains
         dat%atoms_redox(j) = element%get_real("redox",error = io_err)
         if (allocated(io_err)) then; err = trim(infile)//trim(io_err%message); return; endif
       class default
-        err = "atoms in "//trim(infile)//" must made of dictionaries"
+        err = '"atoms" in "'//trim(infile)//'" must be a list of dictionaries.'
         return
       end select
       j = j + 1
@@ -656,13 +656,13 @@ contains
           ind = findloc(dat%species_names,dat%particle_gas_phase(i))
           if (ind(1) == 0) then
             err = "IOError: particle "//trim(dat%particle_names(i))// &
-                  " can not be made from "//trim(dat%particle_gas_phase(i))// &
+                  " cannot be made from "//trim(dat%particle_gas_phase(i))// &
                   " because "//trim(dat%particle_gas_phase(i))//" is not a gas"// &
                   " in the model."
             return
           elseif (ind(1) > dat%nq .or. ind(1) < dat%ng_1) then
             err = "Particle "//trim(dat%particle_names(i))// &
-                  " can not be made from "//trim(dat%particle_gas_phase(i))// &
+                  " cannot be made from "//trim(dat%particle_gas_phase(i))// &
                   " because "//trim(dat%particle_gas_phase(i))//" is"// &
                   " is a particle or is short-lived species."
             return
@@ -837,7 +837,7 @@ contains
     do i = 1,dat%np
       if (dat%pl(i)%numl /= 0) then
         err = 'Particle "'//trim(dat%species_names(i))//'" is destroyed by reactions. '// &
-              'Particles can not be destroyed by reactions! Remove these reaction(s).'
+              'Particles cannot be destroyed by reactions. Remove these reactions.'
         return
       endif
     enddo
@@ -1119,30 +1119,30 @@ contains
       endif
       if (n_hv_react > 0 .or. n_hv_prod > 0) then
         err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
-                ' can not contain "hv". Only photolysis reactions can.'
+                ' cannot contain "hv". Only photolysis reactions can.'
         return
       endif
     elseif (trim(rxtype) == 'elementary' .or. &
             trim(rxtype) == 'pressure-dependent-Arrhenius') then
       if (n_m_react > 0 .or. n_m_prod > 0) then
         err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
-                ' can not contain "M".'
+                ' cannot contain "M".'
         return
       endif
       if (n_hv_react > 0 .or. n_hv_prod > 0) then
         err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
-                ' can not contain "hv". Only photolysis reactions can.'
+                ' cannot contain "hv". Only photolysis reactions can.'
         return
       endif
     elseif (trim(rxtype) == 'photolysis') then
       if (reverse) then
-        err = 'IOError: Photolysis reaction '//trim(tmp)//' can not be reversed.'
+        err = 'IOError: Photolysis reaction '//trim(tmp)//' cannot be reversed.'
         return
       endif
 
       if (n_m_react > 0 .or. n_m_prod > 0) then
         err = 'IOError: '//trim(rxtype)// ' reaction '//trim(tmp)// &
-                ' can not contain "M".'
+                ' cannot contain "M".'
         return
       endif
       if (n_hv_react > 1) then
@@ -1886,7 +1886,7 @@ contains
     do i = 1, dat%nsl
 
       j = dat%nq + i
-      ! can not be an efficiency.
+      ! cannot be an efficiency.
       do k = 1,dat%nrF
         select type(rp => dat%rx(k)%rp)
         class is (ThreeBodyRate)
@@ -1950,7 +1950,7 @@ contains
               return
             elseif (dat%species_names(n) == 'hv') then
               call reaction_string(dat, kk, reaction_equation)
-              err = 'IOError: Photolysis reaction "'//reaction_equation//'" can not have short lived species.'
+              err = 'IOError: Photolysis reaction "'//reaction_equation//'" cannot have short-lived species.'
               return
             endif
           enddo

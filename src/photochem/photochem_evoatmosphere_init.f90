@@ -392,7 +392,7 @@ contains
     open(4, file=trim(atmosphere_txt),status='old',iostat=io)
     file%unit = 4
     if (io /= 0) then
-      err = 'Can not open file '//trim(atmosphere_txt)
+      err = 'Cannot open file '//trim(atmosphere_txt)
       return
     endif
     read(4,'(A)') line

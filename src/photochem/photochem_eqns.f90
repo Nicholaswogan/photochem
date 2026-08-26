@@ -150,12 +150,12 @@ contains
   
   pure function dynamic_viscosity_air(T) result(eta)
       real(dp), intent(in) :: T
-      real(dp) :: eta ! dynamic viscosity [dynes s/cm^2]
+      real(dp) :: eta ! Dynamic viscosity [dyn s/cm^2].
       ! parameters speceific to Modern Earth air
       real(dp), parameter :: T0 = 273.0_dp ! K
       real(dp), parameter :: eta0 = 1.716e-5_dp ! N s /m^2
       real(dp), parameter :: S = 111.0_dp ! K
-      real(dp), parameter :: unit_conversion = 10.0_dp ! [dynes s/cm^2]/[N s/m^2]
+      real(dp), parameter :: unit_conversion = 10.0_dp ! [dyn s/cm^2]/[N s/m^2]
       ! Dynamic viscosity of Air using the Sutherland relation.
       ! Reference: White (2006) "Viscous Fluid Flow"
       ! Equation 1-36 and Table 1-2 (air)
@@ -167,7 +167,7 @@ contains
     real(dp), intent(in) :: partical_radius ! cm
     real(dp), intent(in) :: particle_density ! g/cm^3
     real(dp), intent(in) :: air_density ! g/cm^3
-    real(dp), intent(in) :: viscosity ! dynes s/cm^2
+    real(dp), intent(in) :: viscosity ! dyn s/cm^2
     real(dp) :: wfall ! fall velocity [cm/s]
     ! fall velocity from stokes law
     ! derived using Equation 9.29 in Seinfeld (2006) 
