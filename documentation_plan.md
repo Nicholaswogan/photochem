@@ -262,7 +262,7 @@ Write one concise page with Photochemical Model, Climate Model, and Chemical Equ
 ### Pass 8: Complete development and citation material
 
 - [x] Write current source-build instructions and verify them in a clean build.
-- [ ] Write contribution expectations, test commands, documentation workflow, and pull-request guidance.
+- [x] Write contribution expectations, test commands, documentation workflow, and pull-request guidance.
 - [ ] Curate valuable unfinished roadmap items into Future Directions.
 - [ ] Write the How to Cite Photochem page, including software, model-data, component, and tutorial-specific scientific citations.
 
