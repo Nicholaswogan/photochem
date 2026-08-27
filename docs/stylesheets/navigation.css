@@ -1,0 +1,22 @@
+/* Make top-level navigation sections distinct from their child pages. */
+.md-nav--primary .md-nav__item--section > .md-nav__link {
+  color: var(--md-default-fg-color);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.md-nav--primary .md-nav__item--section > .md-nav > .md-nav__list {
+  border-left: 0.1rem solid var(--md-default-fg-color--lighter);
+  margin-left: 0.35rem;
+  padding-left: 0.65rem;
+}
+
+.md-nav--primary .md-nav__item--section > .md-nav > .md-nav__list > .md-nav__item > .md-nav__link {
+  color: var(--md-default-fg-color--light);
+  font-size: 0.72rem;
+}
+
+.md-nav--primary .md-nav__item--section > .md-nav > .md-nav__list > .md-nav__item > .md-nav__link--active {
+  color: var(--md-accent-fg-color);
+  font-weight: 600;
+}
