@@ -209,12 +209,12 @@ Completion of passes 1 through 4 forms the first documentation milestone: a work
 
 Write the input reference one format at a time, checking every statement against the corresponding Fortran reader and validation code:
 
-1. Reaction Mechanisms
-2. Photochem Settings
-3. Stellar Flux Files
-4. Atmosphere Profiles
-5. Clima Species and Settings
-6. Equilibrate Thermodynamic Data
+- [ ] Reaction Mechanisms
+- [ ] Photochem Settings
+- [ ] Stellar Flux Files
+- [ ] Atmosphere Profiles
+- [ ] Clima Species and Settings
+- [ ] Equilibrate Thermodynamic Data
 
 Use small test fixtures to confirm examples where practical. Link each page to the tutorials that use the format.
 
@@ -222,14 +222,14 @@ Use small test fixtures to confirm examples where practical. Link each page to t
 
 Port and modernize tutorials individually in this order unless dependencies or scientific review suggest a better sequence:
 
-1. Rocky Planet Photochemistry
-2. Rocky Planet Climate
-3. Chemical Equilibrium
-4. Gas Giant Photochemistry
-5. The Habitable Zone
-6. Changing Model Data
-7. Climate Then Photochemistry: TRAPPIST-1e
-8. Preparing Photochem Results for Spectrum Calculations
+- [ ] Rocky Planet Photochemistry
+- [ ] Rocky Planet Climate
+- [ ] Chemical Equilibrium
+- [ ] Gas Giant Photochemistry
+- [ ] The Habitable Zone
+- [ ] Changing Model Data
+- [ ] Climate Then Photochemistry: TRAPPIST-1e
+- [ ] Preparing Photochem Results for Spectrum Calculations
 
 Likely source material is:
 
@@ -246,14 +246,14 @@ Likely source material is:
 
 For every tutorial:
 
-1. Audit the old notebook against the current API.
-2. Identify and copy only inputs still scientifically appropriate.
-3. Convert the content into a canonical Jupytext `py:percent` file.
-4. Rewrite the narrative and code for clarity.
-5. Execute it from a clean state with an explicit timeout.
-6. Check numerical output for finite and scientifically reasonable results.
-7. Render the page and inspect plots, equations, navigation, and downloads.
-8. Add links to related input, explanation, and API pages.
+- [ ] Audit the old notebook against the current API.
+- [ ] Identify and copy only inputs still scientifically appropriate.
+- [ ] Convert the content into a canonical Jupytext `py:percent` file.
+- [ ] Rewrite the narrative and code for clarity.
+- [ ] Execute it from a clean state with an explicit timeout.
+- [ ] Check numerical output for finite and scientifically reasonable results.
+- [ ] Render the page and inspect plots, equations, navigation, and downloads.
+- [ ] Add links to related input, explanation, and API pages.
 
 ### Pass 7: Write the Explanation page
 
@@ -261,27 +261,27 @@ Write one concise page with Photochemical Model, Climate Model, and Chemical Equ
 
 ### Pass 8: Complete development and citation material
 
-1. Write current source-build instructions and verify them in a clean build.
-2. Write contribution expectations, test commands, documentation workflow, and pull-request guidance.
-3. Curate valuable unfinished roadmap items into Future Directions.
-4. Write the How to Cite Photochem page, including software, model-data, component, and tutorial-specific scientific citations.
+- [x] Write current source-build instructions and verify them in a clean build.
+- [ ] Write contribution expectations, test commands, documentation workflow, and pull-request guidance.
+- [ ] Curate valuable unfinished roadmap items into Future Directions.
+- [ ] Write the How to Cite Photochem page, including software, model-data, component, and tutorial-specific scientific citations.
 
 ### Pass 9: Automate, deploy, and version the site
 
-1. Add a clean documentation-build job that installs Photochem and the docs dependencies.
-2. Execute all first-party tutorials as part of the documentation build.
-3. Publish successful builds to GitHub Pages.
-4. Add versioned documentation for tagged releases and a clear stable/latest policy.
-5. Add link checking and other inexpensive validation once the site structure is stable.
-6. Measure build time and separate optional external examples if they make the primary documentation build unreliable.
+- [ ] Add a clean documentation-build job that installs Photochem and the docs dependencies.
+- [ ] Execute all first-party tutorials as part of the documentation build.
+- [ ] Publish successful builds to GitHub Pages.
+- [ ] Add versioned documentation for tagged releases and a clear stable/latest policy.
+- [ ] Add link checking and other inexpensive validation once the site structure is stable.
+- [ ] Measure build time and separate optional external examples if they make the primary documentation build unreliable.
 
 ### Pass 10: v1.0 documentation and release audit
 
-1. Read the complete site in navigation order and remove duplication.
-2. Verify all commands, downloads, cross-references, and external links.
-3. Confirm every public component has an installation path, tutorial, input reference where applicable, explanation, and API reference.
-4. Refresh the repository README to point users to the site and first tutorial.
-5. Complete the migration guide, changelog, release notes, and final tutorial validation required by roadmap item 9.8.
+- [ ] Read the complete site in navigation order and remove duplication.
+- [ ] Verify all commands, downloads, cross-references, and external links.
+- [ ] Confirm every public component has an installation path, tutorial, input reference where applicable, explanation, and API reference.
+- [ ] Refresh the repository README to point users to the site and first tutorial.
+- [ ] Complete the migration guide, changelog, release notes, and final tutorial validation required by roadmap item 9.8.
 
 ## Working method for Codex passes
 
