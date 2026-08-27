@@ -1,6 +1,6 @@
 # Contributing
 
-Contributions to Photochem are welcome. Focused changes are easier to review, test, and merge than large changes that combine several unrelated ideas.
+Contributions to Photochem are welcome!
 
 ## Before starting
 
@@ -33,7 +33,7 @@ Create a new branch from the updated `main` branch using a short, descriptive na
 git switch -c improve-climate-validation
 ```
 
-Make and test one focused change. Commit the relevant files with a clear message, then push the branch to your fork:
+Make and test a focused change. Commit the relevant files with a clear message, then push the branch to your fork:
 
 ```sh
 git add path/to/changed-file
@@ -45,7 +45,7 @@ Open a pull request from that branch to the Photochem `main` branch. Continue pu
 
 ## Pull requests
 
-A pull request should contain one logical change. Avoid combining multiple features, unrelated bug fixes, broad reformatting, or incidental cleanup in one contribution.
+A pull request should contain one core change. Avoid combining multiple features, unrelated bug fixes, broad reformatting, or cleanup in one contribution. Update tests and documentation when behavior or a public interface changes.
 
 Include:
 
@@ -55,13 +55,12 @@ Include:
 - links to related issues; and
 - the tests or other checks used to verify the result.
 
-Update tests and documentation when behavior or a public interface changes. Keep the final diff small enough that a reviewer can understand both its purpose and its consequences. The repository's current local test commands are summarized in the [test-suite README](https://github.com/Nicholaswogan/photochem/blob/main/tests/README.md).
-
 ## General style
 
-- Follow the style of the surrounding Python, Cython, C, or Fortran code and avoid drive-by reformatting.
-- Use descriptive names and straightforward implementations. Comments should explain reasoning, scientific assumptions, or non-obvious behavior rather than restating the code.
+- Follow the style of the surrounding Python, Cython, C, or Fortran code.
+- Use descriptive variable names. Comments should explain reasoning or non-obvious behavior rather than restating the code.
 - Use NumPy-style docstrings for public Python interfaces. Cython docstrings should reflect the corresponding Fortran documentation, which is the source of truth for compiled behavior.
-- Cite the relevant paper and, when practical, the equation, table, or section when implementing a published scientific method.
-- State units, array shapes, ordering, and important assumptions in public documentation where they are needed to use an interface correctly.
-- Write Markdown prose with one physical line per paragraph, as described in the [documentation maintainer guide](https://github.com/Nicholaswogan/photochem/blob/main/docs/README.md).
+- Use FORD-style docstrings for public Fortran interfaces.
+- Cite the relevant paper and table/equation when implementing a published scientific method.
+- Generally follow CGS units, but regardless, always document the units of inputs and outputs.
+- Write Markdown prose with one line per paragraph, as described in the [documentation maintainer guide](https://github.com/Nicholaswogan/photochem/blob/main/docs/README.md).
