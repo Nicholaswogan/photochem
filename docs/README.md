@@ -4,7 +4,7 @@ Activate a development environment of your choice, then install the documentatio
 
 ```sh
 mamba install -c conda-forge \
-  mkdocs mkdocs-material mkdocs-jupyter mkdocstrings-python \
+  mkdocs mkdocs-material mkdocs-jupyter mkdocstrings-python black \
   jupytext matplotlib
 ```
 

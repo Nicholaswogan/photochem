@@ -1,6 +1,6 @@
 # Photochem API
 
-`EvoAtmosphere` is the primary interface for one-dimensional photochemical models. Constructing the object loads the reaction mechanism, settings, and stellar flux; the atmosphere can be supplied at construction or initialized later from arrays.
+`EvoAtmosphere` is the primary interface for one-dimensional photochemical models. Constructing the object loads the reaction mechanism, settings, and stellar flux; the initial atmosphere can be supplied at construction or initialized later from arrays.
 
 ## Construction
 

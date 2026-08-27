@@ -3,5 +3,6 @@ mkdocs-material>=9,<10
 mkdocs-jupyter>=0.25,<1
 mkdocstrings>=1,<2
 mkdocstrings-python>=2,<3
+black>=26,<27
 jupytext>=1.19,<2
 matplotlib>=3.8,<4

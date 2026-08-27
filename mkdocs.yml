@@ -52,6 +52,7 @@ plugins:
             docstring_style: numpy
             filters:
               - "!^_"
+            line_length: 60
             members_order: source
             merge_init_into_class: true
             separate_signature: true
