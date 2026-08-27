@@ -43,6 +43,8 @@ nav:
       - Utilities: reference/utilities.md
   - Development:
       - Building from Source: development/building-from-source.md
+      - Contributing: development/contributing.md
+      - Future Directions: development/future-directions.md
 
 plugins:
   - search

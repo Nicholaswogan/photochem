@@ -14,27 +14,11 @@ jobs:
 
     - uses: mamba-org/setup-micromamba@v2
       with:
+        # Runtime and build requirements are shared with local source builds.
+        environment-file: environment-dev.yml
         environment-name: test-env
+        # Valgrind is used only by the Linux CI memory-safety checks.
         create-args: >-
-          photochem_clima_data 
-          python 
-          numpy 
-          scipy 
-          pyyaml 
-          numba 
-          astropy 
-          h5py 
-          threadpoolctl
-          scikit-build-core
-          python-build
-          cmake=3 
-          ninja 
-          cython 
-          fypp 
-          pip 
-          c-compiler 
-          cxx-compiler 
-          fortran-compiler
           valgrind
 
     - name: Install glibc debug symbols for valgrind

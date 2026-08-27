@@ -1,0 +1,32 @@
+name: photochem-dev
+channels:
+  - conda-forge
+dependencies:
+  # Runtime requirements
+  - python
+  - numpy
+  - scipy
+  - pyyaml
+  - numba
+  # HDF5 is also required while linking the compiled extensions.
+  - hdf5
+  - h5py
+  - astropy
+  - threadpoolctl
+  - requests
+  - photochem_clima_data=0.3.1
+
+  # Build requirements
+  - scikit-build-core
+  - python-build
+  - cmake=3
+  - ninja
+  - pkg-config
+  - cython
+  - fypp
+  - pip
+  - c-compiler
+  - cxx-compiler
+  # Photochem supports GNU Fortran 14 and newer.
+  - gfortran>=14
+  - git
