@@ -73,6 +73,8 @@ Only the Jupytext `.py` source will be committed. Generated `.ipynb` files and n
 
 The principal tutorials should construct useful models from transparent starting ingredients instead of loading preconverged answers. In particular, the Rocky Planet Photochemistry tutorial should use the packaged `zahnle_earth` mechanism (or create a clearly motivated variant), a committed Modern Earth settings file, and a simple initial pressure-temperature-Kzz and composition profile. It should initialize the atmosphere through the public array-based API and integrate the model itself. A final steady-state `atmosphere.txt` file should not be a required tutorial input.
 
+Pressure-based and altitude-based initialization are general coordinate choices available to planetary workflows. The documentation must not present pressure grids as specific to gas giants or altitude grids as specific to rocky planets; the gas-giant extension is distinguished by its equilibrium initialization and deep-atmosphere workflow.
+
 The same tutorial should demonstrate creating the stellar spectrum with the `photochem.utils.stars` API rather than treating a finished Photochem stellar flux file as an unexplained input. This must not make documentation builds depend on a live network service. The current `solar_spectrum` implementation downloads its modern-Sun reference spectrum on every call, so the tutorial must wait until that utility has a reproducible offline source or cache with a validated checksum. A committed source spectrum is an acceptable fallback, but a live download during every build is not.
 
 The Atmosphere Profiles tutorial section or input-reference page should still show how to write and reload `atmosphere.txt`. It should present that format as a convenient atmospheric-profile initialization and output format, not as a complete model restart. It does not preserve all mutable model configuration, including persistent pressure-temperature-Kzz profile configuration.
@@ -181,13 +183,13 @@ The goal of this pass is a plain but functional website. Custom branding, versio
 
 ### Pass 3: Establish generated API documentation
 
-1. Enable embedded Cython signatures and rebuild the installed package.
-2. Configure `mkdocstrings` to inspect the compiled extension modules.
-3. Prototype pages for `EvoAtmosphere`, `AdiabatClimate`, and `ChemEquiAnalysis`.
-4. Verify constructor and method signatures, property documentation, NumPy docstring sections, cross-links, and nested state objects.
-5. Decide whether any small manual constructor declarations are necessary.
-6. Add curated pages for Photochem, the gas-giant extension, Clima, Equilibrate, and utilities.
-7. Add a strict documentation build check that fails when API pages cannot be generated.
+- [x] Enable embedded Cython signatures and rebuild the installed package.
+- [x] Configure `mkdocstrings` to inspect the compiled extension modules.
+- [x] Prototype pages for `EvoAtmosphere`, `AdiabatClimate`, and `ChemEquiAnalysis`.
+- [x] Verify constructor and method signatures, property documentation, NumPy docstring sections, cross-links, and nested state objects.
+- [x] Use small manual constructor declarations for the three compiled extension classes whose constructor slots cannot be inspected at runtime.
+- [x] Add curated pages for Photochem, the gas-giant extension, Clima, Equilibrate, and utilities.
+- [x] Verify that the strict documentation build fails if an API page cannot be generated.
 
 This pass should first solve the extraction mechanism, then populate the reference. It should not rewrite API prose already present in source docstrings.
 

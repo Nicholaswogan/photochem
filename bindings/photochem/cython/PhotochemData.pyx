@@ -3,7 +3,7 @@ cimport PhotochemData_pxd as dat_pxd
 cdef class PhotochemData:
   """Read-mostly mechanism and planetary data owned by a model.
 
-  This object is a live borrowed view available as :attr:`EvoAtmosphere.dat`;
+  This object is a live borrowed view available as [EvoAtmosphere.dat][photochem.EvoAtmosphere.dat];
   it should not be constructed directly. Array-valued properties return copies.
   """
 

@@ -5,6 +5,9 @@ function(add_cython_module target source)
     OUTPUT "${cython_source}"
     COMMAND
       "${Python_EXECUTABLE}" -m cython --3
+      --directive embedsignature=True
+      --directive embedsignature.format=clinic
+      --module-name "photochem.${target}"
       --output-file "${cython_source}"
       "${CMAKE_CURRENT_SOURCE_DIR}/${source}"
     DEPENDS "${source}" ${ARGN}

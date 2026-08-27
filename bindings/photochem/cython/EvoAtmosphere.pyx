@@ -259,7 +259,7 @@ cdef class EvoAtmosphere:
     is constructed hydrostatically using gas composition only.
 
     ``mix`` and ``particle_radius`` use the same partial-dictionary convention
-    as :meth:`initialize_atmosphere_z`. Omitted species and particle radii use
+    as [initialize_atmosphere_z][photochem.EvoAtmosphere.initialize_atmosphere_z]. Omitted species and particle radii use
     ``default_mix`` and ``default_particle_radius``, respectively.
 
     By default, pressure is used only to construct the initial atmosphere. If
@@ -617,7 +617,7 @@ cdef class EvoAtmosphere:
 
     This method cannot be used while a CVODE stepper is initialized or while
     a persistent pressure-temperature-eddy profile is enabled. Call
-    :meth:`destroy_stepper` or :meth:`clear_press_temp_edd_profile` first,
+    [destroy_stepper][photochem.EvoAtmosphere.destroy_stepper] or [clear_press_temp_edd_profile][photochem.EvoAtmosphere.clear_press_temp_edd_profile] first,
     respectively.
 
     Parameters
@@ -659,8 +659,8 @@ cdef class EvoAtmosphere:
     and derived atmospheric working state. It does not evolve atmospheric
     species number densities. This method cannot be used while a CVODE
     stepper is initialized or while a persistent pressure-temperature-eddy
-    profile is enabled; call :meth:`destroy_stepper` or
-    :meth:`clear_press_temp_edd_profile` first, respectively.
+    profile is enabled; call [destroy_stepper][photochem.EvoAtmosphere.destroy_stepper] or
+    [clear_press_temp_edd_profile][photochem.EvoAtmosphere.clear_press_temp_edd_profile] first, respectively.
     
     Parameters
     ----------
@@ -735,9 +735,9 @@ cdef class EvoAtmosphere:
     constant. Vertical-grid updates preserve and remap the profile.
 
     This method cannot be called while a stepper is initialized. Call
-    :meth:`destroy_stepper` first. While persistent mode is enabled,
-    :meth:`set_temperature` and :meth:`set_press_temp_edd` cannot be used;
-    call :meth:`clear_press_temp_edd_profile` first. Persistent profiles enable
+    [destroy_stepper][photochem.EvoAtmosphere.destroy_stepper] first. While persistent mode is enabled,
+    [set_temperature][photochem.EvoAtmosphere.set_temperature] and [set_press_temp_edd][photochem.EvoAtmosphere.set_press_temp_edd] cannot be used;
+    call [clear_press_temp_edd_profile][photochem.EvoAtmosphere.clear_press_temp_edd_profile] first. Persistent profiles enable
     approximate TOA-pressure maintenance by default; use
     ``maintain_toa_pressure=False`` to disable it.
 
@@ -817,7 +817,7 @@ cdef class EvoAtmosphere:
     The most recently mapped altitude-based temperature and eddy-diffusion
     profiles remain in place. This also disables approximate TOA-pressure
     maintenance. This method cannot be called while a stepper is initialized;
-    call :meth:`destroy_stepper` first.
+    call [destroy_stepper][photochem.EvoAtmosphere.destroy_stepper] first.
     """
     cdef char err[ERR_LEN+1]
     ea_pxd.evoatmosphere_clear_press_temp_edd_profile_wrapper(self._ptr, err)
@@ -874,7 +874,7 @@ cdef class EvoAtmosphere:
     This is separate from the basic and robust step-by-step pathways: it
     creates, owns, and releases its CVODE session internally. The vertical grid
     remains fixed, and TOA-pressure maintenance is not performed. Grid changes
-    must be requested explicitly with :meth:`update_vertical_grid` outside the
+    must be requested explicitly with [update_vertical_grid][photochem.EvoAtmosphere.update_vertical_grid] outside the
     integration.
 
     Parameters
@@ -917,8 +917,8 @@ cdef class EvoAtmosphere:
   def check_for_convergence(self):
     """Check whether an active stepper satisfies the steady-state criteria.
 
-    This check is valid for both the basic :meth:`step` pathway and the
-    policy-managed :meth:`robust_step` pathway. It does not advance the
+    This check is valid for both the basic [step][photochem.EvoAtmosphere.step] pathway and the
+    policy-managed [robust_step][photochem.EvoAtmosphere.robust_step] pathway. It does not advance the
     integration and requires that either stepper has first been initialized.
 
     Returns
@@ -936,12 +936,12 @@ cdef class EvoAtmosphere:
   def initialize_stepper(self, ndarray[double, ndim=2] usol_start):
     """Initialize the basic CVODE stepping pathway at time zero.
 
-    Advance this pathway with :meth:`step`. The caller is responsible for
+    Advance this pathway with [step][photochem.EvoAtmosphere.step]. The caller is responsible for
     responding to solver failures, checking convergence, and deciding when to
     restart or stop. Robust recovery, scheduled restarts, and TOA-pressure
-    maintenance are provided instead by :meth:`initialize_robust_stepper` and
-    :meth:`robust_step`. Any existing stepper is replaced; call
-    :meth:`destroy_stepper` when finished.
+    maintenance are provided instead by [initialize_robust_stepper][photochem.EvoAtmosphere.initialize_robust_stepper] and
+    [robust_step][photochem.EvoAtmosphere.robust_step]. Any existing stepper is replaced; call
+    [destroy_stepper][photochem.EvoAtmosphere.destroy_stepper] when finished.
 
     Parameters
     ----------
@@ -962,10 +962,10 @@ cdef class EvoAtmosphere:
   def step(self):
     """Advance the basic CVODE pathway by one internal solver step.
 
-    :meth:`initialize_stepper` must have been called first. This low-level
+    [initialize_stepper][photochem.EvoAtmosphere.initialize_stepper] must have been called first. This low-level
     pathway does not perform robust failure recovery, scheduled restarts,
     convergence management, or TOA-pressure maintenance; the caller is
-    responsible for that policy. Use :meth:`robust_step` for the policy-managed
+    responsible for that policy. Use [robust_step][photochem.EvoAtmosphere.robust_step] for the policy-managed
     pathway.
 
     Returns
@@ -992,7 +992,7 @@ cdef class EvoAtmosphere:
   def initialize_robust_stepper(self, ndarray[double, ndim=2] usol_start):
     """Initialize the policy-managed integration pathway at time zero.
 
-    Advance this pathway with :meth:`robust_step`. It uses the same underlying
+    Advance this pathway with [robust_step][photochem.EvoAtmosphere.robust_step]. It uses the same underlying
     CVODE stepper as the basic pathway, while adding failure recovery, scheduled
     restarts, convergence management, and integration counters. Optional
     approximate TOA-pressure maintenance is configured through
@@ -1022,8 +1022,8 @@ cdef class EvoAtmosphere:
   def robust_step(self):
     """Advance the policy-managed integration pathway by one robust step.
 
-    :meth:`initialize_robust_stepper` must have been called first. Unlike the
-    basic :meth:`step` pathway, this method manages failure recovery, scheduled
+    [initialize_robust_stepper][photochem.EvoAtmosphere.initialize_robust_stepper] must have been called first. Unlike the
+    basic [step][photochem.EvoAtmosphere.step] pathway, this method manages failure recovery, scheduled
     restarts, convergence checks, and integration counters. A failed step is
     recovered from the last committed state without advancing logical time.
     Scheduled CVODE restarts preserve logical time and total counters, but
@@ -1051,7 +1051,7 @@ cdef class EvoAtmosphere:
     """Run the policy-managed pathway until convergence or give-up.
 
     This convenience method initializes the robust stepper from the current
-    ``self.wrk.usol``, then repeatedly calls :meth:`robust_step`. It returns
+    ``self.wrk.usol``, then repeatedly calls [robust_step][photochem.EvoAtmosphere.robust_step]. It returns
     ``True`` on convergence and ``False`` if the robust policy gives up.
 
     Returns

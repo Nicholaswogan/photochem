@@ -1,3 +1,11 @@
-# API Reference
+# API reference
 
-The generated Python API reference will be established in the next documentation pass. It will cover the curated public interfaces for Photochem, the gas-giant extension, Clima, Equilibrate, and utilities.
+The API reference is generated from the installed Photochem package. It documents the public Python interfaces for the photochemical, climate, and chemical-equilibrium models, plus selected utilities used to prepare inputs and process results.
+
+- [Photochem](photochem.md) documents `EvoAtmosphere` and the model state available through `pc.dat`, `pc.var`, and `pc.wrk`.
+- [Gas-Giant Extension](gas-giants.md) documents the equilibrium initialization and deep-atmosphere workflow provided by `EvoAtmosphereGasGiant`.
+- [Clima](clima.md) documents `AdiabatClimate` and the radiative-transfer state available through `clima.rad`.
+- [Equilibrate](equilibrate.md) documents `ChemEquiAnalysis`.
+- [Utilities](utilities.md) documents selected helpers for input files, stellar spectra, and model output.
+
+The compiled Python docstrings follow the corresponding Fortran interfaces, which remain the source of truth for compiled behavior. File formats and complete workflows are covered separately by the input-file reference and tutorials.

@@ -4,7 +4,7 @@ cimport AtomConservation_pxd as atom_pxd
 cdef class CondensationParameters:
   """Parameters controlling finite-rate condensation and evaporation.
 
-  Instances are borrowed views into an :class:`EvoAtmosphere` model. Assigning
+  Instances are borrowed views into an [EvoAtmosphere][photochem.EvoAtmosphere] model. Assigning
   a property changes the corresponding model setting; these objects should not
   be constructed directly.
   """
@@ -54,7 +54,7 @@ cdef class SaturationData:
   """Saturation-vapor-pressure model for one condensable species.
 
   Instances are read-only borrowed views returned by
-  :attr:`PhotochemData.particle_sat`; they should not be constructed directly.
+  [PhotochemData.particle_sat][photochem._photochem.PhotochemData.particle_sat]; they should not be constructed directly.
   """
 
   cdef atom_pxd.SaturationData *_ptr

@@ -3,7 +3,7 @@ cimport PhotochemWrk_pxd as wrk_pxd
 cdef class PhotochemWrk:
   """Prepared atmosphere, solver state, and runtime diagnostics.
 
-  This object is a live borrowed view available as :attr:`EvoAtmosphere.wrk`;
+  This object is a live borrowed view available as [EvoAtmosphere.wrk][photochem.EvoAtmosphere.wrk];
   it should not be constructed directly. Most diagnostics describe the most
   recently prepared atmospheric state. Array-valued getters return copies;
   assigning ``usol`` or ``tn`` updates the live model state.

@@ -34,10 +34,35 @@ nav:
   - Installation: installation.md
   - Tutorials: tutorials/index.md
   - Input Files: input-files/index.md
-  - API Reference: reference/index.md
+  - API Reference:
+      - Overview: reference/index.md
+      - Photochem: reference/photochem.md
+      - Gas-Giant Extension: reference/gas-giants.md
+      - Clima: reference/clima.md
+      - Equilibrate: reference/equilibrate.md
+      - Utilities: reference/utilities.md
 
 plugins:
   - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            allow_inspection: true
+            docstring_style: numpy
+            filters:
+              - "!^_"
+            members_order: source
+            merge_init_into_class: true
+            separate_signature: true
+            show_object_full_path: false
+            show_root_full_path: false
+            show_root_heading: true
+            show_signature_annotations: true
+            show_source: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            signature_crossrefs: true
   - mkdocs-jupyter:
       include:
         - tutorials/*.py

@@ -17,7 +17,7 @@ from ..utils._format import yaml, FormatSettings_main, MyDumper
 class GasGiantData():
     """Configuration and saved climate profiles for a gas-giant model.
 
-    An instance is created as :attr:`EvoAtmosphereGasGiant.gdat`. Pressure is
+    An instance is created as ``EvoAtmosphereGasGiant.gdat``. Pressure is
     in dyn/cm^2, temperature in K, eddy diffusion in cm^2/s, radius in cm, and
     mass in g. Attributes ending in ``_clima_grid`` retain the user's climate
     grid; ``P_desired``, ``T_desired``, and ``Kzz_desired`` contain the profile
@@ -61,18 +61,18 @@ class GasGiantData():
         self.ind_b = None
 
 class EvoAtmosphereGasGiant(EvoAtmosphere):
-    """Pressure-grid workflow for modeling gas-rich planets.
+    """Photochemical workflow for modeling gas-rich planets.
 
     The constructor configures static photochemical data. Call
-    :meth:`initialize_to_climate_equilibrium_PT` before integrating, or restore
-    a previously saved state with :meth:`initialize_from_dict`.
+    [initialize_to_climate_equilibrium_PT][photochem.extensions.EvoAtmosphereGasGiant.initialize_to_climate_equilibrium_PT] before integrating, or restore
+    a previously saved state with [initialize_from_dict][photochem.extensions.EvoAtmosphereGasGiant.initialize_from_dict].
 
     Attributes
     ----------
     gdat : GasGiantData
         Gas-giant configuration and saved climate-grid profiles.
     dat, var, wrk
-        Live views inherited from :class:`photochem.EvoAtmosphere`.
+        Live views inherited from [photochem.EvoAtmosphere][].
     """
 
     def __init__(self, mechanism_file, stellar_flux_file, planet_mass, planet_radius, 
@@ -112,7 +112,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         """        
         
         # Configure the photochemical model. The atmosphere is initialized
-        # later from the supplied pressure-based climate profile.
+        # later from the supplied climate profile.
         sol = yaml.safe_load(SETTINGS_TEMPLATE)
         sol['atmosphere-grid']['number-of-layers'] = int(nz)
         sol['planet']['planet-mass'] = float(planet_mass)
@@ -280,7 +280,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         """Reinitialize from updated climate profiles and composition.
 
         This method requires a prior call to
-        :meth:`initialize_to_climate_equilibrium_PT`, and ``P_in`` must match
+        [initialize_to_climate_equilibrium_PT][photochem.extensions.EvoAtmosphereGasGiant.initialize_to_climate_equilibrium_PT], and ``P_in`` must match
         that original climate pressure grid.
 
         Parameters
@@ -571,7 +571,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         """Take one shared robust step and optionally report gas-giant progress.
 
         Stepping, recovery, convergence, restart, limit, and TOA-maintenance
-        policy are implemented by :class:`EvoAtmosphere`. This override only
+        policy are implemented by [EvoAtmosphere][photochem.EvoAtmosphere]. This override only
         retains the extension's compact progress display.
 
         Returns
@@ -602,7 +602,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         Returns
         -------
         dict
-            State accepted by :meth:`initialize_from_dict`.
+            State accepted by [initialize_from_dict][photochem.extensions.EvoAtmosphereGasGiant.initialize_from_dict].
         """
 
         gdat = self.gdat
@@ -633,7 +633,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         return out
 
     def initialize_from_dict(self, out):
-        """Restore a state produced by :meth:`model_state_to_dict`.
+        """Restore a state produced by [model_state_to_dict][photochem.extensions.EvoAtmosphereGasGiant.model_state_to_dict].
 
         Any active stepper and pressure-profile prescription are replaced.
 

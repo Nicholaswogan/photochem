@@ -3,7 +3,7 @@ cimport PhotochemVars_pxd as var_pxd
 cdef class TOAPressureMaintenance:
   """Live configuration for optional robust-stepper TOA pressure maintenance.
 
-  Instances are borrowed views owned by an :class:`EvoAtmosphere` model.
+  Instances are borrowed views owned by an [EvoAtmosphere][photochem.EvoAtmosphere] model.
   Assigning a property immediately changes that model's configuration.
   """
 
@@ -60,7 +60,7 @@ cdef class TOAPressureMaintenance:
 cdef class PhotochemVars:
   """Prepared atmospheric state and mutable model configuration.
 
-  This object is a live borrowed view available as :attr:`EvoAtmosphere.var`;
+  This object is a live borrowed view available as [EvoAtmosphere.var][photochem.EvoAtmosphere.var];
   it should not be constructed directly. Array-valued getters return copies,
   while assignments to settable properties update the model. Atmospheric
   profile values become valid only after ``EvoAtmosphere.atmosphere_initialized``
@@ -323,7 +323,7 @@ cdef class PhotochemVars:
 
   property max_error_reinit_attempts:
     """int. Number of times to reinitialize CVODE when it returns
-    a potentially recoverable error during :meth:`EvoAtmosphere.evolve`.
+    a potentially recoverable error during [EvoAtmosphere.evolve][photochem.EvoAtmosphere.evolve].
     """
     def __get__(self):
       cdef int val

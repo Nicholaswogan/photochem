@@ -3,7 +3,7 @@ cimport ProductionLoss_pxd as pl_pxd
 cdef class ProductionLoss:
   """Process-resolved production and loss rates for one chemical species.
 
-  Instances are returned by :meth:`EvoAtmosphere.production_and_loss`.
+  Instances are returned by [EvoAtmosphere.production_and_loss][photochem.EvoAtmosphere.production_and_loss].
   Reaction and process columns are ordered from largest to smallest vertically
   integrated rate.
   """
@@ -140,7 +140,7 @@ cdef class ProductionLoss:
     """list[str], shape (nproduction,)
 
     Reaction equations or process labels corresponding to the columns of
-    :attr:`production`.
+    [production][photochem._photochem.ProductionLoss.production].
     """
     def __get__(self):
       cdef int dim1
@@ -153,7 +153,7 @@ cdef class ProductionLoss:
     """list[str], shape (nloss,)
 
     Reaction equations or process labels corresponding to the columns of
-    :attr:`loss`.
+    [loss][photochem._photochem.ProductionLoss.loss].
     """
     def __get__(self):
       cdef int dim1

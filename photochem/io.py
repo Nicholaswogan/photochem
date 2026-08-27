@@ -7,7 +7,7 @@ def reformat_output_dict(sol):
     Parameters
     ----------
     sol : dict
-        Output from :func:`evo_read_evolve_output`.
+        Output from [evo_read_evolve_output][photochem.io.evo_read_evolve_output].
 
     Returns
     -------
