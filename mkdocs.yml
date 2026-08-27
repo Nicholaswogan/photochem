@@ -41,6 +41,8 @@ nav:
       - Clima: reference/clima.md
       - Equilibrate: reference/equilibrate.md
       - Utilities: reference/utilities.md
+  - Development:
+      - Building from Source: development/building-from-source.md
 
 plugins:
   - search

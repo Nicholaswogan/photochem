@@ -195,12 +195,13 @@ This pass should first solve the extraction mechanism, then populate the referen
 
 ### Pass 4: Write the installation page
 
-1. Make conda-forge installation the preferred user path.
-2. Include environment creation, activation, installation, and a minimal import/version verification command.
-3. Explain the additional packages needed to run and edit tutorials.
-4. Include concise Windows/WSL guidance where necessary.
-5. Link advanced users to Building from Source rather than placing the full compiler toolchain on the main installation page.
-6. Test every command in a clean environment or against the release candidate package channel available at the time.
+- [x] Make conda-forge installation the preferred user path.
+- [x] Include environment creation, activation, installation, and a minimal import/version verification command.
+- [x] Explain that `photochem_clima_data` is installed automatically and provides the bundled model data.
+- [x] Explain the additional packages needed to run and edit tutorials.
+- [x] Include concise Windows/WSL guidance and state that native Windows binaries are not supported.
+- [x] Direct advanced users toward the future Building from Source page rather than placing the full compiler toolchain on the main installation page.
+- [x] Test the installation and verification commands in a clean environment using the current conda-forge package.
 
 Completion of passes 1 through 4 forms the first documentation milestone: a working site with a useful landing page, installed-package API reference, and tested installation instructions.
 
