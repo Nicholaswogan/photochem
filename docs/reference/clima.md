@@ -1,6 +1,6 @@
 # Clima API
 
-`AdiabatClimate` is the primary interface for one-dimensional radiative-convective climate calculations. It constructs atmospheric profiles, computes top-of-atmosphere fluxes, solves for surface temperature, and can perform a radiative-convective-equilibrium calculation.
+`AdiabatClimate` is the primary interface for one-dimensional radiative-convective climate calculations.
 
 ## Construction
 

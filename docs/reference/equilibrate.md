@@ -12,7 +12,7 @@ photochem.equilibrate.ChemEquiAnalysis(
 )
 ```
 
-The Python interface accepts YAML thermodynamic data. Legacy CEA `.inp` files are not supported through Python. The constructor is shown explicitly because Python's runtime inspection does not expose constructor parameters for compiled extension classes.
+The constructor is shown explicitly because Python's runtime inspection does not expose constructor parameters for compiled extension classes.
 
 ::: photochem.equilibrate.ChemEquiAnalysis
     options:
