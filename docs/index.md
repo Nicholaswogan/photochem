@@ -12,7 +12,7 @@ Photochem is an open-source code for simulating how chemistry, radiation, transp
 
 -   **Rocky-planet photochemistry**
 
-    Use `photochem.EvoAtmosphere` to model the atmospheric photochemistry of a rocky planet like Earth.
+    Use `photochem.EvoAtmosphere` to model the atmospheric photochemistry of a rocky planet like Earth or Venus.
 
 -   **Gas-giant photochemistry**
 
