@@ -1,0 +1,104 @@
+# Modern Earth setup adapted from Wogan et al., doi:10.3847/PSJ/ae0e1c.
+
+atmosphere-grid:
+  number-of-layers: 100
+
+planet:
+  planet-mass: 5.972e27 # g
+  planet-radius: 6.371e8 # cm
+  surface-albedo: 0.2
+  solar-zenith-angle: 60.0 # degrees
+  hydrogen-escape: {type: diffusion limited}
+  water:
+    gas-rainout: true
+    rainfall-rate: 1
+    tropopause-altitude: 1.1e6 # cm
+
+particles:
+- {name: H2Oaer, RH-condensation: 0.4}
+
+boundary-conditions:
+# The deliberately large H2O pressure makes the lower boundary follow the
+# 40% relative-humidity saturation cap configured above.
+- name: H2O
+  lower-boundary: {type: press, press: 270.0e6}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: N2
+  lower-boundary: {type: press, press: 7.90140e5} # 78% of 1.013 bar
+  upper-boundary: {type: veff, veff: 0.0}
+- name: O2
+  lower-boundary: {type: press, press: 2.12730e5} # 21% of 1.013 bar
+  upper-boundary: {type: veff, veff: 0.0}
+- name: CO2
+  lower-boundary: {type: press, press: 4.05200e2} # 400 ppm
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Surface fluxes primarily follow Tsai et al. (2021), Table 2, with the
+# modifications and original sources identified below.
+
+# Hauglustaine et al. (1994) deposition; Seinfeld and Pandis (2016) flux.
+- name: CO
+  lower-boundary: {type: vdep + dist flux, vdep: 0.03, flux: 3.7e11, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Jackson et al. (2020) flux.
+- name: CH4
+  lower-boundary: {type: flux, flux: 1.4e11}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Hauglustaine et al. (1994) deposition; Seinfeld and Pandis (2016) lightning
+# and soil flux.
+- name: "NO"
+  lower-boundary: {type: vdep + dist flux, vdep: 0.01, flux: 3.0e9, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Schwieterman et al. (2022) flux.
+- name: N2O
+  lower-boundary: {type: vdep + dist flux, vdep: 0.0, flux: 1.5e9, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Hu et al. (2012) deposition; Seinfeld and Pandis (2016) flux.
+- name: NH3
+  lower-boundary: {type: vdep + dist flux, vdep: 1.0, flux: 1.5e10, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Hauglustaine et al. (1994) deposition.
+- name: NO2
+  lower-boundary: {type: vdep, vdep: 0.05}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: NO3
+  lower-boundary: {type: vdep, vdep: 0.05}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Seinfeld and Pandis (2016) deposition and flux.
+- name: SO2
+  lower-boundary: {type: vdep + dist flux, vdep: 1.0, flux: 9.0e9, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Hu et al. (2012) deposition; Seinfeld and Pandis (2016) flux.
+- name: H2S
+  lower-boundary: {type: vdep + dist flux, vdep: 0.015, flux: 2.0e8, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Tsai et al. (2021) deposition; Seinfeld and Pandis (2016) flux.
+- name: OCS
+  lower-boundary: {type: vdep + dist flux, vdep: 0.003, flux: 5.4e7, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Hu et al. (2012) deposition; Seinfeld and Pandis (2016) flux.
+- name: H2SO4
+  lower-boundary: {type: vdep + dist flux, vdep: 1.0, flux: 7.0e8, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Tsai et al. (2021) deposition; Li et al. (2003) flux.
+- name: HCN
+  lower-boundary: {type: vdep + dist flux, vdep: 0.13, flux: 1.7e8, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: CH3CN
+  lower-boundary: {type: vdep + dist flux, vdep: 0.13, flux: 1.3e8, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Tsai et al. (2021) deposition.
+- name: HNO3
+  lower-boundary: {type: vdep, vdep: 4.0}
+  upper-boundary: {type: veff, veff: 0.0}
