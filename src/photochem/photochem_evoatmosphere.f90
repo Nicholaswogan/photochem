@@ -215,8 +215,16 @@ module photochem_evoatmosphere
     !! input point and again on the model grid. Total gas number density is
     !! derived by hydrostatic integration upward from `surface_pressure`.
     !!
-    !! Rows of `mix` must follow evolved-species order (`1:dat%nq`), matching
-    !! `usol`: particle species first, followed by evolved gases.
+    !! When `mix` is supplied, its rows must follow evolved-species order
+    !! (`1:dat%nq`), matching `usol`: particle species first, followed by
+    !! evolved gases. When `mix` is omitted, the gas composition is inferred
+    !! from fixed-partial-pressure lower boundary conditions. At least one
+    !! noncondensing gas must have such a boundary condition. Condensing gases
+    !! are initialized at their configured relative humidity and cold trapped
+    !! upward. The dry fixed-pressure composition supplies the initial
+    !! hydrostatic estimate, after which pressure and composition are solved
+    !! together one input altitude interval at a time with bracketed scalar
+    !! solves. Other gases and all particles receive a negligible abundance.
     !! `particle_radius` contains the particle species (`1:dat%npq`). Fixed
     !! density and partial-pressure lower boundary conditions override the
     !! corresponding supplied mixing ratios in the bottom model layer.
@@ -235,7 +243,7 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: edd(:) !! Eddy diffusion at `z` (cm^2/s).
       real(dp), intent(in) :: surface_pressure !! Pressure at the lower domain edge (dyn/cm^2).
       !> Mixing ratios in evolved-species order at `z`, matching `usol`.
-      real(dp), intent(in) :: mix(:,:)
+      real(dp), optional, intent(in) :: mix(:,:)
       !> Particle radii in mechanism order at `z` (cm).
       real(dp), intent(in) :: particle_radius(:,:)
       character(:), allocatable, intent(out) :: err
@@ -247,8 +255,13 @@ module photochem_evoatmosphere
     !! the lower and upper boundaries of the model domain, respectively, and
     !! the configured planet radius is interpreted at the lower boundary.
     !! Altitude is constructed by hydrostatic integration using gas composition
-    !! only. Rows of `mix` follow evolved-species order (`1:dat%nq`), matching
-    !! `usol`: particle species first, followed by evolved gases.
+    !! only. When `mix` is supplied, its rows follow evolved-species order
+    !! (`1:dat%nq`), matching `usol`: particle species first, followed by
+    !! evolved gases. When `mix` is omitted, the gas composition is inferred
+    !! from fixed-partial-pressure lower boundary conditions. At least one
+    !! noncondensing gas must have such a boundary condition. Condensing gases
+    !! are initialized at their configured relative humidity and cold trapped
+    !! upward. Other gases and all particles receive a negligible abundance.
     !!
     !! By default, pressure is used only to construct the initial altitude
     !! grid. If `persistent` is true, temperature and eddy diffusion are also
@@ -275,7 +288,7 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: temperature(:) !! Temperature at `pressure` (K).
       real(dp), intent(in) :: edd(:) !! Eddy diffusion at `pressure` (cm^2/s).
       !> Mixing ratios in evolved-species order at `pressure`, matching `usol`.
-      real(dp), intent(in) :: mix(:,:)
+      real(dp), optional, intent(in) :: mix(:,:)
       !> Particle radii in mechanism order at `pressure` (cm).
       real(dp), intent(in) :: particle_radius(:,:)
       !> Retain temperature and eddy diffusion as functions of hydrostatic pressure.

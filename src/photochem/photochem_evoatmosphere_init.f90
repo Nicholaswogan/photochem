@@ -148,10 +148,12 @@ contains
     class(EvoAtmosphere), intent(inout) :: self
     real(dp), intent(in) :: z(:), temperature(:), edd(:)
     real(dp), intent(in) :: surface_pressure
-    real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
+    real(dp), optional, intent(in) :: mix(:,:)
+    real(dp), intent(in) :: particle_radius(:,:)
     character(:), allocatable, intent(out) :: err
 
     type(AtmosphereState) :: state, previous_state
+    real(dp), allocatable :: mix_(:,:)
     logical :: was_initialized
 
     was_initialized = self%atmosphere_initialized
@@ -165,9 +167,17 @@ contains
     call copy_model_to_state(self, state)
 
     ! Build most of the atmospheric state from inputs
+    if (present(mix)) then
+      mix_ = mix
+    else
+      call infer_mix_from_altitude(self, z, temperature, surface_pressure, &
+                                   mix_, err)
+      if (allocated(err)) return
+    endif
+
     call map_atmosphere_z_to_grid(self%dat, self%var%nz, self%var%trop_alt, &
                                   z, temperature, edd, &
-                                  surface_pressure, mix, particle_radius, &
+                                  surface_pressure, mix_, particle_radius, &
                                   state, err)
     if (allocated(err)) return
 
@@ -270,7 +280,8 @@ contains
 
     class(EvoAtmosphere), intent(inout) :: self
     real(dp), intent(in) :: pressure(:), temperature(:), edd(:)
-    real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
+    real(dp), optional, intent(in) :: mix(:,:)
+    real(dp), intent(in) :: particle_radius(:,:)
     logical, optional, intent(in) :: persistent
     real(dp), optional, intent(in) :: trop_p
     logical, optional, intent(in) :: maintain_toa_pressure
@@ -278,6 +289,7 @@ contains
     character(:), allocatable, intent(out) :: err
 
     type(AtmosphereState) :: state, previous_state
+    real(dp), allocatable :: mix_(:,:)
     logical :: was_initialized
     logical :: persistent_, maintain_toa_pressure_
 
@@ -305,9 +317,16 @@ contains
     call state%allocate(self%dat, self%var%nz)
     call copy_model_to_state(self, state)
 
+    if (present(mix)) then
+      mix_ = mix
+    else
+      call infer_mix_from_pressure(self, pressure, temperature, mix_, err)
+      if (allocated(err)) return
+    endif
+
     call map_atmosphere_p_to_grid(self%dat, self%var%nz, self%var%trop_alt, &
-                                  pressure, temperature, edd, mix, particle_radius, &
-                                  trop_p=trop_p, state=state, err=err)
+                                    pressure, temperature, edd, mix_, particle_radius, &
+                                    trop_p=trop_p, state=state, err=err)
     if (allocated(err)) return
 
     call finalize_atmosphere_state(self%dat, state, err)
@@ -508,6 +527,405 @@ contains
     else
       err = '"den" was not found in input file '//trim(atmosphere_txt)
       return
+    endif
+
+  end subroutine
+
+  subroutine infer_mix_from_pressure(self, pressure, temperature, mix, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+
+    class(EvoAtmosphere), target, intent(in) :: self
+    real(dp), intent(in) :: pressure(:), temperature(:)
+    real(dp), allocatable, intent(out) :: mix(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: condensable_mix(:), condensable_mix_previous(:)
+    real(dp) :: background_pressure
+    integer :: j, nprofile
+
+    nprofile = size(pressure)
+    if (nprofile < 2 .or. size(temperature) /= nprofile) then
+      err = 'Composition inference requires matching pressure and temperature profiles with at least two points.'
+      return
+    endif
+    if (.not. all(ieee_is_finite(pressure)) .or. any(pressure <= 0.0_dp)) then
+      err = 'Pressure profile must contain only finite, positive values.'
+      return
+    endif
+    if (.not. all(ieee_is_finite(temperature)) .or. any(temperature <= 0.0_dp)) then
+      err = 'Temperature profile must contain only finite, positive values.'
+      return
+    endif
+
+    call inferred_background_properties(self, background_pressure, err)
+    if (allocated(err)) return
+
+    allocate(mix(self%dat%nq,nprofile), condensable_mix(self%dat%nq), &
+             condensable_mix_previous(self%dat%nq))
+    condensable_mix_previous = 0.0_dp
+    do j = 1,nprofile
+      call infer_mix_at_level(self, pressure(j), temperature(j), &
+                              background_pressure, condensable_mix_previous, &
+                              j > 1, mix(:,j), condensable_mix, err)
+      if (allocated(err)) return
+      condensable_mix_previous = condensable_mix
+    enddo
+
+  end subroutine
+
+  !> Pressure and composition must be solved together because hydrostatic
+  !> pressure depends on the mean molecular weight of the inferred composition.
+  !> March upward, using a bracketed scalar solve for pressure at each level.
+  subroutine infer_mix_from_altitude(self, z, temperature, surface_pressure, &
+                                     mix, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, &
+                                              ieee_value
+    use futils, only: brent_class
+    use photochem_const, only: k_boltz, N_avo
+    use photochem_eqns, only: gravity
+
+    class(EvoAtmosphere), target, intent(in) :: self
+    real(dp), intent(in) :: z(:), temperature(:), surface_pressure
+    real(dp), allocatable, intent(out) :: mix(:,:)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), parameter :: root_tolerance = 1.0e-10_dp
+    integer, parameter :: max_bracket_expansions = 60
+    real(dp), allocatable :: pressure(:), condensable_mix(:)
+    real(dp), allocatable :: condensable_mix_previous(:), trial_mix(:), trial_condensable_mix(:)
+    real(dp) :: background_pressure, dry_mubar, inverse_radius_factor
+    real(dp) :: delta_inverse_radius, dry_log_pressure_drop
+    real(dp) :: mubar_previous, xcenter, xlower, xupper, width
+    real(dp) :: flower, fupper, xzero, fzero, z_tolerance
+    real(dp) :: surface_z(1), surface_gravity(1)
+    integer :: i, iflag, nexpand, nprofile, residual_level
+    character(32) :: level_string
+    character(:), allocatable :: residual_error
+    type(brent_class) :: root_solver
+
+    nprofile = size(z)
+    if (nprofile < 2 .or. size(temperature) /= nprofile) then
+      err = 'Composition inference requires matching altitude and temperature profiles with at least two points.'
+      return
+    endif
+    if (.not. all(ieee_is_finite(z))) then
+      err = 'Altitude profile contains a nonfinite value.'
+      return
+    endif
+    if (any(z(2:) <= z(:nprofile-1))) then
+      err = 'Altitude profile must be strictly increasing.'
+      return
+    endif
+    z_tolerance = 100.0_dp*epsilon(1.0_dp)*max(1.0_dp, abs(z(nprofile)))
+    if (abs(z(1)) > z_tolerance) then
+      err = 'The first altitude profile point must be zero.'
+      return
+    endif
+    if (.not. ieee_is_finite(surface_pressure) .or. surface_pressure <= 0.0_dp) then
+      err = 'Surface pressure must be finite and positive.'
+      return
+    endif
+    if (.not. all(ieee_is_finite(temperature)) .or. any(temperature <= 0.0_dp)) then
+      err = 'Temperature profile must contain only finite, positive values.'
+      return
+    endif
+
+    call inferred_background_properties(self, background_pressure, err, dry_mubar)
+    if (allocated(err)) return
+
+    surface_z = 0.0_dp
+    call gravity(self%dat%planet_radius, self%dat%planet_mass, &
+                 surface_z, surface_gravity)
+    if (.not. ieee_is_finite(surface_gravity(1)) .or. surface_gravity(1) <= 0.0_dp) then
+      err = 'Could not compute finite, positive gravity at the lower boundary.'
+      return
+    endif
+    inverse_radius_factor = N_avo*k_boltz/ &
+                            (surface_gravity(1)*self%dat%planet_radius**2)
+
+    allocate(pressure(nprofile), mix(self%dat%nq,nprofile), &
+             condensable_mix(self%dat%nq), &
+             condensable_mix_previous(self%dat%nq), &
+             trial_mix(self%dat%nq), trial_condensable_mix(self%dat%nq))
+
+    ! Surface pressure is prescribed, so its composition can be evaluated
+    ! directly before marching upward through the remaining profile points.
+    condensable_mix_previous = 0.0_dp
+    pressure(1) = surface_pressure
+    call infer_mix_at_level(self, pressure(1), temperature(1), &
+                            background_pressure, condensable_mix_previous, &
+                            .false., mix(:,1), condensable_mix, err)
+    if (allocated(err)) return
+    condensable_mix_previous = condensable_mix
+    call mean_molecular_weight(self%dat, mix(:,1), mubar_previous, err)
+    if (allocated(err)) return
+
+    call root_solver%set_function(pressure_residual)
+    do i = 2,nprofile
+      residual_level = i
+      delta_inverse_radius = 1.0_dp/(self%dat%planet_radius+z(i))- &
+                             1.0_dp/(self%dat%planet_radius+z(i-1))
+
+      ! Estimate this pressure drop using only the dry fixed-pressure gases.
+      ! The true pressure is then found with the condensable contribution to
+      ! mean molecular weight included in the scalar residual below.
+      dry_log_pressure_drop = delta_inverse_radius/ &
+                              (inverse_radius_factor*0.5_dp* &
+                               (temperature(i-1)/dry_mubar + &
+                                temperature(i)/dry_mubar))
+      xcenter = log(pressure(i-1))+dry_log_pressure_drop
+      width = max(abs(dry_log_pressure_drop), 1.0e-3_dp)
+      xupper = log(pressure(i-1))
+      xlower = xcenter-width
+
+      if (allocated(residual_error)) deallocate(residual_error)
+      flower = pressure_residual(root_solver, xlower)
+      if (allocated(residual_error)) then
+        err = residual_error
+        return
+      endif
+      fupper = pressure_residual(root_solver, xupper)
+      if (allocated(residual_error)) then
+        err = residual_error
+        return
+      endif
+
+      nexpand = 0
+      do while (.not. opposite_signs(flower, fupper))
+        ! Pressure must decrease upward, so retain the known lower-level
+        ! pressure as the upper bracket and expand only toward lower pressure.
+        width = 2.0_dp*width
+        xlower = xcenter-width
+        flower = pressure_residual(root_solver, xlower)
+        if (allocated(residual_error)) then
+          err = residual_error
+          return
+        endif
+        nexpand = nexpand+1
+        if (nexpand >= max_bracket_expansions) then
+          write(level_string,'(i0)') i
+          err = 'Could not bracket the inferred pressure root at altitude profile point '// &
+                trim(level_string)//'.'
+          return
+        endif
+      enddo
+
+      call root_solver%find_zero(xlower, xupper, root_tolerance, xzero, &
+                                 fzero, iflag, flower, fupper)
+      if (allocated(residual_error)) then
+        err = residual_error
+        return
+      endif
+      if (iflag /= 0 .or. .not. ieee_is_finite(xzero)) then
+        write(level_string,'(i0)') i
+        err = 'The inferred pressure solve failed at altitude profile point '// &
+              trim(level_string)//'.'
+        return
+      endif
+
+      pressure(i) = exp(xzero)
+      call infer_mix_at_level(self, pressure(i), temperature(i), &
+                              background_pressure, condensable_mix_previous, &
+                              .true., mix(:,i), condensable_mix, err)
+      if (allocated(err)) return
+      condensable_mix_previous = condensable_mix
+      call mean_molecular_weight(self%dat, mix(:,i), mubar_previous, err)
+      if (allocated(err)) return
+    enddo
+
+  contains
+
+    function pressure_residual(me, x) result(residual)
+      class(brent_class), intent(inout) :: me
+      real(dp), intent(in) :: x
+      real(dp) :: residual
+
+      real(dp) :: pressure_trial, mubar_trial, mean_temperature_over_mubar
+
+      if (allocated(residual_error)) then
+        residual = ieee_value(0.0_dp, ieee_quiet_nan)
+        return
+      endif
+      if (x <= log(tiny(1.0_dp))) then
+        residual = -huge(1.0_dp)
+        return
+      endif
+      pressure_trial = exp(x)
+
+      call infer_mix_at_level(self, pressure_trial, temperature(residual_level), &
+                              background_pressure, condensable_mix_previous, &
+                              .true., trial_mix, trial_condensable_mix, residual_error)
+      if (allocated(residual_error)) then
+        residual = ieee_value(0.0_dp, ieee_quiet_nan)
+        return
+      endif
+      call mean_molecular_weight(self%dat, trial_mix, mubar_trial, residual_error)
+      if (allocated(residual_error)) then
+        residual = ieee_value(0.0_dp, ieee_quiet_nan)
+        return
+      endif
+
+      mean_temperature_over_mubar = 0.5_dp* &
+                                    (temperature(residual_level-1)/mubar_previous + &
+                                     temperature(residual_level)/mubar_trial)
+
+      ! Enforce hydrostatic balance across this altitude interval. Trial
+      ! composition, including cold trapping, is a function of trial pressure.
+      residual = x-log(pressure(residual_level-1))- &
+                 delta_inverse_radius/ &
+                 (inverse_radius_factor*mean_temperature_over_mubar)
+      if (.not. ieee_is_finite(residual)) then
+        residual_error = 'The inferred pressure residual became nonfinite.'
+        residual = ieee_value(0.0_dp, ieee_quiet_nan)
+      endif
+
+    end function
+
+    pure function opposite_signs(a, b) result(opposite)
+      real(dp), intent(in) :: a, b
+      logical :: opposite
+
+      opposite = (a <= 0.0_dp .and. b >= 0.0_dp) .or. &
+                 (a >= 0.0_dp .and. b <= 0.0_dp)
+
+    end function
+
+  end subroutine
+
+  subroutine inferred_background_properties(self, background_pressure, err, &
+                                             dry_mubar)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use photochem_enum, only: PressureBC
+
+    class(EvoAtmosphere), intent(in) :: self
+    real(dp), intent(out) :: background_pressure
+    character(:), allocatable, intent(out) :: err
+    real(dp), optional, intent(out) :: dry_mubar
+
+    real(dp) :: fixed_pressure, dry_mass
+    integer :: i
+
+    background_pressure = 0.0_dp
+    dry_mass = 0.0_dp
+    do i = self%dat%ng_1,self%dat%nq
+      if (self%var%lowerboundcond(i) /= PressureBC) cycle
+      fixed_pressure = self%var%lower_fix_press(i)
+      if (.not. ieee_is_finite(fixed_pressure) .or. fixed_pressure < 0.0_dp) then
+        err = 'A fixed-partial-pressure lower boundary condition is invalid.'
+        return
+      endif
+      if (self%dat%gas_particle_ind(i) == 0) then
+        background_pressure = background_pressure+fixed_pressure
+        dry_mass = dry_mass+fixed_pressure*self%dat%species_mass(i)
+      endif
+    enddo
+    if (.not. ieee_is_finite(background_pressure) .or. background_pressure <= 0.0_dp) then
+      err = 'Inferred initialization requires at least one noncondensing gas '// &
+            'with a positive fixed-partial-pressure lower boundary condition.'
+      return
+    endif
+    if (present(dry_mubar)) then
+      dry_mubar = dry_mass/background_pressure
+      if (.not. ieee_is_finite(dry_mubar) .or. dry_mubar <= 0.0_dp) then
+        err = 'The dry fixed-pressure composition has an invalid mean molecular weight.'
+      endif
+    endif
+
+  end subroutine
+
+  subroutine infer_mix_at_level(self, pressure, temperature, background_pressure, &
+                                condensable_mix_previous, use_previous, mix, &
+                                condensable_mix, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use photochem_enum, only: PressureBC
+
+    class(EvoAtmosphere), target, intent(in) :: self
+    real(dp), intent(in) :: pressure, temperature, background_pressure
+    real(dp), intent(in) :: condensable_mix_previous(:)
+    logical, intent(in) :: use_previous
+    real(dp), intent(out) :: mix(:), condensable_mix(:)
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), parameter :: mixing_ratio_floor = 1.0e-40_dp
+    real(dp) :: saturation_pressure, condensable_total, available_mix
+    integer :: i, particle_ind
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+
+    dat => self%dat
+    var => self%var
+    if (.not. ieee_is_finite(pressure) .or. pressure <= 0.0_dp .or. &
+        .not. ieee_is_finite(temperature) .or. temperature <= 0.0_dp) then
+      err = 'Pressure and temperature must be finite and positive during composition inference.'
+      return
+    endif
+    if (size(mix) /= dat%nq .or. size(condensable_mix) /= dat%nq .or. &
+        size(condensable_mix_previous) /= dat%nq) then
+      err = 'Internal composition-inference arrays have the wrong dimensions.'
+      return
+    endif
+
+    mix = mixing_ratio_floor
+    condensable_mix = 0.0_dp
+    condensable_total = 0.0_dp
+    do i = dat%ng_1,dat%nq
+      if (var%lowerboundcond(i) /= PressureBC) cycle
+      particle_ind = dat%gas_particle_ind(i)
+      if (particle_ind == 0) cycle
+
+      saturation_pressure = dat%particle_sat(particle_ind)% &
+                            sat_pressure(temperature)* &
+                            var%cond_params(particle_ind)%RHc
+      if (.not. ieee_is_finite(saturation_pressure) .or. &
+          saturation_pressure < 0.0_dp) then
+        err = 'A condensation saturation pressure is invalid during composition inference.'
+        return
+      endif
+      if (use_previous) then
+        condensable_mix(i) = min(condensable_mix_previous(i), &
+                                  saturation_pressure/pressure)
+      else
+        condensable_mix(i) = min(var%lower_fix_press(i), &
+                                  saturation_pressure)/pressure
+      endif
+      condensable_total = condensable_total+condensable_mix(i)
+    enddo
+
+    if (.not. ieee_is_finite(condensable_total) .or. condensable_total >= 1.0_dp) then
+      err = 'Fixed-pressure condensables leave no room for a background atmosphere.'
+      return
+    endif
+    available_mix = 1.0_dp-condensable_total
+    do i = dat%ng_1,dat%nq
+      if (var%lowerboundcond(i) /= PressureBC) cycle
+      if (dat%gas_particle_ind(i) == 0) then
+        mix(i) = available_mix*var%lower_fix_press(i)/background_pressure
+      else
+        mix(i) = max(condensable_mix(i), mixing_ratio_floor)
+      endif
+    enddo
+
+  end subroutine
+
+  subroutine mean_molecular_weight(dat, mix, mubar, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+
+    type(PhotochemData), intent(in) :: dat
+    real(dp), intent(in) :: mix(:)
+    real(dp), intent(out) :: mubar
+    character(:), allocatable, intent(out) :: err
+
+    real(dp) :: gas_total
+
+    gas_total = sum(mix(dat%ng_1:dat%nq))
+    if (.not. ieee_is_finite(gas_total) .or. gas_total <= 0.0_dp) then
+      err = 'Inferred gas composition has an invalid total mixing ratio.'
+      return
+    endif
+    mubar = sum(mix(dat%ng_1:dat%nq)* &
+                dat%species_mass(dat%ng_1:dat%nq))/gas_total
+    if (.not. ieee_is_finite(mubar) .or. mubar <= 0.0_dp) then
+      err = 'Inferred gas composition has an invalid mean molecular weight.'
     endif
 
   end subroutine

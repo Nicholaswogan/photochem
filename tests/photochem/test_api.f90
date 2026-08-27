@@ -14,6 +14,7 @@ contains
     call test_initialization_state()
     call test_initialize_atmosphere_z()
     call test_initialize_atmosphere_p()
+    call test_inferred_initialization_errors()
     call test_initialization_paths_step()
     call test_pressure_tropopause_handoff()
     call test_legacy_file_grid()
@@ -1597,16 +1598,48 @@ contains
 
   end subroutine
 
+  subroutine test_inferred_initialization_errors()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp), parameter :: pressure(3) = [1.0e6_dp, 1.0e4_dp, 1.0e2_dp]
+    real(dp), parameter :: temperature(3) = [300.0_dp, 240.0_dp, 180.0_dp]
+    real(dp), parameter :: edd(3) = [1.0e5_dp, 1.0e6_dp, 1.0e7_dp]
+    real(dp), allocatable :: particle_radius(:,:)
+
+    pc = EvoAtmosphere(test_file('no_particle_test.yaml'), &
+                       test_file('test_settings_minimal.yaml'), &
+                       test_file('sun.txt'), &
+                       data_dir, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    allocate(particle_radius(pc%dat%npq,size(pressure)))
+
+    call pc%initialize_atmosphere_p(pressure, temperature, edd, &
+                                    particle_radius=particle_radius, err=err)
+    if (.not. allocated(err)) then
+      print *, 'inferred initialization without fixed-pressure gases was accepted'
+      stop 1
+    endif
+    if (pc%atmosphere_initialized) then
+      print *, 'failed inferred initialization changed lifecycle state'
+      stop 1
+    endif
+
+  end subroutine
+
   subroutine test_initialization_paths_step()
     type(EvoAtmosphere) :: pc_file, pc_z, pc_p
     character(:), allocatable :: err
     real(dp), parameter :: z_profile(3) = [0.0_dp, 5.0e6_dp, 1.0e7_dp]
+    real(dp), parameter :: z_wet_profile(3) = [0.0_dp, 5.0e5_dp, 2.0e6_dp]
     real(dp), parameter :: p_profile(4) = [1.0e6_dp, 1.0e5_dp, 1.0e4_dp, 1.0e2_dp]
-    real(dp), parameter :: temperature_z(3) = [300.0_dp, 240.0_dp, 180.0_dp]
-    real(dp), parameter :: temperature_p(4) = [300.0_dp, 260.0_dp, 220.0_dp, 180.0_dp]
+    real(dp), parameter :: temperature_z(3) = [300.0_dp, 200.0_dp, 240.0_dp]
+    real(dp), parameter :: temperature_z_wet(3) = [360.0_dp, 330.0_dp, 340.0_dp]
+    real(dp), parameter :: temperature_p(4) = [300.0_dp, 250.0_dp, 200.0_dp, 240.0_dp]
     real(dp), parameter :: edd_z(3) = [1.0e5_dp, 1.0e6_dp, 1.0e7_dp]
     real(dp), parameter :: edd_p(4) = [1.0e5_dp, 3.0e5_dp, 1.0e6_dp, 1.0e7_dp]
-    real(dp), allocatable :: mix_z(:,:), mix_p(:,:)
     real(dp), allocatable :: particle_radius_z(:,:), particle_radius_p(:,:)
     real(dp) :: tn
 
@@ -1631,16 +1664,27 @@ contains
       print *, trim(err)
       stop 1
     endif
-    allocate(mix_z(pc_z%dat%nq,size(z_profile)))
     allocate(particle_radius_z(pc_z%dat%npq,size(z_profile)))
-    call fill_static_profiles(pc_z, mix_z, particle_radius_z)
+    call fill_particle_radii(pc_z, particle_radius_z)
     call pc_z%initialize_atmosphere_z(z_profile, temperature_z, edd_z, 1.0e6_dp, &
-                                      mix_z, particle_radius_z, err)
+                                      particle_radius=particle_radius_z, err=err)
     if (allocated(err)) then
       print *, 'static-only altitude initialization failed: '//trim(err)
       stop 1
     endif
+    call check_inferred_water_cold_trap(pc_z, 'altitude')
     call check_initialized_step(pc_z, 'altitude', tn)
+
+    ! Exercise the nonlinear altitude solve with a warm surface where water is
+    ! a substantial part of the initial atmosphere and changes molecular weight.
+    call pc_z%initialize_atmosphere_z(z_wet_profile, temperature_z_wet, edd_z, &
+                                      1.0e6_dp, particle_radius=particle_radius_z, &
+                                      err=err)
+    if (allocated(err)) then
+      print *, 'water-rich altitude initialization failed: '//trim(err)
+      stop 1
+    endif
+    call check_inferred_water_cold_trap(pc_z, 'water-rich altitude')
 
     pc_p = EvoAtmosphere(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
                          test_file('settings.yaml'), &
@@ -1650,17 +1694,45 @@ contains
       print *, trim(err)
       stop 1
     endif
-    allocate(mix_p(pc_p%dat%nq,size(p_profile)))
     allocate(particle_radius_p(pc_p%dat%npq,size(p_profile)))
-    call fill_static_profiles(pc_p, mix_p, particle_radius_p)
-    call pc_p%initialize_atmosphere_p(p_profile, temperature_p, edd_p, mix_p, &
-                                      particle_radius_p, persistent=.true., &
+    call fill_particle_radii(pc_p, particle_radius_p)
+    call pc_p%initialize_atmosphere_p(p_profile, temperature_p, edd_p, &
+                                      particle_radius=particle_radius_p, &
+                                      persistent=.true., &
                                       trop_p=1.0e5_dp, err=err)
     if (allocated(err)) then
       print *, 'static-only pressure initialization failed: '//trim(err)
       stop 1
     endif
+    call check_inferred_water_cold_trap(pc_p, 'pressure')
     call check_initialized_step(pc_p, 'pressure', tn)
+
+  end subroutine
+
+  subroutine check_inferred_water_cold_trap(pc, label)
+    type(EvoAtmosphere), intent(in) :: pc
+    character(len=*), intent(in) :: label
+
+    real(dp), allocatable :: water_mix(:)
+    real(dp) :: gas_density
+    integer :: i, ind_H2O
+
+    ind_H2O = findloc(pc%dat%species_names(1:pc%dat%nq), 'H2O', 1)
+    if (ind_H2O == 0) then
+      print *, trim(label)//' inferred initialization test could not find H2O'
+      stop 1
+    endif
+    allocate(water_mix(pc%var%nz))
+    do i = 1,pc%var%nz
+      gas_density = sum(pc%wrk%usol(pc%dat%ng_1:pc%dat%nq,i))
+      water_mix(i) = pc%wrk%usol(ind_H2O,i)/gas_density
+    enddo
+    ! The bottom model cell is subsequently replaced by its lower boundary
+    ! condition, so test monotonic cold trapping above that overridden cell.
+    if (any(water_mix(3:) > water_mix(2:pc%var%nz-1)*(1.0_dp+1.0e-10_dp))) then
+      print *, trim(label)//' inferred condensable profile was not cold trapped'
+      stop 1
+    endif
 
   end subroutine
 
@@ -1722,25 +1794,34 @@ contains
     type(EvoAtmosphere), intent(in) :: pc
     real(dp), intent(out) :: mix(:,:), particle_radius(:,:)
 
-    integer :: i, ind_N2
+    integer :: ind_N2
 
     mix = 0.0_dp
-    particle_radius = 0.0_dp
     ind_N2 = findloc(pc%dat%species_names(1:pc%dat%nq), 'N2', 1)
     if (ind_N2 == 0) ind_N2 = pc%dat%ng_1
     mix(ind_N2,:) = 1.0_dp
 
     if (pc%dat%npq > 0) then
-      do i = 1,pc%dat%npq
-        mix(i,:) = 1.0e-12_dp
-        if (pc%dat%part_xs_file(i)%ThereIsData) then
-          particle_radius(i,:) = 0.5_dp*(pc%dat%radii_file(1,i) + &
-                                         pc%dat%radii_file(pc%dat%nrad_file,i))
-        else
-          particle_radius(i,:) = 1.0e-5_dp
-        endif
-      enddo
+      mix(:pc%dat%npq,:) = 1.0e-12_dp
     endif
+    call fill_particle_radii(pc, particle_radius)
+  end subroutine
+
+  subroutine fill_particle_radii(pc, particle_radius)
+    type(EvoAtmosphere), intent(in) :: pc
+    real(dp), intent(out) :: particle_radius(:,:)
+
+    integer :: i
+
+    particle_radius = 0.0_dp
+    do i = 1,pc%dat%npq
+      if (pc%dat%part_xs_file(i)%ThereIsData) then
+        particle_radius(i,:) = 0.5_dp*(pc%dat%radii_file(1,i) + &
+                                       pc%dat%radii_file(pc%dat%nrad_file,i))
+      else
+        particle_radius(i,:) = 1.0e-5_dp
+      endif
+    enddo
   end subroutine
 
   subroutine check_initialized_step(pc, label, tn)
