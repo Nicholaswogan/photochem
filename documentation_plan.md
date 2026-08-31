@@ -75,7 +75,7 @@ The principal tutorials should construct useful models from transparent starting
 
 Pressure-based and altitude-based initialization are general coordinate choices available to planetary workflows. The documentation must not present pressure grids as specific to gas giants or altitude grids as specific to rocky planets; the gas-giant extension is distinguished by its equilibrium initialization and deep-atmosphere workflow.
 
-The same tutorial should demonstrate creating the stellar spectrum with the `photochem.utils.stars` API rather than treating a finished Photochem stellar flux file as an unexplained input. This must not make documentation builds depend on a live network service. The current `solar_spectrum` implementation downloads its modern-Sun reference spectrum on every call, so the tutorial must wait until that utility has a reproducible offline source or cache with a validated checksum. A committed source spectrum is an acceptable fallback, but a live download during every build is not.
+The same tutorial should demonstrate creating the stellar spectrum with the `photochem.utils.stars` API rather than treating a finished Photochem stellar flux file as an unexplained input. The modern-Sun reference spectrum is packaged in `photochem_clima_data`, so `solar_spectrum` can construct this input reproducibly without network access.
 
 The Atmosphere Profiles tutorial section or input-reference page should still show how to write and reload `atmosphere.txt`. It should present that format as a convenient atmospheric-profile initialization and output format, not as a complete model restart. It does not preserve all mutable model configuration, including persistent pressure-temperature-Kzz profile configuration.
 

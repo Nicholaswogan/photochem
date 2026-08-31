@@ -8,6 +8,7 @@ import numpy as np
 import photochem
 from photochem import clima, equilibrate
 from photochem import EvoAtmosphere, PhotoException, zahnle_earth
+from photochem.utils import stars
 
 TEST_DIR = Path(__file__).resolve().parent
 DATA_DIR = TEST_DIR.parent.parent / "data"
@@ -44,6 +45,34 @@ def test_runtime_data_defaults():
         double_radiative_grid=False,
     )
     assert c.P.size > 0
+
+
+def test_packaged_solar_spectrum():
+    """The modern-Sun spectrum is reproducible without network access."""
+    requests_get = stars.requests.get
+
+    def reject_network_request(*args, **kwargs):
+        raise AssertionError("solar_spectrum attempted a network request")
+
+    stars.requests.get = reject_network_request
+    try:
+        wavelength, flux = stars.solar_spectrum()
+    finally:
+        stars.requests.get = requests_get
+
+    assert wavelength.dtype == np.float64
+    assert flux.dtype == np.float64
+    assert wavelength.shape == flux.shape
+    assert np.all(np.isfinite(wavelength))
+    assert np.all(np.isfinite(flux))
+    assert np.all(np.diff(wavelength) > 0.0)
+    assert np.all(flux >= 0.0)
+    np.testing.assert_allclose(wavelength[[0, -1]], [1.0, 1.0e5])
+    np.testing.assert_allclose(
+        np.trapezoid(flux, wavelength),
+        1.3874613276e6,
+        rtol=1.0e-8,
+    )
 
 
 def test_component_error_contracts():
@@ -895,6 +924,7 @@ def main():
 
     test_package_version_ownership()
     test_runtime_data_defaults()
+    test_packaged_solar_spectrum()
     test_component_error_contracts()
     test_exposed_photochem_state()
     test_solver_controls_api()

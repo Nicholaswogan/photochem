@@ -398,9 +398,9 @@ def rebin_to_needed_resolution(wv, F):
 def solar_spectrum(outputfile=None, age=0.0, append_blackbody=True, Teq=None, stellar_flux=None, scale_before_age=True,
                    needed_resolution=True):
     """The Sun's spectrum throughout all time. For the Modern Sun, we use the
-    Thuillier et al. (2004) (https://doi.org/10.1029/141GM13), ATLAS 3 reference
-    spectrum. Then we scale the spectrum into the past/future with the Claire et al. (2012)
-    YoungSun routine.
+    Thuillier et al. (2004) (https://doi.org/10.1029/141GM13), ATLAS 1 reference
+    spectrum packaged with Photochem. Then we scale the spectrum into the
+    past/future with the Claire et al. (2012) YoungSun routine.
 
     Parameters
     ----------
@@ -415,11 +415,11 @@ def solar_spectrum(outputfile=None, age=0.0, append_blackbody=True, Teq=None, st
     stellar_flux : float, optional
         Stellar flux at the planet (W/m^2), by default None
     scale_before_age : bool, optional
-        If True, then the spectrum is scaled before the `youngsun` routine, 
-        is applied. If False, then scaling occurs afterword, by default True.
+        If True, then the spectrum is scaled before the `youngsun` routine is
+        applied. If False, then scaling occurs afterward, by default True.
     needed_resolution : bool, optional
         If True, then the spectrum is rebinned to a resolution 4x higher than
-        What is used by the photochemical and climate models which should be
+        what is used by the photochemical and climate models, which should be
         an adequately high resolution, by default True.
 
     Returns
@@ -430,21 +430,12 @@ def solar_spectrum(outputfile=None, age=0.0, append_blackbody=True, Teq=None, st
         Flux of the stellar spectrum at Earth (mW/m^2/nm)
     """    
 
-    # Download the spectrum
-    url = 'https://sbuv.gsfc.nasa.gov/solar/reference_spectra/ATLAS1_2004.txt'
-    response = requests.get(url)
-
-    # Error if download didn't work.
-    if response.status_code != 200:
-        raise requests.HTTPError(
-            "Failed to download the Modern Sun's spectrum",
-            response=response,
-        )
-    
-    # Get wavelength and flux
-    lines = response.content.decode().split('\n')
-    wv = np.array([float(line.split()[0]) for line in lines if len(line) > 0])
-    F = np.array([float(line.split()[1]) for line in lines if len(line) > 0])
+    # Load the packaged float32 source data as float64 for subsequent
+    # calculations and the compiled rebinning interface.
+    filename = DATA_DIR+'/stellar_spectra/ATLAS1_2004.h5'
+    with h5py.File(filename, 'r') as f:
+        wv = np.asarray(f['wavelength'], dtype=np.float64)
+        F = np.asarray(f['flux'], dtype=np.float64)
 
     # Append a blackbody to long wavelengths, if desired. We use an
     # effective temperature of 5778 K for the Sun.

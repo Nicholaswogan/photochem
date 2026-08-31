@@ -4,7 +4,7 @@ set(CMAKE_POLICY_VERSION_MINIMUM "3.5")
 cmake_policy(SET CMP0148 OLD)
 
 project(Photochem LANGUAGES Fortran C VERSION "0.9.0")
-set(PHOTOCHEM_CLIMA_DATA_VERSION "0.3.1")
+set(PHOTOCHEM_CLIMA_DATA_VERSION "0.3.2")
 
 include(FortranCInterface)
 FortranCInterface_VERIFY()
