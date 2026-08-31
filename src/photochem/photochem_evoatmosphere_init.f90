@@ -859,6 +859,8 @@ contains
 
   end subroutine
 
+  !> Compute the total fixed pressure and, optionally, a reference molecular
+  !> weight that prefers the noncondensing fixed-pressure composition.
   subroutine inferred_composition_properties(self, fixed_pressure_total, &
                                               reference_mubar, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
@@ -909,6 +911,8 @@ contains
 
   end subroutine
 
+  !> Infer a normalized composition from fixed-pressure boundary conditions
+  !> while enforcing local saturation and, above the surface, cold trapping.
   subroutine infer_mix_at_level(self, pressure, temperature, fixed_pressure_total, &
                                 condensable_mix_previous, use_previous, mix, &
                                 condensable_mix, feasible, err)
@@ -980,6 +984,8 @@ contains
 
     available_mix = 1.0_dp
     active_weight = sum(weight, mask=active)
+    ! Normalize the active gases to fill the atmosphere. If a condensable
+    ! exceeds its cap, fix it at the cap and renormalize the remaining gases.
     do
       if (active_weight <= 0.0_dp) then
         if (available_mix > normalization_tolerance) then
