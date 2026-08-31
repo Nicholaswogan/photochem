@@ -104,7 +104,7 @@ cdef class EvoAtmosphere:
       ea_pxd.evoatmosphere_atmosphere_initialized_get(self._ptr, &val)
       return val
 
-  cdef tuple _prepare_atmosphere_composition(self, int nprofile, dict mix,
+  cdef tuple _prepare_atmosphere_composition(self, int nprofile, mix,
                                               particle_radius,
                                               double default_mix,
                                               double default_particle_radius):
@@ -121,7 +121,9 @@ cdef class EvoAtmosphere:
     cdef ndarray profile
     cdef int i
 
-    if not np.isfinite(default_mix) or default_mix < 0.0:
+    if mix is not None and not isinstance(mix, dict):
+      raise PhotoException('mix must be a dictionary or None.')
+    if mix is not None and (not np.isfinite(default_mix) or default_mix < 0.0):
       raise PhotoException('default_mix must be finite and nonnegative.')
     if nparticles > 0 and (not np.isfinite(default_particle_radius) or
                            default_particle_radius <= 0.0):
@@ -130,24 +132,25 @@ cdef class EvoAtmosphere:
     species_names = self.dat.species_names[:nq]
     particle_names = species_names[:nparticles]
     gas_names = species_names[nparticles:]
-    unknown_mix = set(mix) - set(species_names)
-    if unknown_mix:
-      raise PhotoException('Unknown species in mix: '+', '.join(sorted(unknown_mix)))
-    if not (set(mix) & set(gas_names)):
-      raise PhotoException('mix must explicitly contain at least one gas species.')
+    if mix is not None:
+      unknown_mix = set(mix) - set(species_names)
+      if unknown_mix:
+        raise PhotoException('Unknown species in mix: '+', '.join(sorted(unknown_mix)))
+      if not (set(mix) & set(gas_names)):
+        raise PhotoException('mix must explicitly contain at least one gas species.')
 
-    for i, name in enumerate(species_names):
-      if name in mix:
-        profile = np.asarray(mix[name], dtype=np.double)
-        if profile.ndim != 1 or profile.size != nprofile:
-          raise PhotoException("Mixing-ratio profile for '"+name+"' has the wrong shape.")
-        if not np.all(np.isfinite(profile)) or np.any(profile < 0.0):
-          raise PhotoException("Mixing-ratio profile for '"+name+"' must be finite and nonnegative.")
-        mix_[i,:] = profile
-        if i >= nparticles:
-          explicit_gas_total += profile
-    if np.any(explicit_gas_total <= 0.0):
-      raise PhotoException('Explicitly supplied gases must have a positive total mixing ratio at every profile point.')
+      for i, name in enumerate(species_names):
+        if name in mix:
+          profile = np.asarray(mix[name], dtype=np.double)
+          if profile.ndim != 1 or profile.size != nprofile:
+            raise PhotoException("Mixing-ratio profile for '"+name+"' has the wrong shape.")
+          if not np.all(np.isfinite(profile)) or np.any(profile < 0.0):
+            raise PhotoException("Mixing-ratio profile for '"+name+"' must be finite and nonnegative.")
+          mix_[i,:] = profile
+          if i >= nparticles:
+            explicit_gas_total += profile
+      if np.any(explicit_gas_total <= 0.0):
+        raise PhotoException('Explicitly supplied gases must have a positive total mixing ratio at every profile point.')
 
     if particle_radius is not None:
       unknown_radii = set(particle_radius) - set(particle_names)
@@ -167,7 +170,7 @@ cdef class EvoAtmosphere:
   def initialize_atmosphere_z(self, ndarray[double, ndim=1] z,
                               ndarray[double, ndim=1] temperature,
                               ndarray[double, ndim=1] edd,
-                              double surface_pressure, dict mix,
+                              double surface_pressure, mix=None,
                               particle_radius=None,
                               double default_mix=1.0e-40,
                               double default_particle_radius=1.0e-5):
@@ -179,12 +182,23 @@ cdef class EvoAtmosphere:
     derived by hydrostatic integration upward from ``surface_pressure``.
 
     The first altitude must be zero, and the final altitude defines the top of
-    the model domain. ``mix`` may contain any subset of evolved species;
-    omitted species use ``default_mix``. At least one gas must be supplied
-    explicitly and the explicitly supplied gases must have a positive total
-    mixing ratio at every altitude. Likewise, ``particle_radius`` may contain
-    any subset of particles, with omitted radii using
-    ``default_particle_radius``.
+    the model domain. If ``mix`` is supplied, it may contain any subset of
+    evolved species; omitted species use ``default_mix``. At least one gas
+    must be supplied explicitly and the explicitly supplied gases must have a
+    positive total mixing ratio at every altitude.
+
+    If ``mix`` is None, gas composition is inferred from fixed-partial-pressure
+    lower boundary conditions. A potentially condensing gas participates in
+    the background mixture while below its configured relative-humidity limit;
+    upon reaching that limit it is capped and cold trapped upward. Remaining
+    uncapped gases are renormalized to complete the atmosphere. Pressure and
+    composition are solved together one altitude interval at a time with
+    bracketed scalar solves. At least one gas must have a positive fixed
+    partial pressure, and the condensation limits must permit a complete
+    atmosphere. Other gases and all particles receive a negligible abundance.
+
+    ``particle_radius`` may contain any subset of particles, with omitted
+    radii using ``default_particle_radius``.
 
     Fixed-density and fixed-partial-pressure lower boundary conditions
     override the corresponding bottom-layer mixing ratios. Successful
@@ -202,9 +216,10 @@ cdef class EvoAtmosphere:
         Eddy diffusion at each altitude knot in cm^2/s.
     surface_pressure : float
         Total pressure at the lower domain edge in dyn/cm^2.
-    mix : dict[str, ndarray]
+    mix : dict[str, ndarray], optional
         Mixing-ratio profiles keyed by species name. Unspecified species use
-        ``default_mix``.
+        ``default_mix``. If None, composition is inferred from the lower
+        boundary conditions.
     particle_radius : dict[str, ndarray], optional
         Particle-radius profiles in cm, keyed by particle name. Unspecified
         particles use ``default_particle_radius``.
@@ -221,6 +236,7 @@ cdef class EvoAtmosphere:
     cdef int nprofile = z_.size
     cdef int nq
     cdef int nparticles
+    cdef bool mix_present = mix is not None
     cdef ndarray mix_
     cdef ndarray particle_radius_
     cdef char err[ERR_LEN+1]
@@ -237,7 +253,7 @@ cdef class EvoAtmosphere:
     ea_pxd.evoatmosphere_initialize_atmosphere_z_wrapper(
       self._ptr, &nprofile, <double *>z_.data,
       <double *>temperature_.data, <double *>edd_.data, &surface_pressure,
-      &nq, <double *>mix_.data, &nparticles,
+      &nq, <double *>mix_.data, &mix_present, &nparticles,
       <double *>particle_radius_.data, err
     )
     if len(err.strip()) > 0:
@@ -245,7 +261,7 @@ cdef class EvoAtmosphere:
 
   def initialize_atmosphere_p(self, ndarray[double, ndim=1] pressure,
                               ndarray[double, ndim=1] temperature,
-                              ndarray[double, ndim=1] edd, dict mix,
+                              ndarray[double, ndim=1] edd, mix=None,
                               particle_radius=None, bint persistent=False,
                               tropopause_pressure=None,
                               double default_mix=1.0e-40,
@@ -258,9 +274,17 @@ cdef class EvoAtmosphere:
     configured planet radius is interpreted at the lower boundary. Altitude
     is constructed hydrostatically using gas composition only.
 
-    ``mix`` and ``particle_radius`` use the same partial-dictionary convention
-    as [initialize_atmosphere_z][photochem.EvoAtmosphere.initialize_atmosphere_z]. Omitted species and particle radii use
-    ``default_mix`` and ``default_particle_radius``, respectively.
+    ``mix`` and ``particle_radius`` use the same conventions as
+    [initialize_atmosphere_z][photochem.EvoAtmosphere.initialize_atmosphere_z].
+    If ``mix`` is None, gas composition is inferred from fixed-partial-pressure
+    lower boundary conditions. Potentially condensing gases participate in the
+    background mixture while undersaturated, then are capped at their
+    configured relative humidity and cold trapped upward. Remaining uncapped
+    gases are renormalized to complete the atmosphere. At least one gas must
+    have a positive fixed partial pressure, and the condensation limits must
+    permit a complete atmosphere. When an explicit composition is supplied,
+    omitted species use ``default_mix``. Omitted particle radii use
+    ``default_particle_radius`` in either mode.
 
     By default, pressure is used only to construct the initial atmosphere. If
     ``persistent`` is true, temperature and eddy diffusion are retained as
@@ -291,9 +315,10 @@ cdef class EvoAtmosphere:
         Temperature at each pressure knot in K.
     edd : ndarray, shape (nprofile,)
         Eddy diffusion at each pressure knot in cm^2/s.
-    mix : dict[str, ndarray]
+    mix : dict[str, ndarray], optional
         Mixing-ratio profiles keyed by species name. Unspecified species use
-        ``default_mix``.
+        ``default_mix``. If None, composition is inferred from the lower
+        boundary conditions.
     particle_radius : dict[str, ndarray], optional
         Particle-radius profiles in cm, keyed by particle name. Unspecified
         particles use ``default_particle_radius``.
@@ -323,6 +348,7 @@ cdef class EvoAtmosphere:
     cdef int nprofile = pressure_.size
     cdef int nq
     cdef int nparticles
+    cdef bool mix_present = mix is not None
     cdef ndarray mix_
     cdef ndarray particle_radius_
     cdef bool persistent_ = persistent
@@ -355,7 +381,7 @@ cdef class EvoAtmosphere:
     ea_pxd.evoatmosphere_initialize_atmosphere_p_wrapper(
       self._ptr, &nprofile, <double *>pressure_.data,
       <double *>temperature_.data, <double *>edd_.data,
-      &nq, <double *>mix_.data, &nparticles,
+      &nq, <double *>mix_.data, &mix_present, &nparticles,
       <double *>particle_radius_.data, &persistent_,
       &tropopause_pressure_, &tropopause_pressure_present,
       &maintain_toa_pressure_, &maintain_toa_pressure_present,

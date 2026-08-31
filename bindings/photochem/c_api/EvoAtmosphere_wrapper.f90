@@ -84,7 +84,7 @@
   subroutine evoatmosphere_initialize_atmosphere_z_wrapper(ptr, nprofile, z, &
                                                             temperature, edd, &
                                                             surface_pressure, &
-                                                            nq, mix, np, &
+                                                            nq, mix, mix_present, np, &
                                                             particle_radius, &
                                                             err) bind(c)
     type(c_ptr), value, intent(in) :: ptr
@@ -92,14 +92,20 @@
     real(c_double), intent(in) :: z(nprofile), temperature(nprofile), edd(nprofile)
     real(c_double), intent(in) :: surface_pressure
     real(c_double), intent(in) :: mix(nq,nprofile), particle_radius(np,nprofile)
+    logical(c_bool), intent(in) :: mix_present
     character(kind=c_char), intent(out) :: err(err_len+1)
 
     character(:), allocatable :: err_f
     type(EvoAtmosphere), pointer :: pc
 
     call c_f_pointer(ptr, pc)
-    call pc%initialize_atmosphere_z(z, temperature, edd, surface_pressure, &
-                                    mix, particle_radius, err_f)
+    if (mix_present) then
+      call pc%initialize_atmosphere_z(z, temperature, edd, surface_pressure, &
+                                      mix, particle_radius, err_f)
+    else
+      call pc%initialize_atmosphere_z(z, temperature, edd, surface_pressure, &
+                                      particle_radius=particle_radius, err=err_f)
+    endif
     err(1) = c_null_char
     if (allocated(err_f)) then
       call copy_string_ftoc(err_f, err)
@@ -109,7 +115,7 @@
   subroutine evoatmosphere_initialize_atmosphere_p_wrapper(ptr, nprofile, &
                                                             pressure, &
                                                             temperature, edd, &
-                                                            nq, mix, np, &
+                                                            nq, mix, mix_present, np, &
                                                             particle_radius, &
                                                             persistent, trop_p, &
                                                             trop_p_present, &
@@ -123,6 +129,7 @@
     real(c_double), intent(in) :: pressure(nprofile), temperature(nprofile)
     real(c_double), intent(in) :: edd(nprofile)
     real(c_double), intent(in) :: mix(nq,nprofile), particle_radius(np,nprofile)
+    logical(c_bool), intent(in) :: mix_present
     logical(c_bool), intent(in) :: persistent, trop_p_present
     logical(c_bool), intent(in) :: maintain_toa_pressure, maintain_toa_pressure_present
     logical(c_bool), intent(in) :: target_pressure_present
@@ -140,49 +147,62 @@
     ! arguments. Preserve those flags when forwarding to the public method so
     ! invalid maintenance options can be diagnosed rather than silently
     ! ignored.
-    if (trop_p_present) then
-      if (target_pressure_present) then
-        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
-                                        particle_radius, persistent=persistent_f, &
-                                        trop_p=trop_p, &
-                                        maintain_toa_pressure=maintain_toa_pressure_f, &
-                                        target_pressure=target_pressure, err=err_f)
-      elseif (maintain_toa_pressure_present) then
-        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
-                                        particle_radius, persistent=persistent_f, &
-                                        trop_p=trop_p, &
-                                        maintain_toa_pressure=maintain_toa_pressure_f, &
-                                        err=err_f)
-      else
-        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
-                                        particle_radius, persistent=persistent_f, &
-                                        trop_p=trop_p, err=err_f)
-      endif
-    elseif (target_pressure_present) then
-      if (maintain_toa_pressure_present) then
-        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
-                                        particle_radius, persistent=persistent_f, &
-                                        maintain_toa_pressure=maintain_toa_pressure_f, &
-                                        target_pressure=target_pressure, err=err_f)
-      else
-        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
-                                        particle_radius, persistent=persistent_f, &
-                                        target_pressure=target_pressure, err=err_f)
-      endif
-    elseif (maintain_toa_pressure_present) then
-      call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
-                                      particle_radius, persistent=persistent_f, &
-                                      maintain_toa_pressure=maintain_toa_pressure_f, &
-                                      err=err_f)
+    if (mix_present) then
+      call initialize_with_options(mix)
     else
-      call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
-                                      particle_radius, persistent=persistent_f, &
-                                      err=err_f)
+      call initialize_with_options()
     endif
     err(1) = c_null_char
     if (allocated(err_f)) then
       call copy_string_ftoc(err_f, err)
     endif
+
+  contains
+
+    subroutine initialize_with_options(mix_f)
+      real(c_double), optional, intent(in) :: mix_f(nq,nprofile)
+
+      if (trop_p_present) then
+        if (target_pressure_present) then
+          call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
+                                          particle_radius, persistent=persistent_f, &
+                                          trop_p=trop_p, &
+                                          maintain_toa_pressure=maintain_toa_pressure_f, &
+                                          target_pressure=target_pressure, err=err_f)
+        elseif (maintain_toa_pressure_present) then
+          call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
+                                          particle_radius, persistent=persistent_f, &
+                                          trop_p=trop_p, &
+                                          maintain_toa_pressure=maintain_toa_pressure_f, &
+                                          err=err_f)
+        else
+          call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
+                                          particle_radius, persistent=persistent_f, &
+                                          trop_p=trop_p, err=err_f)
+        endif
+      elseif (target_pressure_present) then
+        if (maintain_toa_pressure_present) then
+          call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
+                                          particle_radius, persistent=persistent_f, &
+                                          maintain_toa_pressure=maintain_toa_pressure_f, &
+                                          target_pressure=target_pressure, err=err_f)
+        else
+          call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
+                                          particle_radius, persistent=persistent_f, &
+                                          target_pressure=target_pressure, err=err_f)
+        endif
+      elseif (maintain_toa_pressure_present) then
+        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
+                                        particle_radius, persistent=persistent_f, &
+                                        maintain_toa_pressure=maintain_toa_pressure_f, &
+                                        err=err_f)
+      else
+        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
+                                        particle_radius, persistent=persistent_f, &
+                                        err=err_f)
+      endif
+    end subroutine
+
   end subroutine
 
   subroutine evoatmosphere_dat_get(ptr, ptr1) bind(c)

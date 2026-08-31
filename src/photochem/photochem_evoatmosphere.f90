@@ -218,13 +218,15 @@ module photochem_evoatmosphere
     !! When `mix` is supplied, its rows must follow evolved-species order
     !! (`1:dat%nq`), matching `usol`: particle species first, followed by
     !! evolved gases. When `mix` is omitted, the gas composition is inferred
-    !! from fixed-partial-pressure lower boundary conditions. At least one
-    !! noncondensing gas must have such a boundary condition. Condensing gases
-    !! are initialized at their configured relative humidity and cold trapped
-    !! upward. The dry fixed-pressure composition supplies the initial
-    !! hydrostatic estimate, after which pressure and composition are solved
-    !! together one input altitude interval at a time with bracketed scalar
-    !! solves. Other gases and all particles receive a negligible abundance.
+    !! from positive fixed-partial-pressure lower boundary conditions. A gas
+    !! that can condense participates in the background mixture while below
+    !! its configured relative-humidity limit; upon reaching that limit it is
+    !! capped and cold trapped upward. The remaining uncapped gases are
+    !! renormalized to complete the atmosphere. Pressure and composition are
+    !! solved together one input altitude interval at a time with bracketed
+    !! scalar solves. Other gases and all particles receive a negligible
+    !! abundance. Initialization fails if condensation limits prevent the
+    !! fixed-pressure gases from forming a complete atmosphere.
     !! `particle_radius` contains the particle species (`1:dat%npq`). Fixed
     !! density and partial-pressure lower boundary conditions override the
     !! corresponding supplied mixing ratios in the bottom model layer.
@@ -258,10 +260,14 @@ module photochem_evoatmosphere
     !! only. When `mix` is supplied, its rows follow evolved-species order
     !! (`1:dat%nq`), matching `usol`: particle species first, followed by
     !! evolved gases. When `mix` is omitted, the gas composition is inferred
-    !! from fixed-partial-pressure lower boundary conditions. At least one
-    !! noncondensing gas must have such a boundary condition. Condensing gases
-    !! are initialized at their configured relative humidity and cold trapped
-    !! upward. Other gases and all particles receive a negligible abundance.
+    !! from positive fixed-partial-pressure lower boundary conditions. A gas
+    !! that can condense participates in the background mixture while below
+    !! its configured relative-humidity limit; upon reaching that limit it is
+    !! capped and cold trapped upward. The remaining uncapped gases are
+    !! renormalized to complete the atmosphere. Other gases and all particles
+    !! receive a negligible abundance. Initialization fails if condensation
+    !! limits prevent the fixed-pressure gases from forming a complete
+    !! atmosphere.
     !!
     !! By default, pressure is used only to construct the initial altitude
     !! grid. If `persistent` is true, temperature and eddy diffusion are also

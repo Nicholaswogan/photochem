@@ -669,6 +669,106 @@ def test_initialize_atmosphere_p_particles():
     pc.clear_press_temp_edd_profile()
 
 
+def _check_inferred_water_cold_trap(pc):
+    species_names = pc.dat.species_names[:pc.dat.nq]
+    water_index = species_names.index("H2O")
+    gas_density = pc.wrk.usol[pc.dat.np:pc.dat.nq].sum(axis=0)
+    water_mix = pc.wrk.usol[water_index] / gas_density
+    # The lower boundary condition replaces the bottom model cell after
+    # initialization, so check the cold trap above that overridden cell.
+    assert np.all(water_mix[2:] <= water_mix[1:-1] * (1.0 + 1.0e-10))
+
+
+def test_inferred_initialization():
+    pc = EvoAtmosphere(
+        zahnle_earth,
+        fixture_file("settings.yaml"),
+        fixture_file("sun.txt"),
+        data_dir=str(DATA_DIR),
+    )
+    z = np.array([0.0, 5.0e6, 1.0e7])
+    temperature_z = np.array([300.0, 200.0, 240.0])
+    edd_z = np.array([1.0e5, 1.0e6, 1.0e7])
+    particle_name = pc.dat.species_names[0]
+    particle_radius = {particle_name: np.full(z.size, 2.0e-5)}
+
+    pc.initialize_atmosphere_z(
+        z,
+        temperature_z,
+        edd_z,
+        1.0e6,
+        particle_radius=particle_radius,
+    )
+    assert pc.atmosphere_initialized
+    assert np.all(np.isfinite(pc.wrk.usol))
+    assert np.all(pc.wrk.pressure_hydro > 0.0)
+    assert np.allclose(pc.var.particle_radius[0], 2.0e-5)
+    _check_inferred_water_cold_trap(pc)
+    pc.initialize_stepper(pc.wrk.usol)
+    assert pc.step() > 0.0
+    pc.destroy_stepper()
+
+    pressure = np.array([1.0e6, 1.0e5, 1.0e4, 1.0e2])
+    temperature_p = np.array([300.0, 250.0, 200.0, 240.0])
+    edd_p = np.array([1.0e5, 3.0e5, 1.0e6, 1.0e7])
+    pc.initialize_atmosphere_p(
+        pressure,
+        temperature_p,
+        edd_p,
+        persistent=True,
+        tropopause_pressure=1.0e5,
+    )
+    assert np.all(np.diff(pc.wrk.pressure_hydro) < 0.0)
+    _check_inferred_water_cold_trap(pc)
+    pc.initialize_stepper(pc.wrk.usol)
+    assert pc.step() > 0.0
+    pc.destroy_stepper()
+    pc.clear_press_temp_edd_profile()
+
+    no_background = EvoAtmosphere(
+        fixture_file("no_particle_test.yaml"),
+        fixture_file("test_settings_minimal.yaml"),
+        fixture_file("sun.txt"),
+        data_dir=str(DATA_DIR),
+    )
+    try:
+        no_background.initialize_atmosphere_p(
+            pressure, temperature_p, edd_p
+        )
+    except PhotoException as exc:
+        assert "fixed-partial-pressure" in str(exc)
+    else:
+        raise AssertionError(
+            "inferred initialization without a background gas was accepted"
+        )
+    assert not no_background.atmosphere_initialized
+
+    condensable_background = EvoAtmosphere(
+        zahnle_earth,
+        fixture_file("settings.yaml"),
+        fixture_file("sun.txt"),
+        data_dir=str(DATA_DIR),
+    )
+    for species in ("N2", "O2", "H2", "CO2", "CO", "N2O"):
+        condensable_background.set_lower_bc(
+            species, bc_type="vdep", vdep=0.0
+        )
+    condensable_background.set_lower_bc(
+        "H2O", bc_type="press", press=1.0e6
+    )
+    warm_temperature = np.full(pressure.size, 400.0)
+    condensable_background.initialize_atmosphere_p(
+        pressure, warm_temperature, edd_p
+    )
+    species_names = condensable_background.dat.species_names
+    water_index = species_names.index("H2O")
+    gas_density = condensable_background.wrk.usol[
+        condensable_background.dat.np:condensable_background.dat.nq
+    ].sum(axis=0)
+    water_mix = condensable_background.wrk.usol[water_index] / gas_density
+    assert water_mix[-1] > 1.0 - 1.0e-10
+
+
 def test_wrapper():
 
     pc = EvoAtmosphere(
@@ -813,6 +913,7 @@ def main():
     test_initialize_atmosphere_z_no_particles()
     test_initialize_atmosphere_p_particles()
     test_initialize_atmosphere_p_no_particles()
+    test_inferred_initialization()
 
 if __name__ == "__main__":
     main()

@@ -26,11 +26,12 @@ cdef extern void evoatmosphere_atmosphere_initialized_get(EvoAtmosphere *ptr, bo
 cdef extern void evoatmosphere_initialize_atmosphere_z_wrapper(EvoAtmosphere *ptr, int *nprofile,
                                             double *z, double *temperature, double *edd,
                                             double *surface_pressure, int *nq, double *mix,
+                                            bool *mix_present,
                                             int *np, double *particle_radius,
                                             char *err)
 cdef extern void evoatmosphere_initialize_atmosphere_p_wrapper(EvoAtmosphere *ptr, int *nprofile,
                                             double *pressure, double *temperature, double *edd,
-                                            int *nq, double *mix, int *np,
+                                            int *nq, double *mix, bool *mix_present, int *np,
                                             double *particle_radius, bool *persistent,
                                             double *trop_p, bool *trop_p_present,
                                             bool *maintain_toa_pressure,

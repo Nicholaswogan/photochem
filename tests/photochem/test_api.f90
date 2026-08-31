@@ -15,6 +15,7 @@ contains
     call test_initialize_atmosphere_z()
     call test_initialize_atmosphere_p()
     call test_inferred_initialization_errors()
+    call test_condensable_background_initialization()
     call test_initialization_paths_step()
     call test_pressure_tropopause_handoff()
     call test_legacy_file_grid()
@@ -1624,6 +1625,90 @@ contains
     endif
     if (pc%atmosphere_initialized) then
       print *, 'failed inferred initialization changed lifecycle state'
+      stop 1
+    endif
+
+  end subroutine
+
+  subroutine test_condensable_background_initialization()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    character(len=3), parameter :: dry_species(6) = &
+      [character(len=3) :: 'N2', 'O2', 'H2', 'CO2', 'CO', 'N2O']
+    real(dp), parameter :: pressure(3) = [1.0e6_dp, 1.0e5_dp, 1.0e4_dp]
+    real(dp), parameter :: z(3) = [0.0_dp, 1.0e6_dp, 2.0e6_dp]
+    real(dp), parameter :: warm_temperature(3) = [400.0_dp, 400.0_dp, 400.0_dp]
+    real(dp), parameter :: warm_temperature_z(3) = [400.0_dp, 380.0_dp, 380.0_dp]
+    real(dp), parameter :: cold_upper_temperature(3) = [400.0_dp, 300.0_dp, 280.0_dp]
+    real(dp), parameter :: cold_temperature(3) = [300.0_dp, 280.0_dp, 260.0_dp]
+    real(dp), parameter :: edd(3) = [1.0e5_dp, 1.0e6_dp, 1.0e7_dp]
+    real(dp), allocatable :: particle_radius(:,:)
+    real(dp) :: gas_density
+    integer :: i, ind_H2O
+
+    pc = EvoAtmosphere(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
+                       test_file('settings.yaml'), test_file('sun.txt'), &
+                       data_dir, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    do i = 1,size(dry_species)
+      call pc%set_lower_bc(trim(dry_species(i)), 'vdep', vdep=0.0_dp, err=err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+    enddo
+    call pc%set_lower_bc('H2O', 'press', press=1.0e6_dp, err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    allocate(particle_radius(pc%dat%npq,size(pressure)))
+    call fill_particle_radii(pc, particle_radius)
+
+    ! H2O has a condensed phase in the mechanism, but at 400 K its configured
+    ! RH limit permits it to provide the entire gas atmosphere.
+    call pc%initialize_atmosphere_p(pressure, warm_temperature, edd, &
+                                    particle_radius=particle_radius, err=err)
+    if (allocated(err)) then
+      print *, 'undersaturated condensable pressure initialization failed: '//trim(err)
+      stop 1
+    endif
+    ind_H2O = findloc(pc%dat%species_names(1:pc%dat%nq), 'H2O', 1)
+    gas_density = sum(pc%wrk%usol(pc%dat%ng_1:pc%dat%nq,pc%var%nz))
+    if (pc%wrk%usol(ind_H2O,pc%var%nz)/gas_density < 1.0_dp-1.0e-10_dp) then
+      print *, 'undersaturated condensable did not form the background atmosphere'
+      stop 1
+    endif
+
+    call pc%initialize_atmosphere_z(z, warm_temperature_z, edd, 1.0e6_dp, &
+                                    particle_radius=particle_radius, err=err)
+    if (allocated(err)) then
+      print *, 'undersaturated condensable altitude initialization failed: '//trim(err)
+      stop 1
+    endif
+
+    ! A cold upper level can require a vapor pressure below the hydrostatic
+    ! solution. The altitude solve must reject that incompatible profile.
+    call pc%initialize_atmosphere_z(z, cold_upper_temperature, edd, 1.0e6_dp, &
+                                    particle_radius=particle_radius, err=err)
+    if (.not. allocated(err)) then
+      print *, 'hydrostatically incompatible condensable atmosphere was accepted'
+      stop 1
+    endif
+
+    ! The same pure-H2O boundary conditions cannot fill a cold, one-bar
+    ! atmosphere once the RH/saturation cap is imposed.
+    call pc%initialize_atmosphere_p(pressure, cold_temperature, edd, &
+                                    particle_radius=particle_radius, err=err)
+    if (.not. allocated(err)) then
+      print *, 'condensation-limited incomplete atmosphere was accepted'
+      stop 1
+    endif
+    if (.not. pc%atmosphere_initialized) then
+      print *, 'failed condensable initialization changed lifecycle state'
       stop 1
     endif
 
