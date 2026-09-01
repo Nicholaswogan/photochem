@@ -288,12 +288,11 @@ Photochem v0.9 is an intentional early documentation release rather than complet
 
 ### v0.9 Pass 2: Prepare release-facing material
 
-- [ ] Rewrite the repository `README.md` to describe the current package and link to installation, tutorials, API documentation, source builds, contribution guidance, and the published site.
-- [ ] Remove README references to the workshop as the primary documentation and to the deleted `examples/` directory.
-- [ ] Add a concise changelog covering the v0.9 release.
-- [ ] Audit changes since v0.8.4 and write a short, evidence-based migration guide.
-- [ ] Draft GitHub release notes and a final release checklist for v0.9.0.
-- [ ] Retain a concise citation section in the README until the full How to Cite Photochem page is written.
+- [x] Rewrite the repository `README.md` to describe the current package and link to installation, tutorials, API documentation, source builds, contribution guidance, and the published site.
+- [x] Remove README references to the workshop as the primary documentation and to the deleted `examples/` directory.
+- [x] Audit release-facing installation commands, documentation links, version references, and package claims for consistency.
+- [x] Draft GitHub release notes and a final release checklist for v0.9.0.
+- [x] Retain a concise citation section in the README that directs users to cite Wogan et al. (2025) until the full How to Cite Photochem page is written.
 
 ### v0.9 Pass 3: Automate and deploy the site
 

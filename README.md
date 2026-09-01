@@ -1,6 +1,8 @@
 # Photochem
 
-`Photochem` is a photochemical and climate model of planet's atmospheres. Given inputs, like the stellar UV flux, the atmospheric temperature structure, etc., this code will find the steady-state chemical composition of an atmosphere, or evolve atmospheres through time. The code also contains 1-D climate models and a chemical equilibrium solver.
+`Photochem` is a collection of one-dimensional photochemical, climate, and chemical-equilibrium models for planetary atmospheres. The compiled models are exposed through a Python interface.
+
+See the [Photochem documentation](https://nicholaswogan.github.io/photochem/) for the [installation guide](https://nicholaswogan.github.io/photochem/installation/), [tutorials](https://nicholaswogan.github.io/photochem/tutorials/), [API reference](https://nicholaswogan.github.io/photochem/reference/), [source-build instructions](https://nicholaswogan.github.io/photochem/development/building-from-source/), and [contribution guide](https://nicholaswogan.github.io/photochem/development/contributing/).
 
 ## Installation
 
@@ -10,12 +12,8 @@
 conda install -c conda-forge photochem
 ```
 
-For more installation instruction see the "Documentation" section below.
-
-## Documentation
-
-A `Photochem` documentation website will soon be built and linked here. In the mean time, the best available documentation is the following tutorials from a `Photochem` workshop at the University of Arizona: https://github.com/Nicholaswogan/UofA_Photochem_Workshop. Furthermore, there are a few tutorials in the `examples` directory of this repository.
+For other installation options, see the [installation guide](https://nicholaswogan.github.io/photochem/installation/).
 
 ## Citation
 
-If you use `Photochem` in a peer-reviewed publication, please cite either [Wogan et al. (2023)](https://doi.org/10.3847/PSJ/aced83) or [Wogan et al. (2024)](https://doi.org/10.3847/2041-8213/ad2616).
+If you use `Photochem` in a peer-reviewed publication, please cite [Wogan et al. (2025)](https://doi.org/10.3847/PSJ/ae0e1c).
