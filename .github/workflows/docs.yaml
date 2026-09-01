@@ -46,7 +46,13 @@ jobs:
           -DCMAKE_Fortran_COMPILER=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gfortran"
         python -m build --wheel --no-isolation
         python -m pip install --no-deps --force-reinstall dist/*.whl
-        python -c "import photochem; print(f'Photochem {photochem.__version__}')"
+        (
+          cd "$RUNNER_TEMP"
+          python -c "import photochem; print(f'Photochem {photochem.__version__}')"
+        )
+        # MkDocs executes notebooks from the repository root, where the source
+        # package takes precedence over the installed wheel.
+        cp "$CONDA_PREFIX"/lib/python*/site-packages/photochem/*.so photochem/
 
     - name: Build documentation
       shell: bash -el {0}
