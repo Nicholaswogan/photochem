@@ -310,7 +310,7 @@ Photochem v0.9 is an intentional early documentation release rather than complet
 - [x] Inspect all three rendered tutorials and confirm their numerical results remain finite and scientifically reasonable.
 - [x] Verify documentation commands, internal links, external links, downloads, and API cross-references.
 - [x] Build the source distribution and wheel in a clean environment, install the wheel, and verify `photochem.__version__ == "0.9.0"`.
-- [ ] Run the existing release-oriented test suite and confirm the GitHub Actions test workflow passes.
+- [x] Run the existing release-oriented test suite and confirm the GitHub Actions test workflow passes.
 - [x] Confirm a clean checkout builds the complete documentation and no code, tests, or documentation depend on the deleted `examples/` directory.
 - [x] Review the final diff for generated files, placeholders, stale version references, and unintended changes.
 
