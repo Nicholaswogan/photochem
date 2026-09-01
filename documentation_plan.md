@@ -205,31 +205,36 @@ This pass should first solve the extraction mechanism, then populate the referen
 
 Completion of passes 1 through 4 forms the first documentation milestone: a working site with a useful landing page, installed-package API reference, and tested installation instructions.
 
-### Pass 5: Document input files
+### Pass 5: Document input files (deferred until after the initial release)
+
+Input-file documentation is outside the scope of the initial documentation release. Complete this pass after the initial site is published.
 
 Write the input reference one format at a time, checking every statement against the corresponding Fortran reader and validation code:
 
-- [ ] Reaction Mechanisms
-- [ ] Photochem Settings
-- [ ] Stellar Flux Files
-- [ ] Atmosphere Profiles
-- [ ] Clima Species and Settings
-- [ ] Equilibrate Thermodynamic Data
+- [ ] Reaction Mechanisms *(deferred)*
+- [ ] Photochem Settings *(deferred)*
+- [ ] Stellar Flux Files *(deferred)*
+- [ ] Atmosphere Profiles *(deferred)*
+- [ ] Clima Species and Settings *(deferred)*
+- [ ] Equilibrate Thermodynamic Data *(deferred)*
 
 Use small test fixtures to confirm examples where practical. Link each page to the tutorials that use the format.
 
 ### Pass 6: Build the tutorials
 
-Port and modernize tutorials individually in this order unless dependencies or scientific review suggest a better sequence:
+For the initial documentation release, port and modernize these four core tutorials:
 
-- [ ] Rocky Planet Photochemistry
+- [x] Rocky Planet Photochemistry
 - [ ] Rocky Planet Climate
-- [ ] Chemical Equilibrium
 - [ ] Gas Giant Photochemistry
 - [ ] The Habitable Zone
-- [ ] Changing Model Data
-- [ ] Climate Then Photochemistry: TRAPPIST-1e
-- [ ] Preparing Photochem Results for Spectrum Calculations
+
+The remaining tutorials are deferred until after the initial release:
+
+- [ ] Chemical Equilibrium *(deferred)*
+- [ ] Changing Model Data *(deferred)*
+- [ ] Climate Then Photochemistry: TRAPPIST-1e *(deferred)*
+- [ ] Preparing Photochem Results for Spectrum Calculations *(deferred)*
 
 Likely source material is:
 
@@ -255,16 +260,16 @@ For every tutorial:
 - [ ] Render the page and inspect plots, equations, navigation, and downloads.
 - [ ] Add links to related input, explanation, and API pages.
 
-### Pass 7: Write the Explanation page
+### Pass 7: Write the Explanation page (deferred until after the initial release)
 
-Write one concise page with Photochemical Model, Climate Model, and Chemical Equilibrium sections. Use `codex_reference/Wogan_2025_Photochem-main/` as the primary source, supplemented by the proposal, workshop background, relevant papers, and current source code. Prefer citations over duplicating full published derivations. Check equations and scientific claims carefully and connect them to the exact public interfaces used by tutorials.
+The Explanation page is outside the scope of the initial documentation release. After release, write one concise page with Photochemical Model, Climate Model, and Chemical Equilibrium sections. Use `codex_reference/Wogan_2025_Photochem-main/` as the primary source, supplemented by the proposal, workshop background, relevant papers, and current source code. Prefer citations over duplicating full published derivations. Check equations and scientific claims carefully and connect them to the exact public interfaces used by tutorials.
 
 ### Pass 8: Complete development and citation material
 
 - [x] Write current source-build instructions and verify them in a clean build.
 - [x] Write contribution expectations, test commands, documentation workflow, and pull-request guidance.
-- [ ] Curate valuable unfinished roadmap items into Future Directions.
-- [ ] Write the How to Cite Photochem page, including software, model-data, component, and tutorial-specific scientific citations.
+- [ ] Curate valuable unfinished roadmap items into Future Directions. *(deferred)*
+- [ ] Write the How to Cite Photochem page, including software, model-data, component, and tutorial-specific scientific citations. *(deferred)*
 
 ### Pass 9: Automate, deploy, and version the site
 
