@@ -225,8 +225,8 @@ Use small test fixtures to confirm examples where practical. Link each page to t
 For the initial documentation release, port and modernize these four core tutorials:
 
 - [x] Rocky Planet Photochemistry
-- [ ] Rocky Planet Climate
-- [ ] Gas Giant Photochemistry
+- [x] Rocky Planet Climate
+- [x] Gas Giant Photochemistry
 - [ ] The Habitable Zone
 
 The remaining tutorials are deferred until after the initial release:

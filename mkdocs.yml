@@ -15,6 +15,9 @@ exclude_docs: |
   tutorials/rocky_planet_climate/modern_sun.txt
   tutorials/rocky_planet_climate/settings.yaml
   tutorials/rocky_planet_climate/species.yaml
+  tutorials/gas_giant_photochemistry/photochem_rxns.yaml
+  tutorials/gas_giant_photochemistry/photochem_thermo.yaml
+  tutorials/gas_giant_photochemistry/wasp39b_sun.txt
 
 theme:
   name: material
@@ -42,6 +45,7 @@ nav:
       - Overview: tutorials/index.md
       - Rocky Planet Photochemistry: tutorials/rocky_planet_photochemistry.py
       - Rocky Planet Climate: tutorials/rocky_planet_climate.py
+      - Gas Giant Photochemistry: tutorials/gas_giant_photochemistry.py
   - Input Files: input-files/index.md
   - API Reference:
       - Overview: reference/index.md
