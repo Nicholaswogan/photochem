@@ -63,4 +63,4 @@ Include:
 - Use FORD-style docstrings for public Fortran interfaces.
 - Cite the relevant paper and table/equation when implementing a published scientific method.
 - Generally follow CGS units, but regardless, always document the units of inputs and outputs.
-- Write Markdown prose with one line per paragraph, as described in the [documentation maintainer guide](https://github.com/Nicholaswogan/photochem/blob/main/docs/README.md).
+- Write Markdown prose with one physical line per paragraph.

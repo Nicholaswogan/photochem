@@ -166,7 +166,7 @@ plot_composition(
 plt.show()
 
 # %% [markdown]
-# ## Organization of `EvoAtmosphere`
+# ## Organization of EvoAtmosphere
 #
 # Most information in an `EvoAtmosphere` is organized under three attributes. `pc.dat` contains model definitions that generally do not change, such as species and reactions. `pc.var` contains configurable quantities such as temperature, eddy diffusion, and solver tolerances. `pc.wrk` contains the evolving numerical state, including the number densities in `pc.wrk.usol`.
 #

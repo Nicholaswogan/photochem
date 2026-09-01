@@ -297,7 +297,7 @@ Photochem v0.9 is an intentional early documentation release rather than complet
 ### v0.9 Pass 3: Automate and deploy the site
 
 - [x] Add a separate documentation workflow that creates a clean environment, builds and installs Photochem, installs the documentation dependencies, and runs `mkdocs build --strict`.
-- [ ] Execute all three v0.9 tutorials in the automated build, including the live TOI-193 MUSCLES download. *(verify after the workflow is pushed)*
+- [x] Execute all three v0.9 tutorials in the automated build, including the live TOI-193 MUSCLES download.
 - [x] Run documentation builds without deployment on development branches and pull requests.
 - [x] Upload and deploy the completed site to GitHub Pages only from `main`, with appropriate permissions, concurrency control, and a bounded timeout.
 - [x] Enable GitHub Pages with GitHub Actions as its deployment source and verify the expected `https://nicholaswogan.github.io/photochem/` URL.
@@ -306,13 +306,13 @@ Photochem v0.9 is an intentional early documentation release rather than complet
 
 ### v0.9 Pass 4: Perform the release audit
 
-- [ ] Read every published page in navigation order and remove unnecessary duplication.
-- [ ] Inspect all three rendered tutorials and confirm their numerical results remain finite and scientifically reasonable.
-- [ ] Verify documentation commands, internal links, external links, downloads, and API cross-references.
-- [ ] Build the source distribution and wheel in a clean environment, install the wheel, and verify `photochem.__version__ == "0.9.0"`.
+- [x] Read every published page in navigation order and remove unnecessary duplication.
+- [x] Inspect all three rendered tutorials and confirm their numerical results remain finite and scientifically reasonable.
+- [x] Verify documentation commands, internal links, external links, downloads, and API cross-references.
+- [x] Build the source distribution and wheel in a clean environment, install the wheel, and verify `photochem.__version__ == "0.9.0"`.
 - [ ] Run the existing release-oriented test suite and confirm the GitHub Actions test workflow passes.
-- [ ] Confirm a clean checkout builds the complete documentation and no code, tests, or documentation depend on the deleted `examples/` directory.
-- [ ] Review the final diff for generated files, placeholders, stale version references, and unintended changes.
+- [x] Confirm a clean checkout builds the complete documentation and no code, tests, or documentation depend on the deleted `examples/` directory.
+- [x] Review the final diff for generated files, placeholders, stale version references, and unintended changes.
 
 ### v0.9 Pass 5: Publish v0.9.0
 
