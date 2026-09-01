@@ -1,0 +1,88 @@
+name: documentation
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+  pull_request:
+    branches:
+      - dev
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: documentation-build-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v6
+
+    - name: Create build environment
+      uses: mamba-org/setup-micromamba@v2
+      with:
+        environment-file: environment-dev.yml
+        environment-name: docs-env
+
+    - name: Install documentation dependencies
+      shell: bash -el {0}
+      run: python -m pip install --requirement docs/requirements.txt
+
+    - name: Build and install Photochem
+      shell: bash -el {0}
+      run: |
+        export CMAKE_ARGS="\
+          -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
+          -DCMAKE_C_COMPILER=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-cc \
+          -DCMAKE_CXX_COMPILER=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-c++ \
+          -DCMAKE_Fortran_COMPILER=$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-gfortran"
+        python -m build --wheel --no-isolation
+        python -m pip install --no-deps --force-reinstall dist/*.whl
+        python -c "import photochem; print(f'Photochem {photochem.__version__}')"
+
+    - name: Build documentation
+      shell: bash -el {0}
+      run: |
+        start=$SECONDS
+        mkdocs build --strict
+        elapsed=$((SECONDS - start))
+        echo "Documentation build completed in ${elapsed} seconds."
+        echo "Documentation build: ${elapsed} seconds" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload GitHub Pages artifact
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/upload-pages-artifact@v5
+      with:
+        path: site
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Configure GitHub Pages
+      uses: actions/configure-pages@v5
+
+    - name: Deploy GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v5

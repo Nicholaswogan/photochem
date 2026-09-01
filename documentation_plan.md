@@ -296,13 +296,13 @@ Photochem v0.9 is an intentional early documentation release rather than complet
 
 ### v0.9 Pass 3: Automate and deploy the site
 
-- [ ] Add a separate documentation workflow that creates a clean environment, builds and installs Photochem, installs the documentation dependencies, and runs `mkdocs build --strict`.
-- [ ] Execute all three v0.9 tutorials in the automated build, including the live TOI-193 MUSCLES download.
-- [ ] Run documentation builds without deployment on development branches and pull requests.
-- [ ] Upload and deploy the completed site to GitHub Pages only from `main`, with appropriate permissions, concurrency control, and a bounded timeout.
-- [ ] Enable GitHub Pages with GitHub Actions as its deployment source and verify the expected `https://nicholaswogan.github.io/photochem/` URL.
-- [ ] Document the v0.9 policy that the root website contains the latest documentation from `main`; historical tagged documentation is deferred until another published documentation version exists.
-- [ ] Record clean-build duration and evaluate whether the external MUSCLES dependency is acceptably reliable in automation.
+- [x] Add a separate documentation workflow that creates a clean environment, builds and installs Photochem, installs the documentation dependencies, and runs `mkdocs build --strict`.
+- [ ] Execute all three v0.9 tutorials in the automated build, including the live TOI-193 MUSCLES download. *(verify after the workflow is pushed)*
+- [x] Run documentation builds without deployment on development branches and pull requests.
+- [x] Upload and deploy the completed site to GitHub Pages only from `main`, with appropriate permissions, concurrency control, and a bounded timeout.
+- [x] Enable GitHub Pages with GitHub Actions as its deployment source and verify the expected `https://nicholaswogan.github.io/photochem/` URL.
+- [x] Document the v0.9 policy that the root website contains the latest documentation from `main`; historical tagged documentation is deferred until another published documentation version exists.
+- [x] Record clean-build duration and evaluate whether the external MUSCLES dependency is acceptably reliable in automation.
 
 ### v0.9 Pass 4: Perform the release audit
 

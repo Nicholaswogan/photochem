@@ -30,3 +30,9 @@ jupytext --to notebook rocky_planet_photochemistry.py
 ```
 
 Write Markdown prose with one physical line per paragraph; do not hard-wrap paragraphs or list items to a fixed column width. This keeps the source easier to edit directly. Code blocks, tables, and other structures should retain the line breaks required by their syntax.
+
+## Automation and deployment
+
+The `documentation` GitHub Actions workflow builds the complete site on pushes to `dev` and `main`, on pull requests targeting either branch, and when manually requested. Only a push to `main` uploads and deploys the GitHub Pages artifact. The root website contains the latest documentation from `main`; historical versioned documentation is deferred until the project has another published documentation version.
+
+After generated outputs were removed, the initial v0.9 production documentation builds took about 3.5 to 4 minutes on the development machine. The workflow records the MkDocs build duration in its job summary. The gas-giant tutorial intentionally downloads the TOI-193 spectrum from the MUSCLES archive, so the automated build also tests that supported network workflow. This external dependency is acceptable for v0.9, but failures should be monitored and the decision revisited if the archive proves unreliable in CI.
