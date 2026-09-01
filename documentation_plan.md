@@ -15,7 +15,7 @@ The documentation will:
 - explain the essential physics and numerical behavior, while linking to papers and other authoritative sources for detailed derivations; and
 - execute its tutorials when the documentation is built so that examples do not silently drift from the code.
 
-The University of Arizona Photochem workshop, the existing repository examples, the documentation proposal, and selected PICASO documentation are source material. They are not specifications: all borrowed material must be updated for the v1.0 API and rewritten where clarity can be improved. The old `docs` branch may be consulted for useful prose, but it is too old to merge as the foundation of the new site.
+The University of Arizona Photochem workshop, former repository examples preserved in Git history, the documentation proposal, and selected PICASO documentation are source material. They are not specifications: all borrowed material must be updated for the v1.0 API and rewritten where clarity can be improved. The old `docs` branch may be consulted for useful prose, but it is too old to merge as the foundation of the new site.
 
 ## Site structure
 
@@ -240,8 +240,8 @@ Likely source material is:
 
 | New tutorial | Primary source material |
 | --- | --- |
-| Rocky Planet Photochemistry | Workshop `ModernEarth_COMPLETED.ipynb` and `examples/Tutorial.ipynb` |
-| Gas Giant Photochemistry | Workshop `GasGiants.ipynb` and `examples/GasGiants.ipynb` |
+| Rocky Planet Photochemistry | Workshop `ModernEarth_COMPLETED.ipynb` and the former v0.8.4 `examples/Tutorial.ipynb` |
+| Gas Giant Photochemistry | Workshop `GasGiants.ipynb` and the former v0.8.4 `examples/GasGiants.ipynb` |
 | Rocky Planet Climate | Workshop `ClimateTutorial_COMPLETED.ipynb` |
 | Chemical Equilibrium | New, based on the Equilibrate API and tests |
 | The Habitable Zone | Workshop `HabitableZone_COMPLETED.ipynb` |
@@ -278,13 +278,13 @@ Photochem v0.9 is an intentional early documentation release rather than complet
 ### v0.9 Pass 1: Clean the published documentation scope
 
 - [x] Define the v0.9 tutorial set as Rocky Planet Photochemistry, Rocky Planet Climate, and Gas Giant Photochemistry; defer The Habitable Zone.
-- [ ] Delete everything under `examples/`; tracked examples remain recoverable from Git history.
-- [ ] Remove the Input Files placeholder page, its navigation entry, and links that imply the input reference is available.
-- [ ] Remove the Future Directions placeholder page and its navigation entry.
-- [ ] Remove the home-page development-status notice and other language that makes the deliberately scoped v0.9 site look unfinished.
-- [ ] Remove the Habitable Zone “in preparation” notice from the tutorial overview.
-- [ ] Remove notebook checkpoints and generated documentation artifacts from the working tree.
-- [ ] Search the repository for stale references to `examples/`, deleted placeholders, and material promised only for v1.0.
+- [x] Delete everything under `examples/`; tracked examples remain recoverable from Git history.
+- [x] Remove the Input Files placeholder page, its navigation entry, and links that imply the input reference is available.
+- [x] Remove the Future Directions placeholder page and its navigation entry.
+- [x] Remove the home-page development-status notice and other language that makes the deliberately scoped v0.9 site look unfinished.
+- [x] Remove the Habitable Zone “in preparation” notice from the tutorial overview.
+- [x] Remove notebook checkpoints and generated documentation artifacts from the working tree.
+- [x] Search the repository for stale references to `examples/`, deleted placeholders, and material promised only for v1.0.
 
 ### v0.9 Pass 2: Prepare release-facing material
 

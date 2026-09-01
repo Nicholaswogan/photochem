@@ -46,7 +46,6 @@ nav:
       - Rocky Planet Photochemistry: tutorials/rocky_planet_photochemistry.py
       - Rocky Planet Climate: tutorials/rocky_planet_climate.py
       - Gas Giant Photochemistry: tutorials/gas_giant_photochemistry.py
-  - Input Files: input-files/index.md
   - API Reference:
       - Overview: reference/index.md
       - Photochem: reference/photochem.md
@@ -57,7 +56,6 @@ nav:
   - Development:
       - Building from Source: development/building-from-source.md
       - Contributing: development/contributing.md
-      - Future Directions: development/future-directions.md
 
 plugins:
   - search

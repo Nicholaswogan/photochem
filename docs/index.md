@@ -32,9 +32,4 @@ Photochem is an open-source code for simulating how chemistry, radiation, transp
 
 - [Installation](installation.md) covers the supported ways to install Photochem and verify the installation.
 - [Tutorials](tutorials/index.md) develop complete atmospheric-modeling workflows in executable notebooks.
-- [Input Files](input-files/index.md) describes reaction mechanisms, model settings, stellar spectra, atmosphere profiles, and equilibrium species.
 - [API Reference](reference/index.md) documents the public Python classes and functions.
-
-!!! note "Documentation status"
-
-    The v1.0 documentation is under active development. Pages marked as under construction establish stable navigation destinations for material added in later documentation passes.
