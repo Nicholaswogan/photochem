@@ -12,6 +12,7 @@ dependencies:
   - hdf5
   - h5py
   - astropy
+  - astroquery
   - threadpoolctl
   - requests
   - photochem_clima_data=0.3.2
