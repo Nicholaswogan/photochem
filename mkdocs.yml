@@ -9,6 +9,9 @@ site_dir: site
 exclude_docs: |
   README.md
   requirements.txt
+  tutorials/rocky_planet_photochemistry/modern_earth_steady.txt
+  tutorials/rocky_planet_photochemistry/modern_sun.txt
+  tutorials/rocky_planet_photochemistry/zahnle_earth_HNOCHeS.yaml
 
 theme:
   name: material

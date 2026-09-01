@@ -1,5 +1,6 @@
 .DS_Store
 .ipynb_checkpoints
+docs/tutorials/*.ipynb
 __pycache__
 *.so
 data
@@ -8,4 +9,3 @@ photochem.egg-info
 _skbuild
 codex_reference
 site
-

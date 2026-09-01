@@ -5,23 +5,20 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.1
+#       jupytext_version: 1.19.5
 #   kernelspec:
-#     display_name: Python 3
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
 
 # %% [markdown]
-# # Rocky planet photochemistry
+# # Rocky planet photochemistry: Modern Earth
 #
-# This tutorial constructs a one-dimensional model of modern Earth's atmosphere, evolves its chemistry to steady state, and diagnoses the processes controlling methane. The setup is adapted from the modern-Earth model of [Wogan et al. (2025)](https://doi.org/10.3847/PSJ/ae0e1c).
-#
-# Photochem's photochemical model is contained in the `EvoAtmosphere` class. Constructing an `EvoAtmosphere` requires three files: a chemical mechanism, a settings file, and a stellar-flux file. We will generate the mechanism and stellar spectrum, while the settings file is kept with this tutorial so it can be inspected and modified.
+# This tutorial constructs a one-dimensional photochemical model of modern Earth's atmosphere, evolves its chemistry to steady state, and analyzes the results. The setup is adapted from the modern-Earth model of [Wogan et al. (2025)](https://doi.org/10.3847/PSJ/ae0e1c).
 
 # %%
 from pathlib import Path
-import tempfile
 import time
 
 import matplotlib.pyplot as plt
@@ -30,69 +27,65 @@ import numpy as np
 from photochem import EvoAtmosphere
 from photochem.utils import stars, zahnle_rx_and_thermo_files
 
-
-# %% [markdown]
-# ## Construct the photochemical model
-#
-# We first locate the two version-controlled inputs that are specific to this tutorial. The fallback makes the same source work when it is executed either from the repository root or from the `docs/tutorials` directory used by the documentation builder.
-
-# %%
-tutorial_inputs = Path("docs/tutorials/rocky_planet_photochemistry")
-if not tutorial_inputs.is_dir():
-    tutorial_inputs = Path("rocky_planet_photochemistry")
-
-settings_file = tutorial_inputs / "settings.yaml"
-profile_file = tutorial_inputs / "modern_earth_profile.txt"
+# Support execution by MkDocs from the repository root and interactive
+# execution from docs/tutorials.
+tutorial_directory = Path("docs/tutorials/rocky_planet_photochemistry")
+if not tutorial_directory.is_dir():
+    tutorial_directory = Path("rocky_planet_photochemistry")
 
 
 # %% [markdown]
-# The settings file specifies the planet, water and rainout behavior, particle properties, and lower and upper boundary conditions. This particular file is based on the modern-Earth calculation of Wogan et al. (2025). The [Input Files](../input-files/) section will describe the format in detail.
+# ## Initializing the photochemical model
 #
-# Photochem includes a general Zahnle reaction network. Here, `zahnle_rx_and_thermo_files` creates a mechanism containing H, He, N, O, C, and S chemistry while excluding chlorine. The generated mechanism and stellar spectrum are temporary products rather than tutorial inputs that must be maintained by hand.
+# Photochem's photochemical model is contained in the `EvoAtmosphere` class. Constructing an `EvoAtmosphere` requires three files: a chemical mechanism, a settings file, and a stellar-flux file.
+#
+# **Chemical mechanism:** Photochem includes the Zahnle reaction network. Here, we use `zahnle_rx_and_thermo_files` to create a subset of that network that contains H, He, N, O, C, and S chemistry.
 
 # %%
-temporary_directory = tempfile.TemporaryDirectory()
-work_directory = Path(temporary_directory.name)
-
-mechanism_file = work_directory / "zahnle_earth_HNOCHeS.yaml"
 zahnle_rx_and_thermo_files(
     atoms_names=["H", "He", "N", "O", "C", "S"],
-    rxns_filename=str(mechanism_file),
+    rxns_filename=str(tutorial_directory / "zahnle_earth_HNOCHeS.yaml"),
     thermo_filename=None,
     remove_reaction_particles=True,
 )
 
 
 # %% [markdown]
-# Photochemical rates depend on the wavelength-dependent stellar irradiance. `solar_spectrum` starts from the packaged Thuillier et al. (2004) ATLAS-1 solar reference spectrum, appends the infrared spectrum, and rebins it to a resolution appropriate for Photochem. No network connection is required.
+# **Settings file:** We use the settings file `rocky_planet_photochemistry/settings.yaml`, which is based on the modern-Earth calculation of [Wogan et al. (2025)](https://doi.org/10.3847/PSJ/ae0e1c). It specifies the planet's mass and radius, boundary conditions, and other parameters.
+#
+# **Stellar flux file:** To generate a stellar-flux file, we use the `solar_spectrum` routine. It starts from the packaged Thuillier et al. (2004) ATLAS-1 solar reference spectrum, extends it to long wavelengths with a solar blackbody, and rebins it to a resolution appropriate for Photochem.
 
 # %%
-stellar_flux_file = work_directory / "modern_sun.txt"
-stars.solar_spectrum(outputfile=str(stellar_flux_file))
+_ = stars.solar_spectrum(outputfile=str(tutorial_directory / "modern_sun.txt"))
 
 
 # %% [markdown]
-# We can now construct `EvoAtmosphere`. We deliberately omit an atmosphere file: the constructor reads the chemistry, settings, and stellar spectrum, but atmospheric pressure, temperature, eddy diffusion, and composition will be initialized separately.
+# We can now initialize an instance of `EvoAtmosphere`:
 
 # %%
 pc = EvoAtmosphere(
-    str(mechanism_file),
-    str(settings_file),
-    str(stellar_flux_file),
+    str(tutorial_directory / "zahnle_earth_HNOCHeS.yaml"),
+    str(tutorial_directory / "settings.yaml"),
+    str(tutorial_directory / "modern_sun.txt"),
 )
-pc.var.verbose = 0
-
-print(f"Number of species: {pc.dat.nq}")
-print(f"Atmosphere initialized: {pc.atmosphere_initialized}")
+pc.var.verbose = 0  # Turn off printing
 
 
 # %% [markdown]
-# ## Initialize the atmospheric state
-#
-# The atmospheric profile combines the equatorial January CIRA-86 pressure-temperature structure with an eddy-diffusion profile based on Massie and Hunten (1981). The equatorial profile is warmer at the surface than a global-mean Earth profile, but it maintains consistency with the modern-Earth benchmark on which this setup is based.
+# At this point the `pc` object has been constructed, which means the chemical kinetics, thermodynamics, stellar spectrum, etc. are set. However, the initial atmospheric state (temperature, eddy diffusion, and composition) has not yet been established:
 
 # %%
-altitude_km, pressure_bar, temperature, eddy = np.loadtxt(profile_file).T
+print(f"Atmosphere initialized: {pc.atmosphere_initialized}")
+
+# %% [markdown]
+# ## Setting the atmospheric state
+#
+# Now we must set the initial atmospheric state. This includes the temperature, eddy diffusion, and mixing ratio profiles. For the temperature and eddy diffusion, we will use `rocky_planet_photochemistry/modern_earth_profile.txt`, which contains the January CIRA-86 pressure-temperature structure and the eddy-diffusion profile based on Massie and Hunten (1981). The equatorial profile is warmer at the surface than a global-mean Earth profile, but it maintains consistency with the modern-Earth benchmark in [Wogan et al. (2025)](https://doi.org/10.3847/PSJ/ae0e1c) on which this setup is based.
+
+# %%
+altitude_km, pressure_bar, temperature, eddy = np.loadtxt(
+    tutorial_directory / "modern_earth_profile.txt"
+).T
 pressure = pressure_bar * 1.0e6  # bar to dyn/cm^2
 
 fig, temperature_axis = plt.subplots(figsize=(5.5, 5.0))
@@ -114,9 +107,9 @@ plt.show()
 
 
 # %% [markdown]
-# `initialize_atmosphere_p` maps this pressure-based profile onto the model grid. Setting `persistent=True` retains temperature and eddy diffusion as functions of hydrostatic pressure while the composition evolves. Rainout is enabled, so persistent initialization also needs the tropopause pressure; we interpolate it at the 11 km tropopause specified in `settings.yaml`.
+# To set this P-T-$K_{zz}$ profile in the code, we will use `initialize_atmosphere_p`. This function maps the pressure-based profile onto the model grid. Setting `persistent=True` retains temperature and eddy diffusion as functions of hydrostatic pressure while the composition evolves. Rainout is enabled, so persistent initialization also needs the tropopause pressure; we interpolate it at the 11 km tropopause specified in `settings.yaml`.
 #
-# We do not supply `mix`. Photochem therefore infers the initial composition from gases with fixed-partial-pressure lower boundary conditions. N2, O2, and CO2 fill the dry atmosphere in their prescribed proportions. H2O participates in the mixture until it reaches the configured 40% relative-humidity limit, after which it is capped and cold trapped upward. Other gases and all particles begin at negligible abundance. We provide a 10 micron radius for water particles, following the benchmark setup.
+# `initialize_atmosphere_p` optionally accepts a `mix` argument, which is the initial volume mixing ratios of the atmosphere. Here, we do not supply `mix`. When this is the case, the code guesses a sensible initial composition from gases with fixed-partial-pressure lower boundary conditions.
 
 # %%
 tropopause_altitude_km = 11.0
@@ -125,6 +118,7 @@ tropopause_pressure = 10.0 ** np.interp(
     altitude_km,
     np.log10(pressure),
 )
+# Use a 10 micron (1.0e-3 cm) radius for water particles.
 particle_radius = {"H2Oaer": np.full(pressure.size, 1.0e-3)}
 
 pc.initialize_atmosphere_p(
@@ -137,28 +131,14 @@ pc.initialize_atmosphere_p(
     tropopause_pressure=tropopause_pressure,
     target_pressure=pressure[-1],
 )
-pc.var.atol = 1.0e-23
 
 print(f"Atmosphere initialized: {pc.atmosphere_initialized}")
 print(f"Surface pressure: {pc.wrk.surface_pressure:.4f} bar")
 print(f"Tropopause pressure: {tropopause_pressure / 1.0e6:.3e} bar")
 
 
-# %% [markdown]
-# Most information in an `EvoAtmosphere` is organized under three attributes. `pc.dat` contains model definitions that generally do not change, such as species and reactions. `pc.var` contains configurable quantities such as temperature, eddy diffusion, and solver tolerances. `pc.wrk` contains the evolving numerical state and prepared diagnostics, including pressure and `usol`.
-#
-# `pc.wrk.usol` contains number densities rather than mixing ratios. For routine inspection, `mole_fraction_dict` is more convenient: it returns the atmospheric structure and each species' mixing-ratio profile.
-
 # %%
-initial_atmosphere = pc.mole_fraction_dict()
-
-print("Model-grid temperature shape:", pc.var.temperature.shape)
-print("ODE-state shape:", pc.wrk.usol.shape)
-print("Available atmosphere fields:", list(initial_atmosphere)[:8], "...")
-
-
-# %%
-def plot_composition(atmosphere, species, title, axis=None):
+def plot_composition(atmosphere, species, title, axis=None, legend=True):
     """Plot selected mixing ratios against pressure."""
     if axis is None:
         _, axis = plt.subplots(figsize=(5.5, 5.0))
@@ -166,16 +146,18 @@ def plot_composition(atmosphere, species, title, axis=None):
         axis.plot(atmosphere[name], atmosphere["pressure"] / 1.0e6, label=name)
     axis.set_xscale("log")
     axis.set_yscale("log")
-    axis.invert_yaxis()
+    if not axis.yaxis_inverted():
+        axis.invert_yaxis()
     axis.set_xlim(1.0e-15, 1.2)
     axis.set_xlabel("Mixing ratio")
     axis.set_ylabel("Pressure (bar)")
     axis.set_title(title)
     axis.grid(alpha=0.25)
-    axis.legend()
+    if legend:
+        axis.legend()
     return axis
 
-
+initial_atmosphere = pc.mole_fraction_dict()
 plot_composition(
     initial_atmosphere,
     ["H2O", "N2", "O2", "CO2"],
@@ -183,11 +165,22 @@ plot_composition(
 )
 plt.show()
 
+# %% [markdown]
+# ## Organization of `EvoAtmosphere`
+#
+# Most information in an `EvoAtmosphere` is organized under three attributes. `pc.dat` contains model definitions that generally do not change, such as species and reactions. `pc.var` contains configurable quantities such as temperature, eddy diffusion, and solver tolerances. `pc.wrk` contains the evolving numerical state, including the number densities in `pc.wrk.usol`.
+#
+# The function `mole_fraction_dict` is convenient because it returns the most important model state as a dictionary.
+
+# %%
+print("Model-grid temperature shape:", pc.var.temperature.shape)
+print("ODE-state shape:", pc.wrk.usol.shape)
+print("Available atmosphere fields:", list(initial_atmosphere)[:8], "...")
 
 # %% [markdown]
 # ## Evolve the atmosphere to steady state
 #
-# The simplest way to integrate is `pc.find_steady_state()`. It manages solver restarts and recovery internally, then returns whether the configured convergence criteria were met. Here we use the underlying `initialize_robust_stepper` and `robust_step` methods instead so that we can retain intermediate states and watch the atmosphere develop.
+# The simplest way to integrate to a steady state is `pc.find_steady_state()`. It manages solver restarts and recovery internally, then returns whether the configured convergence criteria are met. Here we use the underlying `initialize_robust_stepper` and `robust_step` methods instead so that we can retain intermediate states and watch the atmosphere develop.
 
 # %%
 evolving_species = ["H2O", "O3", "CH4", "CO", "N2O"]
@@ -239,8 +232,9 @@ print(f"Reached steady state at t = {final_time:.3e} s in {elapsed:.1f} seconds.
 snapshot_indices = np.unique(
     np.linspace(0, len(snapshots) - 1, 4, dtype=int)
 )
-fig, axes = plt.subplots(2, 2, figsize=(10, 9), sharex=True, sharey=True)
+fig, axes = plt.subplots(2, 2, figsize=(9, 6), sharex=True, sharey=True)
 
+show_legend = True
 for axis, snapshot_index in zip(axes.flat, snapshot_indices):
     snapshot = snapshots[snapshot_index]
     atmosphere = {
@@ -251,10 +245,15 @@ for axis, snapshot_index in zip(axes.flat, snapshot_indices):
         title = "Initial state"
     else:
         title = f"t = {snapshot['time']:.1e} s"
-    plot_composition(atmosphere, evolving_species, title, axis=axis)
+    plot_composition(
+        atmosphere,
+        evolving_species,
+        title,
+        axis=axis,
+        legend=show_legend,
+    )
+    show_legend = False
 
-for axis in axes.flat:
-    axis.legend(fontsize=8)
 plt.tight_layout()
 plt.show()
 
@@ -302,7 +301,7 @@ axis.invert_yaxis()
 axis.set_xlabel(r"Rate (molecules cm$^{-3}$ s$^{-1}$)")
 axis.set_ylabel("Pressure (bar)")
 axis.grid(alpha=0.25)
-axis.legend(fontsize=8)
+axis.legend(ncol=2, bbox_to_anchor=(0.5, 1.01), loc="lower center", fontsize=8)
 plt.show()
 
 
@@ -328,17 +327,30 @@ for label, rate in zip(
 # `out2atmosphere_txt` writes composition, temperature, eddy diffusion, and atmospheric structure to a human-readable profile. This is a convenient initialization file, but it is not a complete checkpoint: the reaction mechanism, stellar spectrum, boundary conditions, and other settings still come from the three files supplied to the constructor, and persistent pressure-profile configuration is not stored in the atmosphere file.
 
 # %%
-restart_file = work_directory / "modern_earth_steady.txt"
-pc.out2atmosphere_txt(str(restart_file), overwrite=True)
+pc.out2atmosphere_txt(str(tutorial_directory / "modern_earth_steady.txt"), overwrite=True)
 
 pc_restart = EvoAtmosphere(
-    str(mechanism_file),
-    str(settings_file),
-    str(stellar_flux_file),
-    str(restart_file),
+    str(tutorial_directory / "zahnle_earth_HNOCHeS.yaml"),
+    str(tutorial_directory / "settings.yaml"),
+    str(tutorial_directory / "modern_sun.txt"),
+    str(tutorial_directory / "modern_earth_steady.txt"),
 )
 pc_restart.var.verbose = 0
-pc_restart.var.atol = 1.0e-23
+
+
+# %% [markdown]
+# The atmosphere file does not preserve the persistent P-T-$K_{zz}$ configuration. We therefore restore the original pressure-based profiles and tropopause pressure before integrating the restarted model.
+
+# %%
+pc_restart.set_press_temp_edd_profile(
+    pressure,
+    temperature,
+    eddy,
+    trop_p=tropopause_pressure,
+    hydro_pressure=True,
+    maintain_toa_pressure=True,
+    target_pressure=pressure[-1],
+)
 
 restart_start = time.perf_counter()
 restart_converged = pc_restart.find_steady_state()
@@ -351,6 +363,3 @@ print(f"Accepted steps in the final solver session: {pc_restart.wrk.nsteps}")
 
 # %% [markdown]
 # Starting from the saved steady-state profile should require much less work than constructing the atmosphere from the simple inferred composition. The result nevertheless depends on the separately supplied mechanism, settings, and stellar spectrum, which is why an atmosphere file should be treated as a reusable profile rather than a self-contained model restart.
-
-# %%
-temporary_directory.cleanup()
