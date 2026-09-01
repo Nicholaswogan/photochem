@@ -227,7 +227,7 @@ For the initial documentation release, port and modernize these four core tutori
 - [x] Rocky Planet Photochemistry
 - [x] Rocky Planet Climate
 - [x] Gas Giant Photochemistry
-- [ ] The Habitable Zone
+- [ ] The Habitable Zone *(deferred)*
 
 The remaining tutorials are deferred until after the initial release:
 
@@ -270,6 +270,62 @@ The Explanation page is outside the scope of the initial documentation release. 
 - [x] Write contribution expectations, test commands, documentation workflow, and pull-request guidance.
 - [ ] Curate valuable unfinished roadmap items into Future Directions. *(deferred)*
 - [ ] Write the How to Cite Photochem page, including software, model-data, component, and tutorial-specific scientific citations. *(deferred)*
+
+## v0.9 initial documentation and package release
+
+Photochem v0.9 is an intentional early documentation release rather than completion of the full v1.0 documentation scope. It publishes the useful material that is ready now: installation and source-build instructions, generated API documentation, and complete tutorials for rocky-planet photochemistry, rocky-planet climate, and gas-giant photochemistry. The v0.9 checklist below is authoritative for this milestone; the full v1.0 requirements in Passes 9 and 10 remain below.
+
+### v0.9 Pass 1: Clean the published documentation scope
+
+- [x] Define the v0.9 tutorial set as Rocky Planet Photochemistry, Rocky Planet Climate, and Gas Giant Photochemistry; defer The Habitable Zone.
+- [ ] Delete everything under `examples/`; tracked examples remain recoverable from Git history.
+- [ ] Remove the Input Files placeholder page, its navigation entry, and links that imply the input reference is available.
+- [ ] Remove the Future Directions placeholder page and its navigation entry.
+- [ ] Remove the home-page development-status notice and other language that makes the deliberately scoped v0.9 site look unfinished.
+- [ ] Remove the Habitable Zone “in preparation” notice from the tutorial overview.
+- [ ] Remove notebook checkpoints and generated documentation artifacts from the working tree.
+- [ ] Search the repository for stale references to `examples/`, deleted placeholders, and material promised only for v1.0.
+
+### v0.9 Pass 2: Prepare release-facing material
+
+- [ ] Rewrite the repository `README.md` to describe the current package and link to installation, tutorials, API documentation, source builds, contribution guidance, and the published site.
+- [ ] Remove README references to the workshop as the primary documentation and to the deleted `examples/` directory.
+- [ ] Add a concise changelog covering the v0.9 release.
+- [ ] Audit changes since v0.8.4 and write a short, evidence-based migration guide.
+- [ ] Draft GitHub release notes and a final release checklist for v0.9.0.
+- [ ] Retain a concise citation section in the README until the full How to Cite Photochem page is written.
+
+### v0.9 Pass 3: Automate and deploy the site
+
+- [ ] Add a separate documentation workflow that creates a clean environment, builds and installs Photochem, installs the documentation dependencies, and runs `mkdocs build --strict`.
+- [ ] Execute all three v0.9 tutorials in the automated build, including the live TOI-193 MUSCLES download.
+- [ ] Run documentation builds without deployment on development branches and pull requests.
+- [ ] Upload and deploy the completed site to GitHub Pages only from `main`, with appropriate permissions, concurrency control, and a bounded timeout.
+- [ ] Enable GitHub Pages with GitHub Actions as its deployment source and verify the expected `https://nicholaswogan.github.io/photochem/` URL.
+- [ ] Document the v0.9 policy that the root website contains the latest documentation from `main`; historical tagged documentation is deferred until another published documentation version exists.
+- [ ] Record clean-build duration and evaluate whether the external MUSCLES dependency is acceptably reliable in automation.
+
+### v0.9 Pass 4: Perform the release audit
+
+- [ ] Read every published page in navigation order and remove unnecessary duplication.
+- [ ] Inspect all three rendered tutorials and confirm their numerical results remain finite and scientifically reasonable.
+- [ ] Verify documentation commands, internal links, external links, downloads, and API cross-references.
+- [ ] Build the source distribution and wheel in a clean environment, install the wheel, and verify `photochem.__version__ == "0.9.0"`.
+- [ ] Run the existing release-oriented test suite and confirm the GitHub Actions test workflow passes.
+- [ ] Confirm a clean checkout builds the complete documentation and no code, tests, or documentation depend on the deleted `examples/` directory.
+- [ ] Review the final diff for generated files, placeholders, stale version references, and unintended changes.
+
+### v0.9 Pass 5: Publish v0.9.0
+
+- [ ] Commit the audited release changes on `dev` and merge them into `main`.
+- [ ] Wait for the test and documentation workflows on `main` and inspect any failures.
+- [ ] Verify the deployed GitHub Pages site from the `main` build.
+- [ ] Tag `v0.9.0` and create the GitHub release from the prepared release notes.
+- [ ] Update the conda-forge package and verify installation from the released channel.
+
+The following documentation work is explicitly deferred beyond v0.9: the input-file reference, Explanation page, Chemical Equilibrium tutorial, Habitable Zone tutorial, Changing Model Data tutorial, climate-then-photochemistry tutorial, spectrum-preparation tutorial, Future Directions, full citation page, historical versioned documentation, and automated external-link checking.
+
+The v0.9 milestone is complete when the site contains no placeholder destinations, the repository README points to the deployed documentation, all three tutorials and the generated API reference build in automation, the release artifacts and installation have been verified, the site is live on GitHub Pages, and the `v0.9.0` release has been published with its deferrals stated clearly.
 
 ### Pass 9: Automate, deploy, and version the site
 
