@@ -13,7 +13,7 @@
 # ---
 
 # %% [markdown]
-# # Rocky planet photochemistry: Modern Earth
+# # Rocky planet photochemistry
 #
 # This tutorial constructs a one-dimensional photochemical model of modern Earth's atmosphere, evolves its chemistry to steady state, and analyzes the results. The setup is adapted from the modern-Earth model of [Wogan et al. (2025)](https://doi.org/10.3847/PSJ/ae0e1c).
 
