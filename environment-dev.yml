@@ -14,7 +14,7 @@ dependencies:
   - astropy
   - threadpoolctl
   - requests
-  - photochem_clima_data=0.3.1
+  - photochem_clima_data=0.3.2
 
   # Build requirements
   - scikit-build-core
