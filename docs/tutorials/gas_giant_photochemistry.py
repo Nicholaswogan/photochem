@@ -17,7 +17,7 @@
 # %% [markdown]
 # # Gas giant photochemistry
 #
-# This tutorial uses `EvoAtmosphereGasGiant` to construct a representative photochemical model of the hot Saturn WASP-39b. We focus on the production of sulfur dioxide in the morning-terminator atmosphere, motivated by the WASP-39b analysis of [Tsai et al. (2023)](https://doi.org/10.1038/s41586-023-05902-2). The calculation illustrates the gas-giant workflow but is not intended to reproduce that study exactly.
+# This tutorial uses `EvoAtmosphereGasGiant` to simulate the photochemistry of the hot Saturn WASP-39b. We focus on the production of sulfur dioxide motivated by the analysis of [Tsai et al. (2023)](https://doi.org/10.1038/s41586-023-05902-2). The calculation illustrates the gas-giant workflow but does not reproduce that study exactly.
 
 # %%
 from pathlib import Path
@@ -40,9 +40,9 @@ if not tutorial_directory.is_dir():
 # %% [markdown]
 # ## Initializing the photochemical model
 #
-# `EvoAtmosphereGasGiant` adapts Photochem's photochemical model for hydrogen-rich planets. It joins an explicit photochemical atmosphere to a deeper atmosphere assumed to be in chemical equilibrium and provides tools for initializing the composition from metallicity and C/O ratio.
+# `EvoAtmosphereGasGiant` adapts Photochem's photochemical model for hydrogen-rich planets. It joins a photochemical atmosphere to a deeper atmosphere assumed to be in chemical equilibrium and provides tools for initializing the composition from metallicity and C/O ratio.
 #
-# The first required input is a chemical mechanism. Here, `zahnle_rx_and_thermo_files` creates reaction and thermodynamic files containing H, He, N, O, C, and S chemistry. Reaction particles are removed because this tutorial does not model condensate or haze particles.
+# The first required input is a chemical mechanism. Here, `zahnle_rx_and_thermo_files` creates reaction and thermodynamic files containing H, He, N, O, C, and S chemistry. Reaction particles are removed because they do not work well for planets with hot and deep atmospheres.
 
 # %%
 mechanism_file = str(tutorial_directory / "photochem_rxns.yaml")
@@ -57,20 +57,44 @@ zahnle_rx_and_thermo_files(
 
 
 # %% [markdown]
-# We also need a stellar-flux file. `solar_spectrum` starts from the packaged solar reference spectrum and scales the total irradiance to the equilibrium temperature specified by `Teq`. WASP-39's effective temperature is about 5400 K, so the solar spectral shape is a reasonable approximation for this example. A precise model should instead use a spectrum appropriate for the host star.
+# We also need a stellar-flux file that includes ultraviolet wavelengths important for photochemistry. The [MUSCLES Treasury Survey](https://archive.stsci.edu/prepds/muscles/) provides panchromatic spectra for nearby stars. WASP-39 is not in the survey, so we use `closest_muscles_to_Teff` to select the available star with the closest effective temperature. `muscles_spectrum` downloads that spectrum, extends it to long wavelengths with a blackbody, and scales its total irradiance to the equilibrium temperature specified by `Teq`.
 
 # %%
 equilibrium_temperature = 1166.0  # K
-stellar_flux_file = str(tutorial_directory / "wasp39b_sun.txt")
+host_star_temperature = 5400.0  # K
+comparison_star = stars.closest_muscles_to_Teff(host_star_temperature)
+stellar_flux_file = str(tutorial_directory / "toi193_spectrum.txt")
 
-_ = stars.solar_spectrum(
+print(
+    f"Closest MUSCLES star: {comparison_star['name']} "
+    f"({comparison_star['st_teff']:.0f} K)"
+)
+
+wavelength, stellar_flux = stars.muscles_spectrum(
+    comparison_star["name"],
     outputfile=stellar_flux_file,
     Teq=equilibrium_temperature,
 )
 
 
 # %% [markdown]
-# We initialize `EvoAtmosphereGasGiant` with the mechanism, stellar flux, planetary mass and radius, and the separate thermodynamic file. Unlike `EvoAtmosphere`, this extension does not require a user-supplied settings file; its constructor configures suitable gas-giant defaults. We use the 83° solar zenith angle adopted by Tsai et al. (2023) and set the diurnal factor to one so the supplied beam is not reduced by an additional day-night average.
+# The downloaded spectrum contains the observed ultraviolet emission that would be absent from a photospheric model alone.
+
+# %%
+fig, axis = plt.subplots(figsize=(6.5, 4.0))
+axis.plot(wavelength, stellar_flux, color="black", linewidth=1)
+axis.set_xscale("log")
+axis.set_yscale("log")
+axis.set_xlim(1.0, 1000.0)
+axis.set_xlabel("Wavelength (nm)")
+axis.set_ylabel(r"Flux at WASP-39b (mW m$^{-2}$ nm$^{-1}$)")
+axis.set_title(f"{comparison_star['name']} MUSCLES spectrum")
+axis.grid(alpha=0.25)
+plt.show()
+
+
+# %% [markdown]
+# We initialize `EvoAtmosphereGasGiant` with the mechanism, stellar flux, planetary mass and radius, and the separate thermodynamic file. Unlike `EvoAtmosphere`, this extension does not require a user-supplied settings file because its constructor configures gas-giant defaults. We use the 83° solar zenith angle adopted by Tsai et al. (2023) and set the diurnal factor to one so the supplied beam is not reduced by an additional day-night average.
 
 # %%
 planet_mass = 0.28 * constants.M_jup.cgs.value
@@ -89,9 +113,30 @@ pc.var.diurnal_fac = 1.0
 
 
 # %% [markdown]
+# `pc.gdat.gas` is a `ChemEquiAnalysis` object used to calculate equilibrium chemistry in the deep atmosphere. It contains a reference solar elemental composition that defines what `metallicity` and `CtoO` mean during initialization. To follow Tsai et al. (2023) more closely, we replace that reference with the elemental abundances used in their calculation.
+
+# %%
+tsai_elemental_abundances = {
+    "H": 1.0,
+    "He": 0.0838,
+    "C": 2.95e-4,
+    "N": 7.08e-5,
+    "O": 5.37e-4,
+    "S": 1.41e-5,
+}
+abundance_total = sum(tsai_elemental_abundances.values())
+pc.gdat.gas.molfracs_atoms_sun = np.array(
+    [
+        tsai_elemental_abundances[atom] / abundance_total
+        for atom in pc.gdat.gas.atoms_names
+    ]
+)
+
+
+# %% [markdown]
 # ## Pressure, temperature, and eddy diffusion
 #
-# The committed P-T profile is the 10×-solar-metallicity morning-terminator profile distributed with the [VULCAN model](https://github.com/shami-EEG/VULCAN/blob/3ed92cf0222316d238efe9059959d29621962b17/atm/atm_W39b_10Xsolar_Twhole_morning_TP_20deg.txt). It averages ±10° around the western terminator in an exo-FMS general circulation model. The pressure range extends deep enough to bracket the chemical quench levels estimated during initialization.
+# We use the 10×-solar-metallicity morning-terminator profile distributed with the [VULCAN model](https://github.com/shami-EEG/VULCAN/blob/3ed92cf0222316d238efe9059959d29621962b17/atm/atm_W39b_10Xsolar_Twhole_morning_TP_20deg.txt). It averages ±10° around the western terminator in an exo-FMS general circulation model. We also follow Tsai et al. (2023) for the eddy-diffusion profile: $K_{zz}$ is fixed at $5\times10^7$ cm² s⁻¹ at pressures above 5 bar and increases in proportion to $P^{-1/2}$ at lower pressures.
 
 # %%
 pressure, temperature = np.loadtxt(
@@ -148,13 +193,12 @@ print(
 
 
 # %% [markdown]
-# The `pc.gdat` attribute stores gas-giant-specific information, including the input climate profiles, metallicity, C/O ratio, and the `ChemEquiAnalysis` object used for equilibrium calculations. The usual `pc.dat`, `pc.var`, and `pc.wrk` attributes remain available for the reaction mechanism, configurable model variables, and evolving numerical state.
+# The `pc.gdat` attribute stores gas-giant-specific information, including the metallicity, C/O ratio, and the `ChemEquiAnalysis` object used for equilibrium calculations. The usual `pc.dat`, `pc.var`, and `pc.wrk` attributes remain available for the reaction mechanism, configurable variables, and evolving numerical state.
 #
-# `return_atmosphere` combines the explicit photochemical domain with the deeper equilibrium atmosphere by default. Passing `equilibrium=True` instead evaluates equilibrium composition across the entire returned pressure grid. Immediately after initialization, the two results are similar except where the initial quench approximation has been applied.
+# `return_atmosphere` combines the explicit photochemical domain with the deeper equilibrium atmosphere by default.
 
 # %%
 initial_atmosphere = pc.return_atmosphere()
-equilibrium_atmosphere = pc.return_atmosphere(equilibrium=True)
 
 fig, axis = plt.subplots(figsize=(5.5, 5.0))
 for species in ["H2", "He", "H2O", "CO", "CH4"]:
@@ -180,7 +224,7 @@ plt.show()
 # %% [markdown]
 # ## Evolve the atmosphere to steady state
 #
-# The simplest way to integrate the atmosphere is `pc.find_steady_state()`. As in the rocky planet tutorial, we instead use the robust stepper directly so that we can save intermediate states and see the photochemistry develop. The `finally` block releases the solver even if integration raises an exception.
+# The simplest way to integrate the atmosphere is `pc.find_steady_state()`. As in the rocky planet tutorial, we instead use the robust stepper directly so that we can save intermediate states and see the photochemistry develop.
 
 # %%
 sulfur_species = ["H2S", "S", "S2", "SO", "SO2"]
@@ -276,7 +320,7 @@ plt.show()
 
 
 # %% [markdown]
-# Hydrogen sulfide supplied from the deep atmosphere is photolyzed and converted into several sulfur-bearing products. We can compare the final result directly with chemical equilibrium. The solid curves below are the photochemical solution, while the dotted curves show the equilibrium abundances of the same species.
+# Hydrogen sulfide supplied from the deep atmosphere is photolyzed and converted into several sulfur-bearing products. Passing `equilibrium=True` to `return_atmosphere` evaluates equilibrium composition across the same returned pressure grid, allowing a direct comparison. The solid curves below are the photochemical solution, while the dotted curves show the equilibrium abundances.
 
 # %%
 steady_atmosphere = pc.return_atmosphere()
@@ -314,4 +358,4 @@ plt.show()
 
 
 # %% [markdown]
-# The enhanced SO₂ between roughly 10⁻² and 10⁻⁶ bar illustrates the photochemical pathway identified for WASP-39b. Differences from the published calculation are expected because this compact example uses Photochem's default solar elemental abundances and an irradiance-scaled solar spectrum rather than the exact stellar and modeling inputs of Tsai et al. (2023).
+# The enhanced SO₂ between roughly 10⁻² and 10⁻⁶ bar broadly reproduces the photochemical behavior found by Tsai et al. (2023). Differences are expected because TOI-193 is a proxy for the WASP-39 stellar spectrum and the chemical networks are not identical.

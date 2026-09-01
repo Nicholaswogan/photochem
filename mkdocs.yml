@@ -17,7 +17,7 @@ exclude_docs: |
   tutorials/rocky_planet_climate/species.yaml
   tutorials/gas_giant_photochemistry/photochem_rxns.yaml
   tutorials/gas_giant_photochemistry/photochem_thermo.yaml
-  tutorials/gas_giant_photochemistry/wasp39b_sun.txt
+  tutorials/gas_giant_photochemistry/toi193_spectrum.txt
 
 theme:
   name: material
