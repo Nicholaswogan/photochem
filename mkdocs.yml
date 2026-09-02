@@ -87,6 +87,8 @@ plugins:
       execute: true
       allow_errors: false
       include_source: true
+      cache: true
+      cache_dir: .cache/mkdocs-jupyter
 
 markdown_extensions:
   - admonition

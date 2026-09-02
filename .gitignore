@@ -9,3 +9,4 @@ photochem.egg-info
 _skbuild
 codex_reference
 site
+.cache

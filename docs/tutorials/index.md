@@ -1,7 +1,5 @@
 # Tutorials
 
-These executable tutorials demonstrate complete scientific workflows with Photochem. Each tutorial is maintained as a Jupytext Python file and executed when the documentation is built.
-
-- [Rocky Planet Photochemistry](rocky_planet_photochemistry.py) constructs a Modern Earth model, evolves it to steady state, and analyzes methane production and loss.
-- [Rocky Planet Climate](rocky_planet_climate.py) constructs condensable atmospheres, calculates their radiative properties, and solves for approximate and full radiative-convective equilibrium climates.
-- [Gas Giant Photochemistry](gas_giant_photochemistry.py) initializes a WASP-39b model from chemical equilibrium and follows sulfur photochemistry to steady state.
+- [Rocky Planet Photochemistry](rocky_planet_photochemistry.py) demonstrates how to simulate the steady-state photochemistry of a rocky planet, using the modern Earth as an example.
+- [Rocky Planet Climate](rocky_planet_climate.py) shows how to model the climate of a rocky planet like Earth. The tutorial covers constructing simple P-T profiles, computing their radiative properties, and computing full radiative-convective equilibrium.
+- [Gas Giant Photochemistry](gas_giant_photochemistry.py) covers how to simulate the photochemistry of a gas-rich planet that has no surface, using WASP-39b as an example.

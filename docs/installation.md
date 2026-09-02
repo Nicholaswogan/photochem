@@ -27,10 +27,10 @@ The installation automatically includes `photochem_clima_data`, which contains t
 
 ## Tutorial dependencies
 
-Photochem itself does not require JupyterLab, Jupytext, or Matplotlib. However, to run the documentation tutorials, you must install them in the same environment:
+Photochem itself does not require Jupyter, Jupytext, or Matplotlib. However, to run the documentation tutorials, you must install them in the same environment:
 
 ```sh
-conda install -c conda-forge jupyterlab jupytext matplotlib
+conda install -c conda-forge jupyter jupytext matplotlib
 ```
 
 ## What if I don't have Conda?

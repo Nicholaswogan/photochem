@@ -16,7 +16,7 @@ Photochem is an open-source code for simulating how chemistry, radiation, transp
 
 -   **Gas-giant photochemistry**
 
-    Use `EvoAtmosphereGasGiant` from `photochem.extensions` for models of gas-rich planets including deep atmospheres initialized from thermochemical equilibrium.
+    Use `EvoAtmosphereGasGiant` from `photochem.extensions` for simulating the chemistry of gas-rich planets like Jupiter or K2-18 b.
 
 -   **Climate**
 
@@ -30,6 +30,6 @@ Photochem is an open-source code for simulating how chemistry, radiation, transp
 
 ## Get started
 
-- [Installation](installation.md) covers the supported ways to install Photochem and verify the installation.
-- [Tutorials](tutorials/index.md) develop complete atmospheric-modeling workflows in executable notebooks.
+- [Installation](installation.md) covers the supported ways to install Photochem.
+- [Tutorials](tutorials/index.md) develop complete atmospheric-modeling workflows.
 - [API Reference](reference/index.md) documents the public Python classes and functions.

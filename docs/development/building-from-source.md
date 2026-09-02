@@ -69,7 +69,7 @@ cmake -S . -B build \
   -DBUILD_WITH_OPENMP=ON
 ```
 
-Compile all configured targets, then copy the compiled Python extensions into the source-tree `photochem/` package:
+Compile all configured targets, then use `cmake --install build` to copy the compiled Python extensions into the source-tree `photochem/` package:
 
 ```sh
 cmake --build build -j
