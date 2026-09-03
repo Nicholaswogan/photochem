@@ -93,10 +93,10 @@ planet_mass = 0.28 * constants.M_jup.cgs.value
 planet_radius = 1.279 * constants.R_jup.cgs.value
 
 pc = EvoAtmosphereGasGiant(
-    mechanism_file,
-    stellar_flux_file,
-    planet_mass,
-    planet_radius,
+    mechanism_file=mechanism_file,
+    stellar_flux_file=stellar_flux_file,
+    planet_mass=planet_mass,
+    planet_radius=planet_radius,
     solar_zenith_angle=83.0,
     thermo_file=thermo_file,
 )
