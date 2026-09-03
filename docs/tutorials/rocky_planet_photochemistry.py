@@ -99,7 +99,7 @@ plt.show()
 
 
 # %% [markdown]
-# To set this P–T–K<sub>zz</sub> profile in the code, we will use `initialize_atmosphere_p`. This function maps the pressure-based profile onto the model grid. Setting `persistent=True` retains temperature and eddy diffusion as functions of hydrostatic pressure while the composition evolves. Rainout is enabled, so persistent initialization also needs the tropopause pressure; we interpolate it at the 11 km tropopause specified in `settings.yaml`.
+# To set this $P$–$T$–$K_{zz}$ profile in the code, we will use `initialize_atmosphere_p`. This function maps the pressure-based profile onto the model grid. Setting `persistent=True` retains temperature and eddy diffusion as functions of hydrostatic pressure while the composition evolves. Rainout is enabled, so persistent initialization also needs the tropopause pressure; we interpolate it at the 11 km tropopause specified in `settings.yaml`.
 #
 # `initialize_atmosphere_p` optionally accepts a `mix` argument, which is the initial volume mixing ratios of the atmosphere. Here, we do not supply `mix`. When this is the case, the code guesses a sensible initial composition from gases with fixed-partial-pressure lower boundary conditions.
 
@@ -353,7 +353,7 @@ pc_restart.var.verbose = 0
 
 
 # %% [markdown]
-# The atmosphere file also does not preserve the persistent P–T–K<sub>zz</sub> configuration. We therefore restore the original pressure-based profiles and tropopause pressure before integrating the restarted model.
+# The atmosphere file also does not preserve the persistent $P$–$T$–$K_{zz}$ configuration. We therefore restore the original pressure-based profiles and tropopause pressure before integrating the restarted model.
 
 # %%
 pc_restart.set_press_temp_edd_profile(
@@ -377,5 +377,3 @@ print(f"Accepted steps in the final solver session: {pc_restart.wrk.nsteps}")
 
 # %% [markdown]
 # Starting from the saved steady-state profile should require much less work than constructing the atmosphere from the simple inferred composition.
-
-# %%
