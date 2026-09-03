@@ -18,7 +18,6 @@
 # This tutorial constructs a one-dimensional photochemical model of modern Earth's atmosphere, evolves its chemistry to steady state, and analyzes the results. The setup is adapted from the modern-Earth model of [Wogan et al. (2025)](https://doi.org/10.3847/PSJ/ae0e1c).
 
 # %%
-from pathlib import Path
 import time
 
 import matplotlib.pyplot as plt
@@ -26,13 +25,6 @@ import numpy as np
 
 from photochem import EvoAtmosphere
 from photochem.utils import stars, zahnle_rx_and_thermo_files
-
-# Support execution by MkDocs from the repository root and interactive
-# execution from docs/tutorials.
-tutorial_directory = Path("docs/tutorials/rocky_planet_photochemistry")
-if not tutorial_directory.is_dir():
-    tutorial_directory = Path("rocky_planet_photochemistry")
-
 
 # %% [markdown]
 # ## Initializing the photochemical model
@@ -44,7 +36,7 @@ if not tutorial_directory.is_dir():
 # %%
 zahnle_rx_and_thermo_files(
     atoms_names=["H", "He", "N", "O", "C", "S"],
-    rxns_filename=str(tutorial_directory / "zahnle_earth_HNOCHeS.yaml"),
+    rxns_filename="rocky_planet_photochemistry/zahnle_earth_HNOCHeS.yaml",
     thermo_filename=None,
     remove_reaction_particles=True,
 )
@@ -56,7 +48,7 @@ zahnle_rx_and_thermo_files(
 # **Stellar flux file:** To generate a stellar-flux file, we use the `solar_spectrum` routine. It starts from the packaged Thuillier et al. (2004) ATLAS-1 solar reference spectrum, extends it to long wavelengths with a solar blackbody, and rebins it to a resolution appropriate for Photochem.
 
 # %%
-_ = stars.solar_spectrum(outputfile=str(tutorial_directory / "modern_sun.txt"))
+_ = stars.solar_spectrum(outputfile="rocky_planet_photochemistry/modern_sun.txt")
 
 
 # %% [markdown]
@@ -64,9 +56,9 @@ _ = stars.solar_spectrum(outputfile=str(tutorial_directory / "modern_sun.txt"))
 
 # %%
 pc = EvoAtmosphere(
-    str(tutorial_directory / "zahnle_earth_HNOCHeS.yaml"),
-    str(tutorial_directory / "settings.yaml"),
-    str(tutorial_directory / "modern_sun.txt"),
+    mechanism_file="rocky_planet_photochemistry/zahnle_earth_HNOCHeS.yaml",
+    settings_file="rocky_planet_photochemistry/settings.yaml",
+    flux_file="rocky_planet_photochemistry/modern_sun.txt",
 )
 pc.var.verbose = 0  # Turn off printing
 
@@ -84,7 +76,7 @@ print(f"Atmosphere initialized: {pc.atmosphere_initialized}")
 
 # %%
 altitude_km, pressure_bar, temperature, eddy = np.loadtxt(
-    tutorial_directory / "modern_earth_profile.txt"
+    "rocky_planet_photochemistry/modern_earth_profile.txt"
 ).T
 pressure = pressure_bar * 1.0e6  # bar to dyn/cm^2
 
@@ -107,7 +99,7 @@ plt.show()
 
 
 # %% [markdown]
-# To set this P-T-$K_{zz}$ profile in the code, we will use `initialize_atmosphere_p`. This function maps the pressure-based profile onto the model grid. Setting `persistent=True` retains temperature and eddy diffusion as functions of hydrostatic pressure while the composition evolves. Rainout is enabled, so persistent initialization also needs the tropopause pressure; we interpolate it at the 11 km tropopause specified in `settings.yaml`.
+# To set this P–T–K<sub>zz</sub> profile in the code, we will use `initialize_atmosphere_p`. This function maps the pressure-based profile onto the model grid. Setting `persistent=True` retains temperature and eddy diffusion as functions of hydrostatic pressure while the composition evolves. Rainout is enabled, so persistent initialization also needs the tropopause pressure; we interpolate it at the 11 km tropopause specified in `settings.yaml`.
 #
 # `initialize_atmosphere_p` optionally accepts a `mix` argument, which is the initial volume mixing ratios of the atmosphere. Here, we do not supply `mix`. When this is the case, the code guesses a sensible initial composition from gases with fixed-partial-pressure lower boundary conditions.
 
@@ -138,24 +130,24 @@ print(f"Tropopause pressure: {tropopause_pressure / 1.0e6:.3e} bar")
 
 
 # %%
-def plot_composition(atmosphere, species, title, axis=None, legend=True):
+def plot_composition(atmosphere, species, title, ax=None, legend=True):
     """Plot selected mixing ratios against pressure."""
-    if axis is None:
-        _, axis = plt.subplots(figsize=(5.5, 5.0))
+    if ax is None:
+        _, ax = plt.subplots(figsize=(5.5, 5.0))
     for name in species:
-        axis.plot(atmosphere[name], atmosphere["pressure"] / 1.0e6, label=name)
-    axis.set_xscale("log")
-    axis.set_yscale("log")
-    if not axis.yaxis_inverted():
-        axis.invert_yaxis()
-    axis.set_xlim(1.0e-15, 1.2)
-    axis.set_xlabel("Mixing ratio")
-    axis.set_ylabel("Pressure (bar)")
-    axis.set_title(title)
-    axis.grid(alpha=0.25)
+        ax.plot(atmosphere[name], atmosphere["pressure"] / 1.0e6, label=name)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    if not ax.yaxis_inverted():
+        ax.invert_yaxis()
+    ax.set_xlim(1.0e-15, 1.2)
+    ax.set_xlabel("Mixing ratio")
+    ax.set_ylabel("Pressure (bar)")
+    ax.set_title(title)
+    ax.grid(alpha=0.25)
     if legend:
-        axis.legend()
-    return axis
+        ax.legend()
+    return ax
 
 initial_atmosphere = pc.mole_fraction_dict()
 plot_composition(
@@ -185,7 +177,6 @@ print("Available atmosphere fields:", list(initial_atmosphere)[:8], "...")
 # %%
 evolving_species = ["H2O", "O3", "CH4", "CO", "N2O"]
 
-
 def save_snapshot(model):
     """Copy the small subset of model state needed for the evolution plot."""
     atmosphere = model.mole_fraction_dict()
@@ -196,7 +187,6 @@ def save_snapshot(model):
     for name in evolving_species:
         snapshot[name] = atmosphere[name].copy()
     return snapshot
-
 
 snapshots = [save_snapshot(pc)]
 pc.initialize_robust_stepper(pc.wrk.usol)
@@ -226,7 +216,7 @@ print(f"Reached steady state at t = {final_time:.3e} s in {elapsed:.1f} seconds.
 
 
 # %% [markdown]
-# The panels below retain four stages of the integration. The robust stepper advances through increasingly long chemical timescales, so evenly spaced saved states provide a useful view of the atmosphere assembling from its simple initial composition.
+# The panels below show four stages of the integration. The numerical integration advances through increasingly long chemical timescales, so evenly spaced saved states provide a useful view of the atmosphere assembling from its simple initial composition.
 
 # %%
 snapshot_indices = np.unique(
@@ -235,7 +225,7 @@ snapshot_indices = np.unique(
 fig, axes = plt.subplots(2, 2, figsize=(9, 6), sharex=True, sharey=True)
 
 show_legend = True
-for axis, snapshot_index in zip(axes.flat, snapshot_indices):
+for ax, snapshot_index in zip(axes.flat, snapshot_indices):
     snapshot = snapshots[snapshot_index]
     atmosphere = {
         "pressure": snapshot["pressure"],
@@ -249,7 +239,7 @@ for axis, snapshot_index in zip(axes.flat, snapshot_indices):
         atmosphere,
         evolving_species,
         title,
-        axis=axis,
+        ax=ax,
         legend=show_legend,
     )
     show_legend = False
@@ -270,7 +260,7 @@ plt.show()
 
 
 # %% [markdown]
-# ## Diagnose methane production and loss
+# ## Diagnose production and loss of a species
 #
 # `production_and_loss` decomposes the tendency of one species into resolved production and loss contributions. These can include chemical reactions, vertical transport, boundary exchange, rainout, condensation and evaporation, distributed sources, custom rates, and hydrogen escape where applicable. Contributions are ordered by their vertically integrated importance.
 
@@ -279,67 +269,91 @@ methane_budget = pc.production_and_loss("CH4", pc.wrk.usol)
 
 number_of_processes = 3
 pressure_plot = steady_atmosphere["pressure"] / 1.0e6
-fig, axis = plt.subplots(figsize=(7.0, 5.0))
+fig, ax = plt.subplots(figsize=(7.0, 5.0))
 
 for index in range(min(number_of_processes, methane_budget.production.shape[1])):
-    axis.plot(
+    ax.plot(
         methane_budget.production[:, index],
         pressure_plot,
         label=f"Production: {methane_budget.production_rx[index]}",
     )
 for index in range(min(number_of_processes, methane_budget.loss.shape[1])):
-    axis.plot(
+    ax.plot(
         methane_budget.loss[:, index],
         pressure_plot,
         linestyle="--",
         label=f"Loss: {methane_budget.loss_rx[index]}",
     )
 
-axis.set_xscale("log")
-axis.set_yscale("log")
-axis.invert_yaxis()
-axis.set_xlabel(r"Rate (molecules cm$^{-3}$ s$^{-1}$)")
-axis.set_ylabel("Pressure (bar)")
-axis.grid(alpha=0.25)
-axis.legend(ncol=2, bbox_to_anchor=(0.5, 1.01), loc="lower center", fontsize=8)
+ax.set_xscale("log")
+ax.set_yscale("log")
+ax.invert_yaxis()
+ax.set_xlabel(r"Rate (molecules cm$^{-3}$ s$^{-1}$)")
+ax.set_ylabel("Pressure (bar)")
+ax.grid(alpha=0.25)
+ax.legend(ncol=2, bbox_to_anchor=(0.5, 1.01), loc="lower center", fontsize=8)
 plt.show()
 
 
 # %%
-print("Leading column-integrated CH4 production terms:")
+print("Leading column-integrated CH4 production terms (molecules cm^-2 s^-1):")
 for label, rate in zip(
     methane_budget.production_rx[:number_of_processes],
     methane_budget.integrated_production[:number_of_processes],
 ):
-    print(f"  {label}: {rate:.3e} molecules cm^-2 s^-1")
+    print(f"  {label+':':<25} {rate:.3e}")
 
-print("Leading column-integrated CH4 loss terms:")
+print("Leading column-integrated CH4 loss terms (molecules cm^-2 s^-1):")
 for label, rate in zip(
     methane_budget.loss_rx[:number_of_processes],
     methane_budget.integrated_loss[:number_of_processes],
 ):
-    print(f"  {label}: {rate:.3e} molecules cm^-2 s^-1")
+    print(f"  {label+':':<25} {rate:.3e}")
 
+
+# %% [markdown]
+# Photochem uses a finite-volume discretization, so internal vertical transport conserves the atmospheric column to numerical precision.
+
+# %%
+ind = methane_budget.production_rx.index('vertical transport')
+transport_production = methane_budget.integrated_production[ind]
+ind = methane_budget.loss_rx.index('vertical transport')
+transport_loss = methane_budget.integrated_loss[ind]
+transport_net = transport_production - transport_loss
+
+print(f"{'Transport production:':<30} {transport_production:.8e}")
+print(f"{'Transport loss:':<30} {transport_loss:.8e}")
+print(f"{'Transport production - loss:':<30} {transport_net:.8e}")
+
+# %% [markdown]
+# At steady state, the total methane being produced and destroyed through all processes is approximately balanced:
+
+# %%
+relative_net = methane_budget.integrated_net / methane_budget.integrated_total_production
+print(f"{'Total integrated production:':<30} {methane_budget.integrated_total_production:.2e}")
+print(f"{'Total integrated loss:':<30} {methane_budget.integrated_total_loss:.2e}")
+print(f"{'Total integrated net:':<30} {methane_budget.integrated_net:.2e}")
+print(f"{'Relative integrated net:':<30} {relative_net:.2e}")
 
 # %% [markdown]
 # ## Save and reload the atmosphere
 #
-# `out2atmosphere_txt` writes composition, temperature, eddy diffusion, and atmospheric structure to a human-readable profile. This is a convenient initialization file, but it is not a complete checkpoint: the reaction mechanism, stellar spectrum, boundary conditions, and other settings still come from the three files supplied to the constructor, and persistent pressure-profile configuration is not stored in the atmosphere file.
+# `out2atmosphere_txt` writes composition, temperature, eddy diffusion, and atmospheric structure to a human-readable text file. This is a convenient initialization file, but it is not a complete checkpoint: the reaction mechanism, stellar spectrum, boundary conditions, and other settings still come from the three files supplied to the constructor, and persistent pressure-profile configuration is not stored in the atmosphere file.
 
 # %%
-pc.out2atmosphere_txt(str(tutorial_directory / "modern_earth_steady.txt"), overwrite=True)
+pc.out2atmosphere_txt("rocky_planet_photochemistry/modern_earth_steady.txt", overwrite=True)
 
 pc_restart = EvoAtmosphere(
-    str(tutorial_directory / "zahnle_earth_HNOCHeS.yaml"),
-    str(tutorial_directory / "settings.yaml"),
-    str(tutorial_directory / "modern_sun.txt"),
-    str(tutorial_directory / "modern_earth_steady.txt"),
+    mechanism_file="rocky_planet_photochemistry/zahnle_earth_HNOCHeS.yaml",
+    settings_file="rocky_planet_photochemistry/settings.yaml",
+    flux_file="rocky_planet_photochemistry/modern_sun.txt",
+    atmosphere_txt="rocky_planet_photochemistry/modern_earth_steady.txt",
 )
 pc_restart.var.verbose = 0
 
 
 # %% [markdown]
-# The atmosphere file does not preserve the persistent P-T-$K_{zz}$ configuration. We therefore restore the original pressure-based profiles and tropopause pressure before integrating the restarted model.
+# The atmosphere file also does not preserve the persistent P–T–K<sub>zz</sub> configuration. We therefore restore the original pressure-based profiles and tropopause pressure before integrating the restarted model.
 
 # %%
 pc_restart.set_press_temp_edd_profile(
@@ -362,4 +376,6 @@ print(f"Accepted steps in the final solver session: {pc_restart.wrk.nsteps}")
 
 
 # %% [markdown]
-# Starting from the saved steady-state profile should require much less work than constructing the atmosphere from the simple inferred composition. The result nevertheless depends on the separately supplied mechanism, settings, and stellar spectrum, which is why an atmosphere file should be treated as a reusable profile rather than a self-contained model restart.
+# Starting from the saved steady-state profile should require much less work than constructing the atmosphere from the simple inferred composition.
+
+# %%

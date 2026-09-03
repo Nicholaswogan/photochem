@@ -17,11 +17,9 @@
 # %% [markdown]
 # # Rocky planet climate
 #
-# Photochem's climate model is contained in the `AdiabatClimate` class. It constructs one-dimensional atmospheric profiles, calculates their radiative properties, and solves for approximate or full radiative-convective equilibrium. The radiative calculations are multithreaded; here we limit them to four threads to keep resource use predictable.
+# Photochem's climate model is contained in the `AdiabatClimate` class. It constructs one-dimensional atmospheric profiles, calculates their radiative properties, and solves for approximate or full radiative-convective equilibrium. The radiative calculations are multithreaded; here we limit them to four threads.
 
 # %%
-from pathlib import Path
-
 import numpy as np
 from astropy import constants
 from matplotlib import pyplot as plt
@@ -36,12 +34,6 @@ from photochem.utils import (
 
 _ = threadpool_limits(limits=4)
 
-# Support execution by MkDocs from the repository root and interactive
-# execution from docs/tutorials.
-tutorial_directory = Path("docs/tutorials/rocky_planet_climate")
-if not tutorial_directory.is_dir():
-    tutorial_directory = Path("rocky_planet_climate")
-
 # %% [markdown]
 # ## Initialization
 #
@@ -50,9 +42,8 @@ if not tutorial_directory.is_dir():
 # **Species file:** This file defines the gases included in the climate model, their elemental compositions and thermodynamic properties, and which gases may condense. Here, H₂O and CO₂ are condensable while N₂ is not.
 
 # %%
-species_file = str(tutorial_directory / "species.yaml")
 species_file_for_climate(
-    filename=species_file,
+    filename="rocky_planet_climate/species.yaml",
     species=["H2O", "CO2", "N2"],
     condensates=["H2O", "CO2"],
 )
@@ -61,9 +52,8 @@ species_file_for_climate(
 # **Settings file:** This file defines the atmospheric grid, planetary mass and radius, surface albedo, and radiative-transfer configuration. We use Earth's mass and radius with a surface albedo of 0.2.
 
 # %%
-settings_file = str(tutorial_directory / "settings.yaml")
 settings_file_for_climate(
-    filename=settings_file,
+    filename="rocky_planet_climate/settings.yaml",
     planet_mass=float(constants.M_earth.cgs.value),
     planet_radius=float(constants.R_earth.cgs.value),
     surface_albedo=0.2,
@@ -73,17 +63,16 @@ settings_file_for_climate(
 # **Stellar flux file:** This file supplies the wavelength-dependent stellar irradiance used for shortwave radiative transfer. `solar_spectrum` constructs the modern solar spectrum from the packaged ATLAS-1 reference, extends it to long wavelengths with a solar blackbody, and rebins it for Photochem's photochemical and climate models.
 
 # %%
-flux_file = str(tutorial_directory / "modern_sun.txt")
-_ = stars.solar_spectrum(outputfile=flux_file)
+_ = stars.solar_spectrum(outputfile="rocky_planet_climate/modern_sun.txt")
 
 # %% [markdown]
 # Now we can initialize `AdiabatClimate`:
 
 # %%
 c = AdiabatClimate(
-    species_file=species_file,
-    settings_file=settings_file,
-    flux_file=flux_file,
+    species_file="rocky_planet_climate/species.yaml",
+    settings_file="rocky_planet_climate/settings.yaml",
+    flux_file="rocky_planet_climate/modern_sun.txt",
 )
 
 # %% [markdown]

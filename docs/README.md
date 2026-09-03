@@ -17,7 +17,7 @@ cmake --build build -j
 cmake --install build
 ```
 
-For a direct CMake build, the install step copies `_photochem`, `_clima`, and `_equilibrate` into the source-tree `photochem/` directory. This is required because an extension installed only into the Conda environment is shadowed by the source-tree package when MkDocs runs from the repository root. Repeat the CMake build and install steps after changing Fortran, C, or Cython source. Documentation-only and pure-Python changes do not require recompilation.
+For a direct CMake build, the install step copies `_photochem`, `_clima`, and `_equilibrate` into the source-tree `photochem/` directory. The documentation commands below place the repository root on `PYTHONPATH`, so these in-place extensions are required. Repeat the CMake build and install steps after changing Fortran, C, or Cython source. Documentation-only and pure-Python changes do not require recompilation.
 
 ## Install the documentation dependencies
 
@@ -34,21 +34,23 @@ The Mamba command installs MkDocs-Jupyter and its dependencies from conda-forge.
 
 ## Preview and build the site
 
-From the repository root, start the local preview server with:
+MkDocs executes every tutorial from `docs/tutorials`, matching the directory used for interactive tutorial work. From the repository root, start the local preview server with:
 
 ```sh
-mkdocs serve
+cd docs/tutorials
+PYTHONPATH=../.. mkdocs serve --config-file ../../mkdocs.yml
 ```
 
 This is most useful for developing or writing documentation, as you can actively see the site changing. Create a production build with:
 
 ```sh
-mkdocs build --strict
+cd docs/tutorials
+PYTHONPATH=../.. mkdocs build --strict --config-file ../../mkdocs.yml
 ```
 
-The generated site is written to `site/`, which is ignored by Git. The API reference is extracted from the in-place source-tree package, so rebuild and install the compiled extensions before checking Cython API changes. Tutorials are stored as Jupytext `py:percent` files under `docs/tutorials/`. MkDocs executes them from the repository root during the build, stops on notebook errors, and includes the Jupytext source with each rendered tutorial. Tutorial paths should support both the repository root used by MkDocs and `docs/tutorials` used for manual execution.
+The generated site is written to the repository's `site/` directory, which is ignored by Git. The API reference is extracted from the in-place source-tree package, so rebuild and install the compiled extensions before checking Cython API changes. Tutorials are stored as Jupytext `py:percent` files under `docs/tutorials/`. MkDocs stops on notebook errors and includes the Jupytext source with each rendered tutorial.
 
-Tutorials can also be converted or run manually from `docs/tutorials/`. For example:
+Tutorials can also be converted or run manually from `docs/tutorials/`. For example, from the repository root:
 
 ```sh
 cd docs/tutorials

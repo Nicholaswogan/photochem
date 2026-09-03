@@ -152,7 +152,7 @@ docs/
     requirements.txt
 ```
 
-The MkDocs configuration should remain at the repository root so local build commands are conventional. Documentation dependencies should be isolated from Photochem's runtime dependencies and constrained sufficiently to make builds reproducible without requiring frequent manual upgrades.
+The MkDocs configuration should remain at the repository root. Documentation builds should execute from `docs/tutorials` so tutorial input paths match interactive use, while the repository root is placed on `PYTHONPATH` for the in-place Photochem package. Documentation dependencies should be isolated from Photochem's runtime dependencies and constrained sufficiently to make builds reproducible without requiring frequent manual upgrades.
 
 First-party Markdown prose should use one physical line per paragraph, without hard-wrapping at a fixed column width. List items should likewise remain on one physical line where Markdown syntax permits; code blocks, tables, and other structures retain the line breaks required by their syntax.
 

@@ -50,15 +50,18 @@ jobs:
           cd "$RUNNER_TEMP"
           python -c "import photochem; print(f'Photochem {photochem.__version__}')"
         )
-        # MkDocs executes notebooks from the repository root, where the source
-        # package takes precedence over the installed wheel.
+        # The documentation build adds the repository root to PYTHONPATH, so
+        # its source package takes precedence over the installed wheel.
         cp "$CONDA_PREFIX"/lib/python*/site-packages/photochem/*.so photochem/
 
     - name: Build documentation
       shell: bash -el {0}
+      working-directory: ${{ github.workspace }}/docs/tutorials
+      env:
+        PYTHONPATH: ${{ github.workspace }}
       run: |
         start=$SECONDS
-        mkdocs build --strict
+        mkdocs build --strict --config-file ../../mkdocs.yml
         elapsed=$((SECONDS - start))
         echo "Documentation build completed in ${elapsed} seconds."
         echo "Documentation build: ${elapsed} seconds" >> "$GITHUB_STEP_SUMMARY"

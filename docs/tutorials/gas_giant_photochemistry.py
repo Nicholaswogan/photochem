@@ -20,7 +20,6 @@
 # This tutorial uses `EvoAtmosphereGasGiant` to simulate the photochemistry of the hot Saturn WASP-39b. We focus on the production of sulfur dioxide motivated by the analysis of [Tsai et al. (2023)](https://doi.org/10.1038/s41586-023-05902-2). The calculation illustrates the gas-giant workflow but does not reproduce that study exactly.
 
 # %%
-from pathlib import Path
 import time
 
 from astropy import constants
@@ -30,13 +29,6 @@ import numpy as np
 from photochem.extensions import EvoAtmosphereGasGiant
 from photochem.utils import stars, zahnle_rx_and_thermo_files
 
-# Support execution by MkDocs from the repository root and interactive
-# execution from docs/tutorials.
-tutorial_directory = Path("docs/tutorials/gas_giant_photochemistry")
-if not tutorial_directory.is_dir():
-    tutorial_directory = Path("gas_giant_photochemistry")
-
-
 # %% [markdown]
 # ## Initializing the photochemical model
 #
@@ -45,8 +37,8 @@ if not tutorial_directory.is_dir():
 # The first required input is a chemical mechanism. Here, `zahnle_rx_and_thermo_files` creates reaction and thermodynamic files containing H, He, N, O, C, and S chemistry. Reaction particles are removed because they do not work well for planets with hot and deep atmospheres.
 
 # %%
-mechanism_file = str(tutorial_directory / "photochem_rxns.yaml")
-thermo_file = str(tutorial_directory / "photochem_thermo.yaml")
+mechanism_file = "gas_giant_photochemistry/photochem_rxns.yaml"
+thermo_file = "gas_giant_photochemistry/photochem_thermo.yaml"
 
 zahnle_rx_and_thermo_files(
     atoms_names=["H", "He", "N", "O", "C", "S"],
@@ -63,7 +55,7 @@ zahnle_rx_and_thermo_files(
 equilibrium_temperature = 1166.0  # K
 host_star_temperature = 5400.0  # K
 comparison_star = stars.closest_muscles_to_Teff(host_star_temperature)
-stellar_flux_file = str(tutorial_directory / "toi193_spectrum.txt")
+stellar_flux_file = "gas_giant_photochemistry/toi193_spectrum.txt"
 
 print(
     f"Closest MUSCLES star: {comparison_star['name']} "
@@ -140,7 +132,7 @@ pc.gdat.gas.molfracs_atoms_sun = np.array(
 
 # %%
 pressure, temperature = np.loadtxt(
-    tutorial_directory / "wasp39b_morning_pt.txt"
+    "gas_giant_photochemistry/wasp39b_morning_pt.txt"
 ).T
 pressure_bar = pressure / 1.0e6
 
