@@ -8,6 +8,9 @@ docs_dir: docs
 site_dir: site
 exclude_docs: |
   README.md
+  ask-ai-implementation-plan.md
+  ask_ai/
+  __init__.py
   requirements.txt
   overrides/
   tutorials/rocky_planet_photochemistry/modern_earth_steady.txt
@@ -43,6 +46,7 @@ theme:
 nav:
   - Home: index.md
   - Installation: installation.md
+  - Ask AI: ask-ai.md
   - Tutorials:
       - Overview: tutorials/index.md
       - Rocky Planet Photochemistry: tutorials/rocky_planet_photochemistry.py
@@ -104,7 +108,13 @@ markdown_extensions:
 
 extra_css:
   - stylesheets/navigation.css
+  - stylesheets/ask-ai.css
 
 extra_javascript:
   - javascripts/mathjax.js
+  - javascripts/vendor/highlight-11.11.1.min.js
+  - javascripts/vendor/fortran-11.11.1.min.js
+  - javascripts/vendor/marked-18.0.7.umd.js
+  - javascripts/vendor/dompurify-3.4.15.min.js
+  - javascripts/ask-ai.js
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

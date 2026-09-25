@@ -62,3 +62,26 @@ Write Markdown prose with one physical line per paragraph; do not hard-wrap para
 ## Automation and deployment
 
 The `documentation` GitHub Actions workflow builds the complete site on pushes to `dev` and `main`, on pull requests targeting either branch, and when manually requested. Only a push to `main` uploads and deploys the GitHub Pages artifact. The root website contains the latest documentation from `main`; historical versioned documentation is deferred until the project has another published documentation version.
+
+## Local Ask AI preview
+
+### Run entirely on this Mac
+
+From the repository root, install the chat dependencies in your active Conda environment and start the server in one terminal:
+
+```sh
+conda install -c conda-forge 'openai>=2,<3' fastapi uvicorn h5py
+export OPENAI_API_KEY="your-api-key"
+python -m docs.ask_ai.server
+```
+
+In another terminal, build the docs from the tutorial directory, then serve the generated site from the repository root:
+
+```sh
+cd docs/tutorials
+PYTHONPATH=../.. mkdocs build --config-file ../../mkdocs.yml
+cd ../..
+python -m http.server 8000 --bind 127.0.0.1 --directory site
+```
+
+Open <http://127.0.0.1:8000/ask-ai/>. Keep both servers running while using the chat. The Ask AI server reads tracked text files from this checkout and the sibling `photochem_clima_data` Git checkout, if present. It can list tracked HDF5 files and inspect dataset names, shapes, and types without loading array values. It cannot execute Photochem. Restart the Ask AI server after changing either repository. The published Ask AI page shows that chat is available only in the local preview.
