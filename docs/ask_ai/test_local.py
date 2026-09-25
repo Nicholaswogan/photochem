@@ -1,6 +1,7 @@
 """Focused checks for the local assistant's repository boundary and tool loop."""
 
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +10,7 @@ from unittest.mock import Mock
 
 from fastapi.testclient import TestClient
 
+from docs.ask_ai.release import latest_release_repository, resolve_release
 from docs.ask_ai.repository import Repository
 from docs.ask_ai.server import (MAX_OUTPUT_TOKENS, OutputTokenLimitError,
                            create_app, run_tool, stream_answer)
@@ -126,7 +128,8 @@ class ToolLoopTests(unittest.TestCase):
 
     def test_http_endpoint_returns_ndjson(self):
         repository = Mock(commit="0123456789abcdef", data_commit=None,
-                          files=["docs/guide.md"], hdf5_files={})
+                          files=["docs/guide.md"], hdf5_files={},
+                          release="v0.9.0", data_version="0.3.2")
         response = SimpleNamespace(id="r1", output=[], output_text="Hello.")
         client = Mock()
         client.responses.create.return_value = iter([
@@ -135,12 +138,89 @@ class ToolLoopTests(unittest.TestCase):
         ])
         web = TestClient(create_app(repository, client))
         self.assertEqual(web.get("/health").json()["protocol"], "ndjson-v1")
+        self.assertEqual(web.get("/health").json()["release"], "v0.9.0")
         result = web.post("/chat", json={"message": "Hello?"})
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.headers["content-type"], "application/x-ndjson")
         self.assertEqual([json.loads(line)["type"] for line in result.text.splitlines()],
                          ["delta", "done"])
         self.assertEqual(web.post("/chat", json={"message": " "}).status_code, 422)
+
+
+class ReleaseTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name) / "photochem"
+        self.data_root = Path(self.directory.name) / "photochem_clima_data"
+        for repo in (self.root, self.data_root):
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+
+        (self.data_root / "pyproject.toml").write_text('[project]\nversion = "0.3.2"\n')
+        (self.data_root / "data.txt").write_text("released data\n")
+        import h5py
+        with h5py.File(self.data_root / "spectrum.h5", "w") as data:
+            data.create_dataset("wavelength", data=[100.0, 200.0])
+        self.data_sha = self.commit(self.data_root)
+        subprocess.run(["git", "tag", "v0.3.2"], cwd=self.data_root, check=True)
+        (self.data_root / "data.txt").write_text("unreleased data\n")
+        with h5py.File(self.data_root / "spectrum.h5", "w") as data:
+            data.create_dataset("newer", data=[1.0])
+        self.commit(self.data_root)
+
+        (self.root / "CMakeLists.txt").write_text(
+            'project(Photochem LANGUAGES Fortran C VERSION "0.9.0")\n'
+            'set(PHOTOCHEM_CLIMA_DATA_VERSION "0.3.2")\n'
+        )
+        (self.root / "guide.md").write_text("released Photochem\n")
+        self.source_sha = self.commit(self.root)
+        subprocess.run(["git", "tag", "v0.9.0"], cwd=self.root, check=True)
+        (self.root / "guide.md").write_text("unreleased Photochem\n")
+        self.commit(self.root)
+
+    def tearDown(self):
+        self.directory.cleanup()
+
+    @staticmethod
+    def commit(repo):
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.com",
+                        "commit", "-qm", "Test"], cwd=repo, check=True)
+        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo,
+                                       text=True).strip()
+
+    def test_indexes_matching_release_commits_only(self):
+        self.assertEqual(resolve_release(self.root, self.data_root),
+                         ("v0.9.0", self.source_sha, "0.3.2", self.data_sha))
+        with latest_release_repository(self.root, self.data_root,
+                                       Path(self.directory.name)) as repository:
+            self.assertEqual(repository.release, "v0.9.0")
+            self.assertEqual(repository.data_version, "0.3.2")
+            self.assertIn("released Photochem", repository.read_file("guide.md", 1, 1)["content"])
+            self.assertIn("released data", repository.read_file(
+                "photochem_clima_data/data.txt", 1, 1)["content"])
+            self.assertNotIn("unreleased", repository.read_file("guide.md", 1, 1)["content"])
+            self.assertIn(self.source_sha, repository.source_url("guide.md", 1))
+            self.assertIn(self.data_sha, repository.source_url(
+                "photochem_clima_data/data.txt", 1))
+            entries = repository.inspect_hdf5("photochem_clima_data/spectrum.h5")["entries"]
+            self.assertEqual([entry["name"] for entry in entries], ["wavelength"])
+
+    def test_selects_newest_version_tag(self):
+        (self.root / "CMakeLists.txt").write_text(
+            'project(Photochem LANGUAGES Fortran C VERSION "0.10.0")\n'
+            'set(PHOTOCHEM_CLIMA_DATA_VERSION "0.3.2")\n'
+        )
+        newer_sha = self.commit(self.root)
+        subprocess.run(["git", "tag", "v0.10.0"], cwd=self.root, check=True)
+        self.assertEqual(resolve_release(self.root, self.data_root)[:2],
+                         ("v0.10.0", newer_sha))
+
+    def test_missing_data_tag_fails_instead_of_using_head(self):
+        subprocess.run(["git", "tag", "-d", "v0.3.2"], cwd=self.data_root,
+                       check=True, capture_output=True)
+        with self.assertRaisesRegex(RuntimeError, "Missing photochem_clima_data tag"):
+            resolve_release(self.root, self.data_root)
 
 if __name__ == "__main__":
     unittest.main()

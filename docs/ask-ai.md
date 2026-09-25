@@ -1,6 +1,6 @@
 # Ask AI
 
-Ask questions about Photochem's documentation, source code, and companion `photochem_clima_data` repository. The assistant can search tracked text files and inspect HDF5 dataset structure, but cannot run Photochem or execute commands.
+Ask questions about Photochem's documentation, source code, and companion `photochem_clima_data` repository. The assistant considers **only the latest Photochem release** and the matching `photochem_clima_data` release.
 
 <div class="ask-ai" id="ask-ai" aria-label="Photochem AI assistant">
   <div class="ask-ai__status" id="ask-ai-status" role="status">Checking local assistant…</div>

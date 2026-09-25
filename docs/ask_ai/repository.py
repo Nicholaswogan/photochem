@@ -21,39 +21,48 @@ MAX_FILE_BYTES = 1_000_000
 
 
 class Repository:
-    def __init__(self, root: Path = ROOT, data_root: Path | None = None):
+    def __init__(self, root: Path = ROOT, data_root: Path | None = None,
+                 source_commit: str | None = None, data_commit: str | None = None,
+                 release: str | None = None, data_version: str | None = None):
         self.root = root.resolve()
+        self.release = release
+        self.data_version = data_version
         self.files: dict[str, list[str]] = {}
         self.hdf5_files: dict[str, Path] = {}
         self.sources: dict[str, tuple[str, str, bool]] = {}
-        self.commit = self._index(self.root, "", SOURCE_URL)
+        self.commit = self._index(self.root, "", SOURCE_URL, source_commit)
         if data_root is None:
             data_root = self.root.parent / "photochem_clima_data"
         self.data_root = data_root.resolve()
         self.data_commit = None
-        if (self.data_root / ".git").exists():
-            self.data_commit = self._index(self.data_root, DATA_PREFIX, DATA_SOURCE_URL)
+        if data_commit is not None or (self.data_root / ".git").exists():
+            self.data_commit = self._index(self.data_root, DATA_PREFIX, DATA_SOURCE_URL,
+                                           data_commit)
 
-    def _index(self, root: Path, prefix: str, source_url: str) -> str:
-        commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=root, text=True
-        ).strip()
-        changed = subprocess.check_output(
-            ["git", "diff", "--name-only", "-z", "HEAD"], cwd=root
-        )
-        changed_paths = {raw.decode("utf-8") for raw in changed.split(b"\0") if raw}
-        tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=root)
-        for raw in tracked.split(b"\0"):
-            if not raw:
-                continue
-            path = raw.decode("utf-8")
-            file = (root / path).resolve()
+    def _index(self, root: Path, prefix: str, source_url: str,
+               revision: str | None = None) -> str:
+        if revision is None:
+            revision = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+            changed = subprocess.check_output(
+                ["git", "diff", "--name-only", "-z", "HEAD"], cwd=root
+            )
+            changed_paths = {raw.decode("utf-8") for raw in changed.split(b"\0") if raw}
+            tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=root)
+            paths = [Path(raw.decode("utf-8")) for raw in tracked.split(b"\0") if raw]
+        else:
+            changed_paths = set()
+            paths = [file.relative_to(root) for file in root.rglob("*") if file.is_file()]
+        for relative in paths:
+            path = relative.as_posix()
+            file = (root / relative).resolve()
             if not file.is_relative_to(root) or not file.is_file():
                 continue
             name = prefix + path
             if prefix and file.suffix.lower() == ".h5":
                 self.hdf5_files[name] = file
-                self.sources[name] = (source_url, commit, path in changed_paths)
+                self.sources[name] = (source_url, revision, path in changed_paths)
                 continue
             if file.suffix.lower() not in TEXT_SUFFIXES and file.name not in {
                 "CMakeLists.txt", "Makefile", "LICENSE",
@@ -63,10 +72,10 @@ class Repository:
                 continue
             try:
                 self.files[name] = file.read_text(encoding="utf-8").splitlines()
-                self.sources[name] = (source_url, commit, path in changed_paths)
+                self.sources[name] = (source_url, revision, path in changed_paths)
             except UnicodeDecodeError:
                 continue
-        return commit
+        return revision
 
     def source_url(self, path: str, line: int | None = None) -> str:
         source_url, commit, changed = self.sources[path]

@@ -285,13 +285,15 @@
       if (!response.ok) throw new Error("Unavailable");
       const data = await response.json();
       const ready = data.ready && data.protocol === "ndjson-v1";
+      const versions = data.release && data.data_version
+        ? `Photochem ${data.release} · data ${data.data_version}` : "release pair unavailable";
       if (data.protocol !== "ndjson-v1") {
         status.textContent = "Restart the Ask AI server to enable streaming replies.";
       } else if (!data.ready) {
-        status.textContent = "Local server is running. Set OPENAI_API_KEY to enable chat.";
+        status.textContent = `${versions} · Set OPENAI_API_KEY to enable chat.`;
       } else if (ready) {
         const reasoning = data.reasoning_effort ? ` · ${data.reasoning_effort} reasoning` : "";
-        status.textContent = `Local assistant ready · ${data.model}${reasoning} · ${data.commit}`;
+        status.textContent = `${versions} · ${data.model}${reasoning} · ready`;
       }
       status.dataset.ready = String(ready);
       input.disabled = !ready;

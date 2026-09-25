@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from .release import latest_release_repository
 from .repository import Repository
 
 
@@ -42,6 +43,18 @@ source does not support an answer, say what you could not verify. Keep answers
 clear and concise. For code examples, use fenced code blocks with a language
 tag such as python, fortran, bash, cpp, or yaml.
 """
+
+
+def instructions_for(repository: Repository) -> str:
+    release = getattr(repository, "release", None)
+    data_version = getattr(repository, "data_version", None)
+    if not isinstance(release, str) or not isinstance(data_version, str):
+        return INSTRUCTIONS
+    return (INSTRUCTIONS + f"\nYou have access only to Photochem {release} and "
+            f"photochem_clima_data {data_version}. State this scope when relevant. "
+            "If asked about another version or unreleased changes, say that you "
+            "cannot verify them from these release snapshots. Do not infer changes "
+            "between versions.\n")
 
 TOOLS = [
     {
@@ -130,7 +143,7 @@ def stream_answer(client, repository: Repository, message: str, history: list[di
     for round_number in range(MAX_TOOL_ROUNDS + 1):
         request = {
             "model": MODEL,
-            "instructions": INSTRUCTIONS,
+            "instructions": instructions_for(repository),
             "input": input_items,
             "tools": TOOLS,
             "reasoning": {"effort": REASONING_EFFORT},
@@ -183,8 +196,7 @@ def stream_answer(client, repository: Repository, message: str, history: list[di
     raise RuntimeError("The assistant reached its repository-search limit.")
 
 
-def create_app(repository: Repository | None = None, client=None) -> FastAPI:
-    repository = repository or Repository()
+def create_app(repository: Repository, client=None) -> FastAPI:
     slots = BoundedSemaphore(4)
     app = FastAPI(title="Photochem Ask AI", docs_url=None, redoc_url=None)
     app.add_middleware(
@@ -202,6 +214,8 @@ def create_app(repository: Repository | None = None, client=None) -> FastAPI:
             "protocol": "ndjson-v1",
             "model": MODEL,
             "reasoning_effort": REASONING_EFFORT,
+            "release": repository.release,
+            "data_version": repository.data_version,
             "commit": repository.commit[:10],
             "data_commit": repository.data_commit[:10] if repository.data_commit else None,
             "files": len(repository.files) + len(repository.hdf5_files),
@@ -240,7 +254,6 @@ def create_app(repository: Repository | None = None, client=None) -> FastAPI:
 
 
 def main():
-    repository = Repository()
     client = None
     if os.environ.get("OPENAI_API_KEY"):
         from openai import OpenAI
@@ -248,12 +261,15 @@ def main():
         client = OpenAI(timeout=120)
     import uvicorn
 
-    print(f"Ask AI on http://127.0.0.1:{PORT} ({len(repository.files)} text files, "
-          f"{len(repository.hdf5_files)} HDF5 files; photochem {repository.commit[:10]}, "
-          f"data {repository.data_commit[:10] if repository.data_commit else 'unavailable'})")
-    if client is None:
-        print("OPENAI_API_KEY is unset. Health check works; chat is disabled.")
-    uvicorn.run(create_app(repository, client), host="127.0.0.1", port=PORT)
+    with latest_release_repository() as repository:
+        print(f"Ask AI on http://127.0.0.1:{PORT} "
+              f"(Photochem {repository.release} {repository.commit[:10]}, "
+              f"photochem_clima_data {repository.data_version} "
+              f"{repository.data_commit[:10]}; {len(repository.files)} text files, "
+              f"{len(repository.hdf5_files)} HDF5 files)")
+        if client is None:
+            print("OPENAI_API_KEY is unset. Health check works; chat is disabled.")
+        uvicorn.run(create_app(repository, client), host="127.0.0.1", port=PORT)
 
 
 if __name__ == "__main__":
