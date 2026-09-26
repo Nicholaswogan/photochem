@@ -9,6 +9,7 @@ module photochem_data
 
   public :: PhotochemData
   public :: ParticleXsections
+  public :: ParticleOpticalTable
   public :: ElementaryRate, ThreeBodyRate, FalloffRate, PressDependentRate
   public :: gibbs_energy_eval
   public :: parse_reaction
@@ -24,10 +25,19 @@ module photochem_data
     real(dp), allocatable :: xs(:) !! The cross section in cm^2/molecule (nw)
   end type
 
-  !> Particle optical properties tabulated over radius and wavelength.
+  !> Particle optical properties interpolated onto the model grid.
   type :: ParticleXsections
     logical :: ThereIsData
-    real(dp), allocatable :: w0(:,:) ! (nz,nw) or (nrad_file, nw)
+    real(dp), allocatable :: w0(:,:) ! (nz,nw)
+    real(dp), allocatable :: qext(:,:)
+    real(dp), allocatable :: gt(:,:)
+  end type
+
+  !> Optical data for one particle, with its own radius grid in cm.
+  type :: ParticleOpticalTable
+    logical :: ThereIsData = .false.
+    real(dp), allocatable :: radii(:) ! (nrad)
+    real(dp), allocatable :: w0(:,:) ! (nrad,nw)
     real(dp), allocatable :: qext(:,:)
     real(dp), allocatable :: gt(:,:)
   end type
@@ -191,12 +201,8 @@ module photochem_data
     integer, allocatable :: raynums(:) !! species number of rayleigh species
 
     ! particle radiative transfer
-    integer :: nrad_file
-    real(dp), allocatable  :: radii_file(:,:) !! particle radii in optical data files
-    ! We use array of types for particle xs because we want the option
-    ! to exclude optical properties, but not take up a ton of useless memory.
-    ! So some elements of this array have nothing in it.
-    type(ParticleXsections), allocatable :: part_xs_file(:) !! np in length
+    ! Particles without optical properties have unallocated table arrays.
+    type(ParticleOpticalTable), allocatable :: part_xs_file(:) !! np in length
 
     ! settings
     real(dp) :: planet_mass !! Planet mass (g).
@@ -2260,7 +2266,6 @@ contains
     character(:), allocatable, intent(out) :: err
 
     integer :: nrad
-    integer, parameter :: nrad_fixed = 50
     real(dp), allocatable :: radii(:)
     real(dp), allocatable :: w0(:,:), qext(:,:), g(:,:)
     character(len=:), allocatable :: xsroot
@@ -2269,23 +2274,13 @@ contains
 
     xsroot = trim(data_dir)//"/aerosol_xsections/"
 
-    allocate(dat%radii_file(nrad_fixed,dat%np))
     allocate(dat%part_xs_file(dat%np))
-
-    dat%nrad_file = nrad_fixed
 
     do i = 1,dat%np
 
       if (dat%particle_optical_prop(i) == 'none') then
         ! there is no optical data, so we skip
-        dat%part_xs_file(i)%ThereIsData = .false.
         cycle
-      else
-        ! there is optical data, so we allocate and get it
-        dat%part_xs_file(i)%ThereIsData = .true.
-        allocate(dat%part_xs_file(i)%w0(nrad_fixed,dat%nw))
-        allocate(dat%part_xs_file(i)%qext(nrad_fixed,dat%nw))
-        allocate(dat%part_xs_file(i)%gt(nrad_fixed,dat%nw))
       endif
 
       if (dat%particle_optical_type(i) == MieParticle) then
@@ -2296,22 +2291,16 @@ contains
                   "/frac_"//trim(dat%particle_optical_prop(i))//".h5"
       endif
 
-      if (allocated(radii)) then
-        deallocate(radii, w0, qext, g)
-      endif
       call read_mie_data_file(filename, dat%nw, dat%wavl, &
                               nrad, radii, w0, qext, g, err)
       if (allocated(err)) return
-      if (nrad /= nrad_fixed) then
-        err = "IOError: Aerosol data file "//filename// &
-              "must have 50 radii bins."
-        return
-      endif
 
-      dat%radii_file(:,i) = radii/1.e4_dp ! convert from micron to cm
-      dat%part_xs_file(i)%w0 = w0
-      dat%part_xs_file(i)%qext = qext
-      dat%part_xs_file(i)%gt = g
+      radii = radii/1.e4_dp ! convert from micron to cm
+      call move_alloc(radii, dat%part_xs_file(i)%radii)
+      call move_alloc(w0, dat%part_xs_file(i)%w0)
+      call move_alloc(qext, dat%part_xs_file(i)%qext)
+      call move_alloc(g, dat%part_xs_file(i)%gt)
+      dat%part_xs_file(i)%ThereIsData = .true.
 
     enddo
 

@@ -834,7 +834,7 @@ contains
     ! Optical cross-section data require radii strictly inside their tabulated
     ! interval. Use a clearly out-of-range value after CVODE is active.
     pc%var%particle_radius(optical_particle,pc%var%nz) = &
-        0.5_dp*pc%dat%radii_file(1,optical_particle)
+        0.5_dp*pc%dat%part_xs_file(optical_particle)%radii(1)
     top_before = pc%var%top_atmos
     surface_pressure_before = pc%wrk%surface_pressure
     z_before = pc%var%z
@@ -1896,13 +1896,14 @@ contains
     type(EvoAtmosphere), intent(in) :: pc
     real(dp), intent(out) :: particle_radius(:,:)
 
-    integer :: i
+    integer :: i, nrad
 
     particle_radius = 0.0_dp
     do i = 1,pc%dat%npq
       if (pc%dat%part_xs_file(i)%ThereIsData) then
-        particle_radius(i,:) = 0.5_dp*(pc%dat%radii_file(1,i) + &
-                                       pc%dat%radii_file(pc%dat%nrad_file,i))
+        nrad = size(pc%dat%part_xs_file(i)%radii)
+        particle_radius(i,:) = 0.5_dp*(pc%dat%part_xs_file(i)%radii(1) + &
+                                       pc%dat%part_xs_file(i)%radii(nrad))
       else
         particle_radius(i,:) = 1.0e-5_dp
       endif

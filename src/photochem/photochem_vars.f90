@@ -528,63 +528,59 @@ contains
 
   !> Interpolate particle optical properties onto the model particle radii.
   subroutine interp2particlexsdata(dat, particle_radius, particle_xs, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     type(PhotochemData), intent(in) :: dat
     real(dp), intent(in) :: particle_radius(:,:)
     type(ParticleXsections), intent(inout) :: particle_xs(:)
     character(:), allocatable, intent(out) :: err
 
-    integer :: i, j, k, jj, nz
-    real(dp) :: dr, slope, intercept
+    integer :: j, k, lo, hi, middle, nrad, nz
+    real(dp) :: radius, fraction
 
     if (.not. dat%there_are_particles) return
 
     nz = size(particle_radius, 2)
 
-    do j = 1,nz
-      do k = 1,dat%np
-        ! If there is optical data, check that it covers the particle radii
-        ! in the atmosphere.
-        if (dat%part_xs_file(k)%ThereIsData) then
-          if (particle_radius(k,j) <= dat%radii_file(1,k) .or. &
-              particle_radius(k,j) >= dat%radii_file(dat%nrad_file,k)) then
-            err = 'There is not any optical data for the particle radii '// &
-                  'specified in the atmosphere.'
-            return
-          endif
+    ! Validate all radii before changing any output table.
+    do k = 1,dat%np
+      if (.not.dat%part_xs_file(k)%ThereIsData) cycle
+      nrad = size(dat%part_xs_file(k)%radii)
+      do j = 1,nz
+        radius = particle_radius(k,j)
+        if (.not.ieee_is_finite(radius) .or. &
+            radius <= dat%part_xs_file(k)%radii(1) .or. &
+            radius >= dat%part_xs_file(k)%radii(nrad)) then
+          err = 'There is not any optical data for the particle radii '// &
+                'specified in the atmosphere.'
+          return
         endif
       enddo
     enddo
 
-    do i = 1,dat%nw
+    do k = 1,dat%np
+      if (.not.dat%part_xs_file(k)%ThereIsData) cycle
+      nrad = size(dat%part_xs_file(k)%radii)
       do j = 1,nz
-        do k = 1,dat%np
-          if (dat%part_xs_file(k)%ThereIsData) then
-            do jj = 1,dat%nrad_file-1
-              if (particle_radius(k,j) >= dat%radii_file(jj,k) .and. &
-                  particle_radius(k,j) < dat%radii_file(jj+1,k)) then
-                dr = dat%radii_file(jj+1,k) - dat%radii_file(jj,k)
-
-                slope = (dat%part_xs_file(k)%w0(jj+1,i) - &
-                         dat%part_xs_file(k)%w0(jj,i))/dr
-                intercept = dat%part_xs_file(k)%w0(jj,i) - &
-                            dat%radii_file(jj,k)*slope
-                particle_xs(k)%w0(j,i) = slope*particle_radius(k,j) + intercept
-
-                slope = (dat%part_xs_file(k)%qext(jj+1,i) - &
-                         dat%part_xs_file(k)%qext(jj,i))/dr
-                intercept = dat%part_xs_file(k)%qext(jj,i) - &
-                            dat%radii_file(jj,k)*slope
-                particle_xs(k)%qext(j,i) = slope*particle_radius(k,j) + intercept
-
-                slope = (dat%part_xs_file(k)%gt(jj+1,i) - &
-                         dat%part_xs_file(k)%gt(jj,i))/dr
-                intercept = dat%part_xs_file(k)%gt(jj,i) - &
-                            dat%radii_file(jj,k)*slope
-                particle_xs(k)%gt(j,i) = slope*particle_radius(k,j) + intercept
-              endif
-            enddo
+        radius = particle_radius(k,j)
+        lo = 1
+        hi = nrad
+        do while (hi - lo > 1)
+          middle = lo + (hi - lo)/2
+          if (radius < dat%part_xs_file(k)%radii(middle)) then
+            hi = middle
+          else
+            lo = middle
           endif
         enddo
+        fraction = (radius - dat%part_xs_file(k)%radii(lo))/ &
+                   (dat%part_xs_file(k)%radii(hi) - dat%part_xs_file(k)%radii(lo))
+
+        particle_xs(k)%w0(j,:) = (1.0_dp - fraction)*dat%part_xs_file(k)%w0(lo,:) + &
+                                fraction*dat%part_xs_file(k)%w0(hi,:)
+        particle_xs(k)%qext(j,:) = (1.0_dp - fraction)*dat%part_xs_file(k)%qext(lo,:) + &
+                                  fraction*dat%part_xs_file(k)%qext(hi,:)
+        particle_xs(k)%gt(j,:) = (1.0_dp - fraction)*dat%part_xs_file(k)%gt(lo,:) + &
+                                fraction*dat%part_xs_file(k)%gt(hi,:)
       enddo
     enddo
   end subroutine
