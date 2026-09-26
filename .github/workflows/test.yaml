@@ -87,6 +87,7 @@ jobs:
         python test_python.py
         python ../clima/test_python.py
         python ../equilibrate/test_python.py
+        python ../test_thermo_continuity.py
 
     - name: check shared libs for executable stack
       shell: bash -el {0}

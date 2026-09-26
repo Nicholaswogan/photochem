@@ -6,6 +6,7 @@ from ._format import resave_mechanism_with_atoms, generate_zahnle_earth_thermo, 
 from ._convert_atmos import atmos2yaml, atmosbc2yaml
 from ._convert_vulcan import vulcan2yaml
 from ._convert_cantera import photochem2cantera
+from .thermo_continuity import check_thermo_continuity, make_thermo_continuous
 
 # Building climate input files
 from .climate import species_dict_for_climate, settings_dict_for_climate

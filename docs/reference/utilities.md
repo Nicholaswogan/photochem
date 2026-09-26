@@ -63,4 +63,6 @@ These helpers prepare common input files and stellar spectra or read model outpu
         - atmosbc2yaml
         - vulcan2yaml
         - photochem2cantera
+        - check_thermo_continuity
+        - make_thermo_continuous
       show_root_heading: false

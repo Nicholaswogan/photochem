@@ -1278,6 +1278,106 @@ contains
       k = k + 1
     enddo
 
+    call check_for_thermo_continuity(thermo, molecule_name, err)
+    if (allocated(err)) return
+
+  end subroutine
+
+  !> Check gas-phase H, S, and Cp at every thermodynamic polynomial join.
+  subroutine check_for_thermo_continuity(thermo, molecule_name, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use photochem_const, only: Rgas
+    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial, Nasa7Polynomial
+    type(ThermodynamicData), intent(in) :: thermo
+    character(len=*), intent(in) :: molecule_name
+    character(:), allocatable, intent(out) :: err
+
+    ! The v0.3.3 gas mechanism has relative join residuals below 3e-14.
+    ! This threshold allows ample room for serialization and evaluation roundoff.
+    real(dp), parameter :: relative_tolerance = 1.0e-5_dp
+    character(len=2), parameter :: property(3) = [character(len=2) :: 'H', 'S', 'Cp']
+    character(len=7), parameter :: units(3) = [character(len=7) :: 'J/mol', 'J/mol/K', 'J/mol/K']
+    real(dp) :: left(3), right(3), scale(3), relative_error, T
+    character(len=32) :: temperature_string, jump_string, tolerance_string, relative_string
+    integer :: k, j
+
+    if (.not. all(ieee_is_finite(thermo%temps)) .or. &
+        .not. all(ieee_is_finite(thermo%data))) then
+      err = 'IOError: Non-finite thermodynamic data for '//trim(molecule_name)
+      return
+    endif
+    if (any(thermo%temps(2:) <= thermo%temps(:thermo%ntemps))) then
+      err = 'IOError: Temperature ranges must increase for '//trim(molecule_name)
+      return
+    endif
+    if (thermo%ntemps <= 1) return
+    if (any(thermo%temps(2:thermo%ntemps) <= 0.0_dp)) then
+      err = 'IOError: Thermodynamic joins must have positive temperature for '//trim(molecule_name)
+      return
+    endif
+    select case (thermo%dtype)
+    case (ShomatePolynomial, Nasa9Polynomial, Nasa7Polynomial)
+    case default
+      err = 'IOError: Unknown thermodynamic polynomial for '//trim(molecule_name)
+      return
+    end select
+
+    write(tolerance_string, '(es12.4)') relative_tolerance
+    do k = 1, thermo%ntemps - 1
+      T = thermo%temps(k + 1)
+      call thermo_properties_at_temperature(thermo%dtype, thermo%data(:,k), T, &
+                                            left(1), left(2), left(3))
+      call thermo_properties_at_temperature(thermo%dtype, thermo%data(:,k+1), T, &
+                                            right(1), right(2), right(3))
+      if (.not. all(ieee_is_finite(left)) .or. .not. all(ieee_is_finite(right))) then
+        write(temperature_string, '(g0)') T
+        err = 'IOError: Non-finite thermodynamic property for '//trim(molecule_name)// &
+              ' at '//trim(temperature_string)//' K'
+        return
+      endif
+      scale = [Rgas*T, Rgas, Rgas]
+      do j = 1, 3
+        relative_error = abs(right(j) - left(j)) / &
+                         max(abs(left(j)), abs(right(j)), scale(j))
+        if (relative_error > relative_tolerance) then
+          write(temperature_string, '(g0)') T
+          write(jump_string, '(es12.4)') right(j) - left(j)
+          write(relative_string, '(es12.4)') relative_error
+          err = 'IOError: Discontinuous thermodynamic '//trim(property(j))// &
+                ' for '//trim(molecule_name)//' at '//trim(temperature_string)// &
+                ' K (right-minus-left jump '//trim(adjustl(jump_string))//' '//trim(units(j))// &
+                ', relative jump '//trim(adjustl(relative_string))// &
+                ' exceeds tolerance '//trim(adjustl(tolerance_string))// &
+                '). Repair the gas thermodynamic fits with photochem.utils.make_thermo_continuous.'
+          return
+        endif
+      enddo
+    enddo
+  end subroutine
+
+  pure subroutine thermo_properties_at_temperature(dtype, coeffs, T, h, s, cp)
+    use photochem_enum, only: ShomatePolynomial, Nasa9Polynomial, Nasa7Polynomial
+    use photochem_eqns, only: enthalpy_shomate, entropy_shomate, heat_capacity_shomate, &
+                             enthalpy_nasa9, entropy_nasa9, heat_capacity_nasa9, &
+                             enthalpy_nasa7, entropy_nasa7, heat_capacity_nasa7
+    integer, intent(in) :: dtype
+    real(dp), intent(in) :: coeffs(:), T
+    real(dp), intent(out) :: h, s, cp
+
+    select case (dtype)
+    case (ShomatePolynomial)
+      h = enthalpy_shomate(coeffs(1:7), T)
+      s = entropy_shomate(coeffs(1:7), T)
+      cp = heat_capacity_shomate(coeffs(1:7), T)
+    case (Nasa7Polynomial)
+      h = enthalpy_nasa7(coeffs(1:7), T)
+      s = entropy_nasa7(coeffs(1:7), T)
+      cp = heat_capacity_nasa7(coeffs(1:7), T)
+    case (Nasa9Polynomial)
+      h = enthalpy_nasa9(coeffs(1:9), T)
+      s = entropy_nasa9(coeffs(1:9), T)
+      cp = heat_capacity_nasa9(coeffs(1:9), T)
+    end select
   end subroutine
 
   subroutine get_reaction_sp_nums(dat, rx_str, rx, reverse, err)

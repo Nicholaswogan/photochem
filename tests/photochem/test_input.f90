@@ -1,9 +1,11 @@
 program test_input
   ! Focused input parsing and validation tests. See tests/README.md.
-  use photochem_test_paths, only: test_file, data_file, data_dir
+  use photochem_test_paths, only: test_file, data_file, output_file, data_dir
   implicit none
   call test_parsing()
+  call test_thermo_functions()
   call test_data_construction()
+  call test_thermo_continuity()
   call test_vars_construction()
   call test_wrk_construction()
   call test_removed_evolve_climate_setting()
@@ -11,6 +13,159 @@ program test_input
   call test_removed_water_settings()
   print *, 'test_input passed'
 contains
+
+  subroutine test_thermo_functions()
+    use photochem_const, only: dp, Rgas
+    use photochem_eqns, only: enthalpy_shomate, entropy_shomate, gibbs_energy_shomate, &
+                             heat_capacity_shomate, enthalpy_nasa7, entropy_nasa7, &
+                             gibbs_energy_nasa7, heat_capacity_nasa7, enthalpy_nasa9, &
+                             entropy_nasa9, gibbs_energy_nasa9, heat_capacity_nasa9
+    real(dp), parameter :: T = 1000.0_dp
+    real(dp), parameter :: shomate(7) = [10.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
+                                        0.0_dp, 1.0_dp, 2.0_dp]
+    real(dp), parameter :: nasa7(7) = [2.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
+                                      0.0_dp, 1000.0_dp, 1.0_dp]
+    real(dp), parameter :: nasa9(9) = [0.0_dp, 0.0_dp, 2.0_dp, 0.0_dp, 0.0_dp, &
+                                      0.0_dp, 0.0_dp, 1000.0_dp, 1.0_dp]
+    real(dp) :: values(4), expected(4), h, s
+
+    values = [enthalpy_shomate(shomate, T), entropy_shomate(shomate, T), &
+              gibbs_energy_shomate(shomate, T), heat_capacity_shomate(shomate, T)]
+    expected = [11000.0_dp, 2.0_dp, 9000.0_dp, 10.0_dp]
+    if (maxval(abs(values - expected)) > 1.0e-8_dp) call fail('Shomate thermodynamic functions disagree')
+
+    h = 3000.0_dp*Rgas
+    s = (2.0_dp*log(T) + 1.0_dp)*Rgas
+    expected = [h, s, h - T*s, 2.0_dp*Rgas]
+    values = [enthalpy_nasa7(nasa7, T), entropy_nasa7(nasa7, T), &
+              gibbs_energy_nasa7(nasa7, T), heat_capacity_nasa7(nasa7, T)]
+    if (maxval(abs(values - expected)) > 1.0e-8_dp) call fail('NASA7 thermodynamic functions disagree')
+
+    values = [enthalpy_nasa9(nasa9, T), entropy_nasa9(nasa9, T), &
+              gibbs_energy_nasa9(nasa9, T), heat_capacity_nasa9(nasa9, T)]
+    if (maxval(abs(values - expected)) > 1.0e-8_dp) call fail('NASA9 thermodynamic functions disagree')
+  end subroutine
+
+  subroutine test_thermo_continuity()
+    use photochem_data, only: PhotochemData
+    use photochem_settings, only: PhotoSettings
+    type(PhotoSettings) :: settings
+    type(PhotochemData) :: dat
+    character(:), allocatable :: err
+    character(len=*), parameter :: filename = 'discontinuous_thermo.yaml'
+    character(len=2), parameter :: property(3) = [character(len=2) :: 'H', 'S', 'Cp']
+    integer :: mode, unit
+
+    settings = PhotoSettings(test_file('settings.yaml'), err)
+    if (allocated(err)) call fail('Could not construct thermo test settings: '//trim(err))
+
+    do mode = 1, 6
+      call write_thermo_test_mechanism(mode, output_file(filename))
+      dat = PhotochemData(output_file(filename), settings, data_dir, err)
+      if (mode == 4) then
+        if (allocated(err)) call fail('A below-tolerance thermodynamic shift was rejected: '//trim(err))
+      else
+        if (.not. allocated(err)) call fail('Discontinuous thermodynamic fit was accepted')
+        if (index(err, 'thermodynamic '//trim(property(min(mode,3)))) == 0 .or. &
+            index(err, 'H2 at 1000') == 0) then
+          call fail('Unexpected thermodynamic continuity error: '//trim(err))
+        endif
+      endif
+    enddo
+
+    open(newunit=unit, file=output_file(filename), status='old')
+    close(unit, status='delete')
+  end subroutine
+
+  subroutine write_thermo_test_mechanism(mode, outfile)
+    use photochem_const, only: dp
+    integer, intent(in) :: mode
+    character(len=*), intent(in) :: outfile
+    character(len=4096) :: line
+    character(len=32) :: number
+    real(dp) :: coeffs(9)
+    integer :: source, destination, status, left, right, row, j, ncoeff
+    logical :: in_h2, changed
+
+    open(newunit=source, file=test_file('no_particle_test.yaml'), status='old', action='read')
+    open(newunit=destination, file=outfile, status='replace', action='write')
+    in_h2 = .false.
+    changed = .false.
+    row = 0
+    do
+      read(source, '(a)', iostat=status) line
+      if (status /= 0) exit
+      if (index(line, '- name: ') == 1) in_h2 = trim(line) == '- name: H2'
+      if (in_h2 .and. index(line, '    model:') == 1 .and. mode >= 5) then
+        if (mode == 5) write(destination, '(a)') '    model: NASA7'
+        if (mode == 6) write(destination, '(a)') '    model: NASA9'
+        cycle
+      endif
+      if (in_h2 .and. index(line, '    data:') == 1) row = 0
+      if (in_h2 .and. index(line, '    - [') == 1) then
+        row = row + 1
+        if (row == 2 .or. mode >= 5) then
+          do while (index(line, ']') == 0)
+            block
+              character(len=4096) :: continuation
+              read(source, '(a)', iostat=status) continuation
+              if (status /= 0) call fail('Incomplete H2 thermodynamic row')
+              line = trim(line)//' '//trim(adjustl(continuation))
+            end block
+          enddo
+          left = index(line, '[')
+          right = index(line, ']')
+          if (mode >= 5) then
+            coeffs = 0.0_dp
+            ncoeff = 7
+            if (mode == 5) coeffs(1) = 3.5_dp
+            if (mode == 6) then
+              coeffs(3) = 3.5_dp
+              ncoeff = 9
+            endif
+            if (row == 2) then
+              if (mode == 5) then
+                coeffs(1) = coeffs(1) + 1.0_dp
+                coeffs(6) = -1000.0_dp
+                coeffs(7) = -log(1000.0_dp)
+              else
+                coeffs(3) = coeffs(3) + 1.0_dp
+                coeffs(8) = -1000.0_dp
+                coeffs(9) = -log(1000.0_dp)
+              endif
+            endif
+          else
+            ncoeff = 7
+            read(line(left+1:right-1), *) coeffs(:ncoeff)
+            select case (mode)
+            case (1) ! H only, via the Shomate F constant
+              coeffs(6) = coeffs(6) + 1.0_dp
+            case (2) ! S only, via the Shomate G constant
+              coeffs(7) = coeffs(7) + 1.0_dp
+            case (3) ! Cp only at 1000 K; compensate H with F and S is unchanged
+              coeffs(1) = coeffs(1) + 1.0_dp
+              coeffs(6) = coeffs(6) - 1.0_dp
+            case (4) ! Below the relative tolerance
+              coeffs(6) = coeffs(6) + 1.0e-6_dp
+            end select
+          endif
+          write(destination, '(a)', advance='no') '    - ['
+          do j = 1, ncoeff
+            if (j > 1) write(destination, '(a)', advance='no') ', '
+            write(number, '(es24.16)') coeffs(j)
+            write(destination, '(a)', advance='no') trim(adjustl(number))
+          enddo
+          write(destination, '(a)') ']'
+          changed = .true.
+          cycle
+        endif
+      endif
+      write(destination, '(a)') trim(line)
+    enddo
+    close(source)
+    close(destination)
+    if (.not. changed) call fail('Could not change H2 thermo test coefficients')
+  end subroutine
 
   subroutine test_data_construction()
     use photochem_data, only: PhotochemData

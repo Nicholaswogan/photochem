@@ -148,7 +148,8 @@ def create_supporting_data(xs_info, vulcan_xs_folder, data_dir):
         # print(sp)
         make_h5_from_dict(sp, out, 'vulcandata/xsections/')
 
-def vulcan2yaml(vulcan_rx_filename, thermo_folder, data_dir=None):
+def vulcan2yaml(vulcan_rx_filename, thermo_folder, data_dir=None, *,
+                repair_thermo_discontinuities=True):
     """Converts Vulcan reactions and cross sections to a format that
     works with Photochem. Upon return, the routine will have saved a
     yaml file with a similar name to the input `vulcan_rx_filename`, and
@@ -164,6 +165,12 @@ def vulcan2yaml(vulcan_rx_filename, thermo_folder, data_dir=None):
     data_dir : str
         Path to the Photochem data folder. If `None`, then the data shipped
         with Photochem is used.
+    repair_thermo_discontinuities : bool
+        Align heat capacity, enthalpy, and entropy at NASA9 segment joins
+        before writing the network. One heat-capacity coefficient and two
+        integration constants can change in each adjusted segment. Corrections
+        are printed for review. Enabled by default; set False to preserve the
+        source fits.
     """
     
     # Path to the "thermo" folder
@@ -361,6 +368,18 @@ def vulcan2yaml(vulcan_rx_filename, thermo_folder, data_dir=None):
     if len(particles) > 0:
         out['particles'] = particles
     out['reactions'] = reactions + photolysis
+
+    if repair_thermo_discontinuities:
+        from .thermo_continuity import make_thermo_continuous
+        out, corrections = make_thermo_continuous(out)
+        for change in corrections:
+            print(
+                f"Thermo join repaired: {change['species']} at "
+                f"{change['temperature']:g} K; "
+                f"heat capacity shift {change['heat_capacity_shift']:.6g} J/mol/K, "
+                f"enthalpy shift {change['enthalpy_shift']:.6g} J/mol, "
+                f"entropy shift {change['entropy_shift']:.6g} J/mol/K"
+            )
 
     out = FormatReactions_main(out)
 

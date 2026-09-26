@@ -20,7 +20,7 @@ Test inputs are resolved from the source tree, so the Fortran executables and Py
 
 ### Photochem
 
-- `test_input` contains focused input parsing and validation tests.
+- `test_input` contains focused input parsing and validation tests, including thermodynamic polynomial continuity at gas-phase joins.
 - `test_api` contains focused correctness and error-behavior tests for public `EvoAtmosphere` operations.
 - `test_jacobian` compares the analytical and automatic-differentiation chemistry Jacobians over focused numerical cases.
 - `test_production_loss` characterizes the species production-and-loss diagnostic and checks reactions, rainout, condensation and evaporation, vertical transport, boundary fluxes, distributed sources, custom rates, and Zahnle escape. For evolved species, it verifies that all reported contributions reconstruct the full right-hand side.
@@ -29,6 +29,10 @@ Test inputs are resolved from the source tree, so the Fortran executables and Py
 - `test_python.py` is a smoke test for the installed Python wrappers.
 
 The analytical chemistry Jacobian is the production default. Automatic differentiation remains selectable as an independent correctness oracle. Any new composition-dependent chemistry tendency must receive a matching analytical derivative and analytical-versus-autodiff coverage in `test_jacobian`; unsupported terms must not be silently omitted from the analytical path.
+
+### Python utilities
+
+- `tests/test_thermo_continuity.py` checks Shomate, NASA7, and NASA9 join repair and detection without relying on a particular bundled data version.
 
 ## Production-and-loss diagnostic contract
 
@@ -75,4 +79,5 @@ After installing the Python package, run its smoke test:
 python tests/equilibrate/test_python.py
 python tests/clima/test_python.py
 python tests/photochem/test_python.py
+python tests/test_thermo_continuity.py
 ```

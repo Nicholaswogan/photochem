@@ -33,93 +33,140 @@ contains
     enddo
   end subroutine
   
-  pure function gibbs_energy_shomate(coeffs, T) result(gibbs)
+  pure function enthalpy_shomate(coeffs, T) result(enthalpy)
     real(dp), intent(in) :: coeffs(7)
     real(dp), intent(in) :: T
-    real(dp) :: gibbs
-    
-    real(dp) :: enthalpy, entropy, TT
-    
+    real(dp) :: enthalpy !! J/mol
+    real(dp) :: TT
+
     TT = T/1000.0_dp
     enthalpy = coeffs(1)*TT + (coeffs(2)*TT**2)/2.0_dp &
              + (coeffs(3)*TT**3)/3.0_dp  + (coeffs(4)*TT**4)/4.0_dp &
              - coeffs(5)/TT + coeffs(6)
+    enthalpy = enthalpy*1000.0_dp
+  end function
+
+  pure function entropy_shomate(coeffs, T) result(entropy)
+    real(dp), intent(in) :: coeffs(7)
+    real(dp), intent(in) :: T
+    real(dp) :: entropy !! J/(mol K)
+    real(dp) :: TT
+
+    TT = T/1000.0_dp
     entropy = coeffs(1)*log(TT) + coeffs(2)*TT &
             + (coeffs(3)*TT**2)/2.0_dp + (coeffs(4)*TT**3)/3.0_dp &
             - coeffs(5)/(2.0_dp * TT**2) + coeffs(7)
-    gibbs = enthalpy*1000.0_dp - T*entropy
   end function
-  
-  pure function gibbs_energy_nasa9(coeffs, T) result(gibbs)
+
+  pure function gibbs_energy_shomate(coeffs, T) result(gibbs)
+    real(dp), intent(in) :: coeffs(7)
+    real(dp), intent(in) :: T
+    real(dp) :: gibbs !! J/mol
+
+    gibbs = enthalpy_shomate(coeffs, T) - T*entropy_shomate(coeffs, T)
+  end function
+
+  pure function enthalpy_nasa9(coeffs, T) result(enthalpy)
     use photochem_const, only: Rgas
     real(dp), intent(in) :: coeffs(9)
     real(dp), intent(in) :: T
-    real(dp) :: gibbs
-    
-    real(dp) :: enthalpy, entropy
-    
+    real(dp) :: enthalpy !! J/mol
+
     enthalpy = (- coeffs(1)*T**(-2.0_dp) + coeffs(2)*log(T)/T &
                 + coeffs(3) + coeffs(4)*T/2.0_dp + coeffs(5)*T**(2.0_dp)/3.0_dp &
                 + coeffs(6)*T**(3.0_dp)/4.0_dp + coeffs(7)*T**(4.0_dp)/5.0_dp &
                 + coeffs(8)/T)*T*Rgas
-             
+  end function
+
+  pure function entropy_nasa9(coeffs, T) result(entropy)
+    use photochem_const, only: Rgas
+    real(dp), intent(in) :: coeffs(9)
+    real(dp), intent(in) :: T
+    real(dp) :: entropy !! J/(mol K)
+
     entropy = (- coeffs(1)*T**(-2.0_dp)/2.0_dp - coeffs(2)*T**(-1.0_dp) &
                + coeffs(3)*log(T) + coeffs(4)*T + coeffs(5)*T**(2.0_dp)/2.0_dp &
                + coeffs(6)*T**(3.0_dp)/3.0_dp + coeffs(7)*T**(4.0_dp)/4.0_dp &
                + coeffs(9))*Rgas
-               
-    gibbs = enthalpy - T*entropy
+  end function
+
+  pure function gibbs_energy_nasa9(coeffs, T) result(gibbs)
+    real(dp), intent(in) :: coeffs(9)
+    real(dp), intent(in) :: T
+    real(dp) :: gibbs !! J/mol
+
+    gibbs = enthalpy_nasa9(coeffs, T) - T*entropy_nasa9(coeffs, T)
+  end function
+
+  pure function enthalpy_nasa7(coeffs, T) result(enthalpy)
+    use photochem_const, only: Rgas
+    real(dp), intent(in) :: coeffs(7)
+    real(dp), intent(in) :: T
+    real(dp) :: enthalpy !! J/mol
+
+    enthalpy = &
+      coeffs(1) + &
+      coeffs(2)*T/2.0_dp + &
+      coeffs(3)*T**2.0_dp/3.0_dp + &
+      coeffs(4)*T**3.0_dp/4.0_dp + &
+      coeffs(5)*T**4.0_dp/5.0_dp + &
+      coeffs(6)/T
+    enthalpy = enthalpy*Rgas*T
+  end function
+
+  pure function entropy_nasa7(coeffs, T) result(entropy)
+    use photochem_const, only: Rgas
+    real(dp), intent(in) :: coeffs(7)
+    real(dp), intent(in) :: T
+    real(dp) :: entropy !! J/(mol K)
+
+    entropy = &
+      coeffs(1)*log(T) + &
+      coeffs(2)*T + &
+      coeffs(3)*T**2.0_dp/2.0_dp + &
+      coeffs(4)*T**3.0_dp/3.0_dp + &
+      coeffs(5)*T**4.0_dp/4.0_dp + &
+      coeffs(7)
+    entropy = entropy*Rgas
   end function
 
   pure function gibbs_energy_nasa7(coeffs, T) result(gibbs)
-    use photochem_const, only: Rgas
-    real(dp), intent(in) :: coeffs(:)
+    real(dp), intent(in) :: coeffs(7)
     real(dp), intent(in) :: T
-    real(dp) :: gibbs
+    real(dp) :: gibbs !! J/mol
 
-    real(dp) :: enthalpy, entropy
-    real(dp) :: a0, a1, a2, a3, a4, a5, a6
-
-    a0 = coeffs(1)
-    a1 = coeffs(2)
-    a2 = coeffs(3)
-    a3 = coeffs(4)
-    a4 = coeffs(5)
-    a5 = coeffs(6)
-    a6 = coeffs(7)
-
-    enthalpy = &
-      a0 + &
-      a1*T/2.0_dp + &
-      a2*T**2.0_dp/3.0_dp + &
-      a3*T**3.0_dp/4.0_dp + &
-      a4*T**4.0_dp/5.0_dp + &
-      a5/T
-    enthalpy = enthalpy*Rgas*T
-    
-    entropy = &
-      a0*log(T) + &
-      a1*T + &
-      a2*T**2.0_dp/2.0_dp + &
-      a3*T**3.0_dp/3.0_dp + &
-      a4*T**4.0_dp/4.0_dp + &
-      a6
-    entropy = entropy*Rgas
-
-    gibbs = enthalpy - T*entropy
-
+    gibbs = enthalpy_nasa7(coeffs, T) - T*entropy_nasa7(coeffs, T)
   end function
-  
+
   pure function heat_capacity_shomate(coeffs, T) result(cp)
     real(dp), intent(in) :: coeffs(7)
     real(dp), intent(in) :: T !! K
     real(dp) :: cp !! J/(mol K)
-    
     real(dp) :: TT
-    
+
     TT = T/1000.0_dp
     cp = coeffs(1) + coeffs(2)*TT + coeffs(3)*TT**2 + &
          coeffs(4)*TT**3 + coeffs(5)/TT**2
+  end function
+
+  pure function heat_capacity_nasa9(coeffs, T) result(cp)
+    use photochem_const, only: Rgas
+    real(dp), intent(in) :: coeffs(9)
+    real(dp), intent(in) :: T !! K
+    real(dp) :: cp !! J/(mol K)
+
+    cp = Rgas * (coeffs(1)/T**2 + coeffs(2)/T + coeffs(3) + &
+         coeffs(4)*T + coeffs(5)*T**2 + coeffs(6)*T**3 + coeffs(7)*T**4)
+  end function
+
+  pure function heat_capacity_nasa7(coeffs, T) result(cp)
+    use photochem_const, only: Rgas
+    real(dp), intent(in) :: coeffs(7)
+    real(dp), intent(in) :: T !! K
+    real(dp) :: cp !! J/(mol K)
+
+    cp = Rgas * (coeffs(1) + coeffs(2)*T + coeffs(3)*T**2 + &
+         coeffs(4)*T**3 + coeffs(5)*T**4)
   end function
   
   pure subroutine press_and_den(T, grav, Psurf, dz, &
