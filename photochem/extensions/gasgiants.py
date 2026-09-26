@@ -110,7 +110,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         temperature, eddy-diffusion, and composition profiles are supplied by
         a subsequent initialization method.
         """        
-        
+
         # Configure the photochemical model. The atmosphere is initialized
         # later from the supplied climate profile.
         sol = yaml.safe_load(SETTINGS_TEMPLATE)
@@ -157,7 +157,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         maintenance.nsteps_between_updates = 1000
         maintenance.max_failures = 2
 
-    def initialize_to_climate_equilibrium_PT(self, P_in, T_in, Kzz_in, metallicity, CtoO, rainout_condensed_atoms=True):
+    def initialize_to_climate_equilibrium_PT(self, P_in, T_in, Kzz_in, metallicity, CtoO, rainout_condensed_atoms=True, **initialize_kwargs):
         """Initialize from a climate profile and equilibrium composition.
 
         Input arrays must be one-dimensional, equal in length, and ordered
@@ -181,6 +181,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         rainout_condensed_atoms : bool, optional
             Remove condensed atoms during equilibrium calculations, by default
             True.
+        **initialize_kwargs
+            Additional keyword arguments forwarded to `initialize_atmosphere_p`. ``persistent``,
+            ``maintain_toa_pressure``, and ``target_pressure`` are set internally and must not be provided.
         """
 
         gdat = self.gdat
@@ -274,9 +277,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
             )
         gdat.ind_b = np.argmin(np.abs(P1 - P1[ind]*gdat.BOA_pressure_factor))
         
-        self._initialize_atmosphere(P1, T1, Kzz1, z1, mix1)
+        self._initialize_atmosphere(P1, T1, Kzz1, z1, mix1, **initialize_kwargs)
 
-    def reinitialize_to_new_climate_PT(self, P_in, T_in, Kzz_in, mix):
+    def reinitialize_to_new_climate_PT(self, P_in, T_in, Kzz_in, mix, **initialize_kwargs):
         """Reinitialize from updated climate profiles and composition.
 
         This method requires a prior call to
@@ -294,7 +297,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         mix : dict[str, ndarray]
             Mixing-ratio profile for every gas species. Each value has shape
             ``(nprofile,)``.
-
+        **initialize_kwargs
+            Additional keyword arguments forwarded to `initialize_atmosphere_p`. ``persistent``,
+            ``maintain_toa_pressure``, and ``target_pressure`` are set internally and must not be provided.
         """
 
         gdat = self.gdat
@@ -353,9 +358,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         gdat.T_desired = T1.copy()
         gdat.Kzz_desired = Kzz1.copy()
 
-        self._initialize_atmosphere(P1, T1, Kzz1, z1, mix1)
+        self._initialize_atmosphere(P1, T1, Kzz1, z1, mix1, **initialize_kwargs)
 
-    def _initialize_atmosphere(self, P1, T1, Kzz1, z1, mix1):
+    def _initialize_atmosphere(self, P1, T1, Kzz1, z1, mix1, **initialize_kwargs):
         "Initialize the shared photochemical model from gas-giant profiles."
 
         gdat = self.gdat
@@ -425,10 +430,14 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         self.dat.planet_radius = planet_radius_new
         try:
             self.initialize_atmosphere_p(
-                pressure_profile, temperature_profile, edd_profile,
-                mix_profile, persistent=True,
+                pressure_profile, 
+                temperature_profile, 
+                edd_profile,
+                mix_profile, 
+                persistent=True,
                 maintain_toa_pressure=True,
-                target_pressure=target_pressure
+                target_pressure=target_pressure,
+                **initialize_kwargs
             )
         except Exception:
             self.dat.planet_radius = planet_radius_old

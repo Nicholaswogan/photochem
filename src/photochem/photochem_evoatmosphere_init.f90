@@ -487,8 +487,8 @@ contains
           profile%particle_radius(i,:) = temp(ind(1),:)
         else
           ! did not find the data
-          ! will set to 0.1 micron
-          profile%particle_radius(i,:) = 1.0e-5_dp
+          ! will set to 1 micron
+          profile%particle_radius(i,:) = 1.0e-4_dp
         endif
       enddo
     endif

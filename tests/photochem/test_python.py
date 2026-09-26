@@ -613,7 +613,7 @@ def test_initialize_atmosphere_z_particles():
     assert np.all(pc.wrk.density > 0.0)
     assert set(mix).isdisjoint(particle_names)
     assert np.allclose(pc.var.particle_radius[0], 2.0e-5)
-    assert np.allclose(pc.var.particle_radius[1:], 1.0e-5)
+    assert np.allclose(pc.var.particle_radius[1:], 1.0e-4)
 
 
 def test_initialize_atmosphere_p_no_particles():
@@ -694,7 +694,7 @@ def test_initialize_atmosphere_p_particles():
     assert pc.var.top_atmos > 0.0
     assert np.all(np.isfinite(pc.wrk.usol))
     assert np.allclose(pc.var.particle_radius[0], 2.0e-5)
-    assert np.allclose(pc.var.particle_radius[1:], 1.0e-5)
+    assert np.allclose(pc.var.particle_radius[1:], 1.0e-4)
     pc.clear_press_temp_edd_profile()
 
 

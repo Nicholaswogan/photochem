@@ -173,7 +173,7 @@ cdef class EvoAtmosphere:
                               double surface_pressure, mix=None,
                               particle_radius=None,
                               double default_mix=1.0e-40,
-                              double default_particle_radius=1.0e-5):
+                              double default_particle_radius=1.0e-4):
     """Initialize the atmosphere from altitude-based profiles.
 
     Temperature is interpolated linearly in altitude. Eddy diffusion,
@@ -228,7 +228,7 @@ cdef class EvoAtmosphere:
         1.0e-40.
     default_particle_radius : float, optional
         Radius in cm assigned to particles omitted from ``particle_radius``.
-        The default is 1.0e-5 cm, matching legacy atmosphere-file behavior.
+        The default is 1.0e-4 cm (1 micron), matching legacy atmosphere-file behavior.
     """
     cdef ndarray z_ = np.ascontiguousarray(z, dtype=np.double)
     cdef ndarray temperature_ = np.ascontiguousarray(temperature, dtype=np.double)
@@ -265,7 +265,7 @@ cdef class EvoAtmosphere:
                               particle_radius=None, bint persistent=False,
                               tropopause_pressure=None,
                               double default_mix=1.0e-40,
-                              double default_particle_radius=1.0e-5,
+                              double default_particle_radius=1.0e-4,
                               maintain_toa_pressure=None, target_pressure=None):
     """Initialize the atmosphere from pressure-based profiles.
 
@@ -334,7 +334,7 @@ cdef class EvoAtmosphere:
         1.0e-40.
     default_particle_radius : float, optional
         Radius in cm assigned to particles omitted from ``particle_radius``.
-        The default is 1.0e-5 cm, matching legacy atmosphere-file behavior.
+        The default is 1.0e-4 cm (1 micron), matching legacy atmosphere-file behavior.
     maintain_toa_pressure : bool, optional
         Enable approximate TOA-pressure maintenance when ``persistent`` is
         true. Defaults to true for persistent initialization.
