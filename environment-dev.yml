@@ -15,7 +15,7 @@ dependencies:
   - astroquery
   - threadpoolctl
   - requests
-  - photochem_clima_data=0.3.3
+  - photochem_clima_data=0.3.4
 
   # Build requirements
   - scikit-build-core
