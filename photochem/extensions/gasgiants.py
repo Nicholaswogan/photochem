@@ -430,10 +430,10 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         self.dat.planet_radius = planet_radius_new
         try:
             self.initialize_atmosphere_p(
-                pressure_profile, 
-                temperature_profile, 
+                pressure_profile,
+                temperature_profile,
                 edd_profile,
-                mix_profile, 
+                mix_profile,
                 persistent=True,
                 maintain_toa_pressure=True,
                 target_pressure=target_pressure,
