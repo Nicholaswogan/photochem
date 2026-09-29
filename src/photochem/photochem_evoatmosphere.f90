@@ -93,12 +93,6 @@ module photochem_evoatmosphere
     procedure :: evolve
     procedure :: check_for_convergence
     procedure :: initialize_stepper
-    procedure, private :: initialize_stepper_at_time
-    procedure, private :: prepare_stepper_state
-    procedure, private :: configure_stepper
-    procedure, private :: restart_robust_stepper
-    procedure, private :: validate_robust_stepper_settings
-    procedure, private :: maybe_maintain_toa_pressure
     procedure :: step
     procedure :: destroy_stepper
     procedure :: initialize_robust_stepper
@@ -493,54 +487,6 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    ! Build a fresh CVODE stepper at an explicitly supplied integration time.
-    ! This is private so public initialization continues to begin at time zero.
-    module subroutine initialize_stepper_at_time(self, usol_start, tstart, err, initial_step)
-      class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_start(:,:) !! Initial number densities (molecules/cm^3)
-      real(dp), intent(in) :: tstart !! Initial integration time (seconds).
-      character(:), allocatable, intent(out) :: err
-      real(dp), optional, intent(in) :: initial_step !! Override for CVODE's initial step.
-    end subroutine
-
-    ! Load an integration state and reset restart-sensitive Photochem history.
-    module subroutine prepare_stepper_state(self, usol_start, tstart, err)
-      class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_start(:,:)
-      real(dp), intent(in) :: tstart
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-
-    ! Apply mutable CVODE settings after either CVodeInit or CVodeReInit.
-    module subroutine configure_stepper(self, initial_step, err)
-      class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: initial_step
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-
-    ! Restart a robust session in place when possible, rebuilding as fallback.
-    module subroutine restart_robust_stepper(self, usol_restart, tstart, err)
-      class(EvoAtmosphere), target, intent(inout) :: self
-      real(dp), intent(in) :: usol_restart(:,:)
-      real(dp), intent(in) :: tstart
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-
-    ! Validate mutable robust-stepper policy before creating or using a session.
-    module subroutine validate_robust_stepper_settings(self, err)
-      class(EvoAtmosphere), intent(in) :: self
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-
-    ! Apply one optional pressure-maintenance update after an accepted step.
-    module subroutine maybe_maintain_toa_pressure(self, chemistry_converged, updated, failed, err)
-      class(EvoAtmosphere), target, intent(inout) :: self
-      logical, intent(in) :: chemistry_converged
-      logical, intent(out) :: updated
-      logical, intent(out) :: failed
-      character(:), allocatable, intent(out) :: err
-    end subroutine
-    
     !> Advance the basic CVODE pathway by one internal solver step.
     !!
     !! [[EvoAtmosphere:initialize_stepper]] must have been called first. This

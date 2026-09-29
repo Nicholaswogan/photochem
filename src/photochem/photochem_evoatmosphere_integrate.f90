@@ -255,7 +255,7 @@ contains
     ! through the same path used by the ordinary and robust steppers.
     tcur = tstart
     new_atol = var%atol
-    call self%initialize_stepper_at_time(usol_start, tstart, err)
+    call initialize_stepper_at_time(self, usol_start, tstart, err)
     if (allocated(err)) return
     yvec_usol(1:dat%nq,1:var%nz) => wrk%sun%yvec
 
@@ -569,14 +569,14 @@ contains
     real(dp), intent(in) :: usol_start(:,:)
     character(:), allocatable, intent(out) :: err
 
-    call self%initialize_stepper_at_time(usol_start, 0.0_dp, err)
+    call initialize_stepper_at_time(self, usol_start, 0.0_dp, err)
     if (.not.allocated(err) .or. .not.c_associated(self%wrk%sun%cvode_mem)) then
       self%wrk%robust_stepper_initialized = .false.
     endif
 
   end subroutine
 
-  module subroutine initialize_stepper_at_time(self, usol_start, tstart, err, initial_step)
+  subroutine initialize_stepper_at_time(self, usol_start, tstart, err, initial_step)
     use, intrinsic :: iso_c_binding
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use fcvode_mod, only: CV_BDF, FCVodeInit, FCVodeSetLinearSolver, &
@@ -633,7 +633,7 @@ contains
     ! Allocate storage, then prepare the common atmospheric integration state.
     allocate(wrk%sun%yvec(var%neqs))
     allocate(wrk%sun%abstol(var%neqs))
-    call self%prepare_stepper_state(usol_start, tstart, err)
+    call prepare_stepper_state(self, usol_start, tstart, err)
     if (allocated(err)) then
       call cleanup_after_setup_failure()
       return
@@ -704,7 +704,7 @@ contains
       return
     end if
     
-    call self%configure_stepper(initial_step_, err)
+    call configure_stepper(self, initial_step_, err)
     if (allocated(err)) then
       call cleanup_after_setup_failure()
       return
@@ -722,7 +722,7 @@ contains
 
   end subroutine
 
-  module subroutine prepare_stepper_state(self, usol_start, tstart, err)
+  subroutine prepare_stepper_state(self, usol_start, tstart, err)
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
     real(dp), intent(in) :: tstart
@@ -777,7 +777,7 @@ contains
 
   end subroutine
 
-  module subroutine configure_stepper(self, initial_step, err)
+  subroutine configure_stepper(self, initial_step, err)
     use, intrinsic :: iso_c_binding, only: c_double, c_int, c_long, &
                                            c_funloc, c_null_ptr
     use fcvode_mod, only: FCVodeSVtolerances, FCVodeSetMaxNumSteps, &
@@ -835,7 +835,7 @@ contains
 
   end subroutine
 
-  module subroutine restart_robust_stepper(self, usol_restart, tstart, err)
+  subroutine restart_robust_stepper(self, usol_restart, tstart, err)
     use, intrinsic :: iso_c_binding, only: c_associated, c_int
     use fcvode_mod, only: FCVodeReInit
     class(EvoAtmosphere), target, intent(inout) :: self
@@ -867,12 +867,12 @@ contains
 
     if (can_reinit) then
       attempted_reinit = .true.
-      call self%prepare_stepper_state(usol_clipped, tstart, err)
+      call prepare_stepper_state(self, usol_clipped, tstart, err)
       if (.not.allocated(err)) then
         ierr = FCVodeReInit(wrk%sun%cvode_mem, tstart, wrk%sun%sunvec_y)
         if (ierr /= 0) err = "CVodeReInit returned an error."
       endif
-      if (.not.allocated(err)) call self%configure_stepper(restart_initial_step, err)
+      if (.not.allocated(err)) call configure_stepper(self, restart_initial_step, err)
       if (.not.allocated(err)) return
       reinit_err = err
       deallocate(err)
@@ -880,7 +880,7 @@ contains
 
     ! Missing infrastructure or an unsuccessful in-place restart requires a
     ! clean reconstruction. The robust-session counters remain untouched.
-    call self%initialize_stepper_at_time(usol_clipped, tstart, err, &
+    call initialize_stepper_at_time(self, usol_clipped, tstart, err, &
                                          initial_step=restart_initial_step)
     if (allocated(err) .and. attempted_reinit) then
       err = "In-place CVODE restart failed ("//reinit_err// &
@@ -979,7 +979,7 @@ contains
     
   end subroutine
 
-  module subroutine validate_robust_stepper_settings(self, err)
+  subroutine validate_robust_stepper_settings(self, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     class(EvoAtmosphere), intent(in) :: self
     character(:), allocatable, intent(out) :: err
@@ -1031,7 +1031,7 @@ contains
     call self%require_atmosphere_initialized('initialize_robust_stepper', err)
     if (allocated(err)) return
 
-    call self%validate_robust_stepper_settings(err)
+    call validate_robust_stepper_settings(self, err)
     if (allocated(err)) return
 
     if (size(usol_start,1) /= self%dat%nq .or. size(usol_start,2) /= self%var%nz) then
@@ -1075,9 +1075,9 @@ contains
     ! committed remapped state in that case; otherwise preserve the caller's
     ! exact initial array as the CVODE starting state.
     if (initial_toa_update) then
-      call self%initialize_stepper_at_time(self%wrk%usol, 0.0_dp, err)
+      call initialize_stepper_at_time(self, self%wrk%usol, 0.0_dp, err)
     else
-      call self%initialize_stepper_at_time(usol_start, 0.0_dp, err)
+      call initialize_stepper_at_time(self, usol_start, 0.0_dp, err)
     endif
     if (allocated(err)) then
       if (.not.c_associated(self%wrk%sun%cvode_mem)) then
@@ -1122,7 +1122,7 @@ contains
       err = "You must first initialize a robust stepper with 'initialize_robust_stepper'"
       return
     endif
-    call self%validate_robust_stepper_settings(err)
+    call validate_robust_stepper_settings(self, err)
     if (allocated(err)) return
 
     ! RHS and atmospheric preparation use shared workspace, so retain an
@@ -1151,7 +1151,7 @@ contains
 
       ! Recover from the last committed state and time. Do not use the failed
       ! call's returned time and do not run convergence logic on this call.
-      call self%restart_robust_stepper(usol_committed, t_committed, err)
+      call restart_robust_stepper(self, usol_committed, t_committed, err)
       if (allocated(err)) then
         wrk%robust_stepper_initialized = .false.
         return
@@ -1174,7 +1174,7 @@ contains
     ! drifted outside the requested pressure range. Maintenance must happen
     ! before reporting convergence, and a successful regrid starts a fresh
     ! segment-local convergence history.
-    call self%maybe_maintain_toa_pressure(chemistry_converged, toa_updated, toa_failed, err)
+    call maybe_maintain_toa_pressure(self, chemistry_converged, toa_updated, toa_failed, err)
     if (allocated(err)) return
     if (toa_failed) return
     if (toa_updated) return
@@ -1193,7 +1193,7 @@ contains
     ! Reinitialize after exactly this many accepted steps in the current
     ! segment. Restarting resets local CVODE and convergence history only.
     if (self%wrk%nsteps >= var%nsteps_before_reinit) then
-      call self%restart_robust_stepper(wrk%usol, wrk%t_history(1), err)
+      call restart_robust_stepper(self, wrk%usol, wrk%t_history(1), err)
       if (allocated(err)) then
         wrk%robust_stepper_initialized = .false.
         return
@@ -1202,7 +1202,8 @@ contains
 
   end subroutine
 
-  module subroutine maybe_maintain_toa_pressure(self, chemistry_converged, updated, failed, err)
+  ! Apply one optional pressure-maintenance update after an accepted step.
+  subroutine maybe_maintain_toa_pressure(self, chemistry_converged, updated, failed, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     class(EvoAtmosphere), target, intent(inout) :: self
     logical, intent(in) :: chemistry_converged
@@ -1272,7 +1273,7 @@ contains
 
     ! The successful regrid invalidates the old CVODE infrastructure. The
     ! restart helper reconstructs compatible resources and preserves t_current.
-    call self%restart_robust_stepper(self%wrk%usol, t_current, err)
+    call restart_robust_stepper(self, self%wrk%usol, t_current, err)
     if (allocated(err)) then
       self%wrk%robust_stepper_initialized = .false.
       err = 'TOA-pressure maintenance regrid succeeded, but CVODE restart failed: '//err
