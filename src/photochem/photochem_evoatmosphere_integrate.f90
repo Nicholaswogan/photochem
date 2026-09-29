@@ -944,17 +944,18 @@ contains
   ! maintain the TOA pressure.
 
   module subroutine initialize_robust_stepper(self, usol_start, err)
-    use, intrinsic :: iso_c_binding, only: c_associated
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
     character(:), allocatable, intent(out) :: err
-    real(dp) :: current_pressure, pressure_ratio
-    real(dp), allocatable :: usol_preflight(:,:)
-    logical :: initial_toa_update
+
+    real(dp), allocatable :: usol_copy(:,:)
+    logical :: toa_out_of_tolerance
+    type(PhotochemWrk), pointer :: wrk
 
     call self%require_atmosphere_initialized('initialize_robust_stepper', err)
     if (allocated(err)) return
+
+    wrk => self%wrk
 
     call validate_robust_stepper_settings(self, err)
     if (allocated(err)) return
@@ -964,58 +965,52 @@ contains
       return
     endif
 
-    ! Prepare the supplied starting composition before checking the TOA. This
-    ! makes the preflight pressure correspond to the state that will actually
-    ! enter CVODE, including persistent-profile and boundary-condition logic.
-    initial_toa_update = .false.
+    ! Make a copy of the input to prevent aliasing.
+    usol_copy = usol_start
+
+    ! The TOA preflight below updates shared workspace. Discard any existing
+    ! stepper first so an error during preflight cannot leave it marked usable.
+    call self%destroy_stepper(err)
+    if (allocated(err)) return
+
+    ! Update TOA if needed.
     if (self%var%toa_pressure_maintenance%enabled) then
-      ! Keep the caller's array independent of the work allocation: a
-      ! successful vertical-grid transaction moves that allocation.
-      usol_preflight = usol_start
-      call self%prep_atmosphere(usol_preflight, err)
+
+      ! To check TOA pressure, we must ensure pressure is up to date
+      ! with the input usol_start
+      call self%prepare_atmosphere_structure( &
+        usol_copy, wrk%usol, wrk%molecules_per_particle, wrk%pressure, &
+        wrk%density, wrk%mix, wrk%mubar, wrk%pressure_hydro, &
+        wrk%density_hydro, err=err &
+      )
       if (allocated(err)) return
 
-      current_pressure = self%wrk%pressure(self%var%nz)
-      if (.not.ieee_is_finite(current_pressure) .or. current_pressure <= 0.0_dp) then
-        err = 'Initial TOA-pressure maintenance failed: the current TOA pressure '// &
-              'was not finite and positive.'
-        return
-      endif
-      pressure_ratio = current_pressure / &
-                       self%var%toa_pressure_maintenance%target_pressure
-      if (pressure_ratio < 1.0_dp / self%var%toa_pressure_maintenance%pressure_factor .or. &
-          pressure_ratio > self%var%toa_pressure_maintenance%pressure_factor) then
+      ! Determine if the TOA pressure should be maintained right now
+      toa_out_of_tolerance = toa_pressure_out_of_tolerance(self, err)
+      if (allocated(err)) return
+
+      ! If the TOA pressure needs maintanance, then apply it
+      if (toa_out_of_tolerance) then
         call self%update_vertical_grid( &
-             TOA_pressure=self%var%toa_pressure_maintenance%target_pressure, err=err)
-        if (allocated(err)) then
-          err = 'Initial TOA-pressure maintenance failed: '//err
-          return
-        endif
-        initial_toa_update = .true.
+          TOA_pressure=self%var%toa_pressure_maintenance%target_pressure, &
+          err=err &
+        )
+        if (allocated(err)) return
+
+        ! We initialize using self%wrk%usol
+        usol_copy = wrk%usol
       endif
     endif
 
-    ! A successful preflight regrid remaps the supplied starting state into
-    ! the new grid and may move the original work allocation. Use the
-    ! committed remapped state in that case; otherwise preserve the caller's
-    ! exact initial array as the CVODE starting state.
-    if (initial_toa_update) then
-      call initialize_stepper_at_time(self, self%wrk%usol, 0.0_dp, err)
-    else
-      call initialize_stepper_at_time(self, usol_start, 0.0_dp, err)
-    endif
-    if (allocated(err)) then
-      if (.not.c_associated(self%wrk%sun%cvode_mem)) then
-        self%wrk%robust_stepper_initialized = .false.
-      endif
-      return
-    endif
+    ! Initialize stepper
+    call initialize_stepper_at_time(self, usol_copy, 0.0_dp, err)
+    if (allocated(err)) return
 
-    self%wrk%nsteps_total = 0
-    self%wrk%nerrors_total = 0
-    self%wrk%n_toa_pressure_failures = 0
-    self%wrk%nsteps_since_toa_pressure_update = 0
-    self%wrk%robust_stepper_initialized = .true.
+    wrk%nsteps_total = 0
+    wrk%nerrors_total = 0
+    wrk%n_toa_pressure_failures = 0
+    wrk%nsteps_since_toa_pressure_update = 0
+    wrk%robust_stepper_initialized = .true.
 
   end subroutine
 
@@ -1154,41 +1149,64 @@ contains
 
   end subroutine
 
-  ! Apply one optional pressure-maintenance update after an accepted step.
-  subroutine maybe_maintain_toa_pressure(self, chemistry_converged, updated, failed, err)
+  function toa_pressure_out_of_tolerance(self, err) result(out_of_tolerance)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     class(EvoAtmosphere), target, intent(inout) :: self
-    logical, intent(in) :: chemistry_converged
-    logical, intent(out) :: updated
-    logical, intent(out) :: failed
+    logical :: out_of_tolerance
     character(:), allocatable, intent(out) :: err
 
-    real(dp) :: current_pressure, pressure_ratio, t_current
-    character(:), allocatable :: failure_message
-    integer :: nsteps_total, nerrors_total
-    integer :: nfailures
+    real(dp) :: current_pressure, pressure_ratio
 
-    updated = .false.
-    failed = .false.
+    out_of_tolerance = .false.
     if (.not.self%var%toa_pressure_maintenance%enabled) return
-
-    nfailures = self%wrk%n_toa_pressure_failures
 
     current_pressure = self%wrk%pressure(self%var%nz)
     if (.not.ieee_is_finite(current_pressure) .or. current_pressure <= 0.0_dp) then
-      self%wrk%n_toa_pressure_failures = nfailures + 1
-      failed = .true.
-      if (self%wrk%n_toa_pressure_failures > &
-          self%var%toa_pressure_maintenance%max_failures) then
-        err = 'TOA-pressure maintenance failed (failure limit exceeded): '// &
-              'the current TOA pressure was not finite and positive.'
-      endif
+      err = 'The current TOA pressure was not finite and positive.'
       return
     endif
     pressure_ratio = current_pressure / &
                      self%var%toa_pressure_maintenance%target_pressure
     if (pressure_ratio >= 1.0_dp / self%var%toa_pressure_maintenance%pressure_factor .and. &
         pressure_ratio <= self%var%toa_pressure_maintenance%pressure_factor) return
+
+    out_of_tolerance = .true.
+
+  end function
+
+  ! Apply one optional pressure-maintenance update after an accepted step.
+  subroutine maybe_maintain_toa_pressure(self, chemistry_converged, updated, failed, err)
+    class(EvoAtmosphere), target, intent(inout) :: self
+    logical, intent(in) :: chemistry_converged
+    logical, intent(out) :: updated
+    logical, intent(out) :: failed
+    character(:), allocatable, intent(out) :: err
+
+    real(dp) :: t_current
+    character(:), allocatable :: failure_message
+    integer :: nsteps_total, nerrors_total
+    integer :: nfailures
+    logical :: out_of_tolerance
+
+    updated = .false.
+    failed = .false.
+    nfailures = self%wrk%n_toa_pressure_failures
+
+    out_of_tolerance = toa_pressure_out_of_tolerance(self, err)
+    if (allocated(err)) then
+      self%wrk%n_toa_pressure_failures = nfailures + 1
+      failed = .true.
+      if (self%wrk%n_toa_pressure_failures > &
+          self%var%toa_pressure_maintenance%max_failures) then
+        err = 'TOA-pressure maintenance failed (failure limit exceeded): '// err
+        return
+      endif
+      deallocate(err)
+      return
+    endif
+
+    if (.not.out_of_tolerance) return
+
     if (self%wrk%nsteps_since_toa_pressure_update < &
         self%var%toa_pressure_maintenance%nsteps_between_updates .and. &
         .not.chemistry_converged) return
