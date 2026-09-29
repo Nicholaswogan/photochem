@@ -257,9 +257,8 @@ def test_toa_pressure_maintenance_api():
     assert maintenance.nsteps_between_updates == 7
     assert maintenance.max_failures == 2
 
-    # Counters are available before a robust integration starts and have no
-    # side effects from merely configuring the mode.
-    assert pc.wrk.n_toa_pressure_updates == 0
+    # Configuration exposes maintenance failures and the update timer without
+    # changing the current stepper state.
     assert pc.wrk.n_toa_pressure_failures == 0
     assert pc.wrk.nsteps_since_toa_pressure_update == 0
 
@@ -338,7 +337,6 @@ def test_robust_initial_toa_pressure_preflight():
     maintenance.nsteps_between_updates = 100
     pc.initialize_robust_stepper(pc.wrk.usol)
     assert pc.wrk.nsteps_total == 0
-    assert pc.wrk.n_toa_pressure_updates == 1
     assert pc.wrk.nsteps_since_toa_pressure_update == 0
     assert np.isclose(
         pc.wrk.pressure[-1] / maintenance.target_pressure, 1.0, rtol=0.0, atol=2.0e-5

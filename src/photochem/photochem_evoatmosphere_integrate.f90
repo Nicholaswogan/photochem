@@ -1088,7 +1088,6 @@ contains
 
     self%wrk%nsteps_total = 0
     self%wrk%nerrors_total = 0
-    self%wrk%n_toa_pressure_updates = merge(1, 0, initial_toa_update)
     self%wrk%n_toa_pressure_failures = 0
     self%wrk%nsteps_since_toa_pressure_update = 0
     self%wrk%robust_stepper_initialized = .true.
@@ -1214,7 +1213,7 @@ contains
     real(dp) :: current_pressure, pressure_ratio, t_current
     character(:), allocatable :: failure_message
     integer :: nsteps_total, nerrors_total
-    integer :: nupdates, nfailures
+    integer :: nfailures
 
     updated = .false.
     failed = .false.
@@ -1245,7 +1244,6 @@ contains
     ! preserve robust-session totals and maintenance counters across it.
     nsteps_total = self%wrk%nsteps_total
     nerrors_total = self%wrk%nerrors_total
-    nupdates = self%wrk%n_toa_pressure_updates
     t_current = self%wrk%tn
 
     call self%update_vertical_grid( &
@@ -1269,7 +1267,6 @@ contains
 
     self%wrk%nsteps_total = nsteps_total
     self%wrk%nerrors_total = nerrors_total
-    self%wrk%n_toa_pressure_updates = nupdates + 1
     self%wrk%n_toa_pressure_failures = nfailures
     self%wrk%nsteps_since_toa_pressure_update = 0
 

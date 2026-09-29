@@ -350,7 +350,6 @@ contains
     endif
     maintenance_enabled = pc%wrk%robust_stepper_initialized .and. &
                           pc%wrk%nsteps_total == 0 .and. &
-                          pc%wrk%n_toa_pressure_updates == 1 .and. &
                           pc%wrk%nsteps_since_toa_pressure_update == 0 .and. &
                           pc%var%top_atmos /= top_before .and. &
                           abs(pc%wrk%pressure(pc%var%nz)/target_pressure-1.0_dp) < 2.0e-5_dp
@@ -414,7 +413,6 @@ contains
       stop 1
     endif
     if (give_up .or. converged .or. &
-        pc%wrk%n_toa_pressure_updates /= 1 .or. &
         pc%wrk%nsteps_total /= 1 .or. pc%wrk%nsteps /= 0 .or. &
         pc%wrk%tn <= t_before .or. pc%var%top_atmos == top_before .or. &
         .not.pc%wrk%robust_stepper_initialized .or. &
@@ -428,7 +426,7 @@ contains
     ! converge on the following step without another regrid.
     call pc%robust_step(give_up, converged, err)
     if (allocated(err) .or. give_up .or. .not.converged .or. &
-        pc%wrk%n_toa_pressure_updates /= 1 .or. pc%wrk%nsteps_total /= 2 .or. &
+        pc%wrk%nsteps_total /= 2 .or. &
         pc%wrk%nsteps /= 1 .or. pc%wrk%nsteps_since_toa_pressure_update /= 1) then
       if (allocated(err)) print *, trim(err)
       print *, 'TOA maintenance did not gate convergence correctly after regridding'
@@ -534,7 +532,7 @@ contains
     endif
     call pc%robust_step(give_up, converged, err)
     if (allocated(err) .or. give_up .or. .not.converged .or. &
-        pc%wrk%n_toa_pressure_updates /= 0 .or. pc%wrk%nsteps_total /= 1 .or. &
+        pc%wrk%nsteps_total /= 1 .or. &
         pc%wrk%nsteps /= 1) then
       if (allocated(err)) print *, trim(err)
       print *, 'TOA pressure inside the factor band triggered an update'
@@ -579,7 +577,7 @@ contains
 
     call pc%robust_step(give_up, converged, err)
     if (allocated(err) .or. give_up .or. converged .or. &
-        pc%wrk%n_toa_pressure_updates /= 0 .or. pc%wrk%nsteps_total /= 1 .or. &
+        pc%wrk%nsteps_total /= 1 .or. pc%wrk%nsteps /= 1 .or. &
         pc%wrk%nsteps_since_toa_pressure_update /= 1) then
       if (allocated(err)) print *, trim(err)
       print *, 'TOA maintenance ignored its configured update cadence'
@@ -588,7 +586,7 @@ contains
 
     call pc%robust_step(give_up, converged, err)
     if (allocated(err) .or. give_up .or. converged .or. &
-        pc%wrk%n_toa_pressure_updates /= 1 .or. pc%wrk%nsteps_total /= 2 .or. &
+        pc%wrk%nsteps_total /= 2 .or. &
         pc%wrk%nsteps /= 0 .or. pc%wrk%nsteps_since_toa_pressure_update /= 0 .or. &
         pc%wrk%tn <= t_before .or. pc%var%top_atmos == top_before) then
       if (allocated(err)) print *, trim(err)

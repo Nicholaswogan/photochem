@@ -21,13 +21,6 @@ cdef class PhotochemWrk:
       wrk_pxd.photochemwrk_surface_pressure_get(self._ptr, &val)
       return val
 
-  property n_toa_pressure_updates:
-    """int. Number of successful automatic TOA pressure updates."""
-    def __get__(self):
-      cdef int val
-      wrk_pxd.photochemwrk_n_toa_pressure_updates_get(self._ptr, &val)
-      return val
-
   property n_toa_pressure_failures:
     """int. Number of failed automatic TOA pressure maintenance attempts."""
     def __get__(self):

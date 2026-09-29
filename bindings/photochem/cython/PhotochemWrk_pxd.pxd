@@ -12,7 +12,6 @@ cdef extern void photochemwrk_robust_stepper_initialized_get(PhotochemWrk *ptr, 
 
 cdef extern void photochemwrk_nsteps_get(PhotochemWrk *ptr, int *val)
 
-cdef extern void photochemwrk_n_toa_pressure_updates_get(PhotochemWrk *ptr, int *val)
 cdef extern void photochemwrk_n_toa_pressure_failures_get(PhotochemWrk *ptr, int *val)
 cdef extern void photochemwrk_nsteps_since_toa_pressure_update_get(PhotochemWrk *ptr, int *val)
 

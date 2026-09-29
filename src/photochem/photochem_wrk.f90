@@ -134,7 +134,6 @@ module photochem_wrk
     real(dp), allocatable :: density_hydro(:) !! (nz)
 
     ! Runtime bookkeeping for optional robust-stepper TOA maintenance.
-    integer :: n_toa_pressure_updates = 0 !! Successful automatic TOA-pressure updates.
     integer :: n_toa_pressure_failures = 0 !! Failed automatic TOA-pressure updates.
     integer :: nsteps_since_toa_pressure_update = 0 !! Accepted steps since the last successful update.
   end type
