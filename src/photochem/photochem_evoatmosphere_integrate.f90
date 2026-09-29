@@ -1218,7 +1218,9 @@ contains
     t_current = self%wrk%tn
 
     call self%update_vertical_grid( &
-         TOA_pressure=self%var%toa_pressure_maintenance%target_pressure, err=err)
+      TOA_pressure=self%var%toa_pressure_maintenance%target_pressure, &
+      err=err &
+    )
     if (allocated(err)) then
       ! The vertical-grid transaction is failure atomic, so the active solver
       ! and committed state remain available for the caller.
@@ -1291,8 +1293,15 @@ contains
         ierr = FCVodeReInit(wrk%sun%cvode_mem, tstart, wrk%sun%sunvec_y)
         if (ierr /= 0) err = "CVodeReInit returned an error."
       endif
-      if (.not.allocated(err)) call configure_stepper(self, restart_initial_step, err)
-      if (.not.allocated(err)) return
+      if (.not.allocated(err)) then
+        call configure_stepper(self, restart_initial_step, err)
+      endif
+      if (.not.allocated(err)) then
+        ! Re-init worked so we return
+        return
+      endif
+      ! Re-init did not work, so we save an error then move on to
+      ! full re-initialization.
       reinit_err = err
       deallocate(err)
     endif
