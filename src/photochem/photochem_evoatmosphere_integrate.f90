@@ -5,7 +5,9 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_integrate
   ! forward in time. Here, we use the CVODE BDF integrator.
   
 contains
-  
+
+  ! **Callbacks for CVODE**
+
   module function right_hand_side_callback(tn, sunvec_y, sunvec_f, user_data) &
                         result(ierr) bind(c, name='right_hand_side_callback')
     use, intrinsic :: iso_c_binding
@@ -147,6 +149,8 @@ contains
     character(kind=c_char) :: msg(*)
     type(c_ptr), value, intent(in) :: eh_data
   end subroutine
+
+  ! **Time evolution that saves to a file**
   
   module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, restart_from_file, err) result(success)
                                    
@@ -495,86 +499,9 @@ contains
     
   end subroutine
 
-  module function check_for_convergence(self, err) result(converged)
-    use, intrinsic :: iso_c_binding
-    class(EvoAtmosphere), target, intent(inout) :: self
-    character(:), allocatable, intent(out) :: err
-    logical :: converged
-
-    integer :: i,j,ind
-    type(PhotochemData), pointer :: dat
-    type(PhotochemVars), pointer :: var
-    type(PhotochemWrk), pointer :: wrk
-
-    converged = .false.
-    call self%require_atmosphere_initialized('check_for_convergence', err)
-    if (allocated(err)) return
-
-    dat => self%dat
-    var => self%var
-    wrk => self%wrk
-
-    if (.not.c_associated(wrk%sun%cvode_mem)) then
-      err = "You must first initialize the stepper with 'initialize_stepper'"
-      return
-    endif
-
-    ! If we reach equilibrium time, then converged
-    if (wrk%tn > var%equilibrium_time) then
-      converged = .true.
-      return
-    endif
-
-    ! Now consider step history.
-
-    ! Can't do analysis on step 0
-    if (wrk%nsteps == 0) return 
-
-    ! Find index in history closest to time of interest. Note that this will only
-    ! Consider a limited step history. We cannot save all history.
-    ind = minloc(abs(wrk%t_history - var%conv_hist_factor*wrk%t_history(1)),1)
-
-    ! Can't be current time, so we will check the previous step if needed.
-    if (ind == 1) ind = 2 
-
-    ! Compute difference between current mixing ratios, and mixing ratios
-    ! at our index of interest.
-    do j = 1,var%nz
-      do i = 1,dat%nq
-        if (wrk%mix_history(i,j,1) > var%conv_min_mix) then
-          wrk%dmix(i,j) = abs(wrk%mix_history(i,j,1) - wrk%mix_history(i,j,ind))
-        else 
-          ! Ignore small mixing ratios
-          wrk%dmix(i,j) = 0.0_dp
-        endif
-      enddo
-    enddo
-
-    ! Maximum normalized change
-    wrk%longdy = maxval(abs(wrk%dmix/wrk%mix_history(:,:,1)))
-    ! Also consider that change over time
-    wrk%longdydt = wrk%longdy/(wrk%t_history(1) - wrk%t_history(ind))
-
-    ! Check for convergence
-    if (wrk%longdy < var%conv_longdy .and. wrk%longdydt < var%conv_longdydt) then
-      converged = .true.
-      return
-    endif
-
-  end function
-
-  module subroutine initialize_stepper(self, usol_start, err)
-    use, intrinsic :: iso_c_binding, only: c_associated
-    class(EvoAtmosphere), target, intent(inout) :: self
-    real(dp), intent(in) :: usol_start(:,:)
-    character(:), allocatable, intent(out) :: err
-
-    call initialize_stepper_at_time(self, usol_start, 0.0_dp, err)
-    if (.not.allocated(err) .or. .not.c_associated(self%wrk%sun%cvode_mem)) then
-      self%wrk%robust_stepper_initialized = .false.
-    endif
-
-  end subroutine
+  ! ** Routines for initializing a stepper**
+  ! These routines can be used in `evolve`, `initialize_stepper` and
+  ! `initialize_robust_stepper`.
 
   subroutine initialize_stepper_at_time(self, usol_start, tstart, err, initial_step)
     use, intrinsic :: iso_c_binding
@@ -835,56 +762,20 @@ contains
 
   end subroutine
 
-  subroutine restart_robust_stepper(self, usol_restart, tstart, err)
-    use, intrinsic :: iso_c_binding, only: c_associated, c_int
-    use fcvode_mod, only: FCVodeReInit
+  ! **Basic stepper**
+  ! These routines drive a basic stepper, that ONLY advances chemistry
+  ! and does not attempt to do restarts to maintain the TOA pressure.
+  ! Chemical convergence can be checked with `check_for_convergence`.
+
+  module subroutine initialize_stepper(self, usol_start, err)
+    use, intrinsic :: iso_c_binding, only: c_associated
     class(EvoAtmosphere), target, intent(inout) :: self
-    real(dp), intent(in) :: usol_restart(:,:)
-    real(dp), intent(in) :: tstart
+    real(dp), intent(in) :: usol_start(:,:)
     character(:), allocatable, intent(out) :: err
 
-    real(dp), allocatable :: usol_clipped(:,:)
-    real(dp) :: restart_initial_step
-    character(:), allocatable :: reinit_err
-    integer(c_int) :: ierr
-    logical :: can_reinit, attempted_reinit
-    type(PhotochemWrk), pointer :: wrk
-
-    wrk => self%wrk
-    usol_clipped = max(usol_restart, self%var%reinit_min_density)
-    ! Preserve the configured restart behavior unless initial_dt is too small
-    ! to advance floating-point time at the current absolute time.
-    restart_initial_step = max(self%var%initial_dt, 2.0_dp*spacing(tstart))
-    attempted_reinit = .false.
-    can_reinit = c_associated(wrk%sun%cvode_mem) .and. &
-                 allocated(wrk%sun%yvec) .and. allocated(wrk%sun%abstol) .and. &
-                 associated(wrk%sun%sunvec_y) .and. associated(wrk%sun%abstol_nvec) .and. &
-                 associated(wrk%sun%sunmat) .and. associated(wrk%sun%sunlin)
-    if (can_reinit) then
-      can_reinit = size(wrk%sun%yvec) == self%var%neqs .and. &
-                   size(wrk%sun%abstol) == self%var%neqs
-    endif
-
-    if (can_reinit) then
-      attempted_reinit = .true.
-      call prepare_stepper_state(self, usol_clipped, tstart, err)
-      if (.not.allocated(err)) then
-        ierr = FCVodeReInit(wrk%sun%cvode_mem, tstart, wrk%sun%sunvec_y)
-        if (ierr /= 0) err = "CVodeReInit returned an error."
-      endif
-      if (.not.allocated(err)) call configure_stepper(self, restart_initial_step, err)
-      if (.not.allocated(err)) return
-      reinit_err = err
-      deallocate(err)
-    endif
-
-    ! Missing infrastructure or an unsuccessful in-place restart requires a
-    ! clean reconstruction. The robust-session counters remain untouched.
-    call initialize_stepper_at_time(self, usol_clipped, tstart, err, &
-                                         initial_step=restart_initial_step)
-    if (allocated(err) .and. attempted_reinit) then
-      err = "In-place CVODE restart failed ("//reinit_err// &
-            "); full reconstruction also failed: "//err
+    call initialize_stepper_at_time(self, usol_start, 0.0_dp, err)
+    if (.not.allocated(err) .or. .not.c_associated(self%wrk%sun%cvode_mem)) then
+      self%wrk%robust_stepper_initialized = .false.
     endif
 
   end subroutine
@@ -963,6 +854,74 @@ contains
 
   end function
 
+  module function check_for_convergence(self, err) result(converged)
+    use, intrinsic :: iso_c_binding
+    class(EvoAtmosphere), target, intent(inout) :: self
+    character(:), allocatable, intent(out) :: err
+    logical :: converged
+
+    integer :: i,j,ind
+    type(PhotochemData), pointer :: dat
+    type(PhotochemVars), pointer :: var
+    type(PhotochemWrk), pointer :: wrk
+
+    converged = .false.
+    call self%require_atmosphere_initialized('check_for_convergence', err)
+    if (allocated(err)) return
+
+    dat => self%dat
+    var => self%var
+    wrk => self%wrk
+
+    if (.not.c_associated(wrk%sun%cvode_mem)) then
+      err = "You must first initialize the stepper with 'initialize_stepper'"
+      return
+    endif
+
+    ! If we reach equilibrium time, then converged
+    if (wrk%tn > var%equilibrium_time) then
+      converged = .true.
+      return
+    endif
+
+    ! Now consider step history.
+
+    ! Can't do analysis on step 0
+    if (wrk%nsteps == 0) return
+
+    ! Find index in history closest to time of interest. Note that this will only
+    ! Consider a limited step history. We cannot save all history.
+    ind = minloc(abs(wrk%t_history - var%conv_hist_factor*wrk%t_history(1)),1)
+
+    ! Can't be current time, so we will check the previous step if needed.
+    if (ind == 1) ind = 2
+
+    ! Compute difference between current mixing ratios, and mixing ratios
+    ! at our index of interest.
+    do j = 1,var%nz
+      do i = 1,dat%nq
+        if (wrk%mix_history(i,j,1) > var%conv_min_mix) then
+          wrk%dmix(i,j) = abs(wrk%mix_history(i,j,1) - wrk%mix_history(i,j,ind))
+        else
+          ! Ignore small mixing ratios
+          wrk%dmix(i,j) = 0.0_dp
+        endif
+      enddo
+    enddo
+
+    ! Maximum normalized change
+    wrk%longdy = maxval(abs(wrk%dmix/wrk%mix_history(:,:,1)))
+    ! Also consider that change over time
+    wrk%longdydt = wrk%longdy/(wrk%t_history(1) - wrk%t_history(ind))
+
+    ! Check for convergence
+    if (wrk%longdy < var%conv_longdy .and. wrk%longdydt < var%conv_longdydt) then
+      converged = .true.
+      return
+    endif
+
+  end function
+
   module subroutine destroy_stepper(self, err)
     use iso_c_binding, only: c_int, c_associated, c_null_ptr
     use fcvode_mod, only: FCVodeFree
@@ -979,44 +938,10 @@ contains
     
   end subroutine
 
-  subroutine validate_robust_stepper_settings(self, err)
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    class(EvoAtmosphere), intent(in) :: self
-    character(:), allocatable, intent(out) :: err
-
-    if (self%var%nerrors_before_giveup < 1) then
-      err = "`nerrors_before_giveup` must be positive"
-    elseif (self%var%nsteps_before_conv_check < 0) then
-      err = "`nsteps_before_conv_check` must be nonnegative"
-    elseif (self%var%nsteps_before_reinit < 1) then
-      err = "`nsteps_before_reinit` must be positive"
-    elseif (self%var%nsteps_before_giveup < 1) then
-      err = "`nsteps_before_giveup` must be positive"
-    elseif (self%var%nsteps_before_conv_check >= self%var%nsteps_before_reinit) then
-      err = "`nsteps_before_conv_check` must be less than `nsteps_before_reinit`"
-    elseif (.not.ieee_is_finite(self%var%reinit_min_density) .or. &
-            self%var%reinit_min_density <= 0.0_dp) then
-      err = "`reinit_min_density` must be finite and positive"
-    elseif (self%var%toa_pressure_maintenance%enabled .and. &
-            .not.self%var%press_temp_edd_profile%enabled) then
-      err = "TOA-pressure maintenance requires an enabled persistent pressure-based temperature and eddy-diffusion profile"
-    elseif (self%var%toa_pressure_maintenance%enabled .and. &
-            (.not.ieee_is_finite(self%var%toa_pressure_maintenance%target_pressure) .or. &
-             self%var%toa_pressure_maintenance%target_pressure <= 0.0_dp)) then
-      err = "`toa_pressure_maintenance%target_pressure` must be finite and positive"
-    elseif (self%var%toa_pressure_maintenance%enabled .and. &
-            (.not.ieee_is_finite(self%var%toa_pressure_maintenance%pressure_factor) .or. &
-             self%var%toa_pressure_maintenance%pressure_factor < 1.0_dp)) then
-      err = "`toa_pressure_maintenance%pressure_factor` must be finite and at least one"
-    elseif (self%var%toa_pressure_maintenance%enabled .and. &
-            self%var%toa_pressure_maintenance%nsteps_between_updates < 1) then
-      err = "`toa_pressure_maintenance%nsteps_between_updates` must be positive"
-    elseif (self%var%toa_pressure_maintenance%enabled .and. &
-            self%var%toa_pressure_maintenance%max_failures < 0) then
-      err = "`toa_pressure_maintenance%max_failures` must be nonnegative"
-    endif
-
-  end subroutine
+  ! **Robust stepper**
+  ! These routines drive the robust stepper, which will restart the integrator
+  ! to try to make it more robust to stalling out. It can also optionally
+  ! maintain the TOA pressure.
 
   module subroutine initialize_robust_stepper(self, usol_start, err)
     use, intrinsic :: iso_c_binding, only: c_associated
@@ -1091,6 +1016,45 @@ contains
     self%wrk%n_toa_pressure_failures = 0
     self%wrk%nsteps_since_toa_pressure_update = 0
     self%wrk%robust_stepper_initialized = .true.
+
+  end subroutine
+
+  subroutine validate_robust_stepper_settings(self, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    class(EvoAtmosphere), intent(in) :: self
+    character(:), allocatable, intent(out) :: err
+
+    if (self%var%nerrors_before_giveup < 1) then
+      err = "`nerrors_before_giveup` must be positive"
+    elseif (self%var%nsteps_before_conv_check < 0) then
+      err = "`nsteps_before_conv_check` must be nonnegative"
+    elseif (self%var%nsteps_before_reinit < 1) then
+      err = "`nsteps_before_reinit` must be positive"
+    elseif (self%var%nsteps_before_giveup < 1) then
+      err = "`nsteps_before_giveup` must be positive"
+    elseif (self%var%nsteps_before_conv_check >= self%var%nsteps_before_reinit) then
+      err = "`nsteps_before_conv_check` must be less than `nsteps_before_reinit`"
+    elseif (.not.ieee_is_finite(self%var%reinit_min_density) .or. &
+            self%var%reinit_min_density <= 0.0_dp) then
+      err = "`reinit_min_density` must be finite and positive"
+    elseif (self%var%toa_pressure_maintenance%enabled .and. &
+            .not.self%var%press_temp_edd_profile%enabled) then
+      err = "TOA-pressure maintenance requires an enabled persistent pressure-based temperature and eddy-diffusion profile"
+    elseif (self%var%toa_pressure_maintenance%enabled .and. &
+            (.not.ieee_is_finite(self%var%toa_pressure_maintenance%target_pressure) .or. &
+             self%var%toa_pressure_maintenance%target_pressure <= 0.0_dp)) then
+      err = "`toa_pressure_maintenance%target_pressure` must be finite and positive"
+    elseif (self%var%toa_pressure_maintenance%enabled .and. &
+            (.not.ieee_is_finite(self%var%toa_pressure_maintenance%pressure_factor) .or. &
+             self%var%toa_pressure_maintenance%pressure_factor < 1.0_dp)) then
+      err = "`toa_pressure_maintenance%pressure_factor` must be finite and at least one"
+    elseif (self%var%toa_pressure_maintenance%enabled .and. &
+            self%var%toa_pressure_maintenance%nsteps_between_updates < 1) then
+      err = "`toa_pressure_maintenance%nsteps_between_updates` must be positive"
+    elseif (self%var%toa_pressure_maintenance%enabled .and. &
+            self%var%toa_pressure_maintenance%max_failures < 0) then
+      err = "`toa_pressure_maintenance%max_failures` must be nonnegative"
+    endif
 
   end subroutine
 
@@ -1281,6 +1245,60 @@ contains
     endif
     self%wrk%robust_stepper_initialized = .true.
     updated = .true.
+
+  end subroutine
+
+  subroutine restart_robust_stepper(self, usol_restart, tstart, err)
+    use, intrinsic :: iso_c_binding, only: c_associated, c_int
+    use fcvode_mod, only: FCVodeReInit
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), intent(in) :: usol_restart(:,:)
+    real(dp), intent(in) :: tstart
+    character(:), allocatable, intent(out) :: err
+
+    real(dp), allocatable :: usol_clipped(:,:)
+    real(dp) :: restart_initial_step
+    character(:), allocatable :: reinit_err
+    integer(c_int) :: ierr
+    logical :: can_reinit, attempted_reinit
+    type(PhotochemWrk), pointer :: wrk
+
+    wrk => self%wrk
+    usol_clipped = max(usol_restart, self%var%reinit_min_density)
+    ! Preserve the configured restart behavior unless initial_dt is too small
+    ! to advance floating-point time at the current absolute time.
+    restart_initial_step = max(self%var%initial_dt, 2.0_dp*spacing(tstart))
+    attempted_reinit = .false.
+    can_reinit = c_associated(wrk%sun%cvode_mem) .and. &
+                 allocated(wrk%sun%yvec) .and. allocated(wrk%sun%abstol) .and. &
+                 associated(wrk%sun%sunvec_y) .and. associated(wrk%sun%abstol_nvec) .and. &
+                 associated(wrk%sun%sunmat) .and. associated(wrk%sun%sunlin)
+    if (can_reinit) then
+      can_reinit = size(wrk%sun%yvec) == self%var%neqs .and. &
+                   size(wrk%sun%abstol) == self%var%neqs
+    endif
+
+    if (can_reinit) then
+      attempted_reinit = .true.
+      call prepare_stepper_state(self, usol_clipped, tstart, err)
+      if (.not.allocated(err)) then
+        ierr = FCVodeReInit(wrk%sun%cvode_mem, tstart, wrk%sun%sunvec_y)
+        if (ierr /= 0) err = "CVodeReInit returned an error."
+      endif
+      if (.not.allocated(err)) call configure_stepper(self, restart_initial_step, err)
+      if (.not.allocated(err)) return
+      reinit_err = err
+      deallocate(err)
+    endif
+
+    ! Missing infrastructure or an unsuccessful in-place restart requires a
+    ! clean reconstruction. The robust-session counters remain untouched.
+    call initialize_stepper_at_time(self, usol_clipped, tstart, err, &
+                                         initial_step=restart_initial_step)
+    if (allocated(err) .and. attempted_reinit) then
+      err = "In-place CVODE restart failed ("//reinit_err// &
+            "); full reconstruction also failed: "//err
+    endif
 
   end subroutine
 
