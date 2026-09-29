@@ -1040,21 +1040,9 @@ contains
     elseif (self%var%toa_pressure_maintenance%enabled .and. &
             .not.self%var%press_temp_edd_profile%enabled) then
       err = "TOA-pressure maintenance requires an enabled persistent pressure-based temperature and eddy-diffusion profile"
-    elseif (self%var%toa_pressure_maintenance%enabled .and. &
-            (.not.ieee_is_finite(self%var%toa_pressure_maintenance%target_pressure) .or. &
-             self%var%toa_pressure_maintenance%target_pressure <= 0.0_dp)) then
-      err = "`toa_pressure_maintenance%target_pressure` must be finite and positive"
-    elseif (self%var%toa_pressure_maintenance%enabled .and. &
-            (.not.ieee_is_finite(self%var%toa_pressure_maintenance%pressure_factor) .or. &
-             self%var%toa_pressure_maintenance%pressure_factor < 1.0_dp)) then
-      err = "`toa_pressure_maintenance%pressure_factor` must be finite and at least one"
-    elseif (self%var%toa_pressure_maintenance%enabled .and. &
-            self%var%toa_pressure_maintenance%nsteps_between_updates < 1) then
-      err = "`toa_pressure_maintenance%nsteps_between_updates` must be positive"
-    elseif (self%var%toa_pressure_maintenance%enabled .and. &
-            self%var%toa_pressure_maintenance%max_failures < 0) then
-      err = "`toa_pressure_maintenance%max_failures` must be nonnegative"
     endif
+
+    if (.not.allocated(err)) call self%var%toa_pressure_maintenance%validate(err)
 
   end subroutine
 

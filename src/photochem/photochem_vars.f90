@@ -31,6 +31,8 @@ module photochem_vars
     real(dp) :: pressure_factor = 3.0_dp !! Multiplicative acceptable pressure factor
     integer :: nsteps_between_updates = 100 !! Minimum accepted steps between updates
     integer :: max_failures = 0 !! Failed updates allowed before robust integration stops
+  contains
+    procedure :: validate => TOAPressureMaintenance_validate
   end type
 
   abstract interface
@@ -208,6 +210,26 @@ module photochem_vars
   end interface
 
 contains
+
+  !> Validate the settings owned by TOA-pressure maintenance.
+  subroutine TOAPressureMaintenance_validate(self, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    class(TOAPressureMaintenance), intent(in) :: self
+    character(:), allocatable, intent(out) :: err
+
+    if (.not.self%enabled) return
+
+    if (.not.ieee_is_finite(self%target_pressure) .or. self%target_pressure <= 0.0_dp) then
+      err = "`toa_pressure_maintenance%target_pressure` must be finite and positive"
+    elseif (.not.ieee_is_finite(self%pressure_factor) .or. self%pressure_factor < 1.0_dp) then
+      err = "`toa_pressure_maintenance%pressure_factor` must be finite and at least one"
+    elseif (self%nsteps_between_updates < 1) then
+      err = "`toa_pressure_maintenance%nsteps_between_updates` must be positive"
+    elseif (self%max_failures < 0) then
+      err = "`toa_pressure_maintenance%max_failures` must be nonnegative"
+    endif
+
+  end subroutine
 
   !> Construct configured model variables and allocate atmospheric storage.
   function create_PhotochemVars(dat, settings, flux_file, err) result(var)
