@@ -774,10 +774,14 @@ contains
     character(:), allocatable, intent(out) :: err
 
     call initialize_stepper_at_time(self, usol_start, 0.0_dp, err)
-    if (.not.allocated(err) .or. .not.c_associated(self%wrk%sun%cvode_mem)) then
-      self%wrk%robust_stepper_initialized = .false.
+    if (allocated(err)) then
+      if (.not.c_associated(self%wrk%sun%cvode_mem)) then
+        self%wrk%robust_stepper_initialized = .false.
+      endif
+      return
     endif
 
+    self%wrk%robust_stepper_initialized = .false.
   end subroutine
 
   module function step(self, err) result(tn)
