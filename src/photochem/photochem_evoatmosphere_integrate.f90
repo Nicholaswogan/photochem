@@ -1213,7 +1213,12 @@ contains
 
     if (self%wrk%nsteps_since_toa_pressure_update < &
         self%var%toa_pressure_maintenance%nsteps_between_updates .and. &
-        .not.chemistry_converged) return
+        .not.chemistry_converged) then
+      ! We are out of tolerance, but, we cannot yet update because the reset
+      ! is not yet up. The exception is if there is chemistry convergence, then we
+      ! should continue and update TOA.
+      return
+    endif
 
     ! update_vertical_grid intentionally installs a fresh work structure, so
     ! preserve robust-session totals and maintenance counters across it.
