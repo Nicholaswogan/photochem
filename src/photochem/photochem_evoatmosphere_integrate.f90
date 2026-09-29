@@ -192,6 +192,11 @@ contains
     call self%require_atmosphere_initialized('evolve', err)
     if (allocated(err)) return
 
+    if (self%var%toa_pressure_maintenance%enabled) then
+      err = "TOA-pressure maintenance is not supported by 'evolve'; disable it before evolving the atmosphere."
+      return
+    endif
+
     dat => self%dat
     var => self%var
     wrk => self%wrk
@@ -772,6 +777,14 @@ contains
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
     character(:), allocatable, intent(out) :: err
+
+    call self%require_atmosphere_initialized('initialize_stepper', err)
+    if (allocated(err)) return
+
+    if (self%var%toa_pressure_maintenance%enabled) then
+      err = "TOA-pressure maintenance is only supported by 'initialize_robust_stepper'."
+      return
+    endif
 
     call initialize_stepper_at_time(self, usol_start, 0.0_dp, err)
     if (allocated(err)) then

@@ -21,6 +21,7 @@ contains
     call test_legacy_file_grid()
     call test_robust_stepper_initialization()
     call test_toa_pressure_maintenance_settings()
+    call test_toa_maintenance_requires_robust_stepper()
     call test_toa_pressure_maintenance_initialization()
     call test_toa_pressure_maintenance()
     call test_toa_pressure_maintenance_policy()
@@ -308,6 +309,66 @@ contains
     endif
     if (pc%var%toa_pressure_maintenance%enabled) then
       print *, 'Clearing the persistent profile left TOA maintenance enabled'
+      stop 1
+    endif
+
+  end subroutine
+
+  subroutine test_toa_maintenance_requires_robust_stepper()
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    character(len=64) :: filename
+    real(dp) :: tstart, t_eval(1)
+    logical :: success
+
+    pc = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    pc%var%toa_pressure_maintenance%enabled = .true.
+
+    call pc%initialize_stepper(pc%wrk%usol, err)
+    if (.not.allocated(err)) then
+      print *, 'Basic stepper accepted TOA-pressure maintenance'
+      stop 1
+    endif
+    if (index(err, 'only supported by') == 0 .or. &
+        .not.pc%wrk%robust_stepper_initialized) then
+      print *, 'Basic-stepper TOA error was unclear or destroyed the active stepper'
+      stop 1
+    endif
+    deallocate(err)
+
+    filename = 'unused_toa_rejected_evolution.dat'
+    tstart = 0.0_dp
+    t_eval = [1.0_dp]
+    success = pc%evolve(trim(filename), tstart, pc%wrk%usol, t_eval, err=err)
+    if (.not.allocated(err)) then
+      print *, 'evolve accepted TOA-pressure maintenance'
+      stop 1
+    endif
+    if (index(err, 'not supported by') == 0 .or. &
+        .not.pc%wrk%robust_stepper_initialized) then
+      print *, 'evolve TOA error was unclear or destroyed the active stepper'
+      stop 1
+    endif
+    if (success) then
+      print *, 'evolve succeeded while TOA-pressure maintenance was enabled'
+      stop 1
+    endif
+    deallocate(err)
+
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print *, trim(err)
       stop 1
     endif
 
@@ -1356,7 +1417,7 @@ contains
     profile_temperature = [290.0_dp, 180.0_dp]
     profile_edd = [1.0e5_dp, 1.0e7_dp]
     call pc%set_press_temp_edd_profile(profile_pressure, profile_temperature, &
-                                       profile_edd, err=err)
+                                       profile_edd, maintain_toa_pressure=.false., err=err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -1540,6 +1601,7 @@ contains
       print *, 'persistent initializer did not retain custom TOA target'
       stop 1
     endif
+    pc%var%toa_pressure_maintenance%enabled = .false.
 
     ! A failed pressure reinitialization must retain atmospheric, profile, and
     ! CVODE state. Equal adjacent pressure points violate strict ordering.
@@ -1782,7 +1844,8 @@ contains
     call pc_p%initialize_atmosphere_p(p_profile, temperature_p, edd_p, &
                                       particle_radius=particle_radius_p, &
                                       persistent=.true., &
-                                      trop_p=1.0e5_dp, err=err)
+                                      trop_p=1.0e5_dp, &
+                                      maintain_toa_pressure=.false., err=err)
     if (allocated(err)) then
       print *, 'static-only pressure initialization failed: '//trim(err)
       stop 1
@@ -2144,7 +2207,7 @@ contains
     profile_temperature = [290.0_dp, 180.0_dp]
     profile_edd = [1.0e5_dp, 1.0e7_dp]
     call pc%set_press_temp_edd_profile(profile_pressure, profile_temperature, &
-                                       profile_edd, err=err)
+                                       profile_edd, maintain_toa_pressure=.false., err=err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -2400,7 +2463,7 @@ contains
     endif
 
     call pc%set_press_temp_edd_profile(P, T, edd, &
-         hydro_pressure=.true., err=err)
+         hydro_pressure=.true., maintain_toa_pressure=.false., err=err)
     if (allocated(err)) then
       print*,trim(err)
       stop 1
