@@ -332,14 +332,15 @@ module photochem_evoatmosphere
     !! evolved-species number-density state.
     module subroutine prepare_atmosphere_structure(self, usol_in, usol, &
                                                    molecules_per_particle, pressure, density, mix, mubar, &
-                                                   pressure_hydro, density_hydro, apply_persistent_profile, err)
+                                                   pressure_hydro, density_hydro, profile_sync_policy, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:)
       real(dp), intent(out) :: usol(:,:)
       real(dp), intent(out) :: molecules_per_particle(:,:)
       real(dp), intent(out) :: pressure(:), density(:), mix(:,:), mubar(:)
       real(dp), intent(out) :: pressure_hydro(:), density_hydro(:)
-      logical, optional, intent(in) :: apply_persistent_profile
+      !> SyncProfileIfContinuous, SyncProfileIfEnabled, or KeepCurrentProfile.
+      integer, intent(in) :: profile_sync_policy
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -347,11 +348,12 @@ module photochem_evoatmosphere
     !> this subroutine calculates reaction rates, photolysis rates, etc.
     !> and puts this information into self.wrk. self.wrk contains all the
     !> information needed for `dochem` to compute chemistry.
-    module subroutine prep_atmosphere_unchecked(self, usol_in, apply_persistent_profile, err)
+    module subroutine prep_atmosphere_unchecked(self, usol_in, profile_sync_policy, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       !> Evolved gas and condensed-material number densities (molecules/cm^3).
       real(dp), intent(in) :: usol_in(:,:)
-      logical, optional, intent(in) :: apply_persistent_profile
+      !> SyncProfileIfContinuous, SyncProfileIfEnabled, or KeepCurrentProfile.
+      integer, intent(in) :: profile_sync_policy
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -808,6 +810,8 @@ module photochem_evoatmosphere
       type(PhotochemVars), intent(inout) :: var
     end subroutine
 
+    !> Apply the installed pressure-temperature-eddy profile.
+    !! The caller must ensure that the profile is enabled.
     module subroutine apply_press_temp_edd_profile(self, usol_in, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:)

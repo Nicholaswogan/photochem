@@ -1,5 +1,6 @@
 submodule(photochem_evoatmosphere) photochem_evoatmosphere_profiles
   use photochem_vars, only: PressureTempEddProfile
+  use photochem_enum, only: SyncProfileIfEnabled
   implicit none
 
   type :: PressTempEddState
@@ -323,7 +324,7 @@ contains
     ! Keep the input separate from wrk%usol because preparation writes the
     ! canonical working state through a distinct output argument.
     usol_start = self%wrk%usol
-    call self%prep_atmosphere_unchecked(usol_start, apply_persistent_profile=.true., err=err)
+    call self%prep_atmosphere_unchecked(usol_start, profile_sync_policy=SyncProfileIfEnabled, err=err)
     if (allocated(err)) then
       original_err = err
       self%var%press_temp_edd_profile = previous_profile
@@ -396,8 +397,6 @@ contains
 
     real(dp) :: T_grid(self%var%nz), edd_grid(self%var%nz)
     real(dp) :: log10P_grid(self%var%nz), trop_alt
-
-    if (.not. self%var%press_temp_edd_profile%enabled) return
 
     call map_press_temp_edd( &
       self, &

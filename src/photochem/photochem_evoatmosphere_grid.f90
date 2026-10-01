@@ -1,5 +1,6 @@
 
 submodule(photochem_evoatmosphere) photochem_evoatmosphere_grid
+  use photochem_enum, only: SyncProfileIfEnabled
   implicit none
 
   ! Scratch storage used only while constructing a vertical-grid state.
@@ -649,7 +650,7 @@ contains
                                wrk%molecules_per_particle, wrk%pressure, &
                                wrk%density, wrk%mix, wrk%mubar, &
                                wrk%pressure_hydro, wrk%density_hydro, &
-                               var%press_temp_edd_profile%enabled, err)
+                               profile_sync_policy=SyncProfileIfEnabled, err=err)
     if (allocated(err)) then
       original_err = err
       call restore_previous_state(original_err, err)

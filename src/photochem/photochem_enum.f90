@@ -68,5 +68,11 @@ module photochem_enum
     PeriodicPressTempEdd = 0, &
     ContinuousPressTempEdd = 1
 
+  ! Internal atmospheric preparation policy.
+  enumerator :: &
+    SyncProfileIfContinuous = 1, &
+    SyncProfileIfEnabled = 2, &
+    KeepCurrentProfile = 3
+
   end enum
 end module

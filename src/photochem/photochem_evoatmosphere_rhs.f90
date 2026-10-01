@@ -6,6 +6,7 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_rhs
   use differentia, only: dual, assignment(=), operator(+), operator(-), &
                          operator(*), operator(/), operator(**), &
                          operator(>), operator(<=), max, atan
+  use photochem_enum, only: SyncProfileIfContinuous, SyncProfileIfEnabled, KeepCurrentProfile
   implicit none
   
   interface dochem
@@ -749,18 +750,18 @@ contains
 
   module subroutine prepare_atmosphere_structure(self, usol_in, usol, &
                                                   molecules_per_particle, pressure, density, mix, mubar, &
-                                                  pressure_hydro, density_hydro, apply_persistent_profile, err)
+                                                  pressure_hydro, density_hydro, profile_sync_policy, err)
     use photochem_eqns, only: press_and_den
     use photochem_evoatmosphere_chemistry, only: molec_per_particle
     use photochem_const, only: N_avo, k_boltz
-    use photochem_enum, only: PeriodicPressTempEdd
+    use photochem_enum, only: ContinuousPressTempEdd
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
     real(dp), intent(out) :: usol(:,:)
     real(dp), intent(out) :: molecules_per_particle(:,:)
     real(dp), intent(out) :: pressure(:), density(:), mix(:,:), mubar(:)
     real(dp), intent(out) :: pressure_hydro(:), density_hydro(:)
-    logical, optional, intent(in) :: apply_persistent_profile
+    integer, intent(in) :: profile_sync_policy
     character(:), allocatable, intent(out) :: err
 
     logical :: apply_profile
@@ -771,9 +772,18 @@ contains
     dat => self%dat
     var => self%var
 
-    apply_profile = .not.(var%press_temp_edd_profile%enabled .and. &
-                          var%press_temp_edd_profile%mode == PeriodicPressTempEdd)
-    if (present(apply_persistent_profile)) apply_profile = apply_persistent_profile
+    select case (profile_sync_policy)
+    case (SyncProfileIfContinuous)
+      apply_profile = var%press_temp_edd_profile%enabled .and. &
+                      var%press_temp_edd_profile%mode == ContinuousPressTempEdd
+    case (SyncProfileIfEnabled)
+      apply_profile = var%press_temp_edd_profile%enabled
+    case (KeepCurrentProfile)
+      apply_profile = .false.
+    case default
+      err = 'Unknown pressure-profile synchronization policy.'
+      return
+    end select
 
     ! A persistent pressure-based profile depends on the trial composition.
     ! Apply it before boundary conditions, hydrostatics, transport, chemistry,
@@ -808,7 +818,7 @@ contains
 
   end subroutine
 
-  module subroutine prep_atmosphere_unchecked(self, usol_in, apply_persistent_profile, err)
+  module subroutine prep_atmosphere_unchecked(self, usol_in, profile_sync_policy, err)
 
     use photochem_evoatmosphere_chemistry, only: reaction_rates, rainout, photorates
     use photochem_evoatmosphere_chemistry, only: gas_saturation_density
@@ -817,7 +827,7 @@ contains
 
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
-    logical, optional, intent(in) :: apply_persistent_profile
+    integer, intent(in) :: profile_sync_policy
     character(:), allocatable, intent(out) :: err
 
     type(PhotochemData), pointer :: dat
@@ -832,7 +842,7 @@ contains
     call prepare_atmosphere_structure(self, usol_in, wrk%usol, &
                                       wrk%molecules_per_particle, wrk%pressure, wrk%density, &
                                       wrk%mix, wrk%mubar, wrk%pressure_hydro, wrk%density_hydro, &
-                                      apply_persistent_profile, err)
+                                      profile_sync_policy, err)
     if (allocated(err)) return
 
     !!! diffusion and advection coefficients
@@ -905,7 +915,7 @@ contains
     call self%require_atmosphere_initialized('prep_atmosphere', err)
     if (allocated(err)) return
 
-    call prep_atmosphere_unchecked(self, usol_in, err=err)
+    call prep_atmosphere_unchecked(self, usol_in, SyncProfileIfContinuous, err)
     if (allocated(err)) return
 
   end subroutine
@@ -945,7 +955,7 @@ contains
     wrk%tn = tn
     
     ! fills self%wrk with data
-    call prep_atmosphere_unchecked(self, usol_in, err=err)
+    call prep_atmosphere_unchecked(self, usol_in, SyncProfileIfContinuous, err)
     if (allocated(err)) return
 
     call dochem(self, wrk%usol, wrk%rx_rates, &
@@ -1507,7 +1517,7 @@ contains
       return 
     endif
   
-    call prep_atmosphere_unchecked(self, usol_in, err=err)
+    call prep_atmosphere_unchecked(self, usol_in, SyncProfileIfContinuous, err)
     if (allocated(err)) return
   
     jac = 0.0_dp

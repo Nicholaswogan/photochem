@@ -1,4 +1,5 @@
 submodule(photochem_evoatmosphere) photochem_evoatmosphere_init
+  use photochem_enum, only: KeepCurrentProfile
   implicit none
 
   ! Aggregate construction and atmosphere-initialization implementation.
@@ -117,7 +118,7 @@ contains
 
     call copy_state_to_model(self, state)
 
-    call self%prep_atmosphere_unchecked(state%usol, apply_persistent_profile=.false., err=err)
+    call self%prep_atmosphere_unchecked(state%usol, profile_sync_policy=KeepCurrentProfile, err=err)
     if (allocated(err)) then
       call restore_previous_state()
       return
@@ -193,7 +194,7 @@ contains
     call copy_state_to_model(self, state)
 
     ! Prepare the atmosphere
-    call self%prep_atmosphere_unchecked(state%usol, apply_persistent_profile=.false., err=err)
+    call self%prep_atmosphere_unchecked(state%usol, profile_sync_policy=KeepCurrentProfile, err=err)
     if (allocated(err)) then
       call restore_previous_state()
       return
@@ -336,7 +337,7 @@ contains
     if (allocated(err)) return
 
     call copy_state_to_model(self, state)
-    call self%prep_atmosphere_unchecked(state%usol, apply_persistent_profile=.false., err=err)
+    call self%prep_atmosphere_unchecked(state%usol, profile_sync_policy=KeepCurrentProfile, err=err)
     if (allocated(err)) then
       call restore_previous_state()
       return

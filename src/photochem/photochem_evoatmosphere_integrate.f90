@@ -1,4 +1,5 @@
 submodule(photochem_evoatmosphere) photochem_evoatmosphere_integrate
+  use photochem_enum, only: SyncProfileIfContinuous, SyncProfileIfEnabled
   implicit none
   
   ! Contains routines for integrating the photochemical equations
@@ -694,7 +695,7 @@ contains
     call self%prepare_atmosphere_structure( &
       yvec_usol, wrk%usol, wrk%molecules_per_particle, wrk%pressure, &
       wrk%density, wrk%mix, wrk%mubar, wrk%pressure_hydro, &
-      wrk%density_hydro, err=err &
+      wrk%density_hydro, profile_sync_policy=SyncProfileIfContinuous, err=err &
     )
     if (allocated(err)) return
     do j=1,var%nz
@@ -862,7 +863,8 @@ contains
       ! Prepare the accepted CVODE solution before this public call returns.
       call self%prepare_atmosphere_structure(usol_tmp, wrk%usol, &
            wrk%molecules_per_particle, wrk%pressure, wrk%density, wrk%mix, wrk%mubar, &
-           wrk%pressure_hydro, wrk%density_hydro, err=err)
+           wrk%pressure_hydro, wrk%density_hydro, &
+           profile_sync_policy=SyncProfileIfContinuous, err=err)
       if (allocated(err)) return
     endblock
 
@@ -1012,7 +1014,7 @@ contains
       call self%prepare_atmosphere_structure( &
         usol_copy, wrk%usol, wrk%molecules_per_particle, wrk%pressure, &
         wrk%density, wrk%mix, wrk%mubar, wrk%pressure_hydro, &
-        wrk%density_hydro, apply_persistent_profile=.true., err=err &
+        wrk%density_hydro, profile_sync_policy=SyncProfileIfEnabled, err=err &
       )
       if (allocated(err)) return
     endif
