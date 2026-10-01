@@ -689,8 +689,6 @@ contains
 
     yvec_usol(1:dat%nq,1:var%nz) => wrk%sun%yvec
     yvec_usol = usol_start
-    call self%apply_lower_boundary_conditions(var%temperature(1), yvec_usol(:,1), err)
-    if (allocated(err)) return
 
     call self%prepare_atmosphere_structure( &
       yvec_usol, wrk%usol, wrk%molecules_per_particle, wrk%pressure, &
@@ -698,6 +696,10 @@ contains
       wrk%density_hydro, profile_sync_policy=SyncProfileIfContinuous, err=err &
     )
     if (allocated(err)) return
+    
+    call self%apply_lower_boundary_conditions(var%temperature(1), yvec_usol(:,1), err)
+    if (allocated(err)) return
+
     do j=1,var%nz
       do i=1,dat%nq
         k = i + (j-1)*dat%nq
