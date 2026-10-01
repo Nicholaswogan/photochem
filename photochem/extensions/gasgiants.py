@@ -614,31 +614,38 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         return give_up, reached_steady_state
     
     def model_state_to_dict(self):
-        """Serialize the initialized gas-giant atmospheric state.
+        """Save atmospheric profiles for gas-giant reinitialization.
+
+        The returned arrays are independent copies. This is not a full model
+        checkpoint: solver history, time, callbacks, and most numerical settings
+        are omitted. The destination must use the same mechanism, layer count,
+        planet mass, reference radius, and reference pressure.
 
         Returns
         -------
         dict
             State accepted by [initialize_from_dict][photochem.extensions.EvoAtmosphereGasGiant.initialize_from_dict].
         """
-
         gdat = self.gdat
-
-        if gdat.P_clima_grid is None:
+        climate_keys = (
+            'P_clima_grid', 'T_clima_grid', 'Kzz_clima_grid',
+            'P_desired', 'T_desired', 'Kzz_desired',
+        )
+        if (not self.atmosphere_initialized or
+                not self.var.press_temp_edd_profile.enabled or
+                any(getattr(gdat, key) is None for key in climate_keys) or
+                gdat.ind_b is None):
             raise RuntimeError(
-                'model_state_to_dict requires an initialized gas-giant atmosphere.'
+                'model_state_to_dict requires an initialized gas-giant atmosphere '
+                'with an enabled pressure profile.'
             )
 
-        out = {}
-        out['P_clima_grid'] = gdat.P_clima_grid
-        out['T_clima_grid'] = gdat.T_clima_grid
-        out['Kzz_clima_grid'] = gdat.Kzz_clima_grid
+        out = {key: getattr(gdat, key).copy() for key in climate_keys}
         out['metallicity'] = gdat.metallicity
         out['CtoO'] = gdat.CtoO
-        out['P_desired'] = gdat.P_desired
-        out['T_desired'] = gdat.T_desired
-        out['Kzz_desired'] = gdat.Kzz_desired
+        out['species_names'] = self.dat.species_names.copy()
         out['toa_pressure_target'] = self._toa_pressure_target()
+        out['maintain_toa_pressure'] = self.var.toa_pressure_maintenance.enabled
         out['max_resync_failures'] = self.var.max_resync_failures
         profile = self.var.press_temp_edd_profile
         out['press_temp_edd_profile'] = {
@@ -653,96 +660,164 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         out['top_atmos'] = self.var.top_atmos
         out['temperature'] = self.var.temperature
         out['edd'] = self.var.edd
+        out['particle_radius'] = self.var.particle_radius
         out['usol'] = self.wrk.usol
-        out['P_i_surf'] = (self.wrk.usol[self.dat.np:,0]/self.wrk.density[0])*self.wrk.pressure[0]
-
+        out['P_i_surf'] = (
+            out['usol'][self.dat.np:, 0] / self.wrk.density[0]
+        ) * self.wrk.pressure[0]
         return out
 
     def initialize_from_dict(self, out):
-        """Restore a state produced by [model_state_to_dict][photochem.extensions.EvoAtmosphereGasGiant.model_state_to_dict].
+        """Reinitialize a fresh or previously initialized gas-giant model.
 
-        Any active stepper and pressure-profile prescription are replaced.
+        The atmosphere and particle radii are restored, gas lower boundaries
+        are set to the saved partial pressures, and the prescribed P-T-Kzz
+        profile is resynchronized immediately. This can change saved temperature,
+        Kzz, and bottom-layer densities, particularly in periodic mode.
+        TOA-maintenance enablement and profile tolerances are restored.
+
+        Solver history and integration time are not restored. Other numerical
+        settings and callbacks retain the destination's configuration. Input
+        validation occurs before modifying the model; a runtime initialization
+        failure can still leave it partially reinitialized.
 
         Parameters
         ----------
         out : dict
-            Serialized gas-giant state.
+            State from [model_state_to_dict][photochem.extensions.EvoAtmosphereGasGiant.model_state_to_dict].
+            All saved keys are required. The mechanism, layer count, planet mass,
+            reference radius, and reference pressure must match the source.
         """
+        # Validate and copy inputs before touching the destination or its stepper.
+        def array(key, shape=None, positive=False):
+            value = np.array(out[key], dtype=np.double, copy=True)
+            if shape is not None and value.shape != shape:
+                raise ValueError(f'Saved {key} must have shape {shape}')
+            if not np.all(np.isfinite(value)) or (positive and np.any(value <= 0.0)):
+                raise ValueError(f'Saved {key} must be finite' +
+                                 (' and positive' if positive else ''))
+            return value
 
-        gdat = self.gdat
-        target_pressure = out['toa_pressure_target']
+        def scalar(key, positive=False):
+            value = out[key]
+            if (not np.isscalar(value) or not np.isfinite(value) or
+                    (positive and value <= 0.0)):
+                raise ValueError(f'Saved {key} must be a finite scalar' +
+                                 (' greater than zero' if positive else ''))
+            return float(value)
+
+        def integer(value, name, upper):
+            if (isinstance(value, (bool, np.bool_)) or
+                    not isinstance(value, (int, np.integer)) or
+                    not 0 <= value <= upper):
+                raise ValueError(f'Saved {name} must be an integer between 0 and {upper}')
+            return int(value)
+
+        if list(out['species_names']) != self.dat.species_names:
+            raise ValueError('Saved species names and order must match the destination mechanism')
+        nz, nq, nparticles = self.var.nz, self.dat.nq, self.dat.np
+        profiles = {}
+        for pressure_key, temperature_key, edd_key in (
+                ('P_clima_grid', 'T_clima_grid', 'Kzz_clima_grid'),
+                ('P_desired', 'T_desired', 'Kzz_desired')):
+            pressure = array(pressure_key, positive=True)
+            if pressure.ndim != 1 or pressure.size < 2 or np.any(np.diff(pressure) >= 0.0):
+                raise ValueError(f'Saved {pressure_key} must be a strictly decreasing 1D profile')
+            profiles[pressure_key] = pressure
+            profiles[temperature_key] = array(temperature_key, pressure.shape, positive=True)
+            profiles[edd_key] = array(edd_key, pressure.shape, positive=True)
+
+        ind_b = integer(out['ind_b'], 'ind_b', min(
+            profiles['P_clima_grid'].size - 1, profiles['P_desired'].size - 2
+        ))
+        metallicity = scalar('metallicity', positive=True)
+        ctoo = scalar('CtoO', positive=True)
+        radius = scalar('planet_radius_new', positive=True)
+        top = scalar('top_atmos', positive=True)
+        target_pressure = scalar('toa_pressure_target', positive=True)
+        max_failures = integer(out['max_resync_failures'], 'max_resync_failures', np.iinfo(np.intc).max)
+        maintain_toa = out['maintain_toa_pressure']
+        if not isinstance(maintain_toa, (bool, np.bool_)):
+            raise ValueError('Saved maintain_toa_pressure must be boolean')
+        temperature = array('temperature', (nz,), positive=True)
+        edd = array('edd', (nz,), positive=True)
+        radii = array('particle_radius', (nparticles, nz), positive=True)
+        usol = array('usol', (nq, nz))
+        # CVODE can leave tiny negative trace abundances. Preserve them in usol,
+        # but use nonnegative mixing ratios for the temporary hydrostatic guess.
+        density = np.maximum(usol[nparticles:], 0.0).sum(axis=0)
+        if not np.all(np.isfinite(density)) or np.any(density <= 0.0):
+            raise ValueError('Saved usol must have a positive gas density in every layer')
+        partial_pressures = array('P_i_surf', (nq - nparticles,))
+        if np.any(partial_pressures < 0.0) or not 0.0 < partial_pressures.sum() < np.inf:
+            raise ValueError('Saved P_i_surf must be nonnegative with a finite positive total')
         profile_settings = out['press_temp_edd_profile']
-        max_resync_failures = out['max_resync_failures']
-        if (isinstance(max_resync_failures, (bool, np.bool_)) or
-                not isinstance(max_resync_failures, (int, np.integer)) or
-                max_resync_failures < 0):
-            raise ValueError('Saved max_resync_failures must be a nonnegative integer')
-        required_keys = (
-            'P_clima_grid', 'T_clima_grid', 'Kzz_clima_grid',
-            'metallicity', 'CtoO', 'P_desired', 'T_desired', 'Kzz_desired',
-            'ind_b', 'planet_radius_new', 'top_atmos', 'temperature',
-            'edd', 'usol', 'P_i_surf',
-        )
-        for key in required_keys:
-            out[key]
-        for key in ('mode', 'hydro_pressure', 'temperature_tol', 'edd_tol', 'extreme_factor'):
-            profile_settings[key]
-        if not np.isfinite(target_pressure) or target_pressure <= 0.0:
-            raise ValueError('Saved TOA-pressure target must be finite and positive')
-        if not isinstance(profile_settings['hydro_pressure'], (bool, np.bool_)):
+        mode = integer(profile_settings['mode'], 'pressure-profile mode', 1)
+        hydro_pressure = profile_settings['hydro_pressure']
+        if not isinstance(hydro_pressure, (bool, np.bool_)):
             raise ValueError('Saved pressure-profile hydro_pressure must be boolean')
-        if profile_settings['mode'] not in (0, 1):
-            raise ValueError('Saved pressure-profile mode must be 0 or 1')
-        for key in ('temperature_tol', 'edd_tol'):
+        tolerances = {}
+        for key in ('temperature_tol', 'edd_tol', 'extreme_factor'):
             value = profile_settings[key]
-            if not np.isfinite(value) or value < 0.0:
-                raise ValueError(f'Saved pressure-profile {key} must be finite and nonnegative')
-        if (not np.isfinite(profile_settings['extreme_factor']) or
-                profile_settings['extreme_factor'] <= 1.0):
-            raise ValueError('Saved pressure-profile extreme_factor must be finite and greater than one')
+            if (not np.isscalar(value) or not np.isfinite(value) or value < 0.0 or
+                    (key == 'extreme_factor' and value <= 1.0)):
+                raise ValueError(f'Invalid saved pressure-profile {key}')
+            tolerances[key] = float(value)
 
-        # The saved state replaces any current integration and prescribed
-        # pressure profile.
+        # Supply center values and constant extensions to the two domain edges.
+        # The base initializer builds the same uniform grid on fresh models.
+        z = np.concatenate(([0.0], (np.arange(nz) + 0.5) * top / nz, [top]))
+        def with_edges(values):
+            return np.concatenate(([values[0]], values, [values[-1]]))
+        names = self.dat.species_names[:nq]
+        mixing = {sp: with_edges(np.maximum(usol[i], 0.0) / density)
+                  for i, sp in enumerate(names)}
+        particle_radii = {sp: with_edges(radii[i])
+                          for i, sp in enumerate(names[:nparticles])}
+
         self.destroy_stepper()
         self.clear_press_temp_edd_profile()
-
-        gdat.P_clima_grid = out['P_clima_grid']
-        gdat.T_clima_grid = out['T_clima_grid']
-        gdat.Kzz_clima_grid = out['Kzz_clima_grid']
-        gdat.metallicity = out['metallicity']
-        gdat.CtoO = out['CtoO']
-        gdat.P_desired = out['P_desired']
-        gdat.T_desired = out['T_desired']
-        gdat.Kzz_desired = out['Kzz_desired']
-        gdat.ind_b = out['ind_b']
-        self.dat.planet_radius = out['planet_radius_new']
-        self.update_vertical_grid(TOA_alt=out['top_atmos'])
-        self.set_temperature(out['temperature'])
-        self.var.edd = out['edd']
-        self.wrk.usol = out['usol']
-
-        # Now set boundary conditions
-        species_names = self.dat.species_names[:(-2-self.dat.nsl)]
-        for i,sp in enumerate(species_names):
-            if i >= self.dat.np:
-                self.set_lower_bc(sp, bc_type='Moses') # gas
+        # Remove previous fixed gas boundaries before building the initial guess.
+        for i, sp in enumerate(names):
+            if i < nparticles:
+                self.set_lower_bc(sp, bc_type='vdep', vdep=0.0)
             else:
-                self.set_lower_bc(sp, bc_type='vdep', vdep=0.0) # particle
-        species_names = self.dat.species_names[self.dat.np:(-2-self.dat.nsl)]
-        for i,sp in enumerate(species_names):
-            self.set_lower_bc(sp, bc_type='press', press=out['P_i_surf'][i])
-
+                self.set_lower_bc(sp, bc_type='Moses')
+        radius_previous = self.dat.planet_radius
+        self.dat.planet_radius = radius
+        try:
+            self.initialize_atmosphere_z(
+                z, with_edges(temperature), with_edges(edd), partial_pressures.sum(),
+                mixing, particle_radius=particle_radii
+            )
+        except Exception:
+            self.dat.planet_radius = radius_previous
+            raise
+        # Restore center values directly, avoiding an extra interpolation of the
+        # actual evolved densities. Profile installation then prepares the state.
+        self.set_temperature(temperature)
+        self.var.edd = edd
+        self.var.particle_radius = radii
+        self.wrk.usol = usol
+        for sp, pressure in zip(names[nparticles:], partial_pressures):
+            self.set_lower_bc(sp, bc_type='press', press=pressure)
         self.set_press_temp_edd_profile(
-            gdat.P_desired, gdat.T_desired, gdat.Kzz_desired,
-            hydro_pressure=profile_settings['hydro_pressure'], maintain_toa_pressure=True,
-            target_pressure=target_pressure,
-            mode=profile_settings['mode']
+            profiles['P_desired'], profiles['T_desired'], profiles['Kzz_desired'],
+            hydro_pressure=hydro_pressure, maintain_toa_pressure=maintain_toa,
+            target_pressure=target_pressure, mode=mode
         )
+        # Keep the target available for subsequent climate reinitialization even
+        # when automatic TOA maintenance is disabled.
+        self.var.toa_pressure_maintenance.target_pressure = target_pressure
+        self.var.max_resync_failures = max_failures
         profile = self.var.press_temp_edd_profile
-        self.var.max_resync_failures = max_resync_failures
-        profile.temperature_tol = profile_settings['temperature_tol']
-        profile.edd_tol = profile_settings['edd_tol']
-        profile.extreme_factor = profile_settings['extreme_factor']
+        for key, value in tolerances.items():
+            setattr(profile, key, value)
+        for key, value in profiles.items():
+            setattr(self.gdat, key, value)
+        self.gdat.metallicity = metallicity
+        self.gdat.CtoO = ctoo
+        self.gdat.ind_b = ind_b
 
 ###
 ### Helper functions for the EvoAtmosphereGasGiant class

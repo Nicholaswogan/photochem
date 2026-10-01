@@ -1,6 +1,7 @@
 """Smoke test for the installed Python wrappers. See README.md."""
 
 import tempfile
+import copy
 from pathlib import Path
 
 import numpy as np
@@ -453,17 +454,14 @@ def test_gas_giant_static_construction():
     assert pc.atmosphere_initialized
 
 
-def _make_initialized_gas_giant(**initialize_kwargs):
+def _make_initialized_gas_giant(mechanism_file=None, **initialize_kwargs):
     from photochem.extensions.gasgiants import EvoAtmosphereGasGiant
 
+    if mechanism_file is None:
+        mechanism_file = fixture_file("no_particle_test.yaml")
     pc = EvoAtmosphereGasGiant(
-        fixture_file("no_particle_test.yaml"),
-        fixture_file("sun.txt"),
-        5.972e27,
-        6.371e8,
-        nz=20,
-        thermo_file=fixture_file("no_particle_test.yaml"),
-        data_dir=str(DATA_DIR),
+        mechanism_file, fixture_file("sun.txt"), 5.972e27, 6.371e8,
+        nz=20, thermo_file=mechanism_file, data_dir=str(DATA_DIR),
     )
     pc.gdat.verbose = False
 
@@ -630,7 +628,8 @@ def test_gas_giant_shared_limits_and_state_restore():
     assert np.array_equal(pc.gdat.Kzz_clima_grid, state['Kzz_clima_grid'])
 
     for missing_key in ('T_clima_grid', 'Kzz_clima_grid',
-                        'toa_pressure_target', 'press_temp_edd_profile', 'max_resync_failures'):
+                        'toa_pressure_target', 'press_temp_edd_profile', 'max_resync_failures',
+                        'species_names', 'particle_radius', 'maintain_toa_pressure'):
         incomplete_state = state.copy()
         incomplete_state.pop(missing_key)
         temperature_before = pc.var.temperature.copy()
@@ -674,6 +673,76 @@ def test_gas_giant_shared_limits_and_state_restore():
     assert maintenance.pressure_factor == 3.0
     assert maintenance.extreme_pressure_factor == 10.0
     assert pc.var.max_resync_failures == 2
+
+    # Saved and restored metadata must own their arrays independently.
+    for key in ('P_clima_grid', 'T_clima_grid', 'Kzz_clima_grid',
+                'P_desired', 'T_desired', 'Kzz_desired'):
+        assert not np.shares_memory(getattr(pc.gdat, key), state[key])
+        another_state = pc.model_state_to_dict()
+        assert not np.shares_memory(getattr(pc.gdat, key), another_state[key])
+
+    # Restore into a fresh object, including disabled TOA maintenance.
+    from photochem.extensions.gasgiants import EvoAtmosphereGasGiant
+    pc.var.toa_pressure_maintenance.enabled = False
+    state = pc.model_state_to_dict()
+    fresh = EvoAtmosphereGasGiant(
+        fixture_file("no_particle_test.yaml"), fixture_file("sun.txt"),
+        5.972e27, 6.371e8, nz=20, data_dir=str(DATA_DIR),
+    )
+    assert not fresh.atmosphere_initialized
+    fresh.initialize_from_dict(state)
+    assert fresh.atmosphere_initialized
+    assert not fresh.wrk.robust_stepper_initialized
+    assert not fresh.var.toa_pressure_maintenance.enabled
+    assert fresh.var.toa_pressure_maintenance.target_pressure == custom_target
+    assert np.allclose(fresh.wrk.usol, pc.wrk.usol)
+    assert fresh.var.top_atmos == state['top_atmos']
+    assert np.allclose(fresh.var.temperature, pc.var.temperature)
+    assert np.allclose(fresh.var.edd, pc.var.edd)
+
+    # Predictable invalid inputs must not destroy an existing robust stepper.
+    fresh.initialize_robust_stepper(fresh.wrk.usol)
+    usol_before = fresh.wrk.usol.copy()
+    temperature_before = fresh.var.temperature.copy()
+    invalid_values = {
+        'temperature': state['temperature'][:-1],
+        'edd': np.full(20, np.nan),
+        'usol': state['usol'][:, :-1],
+        'particle_radius': np.ones((1, 20)),
+        'P_i_surf': np.zeros_like(state['P_i_surf']),
+        'P_desired': state['P_desired'][::-1],
+        'ind_b': 1000,
+        'max_resync_failures': 2**40,
+        'species_names': state['species_names'][::-1],
+        'maintain_toa_pressure': 1,
+    }
+    for key, value in invalid_values.items():
+        invalid_state = copy.deepcopy(state)
+        invalid_state[key] = value
+        try:
+            fresh.initialize_from_dict(invalid_state)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f'Invalid saved {key} was accepted')
+        assert fresh.wrk.robust_stepper_initialized
+        assert np.array_equal(fresh.wrk.usol, usol_before)
+        assert np.array_equal(fresh.var.temperature, temperature_before)
+    fresh.destroy_stepper()
+
+    # Particle radii affect the physical model and belong to the saved state.
+    particles = _make_initialized_gas_giant(mechanism_file=zahnle_earth)
+    radius = particles.var.particle_radius
+    radius[:] = np.linspace(1.0e-4, 3.0e-4, particles.var.nz)
+    particles.var.particle_radius = radius
+    particle_state = particles.model_state_to_dict()
+    particle_fresh = EvoAtmosphereGasGiant(
+        zahnle_earth, fixture_file("sun.txt"), 5.972e27, 6.371e8,
+        nz=20, data_dir=str(DATA_DIR),
+    )
+    particle_fresh.initialize_from_dict(particle_state)
+    assert np.array_equal(particle_fresh.var.particle_radius, radius)
+    assert np.allclose(particle_fresh.wrk.usol, particles.wrk.usol)
 
 
 def test_initialize_atmosphere_z_no_particles():
