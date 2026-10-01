@@ -35,12 +35,12 @@
     val = wrk%nsteps
   end subroutine
 
-  subroutine photochemwrk_n_toa_pressure_failures_get(ptr, val) bind(c)
+  subroutine photochemwrk_n_resync_failures_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
     type(PhotochemWrk), pointer :: wrk
     call c_f_pointer(ptr, wrk)
-    val = wrk%n_toa_pressure_failures
+    val = wrk%n_resync_failures
   end subroutine
 
   subroutine photochemwrk_nconverged_but_restarted_get(ptr, val) bind(c)

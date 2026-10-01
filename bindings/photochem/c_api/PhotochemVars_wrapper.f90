@@ -608,6 +608,22 @@
     var%upwind_molec_diff = val
   end subroutine
 
+  subroutine photochemvars_max_resync_failures_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%max_resync_failures
+  end subroutine
+
+  subroutine photochemvars_max_resync_failures_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%max_resync_failures = val
+  end subroutine
+
   subroutine photochemvars_nerrors_before_giveup_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
@@ -774,22 +790,6 @@
     type(TOAPressureMaintenance), pointer :: maintenance
     call c_f_pointer(ptr, maintenance)
     maintenance%extreme_pressure_factor = val
-  end subroutine
-
-  subroutine taopressuremaintenance_max_failures_get(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    integer(c_int), intent(out) :: val
-    type(TOAPressureMaintenance), pointer :: maintenance
-    call c_f_pointer(ptr, maintenance)
-    val = maintenance%max_failures
-  end subroutine
-
-  subroutine taopressuremaintenance_max_failures_set(ptr, val) bind(c)
-    type(c_ptr), value, intent(in) :: ptr
-    integer(c_int), intent(in) :: val
-    type(TOAPressureMaintenance), pointer :: maintenance
-    call c_f_pointer(ptr, maintenance)
-    maintenance%max_failures = val
   end subroutine
 
   subroutine photochemvars_press_temp_edd_profile_get(ptr, ptr1) bind(c)

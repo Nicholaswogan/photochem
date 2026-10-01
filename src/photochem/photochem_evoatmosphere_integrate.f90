@@ -1044,7 +1044,7 @@ contains
     wrk%nsteps_total = 0
     wrk%nerrors_total = 0
     wrk%nconverged_but_restarted = 0
-    wrk%n_toa_pressure_failures = 0
+    wrk%n_resync_failures = 0
     wrk%robust_stepper_initialized = .true.
 
   end subroutine
@@ -1056,6 +1056,8 @@ contains
 
     if (self%var%nerrors_before_giveup < 1) then
       err = "`nerrors_before_giveup` must be positive"
+    elseif (self%var%max_resync_failures < 0) then
+      err = "`max_resync_failures` must be nonnegative"
     elseif (self%var%nconverged_but_restarted_limit < 0) then
       err = "`nconverged_but_restarted_limit` must be nonnegative"
     elseif (self%var%nsteps_before_conv_check < 0) then
@@ -1359,7 +1361,7 @@ contains
     real(dp), allocatable :: usol_restart(:,:)
     real(dp) :: t_current
     integer :: nsteps_total, nerrors_total, nfailures, nconverged_restarts
-    logical :: toa_enabled, periodic_pt
+    logical :: toa_enabled, periodic_pt, state_preserved
 
     updated = .false.
     usol_restart = self%wrk%usol
@@ -1373,45 +1375,63 @@ contains
       ! totals and the accepted time across the grid update.
       nsteps_total = self%wrk%nsteps_total
       nerrors_total = self%wrk%nerrors_total
-      nfailures = self%wrk%n_toa_pressure_failures
+      nfailures = self%wrk%n_resync_failures
       nconverged_restarts = self%wrk%nconverged_but_restarted
 
-      call self%update_vertical_grid( &
+      call update_vertical_grid_internal( &
+        self, &
         TOA_pressure=self%var%toa_pressure_maintenance%target_pressure, &
+        state_preserved=state_preserved, &
         err=err &
       )
       if (allocated(err)) then
         ! Candidate construction failures are recoverable only when rollback
         ! succeeded and the existing CVODE stepper is still intact.
-        if (.not.self%wrk%robust_stepper_initialized .or. &
-            index(err, 'Rollback failed:') > 0) then
+        if (.not.state_preserved) then
           self%wrk%robust_stepper_initialized = .false.
           err = 'TOA-pressure resynchronization left model state uncertain: '//err
           return
         endif
 
-        self%wrk%n_toa_pressure_failures = nfailures + 1
-        if (self%wrk%n_toa_pressure_failures > &
-            self%var%toa_pressure_maintenance%max_failures) then
+        self%wrk%n_resync_failures = nfailures + 1
+        if (self%wrk%n_resync_failures > &
+            self%var%max_resync_failures) then
           err = 'TOA-pressure resynchronization failed (failure limit exceeded): '//err
-        else
-          deallocate(err)
+          return
         endif
+
+        ! The old atmosphere and stepper remain usable. Retry after another step.
+        deallocate(err)
         return
       endif
 
       self%wrk%nsteps_total = nsteps_total
       self%wrk%nerrors_total = nerrors_total
       self%wrk%nconverged_but_restarted = nconverged_restarts
-      self%wrk%n_toa_pressure_failures = 0
+      self%wrk%n_resync_failures = 0
       usol_restart = self%wrk%usol
 
     elseif (.not.toa_enabled .and. periodic_pt) then
-      call apply_press_temp_edd_profile(self, usol_restart, err)
+      call apply_press_temp_edd_profile(self, usol_restart, state_preserved, err)
       if (allocated(err)) then
-        self%wrk%robust_stepper_initialized = .false.
+        if (.not.state_preserved) then
+          self%wrk%robust_stepper_initialized = .false.
+          err = 'Pressure-profile resynchronization left model state uncertain: '//err
+          return
+        endif
+
+        self%wrk%n_resync_failures = self%wrk%n_resync_failures + 1
+        if (self%wrk%n_resync_failures > &
+            self%var%max_resync_failures) then
+          err = 'Pressure-profile resynchronization failed (failure limit exceeded): '//err
+          return
+        endif
+
+        ! Mapping left the atmosphere and stepper unchanged. Retry after another step.
+        deallocate(err)
         return
       endif
+      self%wrk%n_resync_failures = 0
     endif
 
     call restart_robust_stepper(self, usol_restart, t_current, err)

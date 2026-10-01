@@ -388,15 +388,17 @@ contains
 
   end subroutine
 
-  module subroutine apply_press_temp_edd_profile(self, usol_in, err)
+  module subroutine apply_press_temp_edd_profile(self, usol_in, state_preserved, err)
     use photochem_vars, only: refresh_temperature_dependent_vars
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
+    logical, intent(out) :: state_preserved
     character(:), allocatable, intent(out) :: err
 
     real(dp) :: T_grid(self%var%nz), edd_grid(self%var%nz)
     real(dp) :: log10P_grid(self%var%nz), trop_alt
 
+    state_preserved = .true.
     call map_press_temp_edd( &
       self, &
       usol_in, &
@@ -418,9 +420,10 @@ contains
     )
     if (allocated(err)) return
 
-    ! Commit only after the profile has mapped successfully and the
-    ! tropopause has been validated. Do not call set_temperature here: that
-    ! routine calls prep_atmosphere and would recurse back into this routine.
+    ! Commit only after the profile has mapped successfully. Do not call
+    ! set_temperature here: it calls prep_atmosphere and would recurse back
+    ! into this routine.
+    state_preserved = .false.
     self%var%temperature = T_grid
     self%var%edd = edd_grid
     call refresh_temperature_dependent_vars( &

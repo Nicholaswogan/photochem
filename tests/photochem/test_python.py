@@ -250,19 +250,19 @@ def test_toa_pressure_maintenance_api():
     maintenance.target_pressure = 2.5e-4
     maintenance.pressure_factor = 4.0
     maintenance.extreme_pressure_factor = 12.0
-    maintenance.max_failures = 2
+    pc.var.max_resync_failures = 2
     pc.var.nconverged_but_restarted_limit = 5
 
     assert maintenance.enabled is True
     assert maintenance.target_pressure == 2.5e-4
     assert maintenance.pressure_factor == 4.0
     assert maintenance.extreme_pressure_factor == 12.0
-    assert maintenance.max_failures == 2
+    assert pc.var.max_resync_failures == 2
     assert pc.var.nconverged_but_restarted_limit == 5
 
     # Configuration exposes maintenance and convergence restart counters
     # without changing the current stepper state.
-    assert pc.wrk.n_toa_pressure_failures == 0
+    assert pc.wrk.n_resync_failures == 0
     assert pc.wrk.nconverged_but_restarted == 0
 
 
@@ -559,7 +559,7 @@ def test_gas_giant_uses_shared_robust_stepper():
     assert np.isclose(maintenance.target_pressure, 0.1)
     assert maintenance.pressure_factor == 3.0
     assert maintenance.extreme_pressure_factor == 10.0
-    assert maintenance.max_failures == 2
+    assert pc.var.max_resync_failures == 2
     assert pc.var.nconverged_but_restarted_limit == 7
 
     pc.initialize_robust_stepper(pc.wrk.usol)
@@ -615,8 +615,11 @@ def test_gas_giant_shared_limits_and_state_restore():
     assert pc.wrk.nsteps_total == 1
 
     state = pc.model_state_to_dict()
+    assert state['max_resync_failures'] == pc.var.max_resync_failures
     assert state['press_temp_edd_profile']['hydro_pressure'] is False
+    pc.var.max_resync_failures = 4
     pc.initialize_from_dict(state)
+    assert pc.var.max_resync_failures == state['max_resync_failures']
     assert not pc.wrk.robust_stepper_initialized
     assert pc.var.press_temp_edd_profile.hydro_pressure is False
     assert pc.var.press_temp_edd_profile.mode == 0
@@ -627,7 +630,7 @@ def test_gas_giant_shared_limits_and_state_restore():
     assert np.array_equal(pc.gdat.Kzz_clima_grid, state['Kzz_clima_grid'])
 
     for missing_key in ('T_clima_grid', 'Kzz_clima_grid',
-                        'toa_pressure_target', 'press_temp_edd_profile'):
+                        'toa_pressure_target', 'press_temp_edd_profile', 'max_resync_failures'):
         incomplete_state = state.copy()
         incomplete_state.pop(missing_key)
         temperature_before = pc.var.temperature.copy()
@@ -670,7 +673,7 @@ def test_gas_giant_shared_limits_and_state_restore():
     assert np.isclose(maintenance.target_pressure, custom_target)
     assert maintenance.pressure_factor == 3.0
     assert maintenance.extreme_pressure_factor == 10.0
-    assert maintenance.max_failures == 2
+    assert pc.var.max_resync_failures == 2
 
 
 def test_initialize_atmosphere_z_no_particles():

@@ -40,7 +40,6 @@ module photochem_vars
     real(dp) :: target_pressure = 0.0_dp !! Target pressure (dyn/cm^2).
     real(dp) :: pressure_factor = 3.0_dp !! Multiplicative acceptable pressure factor
     real(dp) :: extreme_pressure_factor = 10.0_dp
-    integer :: max_failures = 0 !! Failed updates allowed before robust integration stops
   contains
     procedure :: validate => TOAPressureMaintenance_validate
   end type
@@ -197,6 +196,9 @@ module photochem_vars
     !> Number of failed-step recovery restarts allowed. The next integration
     !> error ends the robust session.
     integer :: nerrors_before_giveup = 10
+    !> Recoverable grid or periodic profile resynchronization failures allowed
+    !! before robust integration stops. The failure counter resets after a successful resynchronization.
+    integer :: max_resync_failures = 0
     !> Limit for chemistry-converged states that still require a maintenance
     !! resynchronization of TOA pressure or a periodic P-T-Kzz profile.
     integer :: nconverged_but_restarted_limit = 7
@@ -271,8 +273,6 @@ contains
     elseif (.not.ieee_is_finite(self%extreme_pressure_factor) .or. &
             self%extreme_pressure_factor <= self%pressure_factor) then
       err = "`toa_pressure_maintenance%extreme_pressure_factor` must be finite and greater than `pressure_factor`"
-    elseif (self%max_failures < 0) then
-      err = "`toa_pressure_maintenance%max_failures` must be nonnegative"
     endif
 
   end subroutine

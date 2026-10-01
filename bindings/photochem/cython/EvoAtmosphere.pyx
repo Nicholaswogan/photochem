@@ -832,10 +832,12 @@ cdef class EvoAtmosphere:
 
     This is a profile-preserving rather than column-conservative remap: gas
     mixing ratios are normalized on the new grid, but integrated species
-    columns are not constrained to retain their old values. The update is
-    failure atomic, so an error leaves the atmosphere and active stepper
-    unchanged. A successful update invalidates an active CVODE stepper, which
-    must be initialized again before integration continues.
+    columns are not constrained to retain their old values. Candidate
+    construction errors restore the previous atmosphere and retain any active
+    stepper. If rollback or stepper destruction fails, integration must be
+    initialized again after resolving the error. A successful update invalidates
+    an active CVODE stepper, which must be initialized again before integration
+    continues.
 
     Parameters
     ----------
@@ -1038,7 +1040,11 @@ cdef class EvoAtmosphere:
     logical time and total counters. Convergence requires both chemistry and
     enabled maintenance to satisfy their criteria; chemistry must reconverge
     after a resync. Repeated chemistry-converged resyncs are limited by
-    ``self.var.nconverged_but_restarted_limit``.
+    ``self.var.nconverged_but_restarted_limit``. Resync failures that preserve
+    the previous atmosphere and stepper can be retried up to
+    ``self.var.max_resync_failures``; ``self.wrk.n_resync_failures`` counts these
+    failures and resets after successful resynchronization. Failures that leave
+    state uncertain return an error immediately.
 
     Returns
     -------

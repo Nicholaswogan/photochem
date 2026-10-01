@@ -588,10 +588,21 @@ contains
   end subroutine
 
   module subroutine update_vertical_grid(self, TOA_alt, TOA_pressure, err)
+    class(EvoAtmosphere), target, intent(inout) :: self
+    real(dp), optional, intent(in) :: TOA_alt, TOA_pressure
+    character(:), allocatable, intent(out) :: err
+    logical :: state_preserved
+
+    call update_vertical_grid_internal(self, TOA_alt, TOA_pressure, state_preserved, err)
+
+  end subroutine
+
+  module subroutine update_vertical_grid_internal(self, TOA_alt, TOA_pressure, state_preserved, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), optional, intent(in) :: TOA_alt !! cm
     real(dp), optional, intent(in) :: TOA_pressure !! Target top-of-atmosphere pressure (dyn/cm^2).
+    logical, intent(out) :: state_preserved
     character(:), allocatable, intent(out) :: err
 
     real(dp) :: top_atmos_new
@@ -606,6 +617,8 @@ contains
     dat => self%dat
     var => self%var
     wrk => self%wrk
+
+    state_preserved = .true.
 
     ! Check inputs
     call self%require_atmosphere_initialized('update_vertical_grid', err)
@@ -700,6 +713,7 @@ contains
     endif
 
     ! A successful grid change invalidates the old CVODE infrastructure.
+    state_preserved = .false.
     call self%destroy_stepper(err)
     if (allocated(err)) then
       original_err = err
@@ -717,6 +731,7 @@ contains
       call copy_state_to_model(self, previous_state)
       call self%prep_atmosphere(previous_state%usol, rollback_err)
       if (allocated(rollback_err)) then
+        state_preserved = .false.
         err_ = original_err_//' Rollback failed: '//rollback_err
       else
         err_ = original_err_

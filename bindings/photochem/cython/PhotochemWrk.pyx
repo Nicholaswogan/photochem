@@ -21,11 +21,11 @@ cdef class PhotochemWrk:
       wrk_pxd.photochemwrk_surface_pressure_get(self._ptr, &val)
       return val
 
-  property n_toa_pressure_failures:
-    """int. Number of failed automatic TOA pressure maintenance attempts."""
+  property n_resync_failures:
+    """int. Recoverable grid or pressure-profile failures since the last successful resync."""
     def __get__(self):
       cdef int val
-      wrk_pxd.photochemwrk_n_toa_pressure_failures_get(self._ptr, &val)
+      wrk_pxd.photochemwrk_n_resync_failures_get(self._ptr, &val)
       return val
 
   property pressure_hydro:

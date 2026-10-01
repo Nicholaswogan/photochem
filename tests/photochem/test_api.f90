@@ -776,7 +776,7 @@ contains
     ! after the robust session has started so runtime failure handling is tested.
     pc_failure%var%toa_pressure_maintenance%target_pressure = &
          pc_failure%wrk%pressure(pc_failure%var%nz)
-    pc_failure%var%toa_pressure_maintenance%max_failures = 1
+    pc_failure%var%max_resync_failures = 1
     pc_failure%var%equilibrium_time = -1.0_dp
     call pc_failure%initialize_robust_stepper(pc_failure%wrk%usol, err)
     if (allocated(err)) then
@@ -786,7 +786,7 @@ contains
     pc_failure%var%toa_pressure_maintenance%target_pressure = 1.0e100_dp
     call pc_failure%robust_step(give_up, converged, err)
     if (allocated(err) .or. give_up .or. converged .or. &
-        pc_failure%wrk%n_toa_pressure_failures /= 1 .or. &
+        pc_failure%wrk%n_resync_failures /= 1 .or. &
         .not.pc_failure%wrk%robust_stepper_initialized) then
       if (allocated(err)) print *, trim(err)
       print *, 'A recoverable TOA-maintenance failure was handled incorrectly'
@@ -798,7 +798,7 @@ contains
       stop 1
     endif
     if (index(err, 'failure limit exceeded') == 0 .or. &
-        pc_failure%wrk%n_toa_pressure_failures /= 2 .or. &
+        pc_failure%wrk%n_resync_failures /= 2 .or. &
         .not.pc_failure%wrk%robust_stepper_initialized) then
       if (allocated(err)) print *, trim(err)
       print *, 'TOA-maintenance failure limit was not enforced visibly'
@@ -1532,6 +1532,19 @@ contains
     deallocate(err)
     pc%var%nerrors_before_giveup = 10
 
+    pc%var%max_resync_failures = -1
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (.not.allocated(err)) then
+      print *, 'negative shared resynchronization failure limit was accepted'
+      stop 1
+    endif
+    if (.not.c_associated(pc%wrk%sun%cvode_mem) .or. pc%wrk%robust_stepper_initialized) then
+      print *, 'resynchronization limit validation changed the existing stepper'
+      stop 1
+    endif
+    deallocate(err)
+    pc%var%max_resync_failures = 0
+
     pc%var%nsteps_before_conv_check = pc%var%nsteps_before_reinit
     call pc%initialize_robust_stepper(pc%wrk%usol, err)
     if (.not.allocated(err)) then
@@ -1575,7 +1588,7 @@ contains
     pc%wrk%nsteps_total = 5
     pc%wrk%nerrors_total = 6
     pc%wrk%nconverged_but_restarted = 4
-    pc%wrk%n_toa_pressure_failures = 3
+    pc%wrk%n_resync_failures = 3
     call pc%initialize_robust_stepper(pc%wrk%usol, err)
     if (allocated(err)) then
       print *, trim(err)
@@ -1584,7 +1597,7 @@ contains
     if (.not.pc%wrk%robust_stepper_initialized .or. &
         pc%wrk%nsteps_total /= 0 .or. pc%wrk%nerrors_total /= 0 .or. &
         pc%wrk%nconverged_but_restarted /= 0 .or. &
-        pc%wrk%n_toa_pressure_failures /= 0) then
+        pc%wrk%n_resync_failures /= 0) then
       print *, 'robust initialization did not commit its state and counters'
       stop 1
     endif

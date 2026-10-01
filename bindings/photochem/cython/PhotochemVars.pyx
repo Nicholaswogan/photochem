@@ -48,14 +48,6 @@ cdef class TOAPressureMaintenance:
     def __set__(self, double val):
       var_pxd.taopressuremaintenance_extreme_pressure_factor_set(self._ptr, &val)
 
-  property max_failures:
-    """int. Failed maintenance attempts allowed before integration stops."""
-    def __get__(self):
-      cdef int val
-      var_pxd.taopressuremaintenance_max_failures_get(self._ptr, &val)
-      return val
-    def __set__(self, int val):
-      var_pxd.taopressuremaintenance_max_failures_set(self._ptr, &val)
 
 cdef class PressureTempEddProfile:
   """Live settings for the installed pressure-temperature-eddy profile.
@@ -559,6 +551,17 @@ cdef class PhotochemVars:
       return val
     def __set__(self, bool val):
       var_pxd.photochemvars_upwind_molec_diff_set(self._ptr, &val)
+
+  property max_resync_failures:
+    """int. Recoverable grid or periodic profile resynchronization failures allowed
+    before robust integration stops. The counter resets after a successful resync.
+    """
+    def __get__(self):
+      cdef int val
+      var_pxd.photochemvars_max_resync_failures_get(self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      var_pxd.photochemvars_max_resync_failures_set(self._ptr, &val)
 
   property nerrors_before_giveup:
     """int. Number of failed-step recovery restarts allowed. The next

@@ -826,9 +826,13 @@ module photochem_evoatmosphere
 
     !> Apply the installed pressure-temperature-eddy profile.
     !! The caller must ensure that the profile is enabled.
-    module subroutine apply_press_temp_edd_profile(self, usol_in, err)
+    !! `state_preserved` is true if mapping fails before modifying the model.
+    !! It is false once temperature and eddy diffusion are committed, including
+    !! on success or if refreshing dependent variables fails.
+    module subroutine apply_press_temp_edd_profile(self, usol_in, state_preserved, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: usol_in(:,:)
+      logical, intent(out) :: state_preserved
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -846,13 +850,26 @@ module photochem_evoatmosphere
     !! ratios are normalized on the new grid, but integrated species columns
     !! are not constrained to equal their values on the old grid.
     !!
-    !! The update is failure atomic. An error leaves both the atmosphere and any
-    !! active CVODE stepper unchanged. A successful update invalidates an active
-    !! stepper, which must be initialized again before integration can continue.
+    !! Candidate construction errors restore the previous atmosphere and retain
+    !! any active CVODE stepper. If rollback or stepper destruction fails,
+    !! integration must be initialized again after resolving the error.
+    !! A successful update invalidates an active stepper, which must be
+    !! initialized again before integration can continue.
     module subroutine update_vertical_grid(self, TOA_alt, TOA_pressure, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), optional, intent(in) :: TOA_alt !! New top of atmosphere altitude (cm)
       real(dp), optional, intent(in) :: TOA_pressure !! New top of atmosphere pressure (dyn/cm^2).
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Internal grid update with explicit recovery status.
+    !! On error, `state_preserved` is true only if the previous atmosphere and
+    !! any existing stepper remain intact. It is false on success because the
+    !! old stepper is invalidated, and on rollback or stepper-destruction failure.
+    module subroutine update_vertical_grid_internal(self, TOA_alt, TOA_pressure, state_preserved, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      real(dp), optional, intent(in) :: TOA_alt, TOA_pressure
+      logical, intent(out) :: state_preserved
       character(:), allocatable, intent(out) :: err
     end subroutine
 

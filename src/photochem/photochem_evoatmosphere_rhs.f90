@@ -764,7 +764,7 @@ contains
     integer, intent(in) :: profile_sync_policy
     character(:), allocatable, intent(out) :: err
 
-    logical :: apply_profile
+    logical :: apply_profile, state_preserved
     type(PhotochemData), pointer :: dat
     type(PhotochemVars), pointer :: var
     integer :: j
@@ -789,7 +789,7 @@ contains
     ! Apply it before boundary conditions, hydrostatics, transport, chemistry,
     ! and saturation quantities are prepared.
     if (apply_profile) then
-      call apply_press_temp_edd_profile(self, usol_in, err)
+      call apply_press_temp_edd_profile(self, usol_in, state_preserved, err)
       if (allocated(err)) return
     endif
 

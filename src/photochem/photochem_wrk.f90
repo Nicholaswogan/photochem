@@ -48,8 +48,8 @@ module photochem_wrk
     integer :: nconverged_but_restarted = 0
     !> Total number of accepted steps in a robust integration.
     integer :: nsteps_total = 0
-    !> Failed automatic TOA-pressure updates.
-    integer :: n_toa_pressure_failures = 0
+    !> Recoverable grid or pressure-profile failures since the last successful resynchronization.
+    integer :: n_resync_failures = 0
 
     ! used in cvode
     integer(c_long) :: nsteps_previous = -10 !! For printing

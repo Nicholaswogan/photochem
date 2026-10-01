@@ -157,7 +157,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         maintenance = self.var.toa_pressure_maintenance
         maintenance.target_pressure = 0.1 # dyn/cm^2
         maintenance.pressure_factor = 3.0
-        maintenance.max_failures = 2
+        self.var.max_resync_failures = 2
 
     def initialize_to_climate_equilibrium_PT(self, P_in, T_in, Kzz_in, metallicity, CtoO, rainout_condensed_atoms=True, **initialize_kwargs):
         """Initialize from a climate profile and equilibrium composition.
@@ -639,6 +639,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         out['T_desired'] = gdat.T_desired
         out['Kzz_desired'] = gdat.Kzz_desired
         out['toa_pressure_target'] = self._toa_pressure_target()
+        out['max_resync_failures'] = self.var.max_resync_failures
         profile = self.var.press_temp_edd_profile
         out['press_temp_edd_profile'] = {
             'mode': profile.mode,
@@ -671,6 +672,11 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         gdat = self.gdat
         target_pressure = out['toa_pressure_target']
         profile_settings = out['press_temp_edd_profile']
+        max_resync_failures = out['max_resync_failures']
+        if (isinstance(max_resync_failures, (bool, np.bool_)) or
+                not isinstance(max_resync_failures, (int, np.integer)) or
+                max_resync_failures < 0):
+            raise ValueError('Saved max_resync_failures must be a nonnegative integer')
         required_keys = (
             'P_clima_grid', 'T_clima_grid', 'Kzz_clima_grid',
             'metallicity', 'CtoO', 'P_desired', 'T_desired', 'Kzz_desired',
@@ -733,6 +739,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
             mode=profile_settings['mode']
         )
         profile = self.var.press_temp_edd_profile
+        self.var.max_resync_failures = max_resync_failures
         profile.temperature_tol = profile_settings['temperature_tol']
         profile.edd_tol = profile_settings['edd_tol']
         profile.extreme_factor = profile_settings['extreme_factor']

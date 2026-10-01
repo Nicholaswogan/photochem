@@ -123,6 +123,9 @@ cdef extern void photochemvars_verbose_set(PhotochemVars *ptr, int *val)
 cdef extern void photochemvars_upwind_molec_diff_get(PhotochemVars *ptr, bool *val)
 cdef extern void photochemvars_upwind_molec_diff_set(PhotochemVars *ptr, bool *val)
 
+cdef extern void photochemvars_max_resync_failures_get(PhotochemVars *ptr, int *val)
+cdef extern void photochemvars_max_resync_failures_set(PhotochemVars *ptr, int *val)
+
 cdef extern void photochemvars_nerrors_before_giveup_get(PhotochemVars *ptr, int *val)
 cdef extern void photochemvars_nerrors_before_giveup_set(PhotochemVars *ptr, int *val)
 
@@ -150,8 +153,6 @@ cdef extern void taopressuremaintenance_pressure_factor_get(TOAPressureMaintenan
 cdef extern void taopressuremaintenance_pressure_factor_set(TOAPressureMaintenance *ptr, double *val)
 cdef extern void taopressuremaintenance_extreme_pressure_factor_get(TOAPressureMaintenance *ptr, double *val)
 cdef extern void taopressuremaintenance_extreme_pressure_factor_set(TOAPressureMaintenance *ptr, double *val)
-cdef extern void taopressuremaintenance_max_failures_get(TOAPressureMaintenance *ptr, int *val)
-cdef extern void taopressuremaintenance_max_failures_set(TOAPressureMaintenance *ptr, int *val)
 
 cdef extern void photochemvars_press_temp_edd_profile_get(PhotochemVars *ptr, PressureTempEddProfile **ptr1)
 cdef extern void pressuretempeddprofile_enabled_get(PressureTempEddProfile *ptr, bool *val)
