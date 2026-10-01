@@ -1026,8 +1026,9 @@ cdef class EvoAtmosphere:
     pressure-based temperature/eddy-diffusion profile. When enabled, the initial
     composition is prepared and the model top is brought inside the configured
     pressure band before CVODE starts. This preflight allows pressure-based
-    atmosphere initialization to retain its requested domain endpoints. Total
-    accepted-step and failed-step counters are reset.
+    atmosphere initialization to retain its requested domain endpoints. The
+    accepted-step, failed-step, converged-but-restarted, and TOA-update-failure
+    counters are reset.
 
     Parameters
     ----------
@@ -1054,10 +1055,11 @@ cdef class EvoAtmosphere:
     recovered from the last committed state without advancing logical time.
     Scheduled CVODE restarts preserve logical time and total counters, but
     discard segment-local convergence history. When
-    ``self.var.toa_pressure_maintenance.enabled`` is true, accepted steps may
-    trigger a pressure-targeted vertical-grid update after chemistry has
-    converged; successful updates restart CVODE while preserving the total
-    integration counters.
+    ``self.var.toa_pressure_maintenance.enabled`` is true, TOA pressure is
+    checked after each accepted step. A mismatch beyond the extreme factor is
+    corrected immediately. A smaller mismatch is corrected after chemistry
+    converges or when the current integration segment restarts. Successful
+    updates restart CVODE while preserving logical time and total counters.
 
     Returns
     -------

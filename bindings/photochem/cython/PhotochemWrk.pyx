@@ -28,13 +28,6 @@ cdef class PhotochemWrk:
       wrk_pxd.photochemwrk_n_toa_pressure_failures_get(self._ptr, &val)
       return val
 
-  property nsteps_since_toa_pressure_update:
-    """int. Accepted steps since the last successful TOA pressure update."""
-    def __get__(self):
-      cdef int val
-      wrk_pxd.photochemwrk_nsteps_since_toa_pressure_update_get(self._ptr, &val)
-      return val
-
   property pressure_hydro:
     """ndarray[double,dim=1], shape (nz). The hydrostatic pressure at the center of each
     atmospheric layer (dyn/cm^2).
@@ -112,6 +105,13 @@ cdef class PhotochemWrk:
     def __get__(self):
       cdef int val
       wrk_pxd.photochemwrk_nerrors_total_get(self._ptr, &val)
+      return val
+
+  property nconverged_but_restarted:
+    "int. Number of chemistry-converged states that still required a TOA resynchronization."
+    def __get__(self):
+      cdef int val
+      wrk_pxd.photochemwrk_nconverged_but_restarted_get(self._ptr, &val)
       return val
 
   property robust_stepper_initialized:

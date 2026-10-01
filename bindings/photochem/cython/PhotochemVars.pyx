@@ -39,14 +39,14 @@ cdef class TOAPressureMaintenance:
     def __set__(self, double val):
       var_pxd.taopressuremaintenance_pressure_factor_set(self._ptr, &val)
 
-  property nsteps_between_updates:
-    """int. Minimum accepted robust steps between maintenance attempts."""
+  property extreme_pressure_factor:
+    """double. Pressure mismatch factor beyond which TOA pressure is resynchronized immediately."""
     def __get__(self):
-      cdef int val
-      var_pxd.taopressuremaintenance_nsteps_get(self._ptr, &val)
+      cdef double val
+      var_pxd.taopressuremaintenance_extreme_pressure_factor_get(self._ptr, &val)
       return val
-    def __set__(self, int val):
-      var_pxd.taopressuremaintenance_nsteps_set(self._ptr, &val)
+    def __set__(self, double val):
+      var_pxd.taopressuremaintenance_extreme_pressure_factor_set(self._ptr, &val)
 
   property max_failures:
     """int. Failed maintenance attempts allowed before integration stops."""
@@ -502,6 +502,17 @@ cdef class PhotochemVars:
       return val
     def __set__(self, int val):
       var_pxd.photochemvars_nerrors_before_giveup_set(self._ptr, &val)
+
+  property nconverged_but_restarted_limit:
+    """int. Maximum chemistry-converged steps that may require a TOA
+    resynchronization before the robust integration gives up.
+    """
+    def __get__(self):
+      cdef int val
+      var_pxd.photochemvars_nconverged_but_restarted_limit_get(self._ptr, &val)
+      return val
+    def __set__(self, int val):
+      var_pxd.photochemvars_nconverged_but_restarted_limit_set(self._ptr, &val)
 
   property nsteps_before_conv_check:
     """int. Accepted steps after initialization or restart to take before

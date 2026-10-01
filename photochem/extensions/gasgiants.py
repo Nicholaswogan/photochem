@@ -154,7 +154,6 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         maintenance = self.var.toa_pressure_maintenance
         maintenance.target_pressure = 0.1 # dyn/cm^2
         maintenance.pressure_factor = 3.0
-        maintenance.nsteps_between_updates = 1000
         maintenance.max_failures = 2
 
     def initialize_to_climate_equilibrium_PT(self, P_in, T_in, Kzz_in, metallicity, CtoO, rainout_condensed_atoms=True, **initialize_kwargs):

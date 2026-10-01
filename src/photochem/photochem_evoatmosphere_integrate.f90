@@ -961,12 +961,13 @@ contains
   ! maintain the TOA pressure.
 
   module subroutine initialize_robust_stepper(self, usol_start, err)
+    use photochem_enum, only: WithinTol
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
     character(:), allocatable, intent(out) :: err
 
     real(dp), allocatable :: usol_copy(:,:)
-    logical :: toa_out_of_tolerance
+    integer :: toa_state
     type(PhotochemWrk), pointer :: wrk
 
     call self%require_atmosphere_initialized('initialize_robust_stepper', err)
@@ -990,11 +991,8 @@ contains
     call self%destroy_stepper(err)
     if (allocated(err)) return
 
-    ! Update TOA if needed.
+    ! Prepare the supplied composition before measuring TOA pressure.
     if (self%var%toa_pressure_maintenance%enabled) then
-
-      ! To check TOA pressure, we must ensure pressure is up to date
-      ! with the input usol_start
       call self%prepare_atmosphere_structure( &
         usol_copy, wrk%usol, wrk%molecules_per_particle, wrk%pressure, &
         wrk%density, wrk%mix, wrk%mubar, wrk%pressure_hydro, &
@@ -1002,19 +1000,18 @@ contains
       )
       if (allocated(err)) return
 
-      ! Determine if the TOA pressure should be maintained right now
-      toa_out_of_tolerance = toa_pressure_out_of_tolerance(self, err)
+      toa_state = toa_pressure_state(self, err)
       if (allocated(err)) return
 
-      ! If the TOA pressure needs maintanance, then apply it
-      if (toa_out_of_tolerance) then
+      ! Bring either out-of-tolerance state into the configured pressure band
+      ! before starting the robust integration session.
+      if (toa_state /= WithinTol) then
         call self%update_vertical_grid( &
           TOA_pressure=self%var%toa_pressure_maintenance%target_pressure, &
           err=err &
         )
         if (allocated(err)) return
 
-        ! We initialize using self%wrk%usol
         usol_copy = wrk%usol
       endif
     endif
@@ -1025,8 +1022,8 @@ contains
 
     wrk%nsteps_total = 0
     wrk%nerrors_total = 0
+    wrk%nconverged_but_restarted = 0
     wrk%n_toa_pressure_failures = 0
-    wrk%nsteps_since_toa_pressure_update = 0
     wrk%robust_stepper_initialized = .true.
 
   end subroutine
@@ -1038,6 +1035,8 @@ contains
 
     if (self%var%nerrors_before_giveup < 1) then
       err = "`nerrors_before_giveup` must be positive"
+    elseif (self%var%nconverged_but_restarted_limit < 0) then
+      err = "`nconverged_but_restarted_limit` must be nonnegative"
     elseif (self%var%nsteps_before_conv_check < 0) then
       err = "`nsteps_before_conv_check` must be nonnegative"
     elseif (self%var%nsteps_before_reinit < 1) then
@@ -1059,6 +1058,7 @@ contains
   end subroutine
 
   module subroutine robust_step(self, give_up, converged, err)
+    use photochem_enum, only: WithinTol, OutOfTol, ExtremeOutOfTol
     class(EvoAtmosphere), target, intent(inout) :: self
     logical, intent(out) :: give_up
     logical, intent(out) :: converged
@@ -1068,7 +1068,9 @@ contains
     real(dp) :: t_committed
     real(dp) :: usol_committed(self%dat%nq,self%var%nz)
     character(:), allocatable :: cleanup_err
-    logical :: chemistry_converged, toa_updated, toa_failed
+    logical :: chemistry_converged, updated
+    logical :: extreme_out_of_tol, out_of_tol, within_tol
+    integer :: toa_state
 
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
@@ -1097,7 +1099,6 @@ contains
     if (.not.allocated(err)) then
       ! If step worked, then we add it to counter
       wrk%nsteps_total = wrk%nsteps_total + 1
-      wrk%nsteps_since_toa_pressure_update = wrk%nsteps_since_toa_pressure_update + 1
     else
       ! There was an error
       deallocate(err)
@@ -1124,57 +1125,89 @@ contains
 
     endif
 
-    ! Determine the chemistry-only convergence result first. TOA maintenance
-    ! below may invalidate that result by changing the vertical grid.
-    chemistry_converged = .false.
-    if (tn > var%equilibrium_time) then
-      chemistry_converged = .true.
-    elseif (self%wrk%nsteps > var%nsteps_before_conv_check) then
-      chemistry_converged = self%check_for_convergence(err)
-      if (allocated(err)) return
-    endif
-
-    ! An accepted step can be chemically converged while the model top has
-    ! drifted outside the requested pressure range. Maintenance must happen
-    ! before reporting convergence, and a successful regrid starts a fresh
-    ! segment-local convergence history.
-    call maybe_maintain_toa_pressure(self, chemistry_converged, toa_updated, toa_failed, err)
+    ! Check if the chemistry is converged
+    chemistry_converged = check_for_chemistry_converged(self, tn, err)
     if (allocated(err)) return
-    if (toa_failed) return
-    if (toa_updated) return
-    if (chemistry_converged) then
+
+    ! Assess the TOA state
+    toa_state = toa_pressure_state(self, err)
+    if (allocated(err)) return
+
+    within_tol = toa_state == WithinTol
+    out_of_tol = toa_state == OutOfTol
+    extreme_out_of_tol = toa_state == ExtremeOutOfTol
+
+    ! Convergence!
+    if (chemistry_converged .and. within_tol) then
       converged = .true.
       return
     endif
 
-    ! The total-step ceiling counts accepted steps exactly. Check it before a
-    ! scheduled restart so a terminal call does not rebuild/reset CVODE state.
+    ! Too many steps. We give up.
     if (wrk%nsteps_total >= var%nsteps_before_giveup) then
       give_up = .true.
       return
     endif
 
-    ! Reinitialize after exactly this many accepted steps in the current
-    ! segment. Restarting resets local CVODE and convergence history only.
-    if (self%wrk%nsteps >= var%nsteps_before_reinit) then
-      call restart_robust_stepper(self, wrk%usol, wrk%t_history(1), err)
-      if (allocated(err)) then
-        wrk%robust_stepper_initialized = .false.
+    ! If we have an extreme diagreement, then we fix it and return
+    if (extreme_out_of_tol) then
+      call resync_and_restart(self, updated, err)
+      if (allocated(err)) return
+      return
+    endif
+
+    ! If chemistry is converged but we are NOT within tolerance
+    ! then we fix it and return.
+    if (chemistry_converged .and. out_of_tol) then
+      ! Stop before exceeding the permitted number of successful resyncs
+      ! triggered by chemical convergence with a remaining TOA mismatch.
+      if (wrk%nconverged_but_restarted >= var%nconverged_but_restarted_limit) then
+        give_up = .true.
         return
       endif
+      call resync_and_restart(self, updated, err)
+      if (allocated(err)) return
+      if (updated) wrk%nconverged_but_restarted = wrk%nconverged_but_restarted + 1
+      return
     endif
+
+    ! Reset
+    if (self%wrk%nsteps >= var%nsteps_before_reinit) then
+      call resync_and_restart(self, updated, err)
+      if (allocated(err)) return
+      return
+    endif
+
+    return
 
   end subroutine
 
-  function toa_pressure_out_of_tolerance(self, err) result(out_of_tolerance)
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+  function check_for_chemistry_converged(self, tn, err) result(chemistry_converged)
     class(EvoAtmosphere), target, intent(inout) :: self
-    logical :: out_of_tolerance
+    real(dp), intent(in) :: tn
+    character(:), allocatable, intent(out) :: err
+    logical :: chemistry_converged
+
+    chemistry_converged = .false.
+    if (tn > self%var%equilibrium_time) then
+      chemistry_converged = .true.
+    elseif (self%wrk%nsteps > self%var%nsteps_before_conv_check) then
+      chemistry_converged = self%check_for_convergence(err)
+      if (allocated(err)) return
+    endif
+
+  end function
+
+  function toa_pressure_state(self, err) result(toa_state)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use photochem_enum, only: WithinTol, OutOfTol, ExtremeOutOfTol
+    class(EvoAtmosphere), target, intent(inout) :: self
+    integer :: toa_state
     character(:), allocatable, intent(out) :: err
 
     real(dp) :: current_pressure, pressure_ratio
 
-    out_of_tolerance = .false.
+    toa_state = WithinTol
     if (.not.self%var%toa_pressure_maintenance%enabled) return
 
     current_pressure = self%wrk%pressure(self%var%nz)
@@ -1187,92 +1220,77 @@ contains
     if (pressure_ratio >= 1.0_dp / self%var%toa_pressure_maintenance%pressure_factor .and. &
         pressure_ratio <= self%var%toa_pressure_maintenance%pressure_factor) return
 
-    out_of_tolerance = .true.
+    if (pressure_ratio < 1.0_dp / &
+        self%var%toa_pressure_maintenance%extreme_pressure_factor .or. &
+        pressure_ratio > self%var%toa_pressure_maintenance%extreme_pressure_factor) then
+      toa_state = ExtremeOutOfTol
+    else
+      toa_state = OutOfTol
+    endif
 
   end function
 
-  ! Apply one optional pressure-maintenance update after an accepted step.
-  subroutine maybe_maintain_toa_pressure(self, chemistry_converged, updated, failed, err)
+  ! Resynchronize enabled TOA maintenance, then restart CVODE at the accepted
+  ! atmospheric state. Without TOA maintenance, this is a segment restart only.
+  subroutine resync_and_restart(self, updated, err)
     class(EvoAtmosphere), target, intent(inout) :: self
-    logical, intent(in) :: chemistry_converged
     logical, intent(out) :: updated
-    logical, intent(out) :: failed
     character(:), allocatable, intent(out) :: err
 
+    real(dp), allocatable :: usol_restart(:,:)
     real(dp) :: t_current
-    character(:), allocatable :: failure_message
-    integer :: nsteps_total, nerrors_total
-    integer :: nfailures
-    logical :: out_of_tolerance
+    integer :: nsteps_total, nerrors_total, nfailures, nconverged_restarts
 
     updated = .false.
-    failed = .false.
-    nfailures = self%wrk%n_toa_pressure_failures
+    usol_restart = self%wrk%usol
+    t_current = self%wrk%t_history(1)
 
-    out_of_tolerance = toa_pressure_out_of_tolerance(self, err)
-    if (allocated(err)) then
-      self%wrk%n_toa_pressure_failures = nfailures + 1
-      failed = .true.
-      if (self%wrk%n_toa_pressure_failures > &
-          self%var%toa_pressure_maintenance%max_failures) then
-        err = 'TOA-pressure maintenance failed (failure limit exceeded): '// err
+    if (self%var%toa_pressure_maintenance%enabled) then
+      ! update_vertical_grid can rebuild work state, so preserve robust-session
+      ! totals and the accepted time across the grid update.
+      nsteps_total = self%wrk%nsteps_total
+      nerrors_total = self%wrk%nerrors_total
+      nfailures = self%wrk%n_toa_pressure_failures
+      nconverged_restarts = self%wrk%nconverged_but_restarted
+
+      call self%update_vertical_grid( &
+        TOA_pressure=self%var%toa_pressure_maintenance%target_pressure, &
+        err=err &
+      )
+      if (allocated(err)) then
+        ! Candidate construction failures are recoverable only when rollback
+        ! succeeded and the existing CVODE stepper is still intact.
+        if (.not.self%wrk%robust_stepper_initialized .or. &
+            index(err, 'Rollback failed:') > 0) then
+          self%wrk%robust_stepper_initialized = .false.
+          err = 'TOA-pressure resynchronization left model state uncertain: '//err
+          return
+        endif
+
+        self%wrk%n_toa_pressure_failures = nfailures + 1
+        if (self%wrk%n_toa_pressure_failures > &
+            self%var%toa_pressure_maintenance%max_failures) then
+          err = 'TOA-pressure resynchronization failed (failure limit exceeded): '//err
+        else
+          deallocate(err)
+        endif
         return
       endif
-      deallocate(err)
-      return
+
+      self%wrk%nsteps_total = nsteps_total
+      self%wrk%nerrors_total = nerrors_total
+      self%wrk%nconverged_but_restarted = nconverged_restarts
+      self%wrk%n_toa_pressure_failures = 0
+      usol_restart = self%wrk%usol
     endif
 
-    if (.not.out_of_tolerance) return
-
-    if (self%wrk%nsteps_since_toa_pressure_update < &
-        self%var%toa_pressure_maintenance%nsteps_between_updates .and. &
-        .not.chemistry_converged) then
-      ! We are out of tolerance, but, we cannot yet update because the reset
-      ! is not yet up. The exception is if there is chemistry convergence, then we
-      ! should continue and update TOA.
-      return
-    endif
-
-    ! update_vertical_grid intentionally installs a fresh work structure, so
-    ! preserve robust-session totals and maintenance counters across it.
-    nsteps_total = self%wrk%nsteps_total
-    nerrors_total = self%wrk%nerrors_total
-    t_current = self%wrk%tn
-
-    call self%update_vertical_grid( &
-      TOA_pressure=self%var%toa_pressure_maintenance%target_pressure, &
-      err=err &
-    )
-    if (allocated(err)) then
-      ! The vertical-grid transaction is failure atomic, so the active solver
-      ! and committed state remain available for the caller.
-      self%wrk%n_toa_pressure_failures = nfailures + 1
-      failed = .true.
-      if (self%wrk%n_toa_pressure_failures > &
-          self%var%toa_pressure_maintenance%max_failures) then
-        failure_message = err
-        deallocate(err)
-        err = 'TOA-pressure maintenance failed (failure limit exceeded): '// &
-              failure_message
-      else
-        deallocate(err)
-      endif
-      return
-    endif
-
-    self%wrk%nsteps_total = nsteps_total
-    self%wrk%nerrors_total = nerrors_total
-    self%wrk%n_toa_pressure_failures = nfailures
-    self%wrk%nsteps_since_toa_pressure_update = 0
-
-    ! The successful regrid invalidates the old CVODE infrastructure. The
-    ! restart helper reconstructs compatible resources and preserves t_current.
-    call restart_robust_stepper(self, self%wrk%usol, t_current, err)
+    call restart_robust_stepper(self, usol_restart, t_current, err)
     if (allocated(err)) then
       self%wrk%robust_stepper_initialized = .false.
-      err = 'TOA-pressure maintenance regrid succeeded, but CVODE restart failed: '//err
+      err = 'Resynchronization succeeded, but CVODE restart failed: '//err
       return
     endif
+
     self%wrk%robust_stepper_initialized = .true.
     updated = .true.
 

@@ -13,7 +13,7 @@ cdef extern void photochemwrk_robust_stepper_initialized_get(PhotochemWrk *ptr, 
 cdef extern void photochemwrk_nsteps_get(PhotochemWrk *ptr, int *val)
 
 cdef extern void photochemwrk_n_toa_pressure_failures_get(PhotochemWrk *ptr, int *val)
-cdef extern void photochemwrk_nsteps_since_toa_pressure_update_get(PhotochemWrk *ptr, int *val)
+cdef extern void photochemwrk_nconverged_but_restarted_get(PhotochemWrk *ptr, int *val)
 
 cdef extern void photochemwrk_t_history_get_size(PhotochemWrk *ptr, int *dim1)
 cdef extern void photochemwrk_t_history_get(PhotochemWrk *ptr, int *dim1, double *arr)

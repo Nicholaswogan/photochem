@@ -57,5 +57,11 @@ module photochem_enum
     FiniteDifferenceJacobian = 2, &
     AnalyticalJacobian = 3
 
+  ! Results returned by toa_pressure_state.
+  enumerator :: &
+    WithinTol = 1, &
+    OutOfTol = 2, &
+    ExtremeOutOfTol = 3
+
   end enum
 end module

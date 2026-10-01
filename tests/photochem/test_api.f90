@@ -198,6 +198,11 @@ contains
       print *, 'TOA maintenance default pressure factor changed unexpectedly'
       stop 1
     endif
+    if (pc%var%toa_pressure_maintenance%extreme_pressure_factor <= &
+        pc%var%toa_pressure_maintenance%pressure_factor) then
+      print *, 'TOA maintenance extreme pressure factor default is invalid'
+      stop 1
+    endif
 
     ! Automatic TOA maintenance must not be enabled without a persistent
     ! pressure-based T-Kzz profile.
@@ -214,8 +219,37 @@ contains
     endif
     deallocate(err)
 
-    ! The multiplicative factor must not be less than one.
     pc%var%press_temp_edd_profile%enabled = .true.
+
+    ! The extreme factor must be finite and greater than the ordinary factor.
+    pc%var%toa_pressure_maintenance%pressure_factor = 3.0_dp
+    pc%var%toa_pressure_maintenance%extreme_pressure_factor = 2.0_dp
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (.not.allocated(err)) then
+      print *, 'An invalid TOA maintenance extreme factor was accepted'
+      stop 1
+    endif
+    if (index(err, 'extreme_pressure_factor') == 0) then
+      print *, 'An invalid TOA maintenance extreme factor returned an unclear error'
+      stop 1
+    endif
+    deallocate(err)
+
+    pc%var%toa_pressure_maintenance%extreme_pressure_factor = 10.0_dp
+    pc%var%nconverged_but_restarted_limit = -1
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (.not.allocated(err)) then
+      print *, 'A negative converged-restart limit was accepted'
+      stop 1
+    endif
+    if (index(err, 'nconverged_but_restarted_limit') == 0) then
+      print *, 'A negative converged-restart limit returned an unclear error'
+      stop 1
+    endif
+    deallocate(err)
+    pc%var%nconverged_but_restarted_limit = 7
+
+    ! The multiplicative factor must not be less than one.
     pc%var%toa_pressure_maintenance%pressure_factor = 0.5_dp
     call pc%initialize_robust_stepper(pc%wrk%usol, err)
     if (.not.allocated(err)) then
@@ -401,7 +435,6 @@ contains
     pc%var%toa_pressure_maintenance%enabled = .true.
     pc%var%toa_pressure_maintenance%target_pressure = target_pressure
     pc%var%toa_pressure_maintenance%pressure_factor = 1.01_dp
-    pc%var%toa_pressure_maintenance%nsteps_between_updates = 100
     pc%var%equilibrium_time = huge(1.0_dp)
 
     call pc%initialize_robust_stepper(pc%wrk%usol, err)
@@ -411,7 +444,6 @@ contains
     endif
     maintenance_enabled = pc%wrk%robust_stepper_initialized .and. &
                           pc%wrk%nsteps_total == 0 .and. &
-                          pc%wrk%nsteps_since_toa_pressure_update == 0 .and. &
                           pc%var%top_atmos /= top_before .and. &
                           abs(pc%wrk%pressure(pc%var%nz)/target_pressure-1.0_dp) < 2.0e-5_dp
     if (.not.maintenance_enabled) then
@@ -457,7 +489,6 @@ contains
     pc%var%toa_pressure_maintenance%enabled = .true.
     pc%var%toa_pressure_maintenance%target_pressure = target_pressure
     pc%var%toa_pressure_maintenance%pressure_factor = 1.01_dp
-    pc%var%toa_pressure_maintenance%nsteps_between_updates = 1
     pc%var%equilibrium_time = -1.0_dp
     t_before = pc%wrk%tn
 
@@ -487,8 +518,7 @@ contains
     ! converge on the following step without another regrid.
     call pc%robust_step(give_up, converged, err)
     if (allocated(err) .or. give_up .or. .not.converged .or. &
-        pc%wrk%nsteps_total /= 2 .or. &
-        pc%wrk%nsteps /= 1 .or. pc%wrk%nsteps_since_toa_pressure_update /= 1) then
+        pc%wrk%nsteps_total /= 2 .or. pc%wrk%nsteps /= 1) then
       if (allocated(err)) print *, trim(err)
       print *, 'TOA maintenance did not gate convergence correctly after regridding'
       stop 1
@@ -518,7 +548,6 @@ contains
     ! after the robust session has started so runtime failure handling is tested.
     pc_failure%var%toa_pressure_maintenance%target_pressure = &
          pc_failure%wrk%pressure(pc_failure%var%nz)
-    pc_failure%var%toa_pressure_maintenance%nsteps_between_updates = 1
     pc_failure%var%toa_pressure_maintenance%max_failures = 1
     pc_failure%var%equilibrium_time = -1.0_dp
     call pc_failure%initialize_robust_stepper(pc_failure%wrk%usol, err)
@@ -584,7 +613,6 @@ contains
     target_pressure = 2.0_dp*pc%wrk%pressure(pc%var%nz)
     pc%var%toa_pressure_maintenance%enabled = .true.
     pc%var%toa_pressure_maintenance%target_pressure = target_pressure
-    pc%var%toa_pressure_maintenance%nsteps_between_updates = 1
     pc%var%equilibrium_time = -1.0_dp
     call pc%initialize_robust_stepper(pc%wrk%usol, err)
     if (allocated(err)) then
@@ -617,16 +645,16 @@ contains
       stop 1
     endif
 
-    ! An out-of-band target is held until the configured cadence is reached.
-    ! Start inside the band so this test exercises the configured runtime
-    ! cadence rather than the initialization preflight.
+    ! An ordinary mismatch should not trigger an immediate update. It should
+    ! be corrected after chemistry converges or the current segment ends.
     target_pressure = pc%wrk%pressure(pc%var%nz)
     top_before = pc%var%top_atmos
     t_before = pc%wrk%tn
     pc%var%toa_pressure_maintenance%enabled = .true.
     pc%var%toa_pressure_maintenance%target_pressure = target_pressure
     pc%var%toa_pressure_maintenance%pressure_factor = 1.01_dp
-    pc%var%toa_pressure_maintenance%nsteps_between_updates = 2
+    pc%var%nsteps_before_conv_check = 1
+    pc%var%nsteps_before_reinit = 2
     pc%var%equilibrium_time = huge(1.0_dp)
     call pc%initialize_robust_stepper(pc%wrk%usol, err)
     if (allocated(err)) then
@@ -639,19 +667,64 @@ contains
     call pc%robust_step(give_up, converged, err)
     if (allocated(err) .or. give_up .or. converged .or. &
         pc%wrk%nsteps_total /= 1 .or. pc%wrk%nsteps /= 1 .or. &
-        pc%wrk%nsteps_since_toa_pressure_update /= 1) then
+        pc%var%top_atmos /= top_before) then
       if (allocated(err)) print *, trim(err)
-      print *, 'TOA maintenance ignored its configured update cadence'
+      print *, 'Ordinary TOA mismatch triggered an immediate update'
       stop 1
     endif
 
     call pc%robust_step(give_up, converged, err)
     if (allocated(err) .or. give_up .or. converged .or. &
         pc%wrk%nsteps_total /= 2 .or. &
-        pc%wrk%nsteps /= 0 .or. pc%wrk%nsteps_since_toa_pressure_update /= 0 .or. &
+        pc%wrk%nsteps /= 0 .or. &
         pc%wrk%tn <= t_before .or. pc%var%top_atmos == top_before) then
       if (allocated(err)) print *, trim(err)
-      print *, 'TOA maintenance did not trigger at its configured cadence'
+      print *, 'Ordinary TOA mismatch was not corrected at segment restart'
+      stop 1
+    endif
+
+    call pc%destroy_stepper(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    pc = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    call pc%set_press_temp_edd_profile(P, T, edd, &
+         hydro_pressure=.true., err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ! An extreme mismatch is corrected on the first accepted step, before
+    ! chemistry convergence or the ordinary segment restart is due.
+    target_pressure = pc%wrk%pressure(pc%var%nz)
+    top_before = pc%var%top_atmos
+    pc%var%toa_pressure_maintenance%enabled = .true.
+    pc%var%toa_pressure_maintenance%target_pressure = target_pressure
+    pc%var%toa_pressure_maintenance%pressure_factor = 1.01_dp
+    pc%var%toa_pressure_maintenance%extreme_pressure_factor = 1.1_dp
+    pc%var%equilibrium_time = huge(1.0_dp)
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    pc%var%toa_pressure_maintenance%target_pressure = &
+         0.8_dp*pc%wrk%pressure(pc%var%nz)
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err) .or. give_up .or. converged .or. &
+        pc%wrk%nsteps_total /= 1 .or. pc%wrk%nsteps /= 0 .or. &
+        pc%var%top_atmos == top_before .or. &
+        abs(pc%wrk%pressure(pc%var%nz)/ &
+            pc%var%toa_pressure_maintenance%target_pressure-1.0_dp) > 2.0e-5_dp) then
+      if (allocated(err)) print *, trim(err)
+      print *, 'Extreme TOA mismatch was not corrected immediately'
       stop 1
     endif
 
@@ -1001,9 +1074,10 @@ contains
   subroutine test_robust_stepper_limits()
     use iso_c_binding, only: c_associated
     use fcvode_mod, only: FCVodeFree
-    type(EvoAtmosphere) :: pc_errors, pc_steps
+    type(EvoAtmosphere) :: pc_errors, pc_steps, pc_converged
     character(:), allocatable :: err
     logical :: give_up, converged
+    real(dp) :: P(2), T(2), edd(2), target_pressure, top_before
 
     pc_errors = EvoAtmosphere(test_file('no_particle_test.yaml'), &
                               test_file('test_settings_minimal.yaml'), &
@@ -1082,6 +1156,57 @@ contains
     endif
 
     call pc_steps%destroy_stepper(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    pc_converged = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    P = [2.0_dp*pc_converged%wrk%surface_pressure*1.0e6_dp, &
+         0.5_dp*pc_converged%wrk%pressure_hydro(pc_converged%var%nz)]
+    T = [300.0_dp, 180.0_dp]
+    edd = [3.0e7_dp, 4.0e5_dp]
+    call pc_converged%set_press_temp_edd_profile(P, T, edd, &
+         hydro_pressure=.true., err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+
+    ! A zero allowance gives up when chemistry converges but the ordinary
+    ! TOA mismatch still requires a successful resync.
+    target_pressure = pc_converged%wrk%pressure(pc_converged%var%nz)
+    top_before = pc_converged%var%top_atmos
+    pc_converged%var%toa_pressure_maintenance%enabled = .true.
+    pc_converged%var%toa_pressure_maintenance%target_pressure = target_pressure
+    pc_converged%var%toa_pressure_maintenance%pressure_factor = 1.01_dp
+    pc_converged%var%nconverged_but_restarted_limit = 0
+    pc_converged%var%equilibrium_time = -1.0_dp
+    call pc_converged%initialize_robust_stepper(pc_converged%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    pc_converged%var%toa_pressure_maintenance%target_pressure = &
+         0.95_dp*pc_converged%wrk%pressure(pc_converged%var%nz)
+    call pc_converged%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not.give_up .or. converged .or. &
+        pc_converged%wrk%nsteps_total /= 1 .or. &
+        pc_converged%wrk%nconverged_but_restarted /= 0 .or. &
+        pc_converged%var%top_atmos /= top_before) then
+      print *, 'converged-but-restarted limit was not enforced'
+      stop 1
+    endif
+
+    call pc_converged%destroy_stepper(err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
@@ -1174,13 +1299,19 @@ contains
     deallocate(err)
 
     ! A successful robust initialization commits state and counters together.
+    pc%wrk%nsteps_total = 5
+    pc%wrk%nerrors_total = 6
+    pc%wrk%nconverged_but_restarted = 4
+    pc%wrk%n_toa_pressure_failures = 3
     call pc%initialize_robust_stepper(pc%wrk%usol, err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
     endif
     if (.not.pc%wrk%robust_stepper_initialized .or. &
-        pc%wrk%nsteps_total /= 0 .or. pc%wrk%nerrors_total /= 0) then
+        pc%wrk%nsteps_total /= 0 .or. pc%wrk%nerrors_total /= 0 .or. &
+        pc%wrk%nconverged_but_restarted /= 0 .or. &
+        pc%wrk%n_toa_pressure_failures /= 0) then
       print *, 'robust initialization did not commit its state and counters'
       stop 1
     endif

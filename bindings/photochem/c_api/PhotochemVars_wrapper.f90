@@ -624,6 +624,22 @@
     var%nerrors_before_giveup = val
   end subroutine
 
+  subroutine photochemvars_nconverged_but_restarted_limit_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%nconverged_but_restarted_limit
+  end subroutine
+
+  subroutine photochemvars_nconverged_but_restarted_limit_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%nconverged_but_restarted_limit = val
+  end subroutine
+
   subroutine photochemvars_nsteps_before_conv_check_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: val
@@ -744,20 +760,20 @@
     maintenance%pressure_factor = val
   end subroutine
 
-  subroutine taopressuremaintenance_nsteps_get(ptr, val) bind(c)
+  subroutine taopressuremaintenance_extreme_pressure_factor_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
-    integer(c_int), intent(out) :: val
+    real(c_double), intent(out) :: val
     type(TOAPressureMaintenance), pointer :: maintenance
     call c_f_pointer(ptr, maintenance)
-    val = maintenance%nsteps_between_updates
+    val = maintenance%extreme_pressure_factor
   end subroutine
 
-  subroutine taopressuremaintenance_nsteps_set(ptr, val) bind(c)
+  subroutine taopressuremaintenance_extreme_pressure_factor_set(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
-    integer(c_int), intent(in) :: val
+    real(c_double), intent(in) :: val
     type(TOAPressureMaintenance), pointer :: maintenance
     call c_f_pointer(ptr, maintenance)
-    maintenance%nsteps_between_updates = val
+    maintenance%extreme_pressure_factor = val
   end subroutine
 
   subroutine taopressuremaintenance_max_failures_get(ptr, val) bind(c)

@@ -29,7 +29,7 @@ module photochem_vars
     logical :: enabled = .false. !! Enable automatic TOA-pressure maintenance.
     real(dp) :: target_pressure = 0.0_dp !! Target pressure (dyn/cm^2).
     real(dp) :: pressure_factor = 3.0_dp !! Multiplicative acceptable pressure factor
-    integer :: nsteps_between_updates = 100 !! Minimum accepted steps between updates
+    real(dp) :: extreme_pressure_factor = 10.0_dp
     integer :: max_failures = 0 !! Failed updates allowed before robust integration stops
   contains
     procedure :: validate => TOAPressureMaintenance_validate
@@ -187,6 +187,9 @@ module photochem_vars
     !> Number of failed-step recovery restarts allowed. The next integration
     !> error ends the robust session.
     integer :: nerrors_before_giveup = 10
+    !> Limit for the number of times we can reach chemical convergence, and
+    !> still require a reset to sync up TOA pressure.
+    integer :: nconverged_but_restarted_limit = 7
     !> Number of accepted steps after initialization or restart to take before
     !> checking the non-time convergence criteria.
     integer :: nsteps_before_conv_check = 300
@@ -223,8 +226,9 @@ contains
       err = "`toa_pressure_maintenance%target_pressure` must be finite and positive"
     elseif (.not.ieee_is_finite(self%pressure_factor) .or. self%pressure_factor < 1.0_dp) then
       err = "`toa_pressure_maintenance%pressure_factor` must be finite and at least one"
-    elseif (self%nsteps_between_updates < 1) then
-      err = "`toa_pressure_maintenance%nsteps_between_updates` must be positive"
+    elseif (.not.ieee_is_finite(self%extreme_pressure_factor) .or. &
+            self%extreme_pressure_factor <= self%pressure_factor) then
+      err = "`toa_pressure_maintenance%extreme_pressure_factor` must be finite and greater than `pressure_factor`"
     elseif (self%max_failures < 0) then
       err = "`toa_pressure_maintenance%max_failures` must be nonnegative"
     endif

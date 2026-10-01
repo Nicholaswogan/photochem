@@ -124,6 +124,9 @@ cdef extern void photochemvars_upwind_molec_diff_set(PhotochemVars *ptr, bool *v
 cdef extern void photochemvars_nerrors_before_giveup_get(PhotochemVars *ptr, int *val)
 cdef extern void photochemvars_nerrors_before_giveup_set(PhotochemVars *ptr, int *val)
 
+cdef extern void photochemvars_nconverged_but_restarted_limit_get(PhotochemVars *ptr, int *val)
+cdef extern void photochemvars_nconverged_but_restarted_limit_set(PhotochemVars *ptr, int *val)
+
 cdef extern void photochemvars_nsteps_before_conv_check_get(PhotochemVars *ptr, int *val)
 cdef extern void photochemvars_nsteps_before_conv_check_set(PhotochemVars *ptr, int *val)
 
@@ -143,7 +146,7 @@ cdef extern void taopressuremaintenance_target_pressure_get(TOAPressureMaintenan
 cdef extern void taopressuremaintenance_target_pressure_set(TOAPressureMaintenance *ptr, double *val)
 cdef extern void taopressuremaintenance_pressure_factor_get(TOAPressureMaintenance *ptr, double *val)
 cdef extern void taopressuremaintenance_pressure_factor_set(TOAPressureMaintenance *ptr, double *val)
-cdef extern void taopressuremaintenance_nsteps_get(TOAPressureMaintenance *ptr, int *val)
-cdef extern void taopressuremaintenance_nsteps_set(TOAPressureMaintenance *ptr, int *val)
+cdef extern void taopressuremaintenance_extreme_pressure_factor_get(TOAPressureMaintenance *ptr, double *val)
+cdef extern void taopressuremaintenance_extreme_pressure_factor_set(TOAPressureMaintenance *ptr, double *val)
 cdef extern void taopressuremaintenance_max_failures_get(TOAPressureMaintenance *ptr, int *val)
 cdef extern void taopressuremaintenance_max_failures_set(TOAPressureMaintenance *ptr, int *val)

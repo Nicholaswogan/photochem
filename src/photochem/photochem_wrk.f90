@@ -41,10 +41,15 @@ module photochem_wrk
     !> True while the CVODE stepper belongs to an initialized robust
     !> integration session.
     logical :: robust_stepper_initialized = .false.
-    !> Total number of accepted steps in a robust integration.
-    integer :: nsteps_total = -1
     !> Total number of failed steps in a robust integration.
-    integer :: nerrors_total = -1
+    integer :: nerrors_total = 0
+    !> Total number of times we have reached chemical convergence, but
+    !> still had to restart integrator.
+    integer :: nconverged_but_restarted = 0
+    !> Total number of accepted steps in a robust integration.
+    integer :: nsteps_total = 0
+    !> Failed automatic TOA-pressure updates.
+    integer :: n_toa_pressure_failures = 0
 
     ! used in cvode
     integer(c_long) :: nsteps_previous = -10 !! For printing
@@ -133,9 +138,6 @@ module photochem_wrk
     real(dp), allocatable :: pressure_hydro(:) !! Hydrostatic pressure (dyn/cm^2), shape (nz).
     real(dp), allocatable :: density_hydro(:) !! (nz)
 
-    ! Runtime bookkeeping for optional robust-stepper TOA maintenance.
-    integer :: n_toa_pressure_failures = 0 !! Failed automatic TOA-pressure updates.
-    integer :: nsteps_since_toa_pressure_update = 0 !! Accepted steps since the last successful update.
   end type
 
   interface PhotochemWrk

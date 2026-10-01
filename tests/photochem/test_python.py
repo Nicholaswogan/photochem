@@ -233,7 +233,7 @@ def test_static_construction():
 
 
 def test_toa_pressure_maintenance_api():
-    """The optional TOA-maintenance settings and counters are Python-visible."""
+    """TOA-maintenance settings and robust-session counters are Python-visible."""
     pc = EvoAtmosphere(
         fixture_file("no_particle_test.yaml"),
         fixture_file("test_settings_minimal.yaml"),
@@ -244,23 +244,26 @@ def test_toa_pressure_maintenance_api():
     maintenance = pc.var.toa_pressure_maintenance
     assert maintenance.enabled is False
     assert maintenance.pressure_factor == 3.0
+    assert maintenance.extreme_pressure_factor == 10.0
 
     maintenance.enabled = True
     maintenance.target_pressure = 2.5e-4
     maintenance.pressure_factor = 4.0
-    maintenance.nsteps_between_updates = 7
+    maintenance.extreme_pressure_factor = 12.0
     maintenance.max_failures = 2
+    pc.var.nconverged_but_restarted_limit = 5
 
     assert maintenance.enabled is True
     assert maintenance.target_pressure == 2.5e-4
     assert maintenance.pressure_factor == 4.0
-    assert maintenance.nsteps_between_updates == 7
+    assert maintenance.extreme_pressure_factor == 12.0
     assert maintenance.max_failures == 2
+    assert pc.var.nconverged_but_restarted_limit == 5
 
-    # Configuration exposes maintenance failures and the update timer without
-    # changing the current stepper state.
+    # Configuration exposes maintenance and convergence restart counters
+    # without changing the current stepper state.
     assert pc.wrk.n_toa_pressure_failures == 0
-    assert pc.wrk.nsteps_since_toa_pressure_update == 0
+    assert pc.wrk.nconverged_but_restarted == 0
 
 
 def test_persistent_profile_controls_toa_maintenance():
@@ -334,10 +337,9 @@ def test_robust_initial_toa_pressure_preflight():
     maintenance = pc.var.toa_pressure_maintenance
     maintenance.target_pressure = 0.95 * pc.wrk.pressure[-1]
     maintenance.pressure_factor = 1.01
-    maintenance.nsteps_between_updates = 100
     pc.initialize_robust_stepper(pc.wrk.usol)
     assert pc.wrk.nsteps_total == 0
-    assert pc.wrk.nsteps_since_toa_pressure_update == 0
+    assert pc.wrk.nconverged_but_restarted == 0
     assert np.isclose(
         pc.wrk.pressure[-1] / maintenance.target_pressure, 1.0, rtol=0.0, atol=2.0e-5
     )
@@ -488,7 +490,9 @@ def test_gas_giant_uses_shared_robust_stepper():
     assert maintenance.enabled
     assert np.isclose(maintenance.target_pressure, 0.1)
     assert maintenance.pressure_factor == 3.0
-    assert maintenance.nsteps_between_updates == 1000
+    assert maintenance.extreme_pressure_factor == 10.0
+    assert maintenance.max_failures == 2
+    assert pc.var.nconverged_but_restarted_limit == 7
 
     pc.initialize_robust_stepper(pc.wrk.usol)
     assert pc.wrk.robust_stepper_initialized
@@ -557,7 +561,8 @@ def test_gas_giant_shared_limits_and_state_restore():
     assert maintenance.enabled
     assert np.isclose(maintenance.target_pressure, custom_target)
     assert maintenance.pressure_factor == 3.0
-    assert maintenance.nsteps_between_updates == 1000
+    assert maintenance.extreme_pressure_factor == 10.0
+    assert maintenance.max_failures == 2
 
 
 def test_initialize_atmosphere_z_no_particles():
@@ -744,6 +749,7 @@ def test_inferred_initialization():
         edd_p,
         persistent=True,
         tropopause_pressure=1.0e5,
+        maintain_toa_pressure=False,
     )
     assert np.all(np.diff(pc.wrk.pressure_hydro) < 0.0)
     _check_inferred_water_cold_trap(pc)
