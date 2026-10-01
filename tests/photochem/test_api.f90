@@ -1913,6 +1913,7 @@ contains
 
   subroutine test_initialize_atmosphere_p()
     use iso_c_binding, only: c_associated
+    use photochem_enum, only: PeriodicPressTempEdd
     type(EvoAtmosphere) :: pc
     character(:), allocatable :: err
     integer, parameter :: nprofile = 4
@@ -1971,7 +1972,7 @@ contains
       print *, 'pressure initialization did not retain the persistent profile'
       stop 1
     endif
-    if (.not. pc%var%toa_pressure_maintenance%enabled .or. &
+    if (.not.pc%var%toa_pressure_maintenance%enabled .or. &
         abs(pc%var%toa_pressure_maintenance%target_pressure - 0.1_dp) > 1.0e-15_dp) then
       print *, 'persistent pressure initialization did not enable default TOA maintenance'
       stop 1
@@ -1982,19 +1983,23 @@ contains
     ! explicitly disabled.
     call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
                                     particle_radius, persistent=.true., &
+                                    mode=PeriodicPressTempEdd, hydro_pressure=.false., &
                                     maintain_toa_pressure=.false., err=err)
     if (allocated(err)) then
       print *, trim(err)
       stop 1
     endif
     if (.not. pc%var%press_temp_edd_profile%enabled .or. &
-        pc%var%toa_pressure_maintenance%enabled) then
+        pc%var%toa_pressure_maintenance%enabled .or. &
+        pc%var%press_temp_edd_profile%mode /= PeriodicPressTempEdd .or. &
+        pc%var%press_temp_edd_profile%hydro_pressure) then
       print *, 'persistent initializer did not honor maintenance disablement'
       stop 1
     endif
     target_pressure = 0.25_dp
     call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
                                     particle_radius, persistent=.true., &
+                                    maintain_toa_pressure=.true., &
                                     target_pressure=target_pressure, err=err)
     if (allocated(err)) then
       print *, trim(err)
@@ -2053,11 +2058,10 @@ contains
 
     call pc%initialize_atmosphere_p(pressure, temperature, edd, mix, &
                                     particle_radius, target_pressure=target_pressure, err=err)
-    if (.not. allocated(err)) then
-      print *, 'nonpersistent pressure initialization accepted a TOA target'
+    if (allocated(err)) then
+      print *, 'nonpersistent pressure initialization did not ignore a TOA target: '//err
       stop 1
     endif
-    deallocate(err)
 
     call test_initialize_atmosphere_p_particles(pressure, temperature, edd)
 

@@ -118,35 +118,29 @@
                                                             nq, mix, mix_present, np, &
                                                             particle_radius, &
                                                             persistent, trop_p, &
-                                                            trop_p_present, &
+                                                            mode, hydro_pressure, &
                                                             maintain_toa_pressure, &
-                                                            maintain_toa_pressure_present, &
                                                             target_pressure, &
-                                                            target_pressure_present, &
                                                             err) bind(c)
     type(c_ptr), value, intent(in) :: ptr
-    integer(c_int), intent(in) :: nprofile, nq, np
+    integer(c_int), intent(in) :: nprofile, nq, np, mode
     real(c_double), intent(in) :: pressure(nprofile), temperature(nprofile)
     real(c_double), intent(in) :: edd(nprofile)
     real(c_double), intent(in) :: mix(nq,nprofile), particle_radius(np,nprofile)
     logical(c_bool), intent(in) :: mix_present
-    logical(c_bool), intent(in) :: persistent, trop_p_present
-    logical(c_bool), intent(in) :: maintain_toa_pressure, maintain_toa_pressure_present
-    logical(c_bool), intent(in) :: target_pressure_present
+    logical(c_bool), intent(in) :: persistent, hydro_pressure
+    logical(c_bool), intent(in) :: maintain_toa_pressure
     real(c_double), intent(in) :: trop_p, target_pressure
     character(kind=c_char), intent(out) :: err(err_len+1)
 
     character(:), allocatable :: err_f
     type(EvoAtmosphere), pointer :: pc
-    logical :: persistent_f, maintain_toa_pressure_f
+    logical :: persistent_f, maintain_toa_pressure_f, hydro_pressure_f
 
     call c_f_pointer(ptr, pc)
     persistent_f = persistent
+    hydro_pressure_f = hydro_pressure
     maintain_toa_pressure_f = maintain_toa_pressure
-    ! The C ABI carries explicit presence flags for optional Fortran
-    ! arguments. Preserve those flags when forwarding to the public method so
-    ! invalid maintenance options can be diagnosed rather than silently
-    ! ignored.
     if (mix_present) then
       call initialize_with_options(mix)
     else
@@ -162,45 +156,12 @@
     subroutine initialize_with_options(mix_f)
       real(c_double), optional, intent(in) :: mix_f(nq,nprofile)
 
-      if (trop_p_present) then
-        if (target_pressure_present) then
-          call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
-                                          particle_radius, persistent=persistent_f, &
-                                          trop_p=trop_p, &
-                                          maintain_toa_pressure=maintain_toa_pressure_f, &
-                                          target_pressure=target_pressure, err=err_f)
-        elseif (maintain_toa_pressure_present) then
-          call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
-                                          particle_radius, persistent=persistent_f, &
-                                          trop_p=trop_p, &
-                                          maintain_toa_pressure=maintain_toa_pressure_f, &
-                                          err=err_f)
-        else
-          call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
-                                          particle_radius, persistent=persistent_f, &
-                                          trop_p=trop_p, err=err_f)
-        endif
-      elseif (target_pressure_present) then
-        if (maintain_toa_pressure_present) then
-          call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
-                                          particle_radius, persistent=persistent_f, &
-                                          maintain_toa_pressure=maintain_toa_pressure_f, &
-                                          target_pressure=target_pressure, err=err_f)
-        else
-          call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
-                                          particle_radius, persistent=persistent_f, &
-                                          target_pressure=target_pressure, err=err_f)
-        endif
-      elseif (maintain_toa_pressure_present) then
-        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
-                                        particle_radius, persistent=persistent_f, &
-                                        maintain_toa_pressure=maintain_toa_pressure_f, &
-                                        err=err_f)
-      else
-        call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
-                                        particle_radius, persistent=persistent_f, &
-                                        err=err_f)
-      endif
+      call pc%initialize_atmosphere_p(pressure, temperature, edd, mix_f, &
+                                      particle_radius, persistent=persistent_f, &
+                                      trop_p=trop_p, mode=mode, &
+                                      hydro_pressure=hydro_pressure_f, &
+                                      maintain_toa_pressure=maintain_toa_pressure_f, &
+                                      target_pressure=target_pressure, err=err_f)
     end subroutine
 
   end subroutine
@@ -420,8 +381,8 @@
   end subroutine
 
   subroutine evoatmosphere_set_press_temp_edd_wrapper(ptr, P_dim1, P, T_dim1, T, edd_dim1, edd, &
-                                                      trop_p, trop_p_present, &
-                                                      hydro_pressure, hydro_pressure_present, err) bind(c)
+                                                      trop_p, &
+                                                      hydro_pressure, err) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: P_dim1
     real(c_double), intent(in) :: P(P_dim1)
@@ -430,9 +391,7 @@
     integer(c_int), intent(in) :: edd_dim1
     real(c_double), intent(in) :: edd(edd_dim1)
     real(c_double), intent(in) :: trop_p
-    logical(c_bool), intent(in) :: trop_p_present
     logical(c_bool), intent(in) :: hydro_pressure
-    logical(c_bool), intent(in) :: hydro_pressure_present
     character(kind=c_char), intent(out) :: err(err_len+1)
     
     character(:), allocatable :: err_f
@@ -443,15 +402,8 @@
 
     hydro_pressure_f = hydro_pressure
     
-    if (trop_p_present .and. hydro_pressure_present) then
-      call pc%set_press_temp_edd(P, T, edd, trop_p=trop_p, hydro_pressure=hydro_pressure_f, err=err_f)
-    elseif (trop_p_present .and. .not.hydro_pressure_present) then
-      call pc%set_press_temp_edd(P, T, edd, trop_p=trop_p, err=err_f)
-    elseif (.not.trop_p_present .and. hydro_pressure_present) then
-      call pc%set_press_temp_edd(P, T, edd, hydro_pressure=hydro_pressure_f, err=err_f)
-    else
-      call pc%set_press_temp_edd(P, T, edd, err=err_f)
-    endif
+    call pc%set_press_temp_edd(P, T, edd, trop_p=trop_p, &
+                             hydro_pressure=hydro_pressure_f, err=err_f)
     err(1) = c_null_char
     if (allocated(err_f)) then
       call copy_string_ftoc(err_f, err)
@@ -460,10 +412,10 @@
   end subroutine
 
   subroutine evoatmosphere_set_press_temp_edd_profile_wrapper(ptr, P_dim1, P, T_dim1, T, &
-                                                      edd_dim1, edd, trop_p, trop_p_present, mode, &
-                                                      hydro_pressure, hydro_pressure_present, &
-                                                      maintain_toa_pressure, maintain_toa_pressure_present, &
-                                                      target_pressure, target_pressure_present, err) bind(c)
+                                                      edd_dim1, edd, trop_p, mode, &
+                                                      hydro_pressure, &
+                                                      maintain_toa_pressure, &
+                                                      target_pressure, err) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(in) :: P_dim1
     real(c_double), intent(in) :: P(P_dim1)
@@ -472,43 +424,23 @@
     integer(c_int), intent(in) :: edd_dim1
     real(c_double), intent(in) :: edd(edd_dim1)
     real(c_double), intent(in) :: trop_p
-    logical(c_bool), intent(in) :: trop_p_present
     logical(c_bool), intent(in) :: hydro_pressure
-    logical(c_bool), intent(in) :: hydro_pressure_present
     logical(c_bool), intent(in) :: maintain_toa_pressure
-    logical(c_bool), intent(in) :: maintain_toa_pressure_present
     real(c_double), intent(in) :: target_pressure
-    logical(c_bool), intent(in) :: target_pressure_present
     integer(c_int), intent(in) :: mode
     character(kind=c_char), intent(out) :: err(err_len+1)
 
     character(:), allocatable :: err_f
     logical :: hydro_pressure_f, maintain_toa_pressure_f
-    real(c_double) :: target_pressure_f
     type(EvoAtmosphere), pointer :: pc
 
     call c_f_pointer(ptr, pc)
-    hydro_pressure_f = .true.
-    if (hydro_pressure_present) hydro_pressure_f = hydro_pressure
-    maintain_toa_pressure_f = .true.
-    if (maintain_toa_pressure_present) maintain_toa_pressure_f = maintain_toa_pressure
-    target_pressure_f = 0.1_c_double
-    if (target_pressure_present) target_pressure_f = target_pressure
-
-    ! The non-tropopause optionals have explicit defaults, so they can be
-    ! passed uniformly while preserving the meaningful presence semantics of
-    ! trop_p (which controls whether a tropopause is configured).
-    if (trop_p_present) then
-      call pc%set_press_temp_edd_profile(P, T, edd, trop_p=trop_p, mode=mode, &
-                                         hydro_pressure=hydro_pressure_f, &
-                                         maintain_toa_pressure=maintain_toa_pressure_f, &
-                                         target_pressure=target_pressure_f, err=err_f)
-    else
-      call pc%set_press_temp_edd_profile(P, T, edd, mode=mode, &
-                                         hydro_pressure=hydro_pressure_f, &
-                                         maintain_toa_pressure=maintain_toa_pressure_f, &
-                                         target_pressure=target_pressure_f, err=err_f)
-    endif
+    hydro_pressure_f = hydro_pressure
+    maintain_toa_pressure_f = maintain_toa_pressure
+    call pc%set_press_temp_edd_profile(P, T, edd, trop_p=trop_p, mode=mode, &
+                                     hydro_pressure=hydro_pressure_f, &
+                                     maintain_toa_pressure=maintain_toa_pressure_f, &
+                                     target_pressure=target_pressure, err=err_f)
     err(1) = c_null_char
     if (allocated(err_f)) call copy_string_ftoc(err_f, err)
 

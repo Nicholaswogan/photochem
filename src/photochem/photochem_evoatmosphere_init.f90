@@ -276,7 +276,7 @@ contains
 
   module subroutine initialize_atmosphere_p(self, pressure, temperature, edd, &
                                             mix, particle_radius, persistent, &
-                                            trop_p, maintain_toa_pressure, &
+                                            trop_p, mode, hydro_pressure, maintain_toa_pressure, &
                                             target_pressure, err)
 
     class(EvoAtmosphere), intent(inout) :: self
@@ -285,6 +285,8 @@ contains
     real(dp), intent(in) :: particle_radius(:,:)
     logical, optional, intent(in) :: persistent
     real(dp), optional, intent(in) :: trop_p
+    integer, optional, intent(in) :: mode
+    logical, optional, intent(in) :: hydro_pressure
     logical, optional, intent(in) :: maintain_toa_pressure
     real(dp), optional, intent(in) :: target_pressure
     character(:), allocatable, intent(out) :: err
@@ -292,21 +294,16 @@ contains
     type(AtmosphereState) :: state, previous_state
     real(dp), allocatable :: mix_(:,:)
     logical :: was_initialized
-    logical :: persistent_, maintain_toa_pressure_
+    logical :: persistent_
 
     persistent_ = .false.
     if (present(persistent)) persistent_ = persistent
-    maintain_toa_pressure_ = .true.
-    if (present(maintain_toa_pressure)) maintain_toa_pressure_ = maintain_toa_pressure
-    if (.not. persistent_ .and. &
-        (present(target_pressure) .or. present(maintain_toa_pressure))) then
-      err = '"maintain_toa_pressure" and "target_pressure" '// &
-            'can only be specified when "persistent" is true.'
-      return
-    endif
-    if (persistent_ .and. .not.maintain_toa_pressure_ .and. present(target_pressure)) then
-      err = '"target_pressure" cannot be specified when "maintain_toa_pressure" is false.'
-      return
+
+    if (present(maintain_toa_pressure)) then
+      if (maintain_toa_pressure .and. .not.persistent_) then
+        err = 'TOA-pressure maintenance requires "persistent" to be true.'
+        return
+      endif
     endif
 
     was_initialized = self%atmosphere_initialized
@@ -346,11 +343,11 @@ contains
     self%atmosphere_initialized = .true.
     if (persistent_) then
       ! Optional dummy arguments may be forwarded directly to matching
-      ! optional dummies. If either input was omitted, it remains absent in
+      ! optional dummies. Omitted inputs remain absent in
       ! set_press_temp_edd_profile and its default behavior applies.
       call self%set_press_temp_edd_profile(pressure, temperature, edd, &
-                                           trop_p=trop_p, hydro_pressure=.true., &
-                                           maintain_toa_pressure=maintain_toa_pressure_, &
+                                           trop_p=trop_p, mode=mode, hydro_pressure=hydro_pressure, &
+                                           maintain_toa_pressure=maintain_toa_pressure, &
                                            target_pressure=target_pressure, err=err)
       if (allocated(err)) then
         call restore_previous_state()
@@ -1232,7 +1229,7 @@ contains
     real(dp) :: inverse_radius_factor, delta_log_pressure
     real(dp) :: surface_z(1), surface_gravity(1)
     real(dp) :: trop_alt_array(1)
-    real(dp) :: trop_alt
+    real(dp) :: trop_alt, trop_p_
     integer :: i, nprofile, ierr
 
     nprofile = size(profile_pressure)
@@ -1321,16 +1318,18 @@ contains
       inverse_radius = inverse_radius_new
     enddo
 
-    if (present(trop_p)) then
+    trop_p_ = -1.0_dp
+    if (present(trop_p)) trop_p_ = trop_p
+    if (.not.ieee_is_finite(trop_p_)) then
+      err = '"trop_p" must be finite.'
+      return
+    endif
+    if (trop_p_ > 0.0_dp) then
       if (.not. dat%gas_rainout) then
         err = '"trop_p" can only be supplied when gas rainout is enabled.'
         return
       endif
-      if (.not. ieee_is_finite(trop_p) .or. trop_p <= 0.0_dp) then
-        err = '"trop_p" must be finite and positive.'
-        return
-      endif
-      if (trop_p > profile_pressure(1) .or. trop_p < profile_pressure(nprofile)) then
+      if (trop_p_ > profile_pressure(1) .or. trop_p_ < profile_pressure(nprofile)) then
         err = '"trop_p" must lie within the supplied pressure profile.'
         return
       endif
@@ -1338,7 +1337,7 @@ contains
       ! The pressure profile is descending while the interpolation abscissa
       ! must be ascending. Install the resulting altitude before the common
       ! altitude mapper validates the candidate tropopause.
-      call interp([log(trop_p)], log(profile_pressure(nprofile:1:-1)), &
+      call interp([log(trop_p_)], log(profile_pressure(nprofile:1:-1)), &
                   z(nprofile:1:-1), trop_alt_array, ierr=ierr)
       if (ierr /= 0 .or. .not. ieee_is_finite(trop_alt_array(1))) then
         err = 'Unable to determine the tropopause altitude from "trop_p".'

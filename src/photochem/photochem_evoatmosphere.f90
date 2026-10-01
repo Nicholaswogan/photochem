@@ -265,22 +265,28 @@ module photochem_evoatmosphere
     !!
     !! By default, pressure is used only to construct the initial altitude
     !! grid. If `persistent` is true, temperature and eddy diffusion are also
-    !! retained as functions of hydrostatic pressure and reapplied during every
-    !! subsequent atmospheric preparation. Composition always remains part of
-    !! the evolving ODE state. When gas rainout and persistence are both
-    !! enabled, `trop_p` is required. When `persistent` is enabled, TOA-pressure
-    !! maintenance is enabled by default and may be configured with
-    !! `maintain_toa_pressure` and `target_pressure`.
+    !! retained as functions of pressure, using `hydro_pressure` (default true),
+    !! and synchronized according to `mode` (continuous by default).
+    !! Composition always remains part of the evolving ODE state. When gas
+    !! rainout and persistence are both enabled, `trop_p` is required.
+    !! With persistence enabled, optional profile settings are forwarded to
+    !! `set_press_temp_edd_profile`, including its default of enabled
+    !! TOA-pressure maintenance. Supply `maintain_toa_pressure=.false.` to
+    !! disable maintenance; when enabled it requires the robust stepper.
+    !! Without persistence, requesting TOA maintenance is an error; `mode`,
+    !! `hydro_pressure`, and `target_pressure` are ignored.
     !! The requested initial grid is retained even when its TOA pressure lies
     !! outside the maintenance band; robust-stepper initialization performs
     !! the preflight regrid before CVODE starts.
     !!
     !! On success, any active integrator is destroyed and the replacement
-    !! atmosphere is committed. If mapping or preparation fails, the existing
-    !! atmosphere, persistent profile, and integrator are retained.
+    !! atmosphere is committed. Initial mapping failures preserve the existing
+    !! atmosphere and integrator. Later preparation failures restore the
+    !! atmosphere and profile, but an integrator already destroyed during
+    !! initialization must be initialized again.
     module subroutine initialize_atmosphere_p(self, pressure, temperature, edd, &
                                               mix, particle_radius, persistent, &
-                                              trop_p, maintain_toa_pressure, &
+                                              trop_p, mode, hydro_pressure, maintain_toa_pressure, &
                                               target_pressure, err)
       class(EvoAtmosphere), intent(inout) :: self
       !> Strictly decreasing pressure profile knots (dyn/cm^2), including both domain edges.
@@ -291,15 +297,21 @@ module photochem_evoatmosphere
       real(dp), optional, intent(in) :: mix(:,:)
       !> Particle radii in mechanism order at `pressure` (cm).
       real(dp), intent(in) :: particle_radius(:,:)
-      !> Retain temperature and eddy diffusion as functions of hydrostatic pressure.
+      !> Retain temperature and eddy diffusion as functions of pressure (default false).
       logical, optional, intent(in) :: persistent
       !> Tropopause pressure (dyn/cm^2). May be supplied whenever gas rainout is
       !! enabled; it overrides the settings-file tropopause for the initial state.
-      !! It is required when persistence and gas rainout are both enabled.
+      !! Nonpositive values use the settings-file tropopause for initialization.
+      !! A positive value is required when persistence and gas rainout are enabled.
       real(dp), optional, intent(in) :: trop_p
-      !> Enable approximate TOA-pressure maintenance when `persistent` is true.
+      !> Persistent profile mode: continuous (default) or periodic.
+      integer, optional, intent(in) :: mode
+      !> Use hydrostatic pressure for the persistent profile (default true).
+      logical, optional, intent(in) :: hydro_pressure
+      !> Enable approximate TOA-pressure maintenance (default true when persistent).
       logical, optional, intent(in) :: maintain_toa_pressure
-      !> Target TOA pressure for approximate maintenance (dyn/cm^2).
+      !> Target TOA pressure for approximate maintenance (dyn/cm^2); default 0.1.
+      !! Has no effect when persistence or maintenance is disabled.
       real(dp), optional, intent(in) :: target_pressure
       character(:), allocatable, intent(out) :: err
     end subroutine
@@ -703,8 +715,9 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dyn/cm^2).
       real(dp), intent(in) :: T(:) !! Temperature corresponding to `P` (K)
       real(dp), intent(in) :: edd(:) !! Eddy diffusion corresponding to `P` (cm^2/s)
-      !> Tropopause pressure (dyn/cm^2). Only valid and required when gas
-      !! rainout is enabled; omit it otherwise.
+      !> Tropopause pressure (dyn/cm^2). A positive value is required when gas
+      !! rainout is enabled and invalid otherwise. Nonpositive values mean
+      !! no tropopause pressure is supplied (default -1).
       real(dp), optional, intent(in) :: trop_p
       !> If .true., then use hydrostatic pressure. If .false. then use the
       !> actual gas pressure in the atmosphere. Default is .true..
@@ -742,10 +755,10 @@ module photochem_evoatmosphere
     !> Prescribes persistent pressure-temperature and pressure-eddy-diffusion
     !! profiles.
     !!
-    !! The profiles are mapped onto the altitude grid immediately and again
-    !! during every subsequent atmospheric preparation, including every ODE
-    !! right-hand-side evaluation. Thus, temperature and eddy diffusion remain
-    !! functions of the trial atmospheric pressure as composition evolves.
+    !! The profiles are mapped onto the altitude grid immediately. Continuous
+    !! mode (default) remaps during every subsequent atmospheric preparation,
+    !! including every ODE right-hand-side evaluation. Periodic mode keeps
+    !! the profiles fixed between robust-stepper resynchronization points.
     !! Temperature is interpolated linearly in log10 pressure, while eddy
     !! diffusion is interpolated linearly in log10 pressure-log10 eddy space.
     !!
@@ -753,7 +766,7 @@ module photochem_evoatmosphere
     !! must have the same size with at least two elements. If the input profile
     !! does not reach the model surface, its deepest two points are extrapolated
     !! to the surface. Values above the input profile are held constant.
-    !! `trop_p` is valid only when gas rainout is enabled; when supplied, the
+    !! Positive `trop_p` is valid only when gas rainout is enabled; then the
     !! mapped pressure must decrease strictly with altitude so the tropopause
     !! altitude is unambiguous.
     !!
@@ -772,8 +785,9 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dyn/cm^2).
       real(dp), intent(in) :: T(:) !! Temperature corresponding to `P` (K)
       real(dp), intent(in) :: edd(:) !! Eddy diffusion corresponding to `P` (cm^2/s)
-      !> Tropopause pressure (dyn/cm^2). Only valid and required when gas
-      !! rainout is enabled; omit it otherwise.
+      !> Tropopause pressure (dyn/cm^2). A positive value is required when gas
+      !! rainout is enabled and invalid otherwise. Omitted or nonpositive
+      !! values mean no tropopause pressure is supplied (default -1).
       real(dp), optional, intent(in) :: trop_p
       !> Profile update mode: `ContinuousPressTempEdd` (default) maps during
       !! every RHS preparation; `PeriodicPressTempEdd` maps at robust-stepper

@@ -67,6 +67,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
     [initialize_to_climate_equilibrium_PT][photochem.extensions.EvoAtmosphereGasGiant.initialize_to_climate_equilibrium_PT] before integrating, or restore
     a previously saved state with [initialize_from_dict][photochem.extensions.EvoAtmosphereGasGiant.initialize_from_dict].
 
+    Climate-profile initialization uses periodic P-T-Kzz synchronization by
+    default. Pass ``mode=1`` to select continuous synchronization.
+
     Attributes
     ----------
     gdat : GasGiantData
@@ -181,7 +184,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
             Remove condensed atoms during equilibrium calculations, by default
             True.
         **initialize_kwargs
-            Additional keyword arguments forwarded to `initialize_atmosphere_p`. ``persistent``,
+            Additional keyword arguments forwarded to `initialize_atmosphere_p`.
+            Profile synchronization defaults to periodic (``mode=0``); pass
+            ``mode=1`` for continuous synchronization. ``persistent``,
             ``maintain_toa_pressure``, and ``target_pressure`` are set internally and must not be provided.
         """
 
@@ -297,7 +302,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
             Mixing-ratio profile for every gas species. Each value has shape
             ``(nprofile,)``.
         **initialize_kwargs
-            Additional keyword arguments forwarded to `initialize_atmosphere_p`. ``persistent``,
+            Additional keyword arguments forwarded to `initialize_atmosphere_p`.
+            Profile synchronization defaults to periodic (``mode=0``); pass
+            ``mode=1`` for continuous synchronization. ``persistent``,
             ``maintain_toa_pressure``, and ``target_pressure`` are set internally and must not be provided.
         """
 
@@ -424,6 +431,8 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
             sp: values for sp, values in mix_profile.items()
             if sp in species_names
         }
+
+        initialize_kwargs.setdefault("mode", 0) # Periodic P-T-Kzz synchronization.
 
         planet_radius_old = self.dat.planet_radius
         self.dat.planet_radius = planet_radius_new
@@ -633,6 +642,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         profile = self.var.press_temp_edd_profile
         out['press_temp_edd_profile'] = {
             'mode': profile.mode,
+            'hydro_pressure': profile.hydro_pressure,
             'temperature_tol': profile.temperature_tol,
             'edd_tol': profile.edd_tol,
             'extreme_factor': profile.extreme_factor,
@@ -669,10 +679,12 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         )
         for key in required_keys:
             out[key]
-        for key in ('mode', 'temperature_tol', 'edd_tol', 'extreme_factor'):
+        for key in ('mode', 'hydro_pressure', 'temperature_tol', 'edd_tol', 'extreme_factor'):
             profile_settings[key]
         if not np.isfinite(target_pressure) or target_pressure <= 0.0:
             raise ValueError('Saved TOA-pressure target must be finite and positive')
+        if not isinstance(profile_settings['hydro_pressure'], (bool, np.bool_)):
+            raise ValueError('Saved pressure-profile hydro_pressure must be boolean')
         if profile_settings['mode'] not in (0, 1):
             raise ValueError('Saved pressure-profile mode must be 0 or 1')
         for key in ('temperature_tol', 'edd_tol'):
@@ -716,7 +728,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
 
         self.set_press_temp_edd_profile(
             gdat.P_desired, gdat.T_desired, gdat.Kzz_desired,
-            hydro_pressure=True, maintain_toa_pressure=True,
+            hydro_pressure=profile_settings['hydro_pressure'], maintain_toa_pressure=True,
             target_pressure=target_pressure,
             mode=profile_settings['mode']
         )

@@ -263,10 +263,10 @@ cdef class EvoAtmosphere:
                               ndarray[double, ndim=1] temperature,
                               ndarray[double, ndim=1] edd, mix=None,
                               particle_radius=None, bint persistent=False,
-                              tropopause_pressure=None,
+                              double tropopause_pressure=-1.0, int mode=1, bint hydro_pressure=True,
+                              maintain_toa_pressure=None, double target_pressure=0.1,
                               double default_mix=1.0e-40,
-                              double default_particle_radius=1.0e-4,
-                              maintain_toa_pressure=None, target_pressure=None):
+                              double default_particle_radius=1.0e-4):
     """Initialize the atmosphere from pressure-based profiles.
 
     The pressure profile must be strictly decreasing. Its first and last
@@ -288,23 +288,25 @@ cdef class EvoAtmosphere:
 
     By default, pressure is used only to construct the initial atmosphere. If
     ``persistent`` is true, temperature and eddy diffusion are retained as
-    functions of hydrostatic pressure and reapplied during every atmospheric
-    preparation. Composition remains part of the evolving ODE state. When gas
+    functions of pressure using ``hydro_pressure`` and synchronized according
+    to ``mode``. Continuous synchronization is the default. Composition
+    remains part of the evolving ODE state. When gas
     rainout and persistence are both enabled, ``tropopause_pressure`` is
     required.
 
-    Persistent initialization enables approximate TOA-pressure maintenance by
-    default. Use ``maintain_toa_pressure=False`` to disable it, or supply
-    ``target_pressure`` in dyn/cm^2 to select its target. These options are
-    only valid with ``persistent=True``.
+    With ``maintain_toa_pressure=None``, TOA-pressure maintenance follows
+    ``persistent``. Use false to disable it, or true to enable it explicitly.
+    Maintenance requires persistence and the robust stepper.
+    ``target_pressure`` has no effect when maintenance is disabled.
 
     The requested initial pressure grid is retained even when its TOA pressure
     lies outside the maintenance band. If a robust stepper is initialized,
     its startup preflight performs any required regrid before CVODE starts.
 
-    Successful initialization destroys any active integrator. If
-    initialization fails, the existing atmosphere, persistent profile, and
-    integrator are retained.
+    Successful initialization destroys any active integrator. Initial mapping
+    failures leave the existing atmosphere and integrator unchanged. Later
+    preparation failures restore the existing atmosphere and profile, but an
+    integrator already destroyed during initialization must be initialized again.
 
     Parameters
     ----------
@@ -323,24 +325,32 @@ cdef class EvoAtmosphere:
         Particle-radius profiles in cm, keyed by particle name. Unspecified
         particles use ``default_particle_radius``.
     persistent : bool, optional
-        Retain temperature and eddy diffusion as functions of hydrostatic
-        pressure. The default is false.
-    tropopause_pressure : float, optional
+        Retain temperature and eddy diffusion as functions of pressure.
+        The default is false.
+    tropopause_pressure : float, default=-1.0
         Tropopause pressure in dyn/cm^2. May be supplied when gas rainout is
         enabled and overrides the settings-file tropopause for the initial
-        state. It is required when ``persistent`` and gas rainout are enabled.
+        state. Nonpositive values use the settings-file tropopause initially.
+        A positive value is required when persistence and gas rainout are enabled.
+    mode : int, default=1
+        Persistent profile synchronization: 1 for continuous, 0 for periodic.
+        Periodic mode requires the robust stepper. Used only when
+        ``persistent=True``.
+    hydro_pressure : bool, default=True
+        Use hydrostatic pressure for persistent profile mapping. If false,
+        use actual gas pressure. Used only when ``persistent=True``.
+    maintain_toa_pressure : bool, optional
+        Enable approximate TOA-pressure maintenance when ``persistent`` is
+        true. If None (default), follows ``persistent``.
+    target_pressure : float, default=0.1
+        Target TOA pressure for approximate maintenance in dyn/cm^2. The
+        default is 0.1 dyn/cm^2.
     default_mix : float, optional
         Mixing ratio assigned to species omitted from ``mix``. The default is
         1.0e-40.
     default_particle_radius : float, optional
         Radius in cm assigned to particles omitted from ``particle_radius``.
         The default is 1.0e-4 cm (1 micron), matching legacy atmosphere-file behavior.
-    maintain_toa_pressure : bool, optional
-        Enable approximate TOA-pressure maintenance when ``persistent`` is
-        true. Defaults to true for persistent initialization.
-    target_pressure : float, optional
-        Target TOA pressure for approximate maintenance in dyn/cm^2. The
-        default is 0.1 dyn/cm^2.
     """
     cdef ndarray pressure_ = np.ascontiguousarray(pressure, dtype=np.double)
     cdef ndarray temperature_ = np.ascontiguousarray(temperature, dtype=np.double)
@@ -352,25 +362,14 @@ cdef class EvoAtmosphere:
     cdef ndarray mix_
     cdef ndarray particle_radius_
     cdef bool persistent_ = persistent
-    cdef double tropopause_pressure_ = 0.0
-    cdef bool tropopause_pressure_present = False
-    cdef bool maintain_toa_pressure_ = True
-    cdef bool maintain_toa_pressure_present = False
-    cdef double target_pressure_ = 0.1
-    cdef bool target_pressure_present = False
+    cdef bool hydro_pressure_ = hydro_pressure
+    cdef bool maintain_toa_pressure_ = persistent
     cdef char err[ERR_LEN+1]
 
     if temperature_.size != nprofile or edd_.size != nprofile:
       raise PhotoException('pressure, temperature, and edd must have the same length.')
-    if tropopause_pressure is not None:
-      tropopause_pressure_present = True
-      tropopause_pressure_ = tropopause_pressure
     if maintain_toa_pressure is not None:
-      maintain_toa_pressure_present = True
       maintain_toa_pressure_ = maintain_toa_pressure
-    if target_pressure is not None:
-      target_pressure_present = True
-      target_pressure_ = target_pressure
 
     mix_, particle_radius_ = self._prepare_atmosphere_composition(
       nprofile, mix, particle_radius, default_mix, default_particle_radius
@@ -383,9 +382,8 @@ cdef class EvoAtmosphere:
       <double *>temperature_.data, <double *>edd_.data,
       &nq, <double *>mix_.data, &mix_present, &nparticles,
       <double *>particle_radius_.data, &persistent_,
-      &tropopause_pressure_, &tropopause_pressure_present,
-      &maintain_toa_pressure_, &maintain_toa_pressure_present,
-      &target_pressure_, &target_pressure_present, err
+      &tropopause_pressure, &mode, &hydro_pressure_,
+      &maintain_toa_pressure_, &target_pressure, err
     )
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
@@ -667,7 +665,7 @@ cdef class EvoAtmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
   
-  def set_press_temp_edd(self, ndarray[double, ndim=1] P, ndarray[double, ndim=1] T, ndarray[double, ndim=1] edd, trop_p = None, hydro_pressure = None):
+  def set_press_temp_edd(self, ndarray[double, ndim=1] P, ndarray[double, ndim=1] T, ndarray[double, ndim=1] edd, double trop_p = -1.0, bint hydro_pressure = True):
     """Map pressure-temperature and pressure-eddy-diffusion profiles onto
     the model's current altitude grid.
 
@@ -700,10 +698,10 @@ cdef class EvoAtmosphere:
     edd : ndarray of float64, shape (n,)
         Eddy diffusion corresponding to ``P``, in cm^2/s. Must be finite and
         positive.
-    trop_p : float, optional
-        Tropopause pressure in dyn/cm^2. Required when gas rainout is
-        enabled and invalid otherwise. Omit it when rainout is disabled. When
-        supplied, the mapped pressure must decrease strictly with altitude so
+    trop_p : float, default=-1.0
+        Tropopause pressure in dyn/cm^2. A positive value is required when
+        gas rainout is enabled and invalid otherwise. A nonpositive value
+        means no tropopause pressure is supplied. When positive, the mapped pressure must decrease strictly with altitude so
         the tropopause altitude is unambiguous.
     hydro_pressure : bool, default=True
         Use hydrostatic pressure if True. If False, use the actual gas
@@ -723,30 +721,19 @@ cdef class EvoAtmosphere:
     cdef int T_dim1 = T_.size
     cdef int edd_dim1 = edd_.size
     
-    cdef double trop_p_ = -1.0
-    cdef bool trop_p_present = False
-    if trop_p != None:
-      trop_p_present = True
-      trop_p_ = trop_p
+    cdef bool hydro_pressure_ = hydro_pressure
 
-    cdef bool hydro_pressure_ = True
-    cdef bool hydro_pressure_present = False
-    if hydro_pressure != None:
-      hydro_pressure_present = True
-      hydro_pressure_ = hydro_pressure
-      
     ea_pxd.evoatmosphere_set_press_temp_edd_wrapper(
       self._ptr, &P_dim1, <double *>P_.data,
       &T_dim1, <double *>T_.data, &edd_dim1, <double *>edd_.data,
-      &trop_p_, &trop_p_present, &hydro_pressure_,
-      &hydro_pressure_present, err
+      &trop_p, &hydro_pressure_, err
     )
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
   def set_press_temp_edd_profile(self, ndarray[double, ndim=1] P, ndarray[double, ndim=1] T, ndarray[double, ndim=1] edd,
-                                 trop_p = None, int mode = 1, hydro_pressure = None,
-                                 maintain_toa_pressure = None, target_pressure = None):
+                                 double trop_p = -1.0, int mode = 1, bint hydro_pressure = True,
+                                 bint maintain_toa_pressure = True, double target_pressure = 0.1):
     """Prescribe persistent pressure-temperature and pressure-eddy profiles.
 
     The profiles are mapped onto the current altitude grid immediately and
@@ -780,10 +767,10 @@ cdef class EvoAtmosphere:
     edd : ndarray of float64, shape (n,)
         Eddy diffusion corresponding to ``P``, in cm^2/s. Must be finite and
         positive.
-    trop_p : float, optional
-        Tropopause pressure in dyn/cm^2. Required when gas rainout is
-        enabled and invalid otherwise. Omit it when rainout is disabled. When
-        supplied, the mapped pressure must decrease strictly with altitude so
+    trop_p : float, default=-1.0
+        Tropopause pressure in dyn/cm^2. A positive value is required when
+        gas rainout is enabled and invalid otherwise. A nonpositive value
+        means no tropopause pressure is supplied. When positive, the mapped pressure must decrease strictly with altitude so
         the tropopause altitude is unambiguous.
     mode : int, default=1
         ``1`` selects continuous synchronization and ``0`` selects periodic
@@ -800,6 +787,8 @@ cdef class EvoAtmosphere:
         Target TOA pressure for approximate maintenance, in dyn/cm^2. Must
         be finite and positive when supplied.
     """
+    cdef bool hydro_pressure_ = hydro_pressure
+    cdef bool maintain_toa_pressure_ = maintain_toa_pressure
     cdef char err[ERR_LEN+1]
     cdef ndarray P_ = np.ascontiguousarray(P)
     cdef ndarray T_ = np.ascontiguousarray(T)
@@ -808,37 +797,11 @@ cdef class EvoAtmosphere:
     cdef int T_dim1 = T_.size
     cdef int edd_dim1 = edd_.size
 
-    cdef double trop_p_ = -1.0
-    cdef bool trop_p_present = False
-    if trop_p != None:
-      trop_p_present = True
-      trop_p_ = trop_p
-
-    cdef bool hydro_pressure_ = True
-    cdef bool hydro_pressure_present = False
-    if hydro_pressure != None:
-      hydro_pressure_present = True
-      hydro_pressure_ = hydro_pressure
-
-    cdef bool maintain_toa_pressure_ = True
-    cdef bool maintain_toa_pressure_present = False
-    if maintain_toa_pressure != None:
-      maintain_toa_pressure_present = True
-      maintain_toa_pressure_ = maintain_toa_pressure
-
-    cdef double target_pressure_ = 0.1
-    cdef bool target_pressure_present = False
-    if target_pressure != None:
-      target_pressure_present = True
-      target_pressure_ = target_pressure
-
     ea_pxd.evoatmosphere_set_press_temp_edd_profile_wrapper(
       self._ptr, &P_dim1, <double *>P_.data,
       &T_dim1, <double *>T_.data, &edd_dim1, <double *>edd_.data,
-      &trop_p_, &trop_p_present, &mode, &hydro_pressure_,
-      &hydro_pressure_present, &maintain_toa_pressure_,
-      &maintain_toa_pressure_present, &target_pressure_,
-      &target_pressure_present, err
+      &trop_p, &mode, &hydro_pressure_, &maintain_toa_pressure_,
+      &target_pressure, err
     )
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())

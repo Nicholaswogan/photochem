@@ -164,6 +164,8 @@ plt.show()
 # %% [markdown]
 # `initialize_to_climate_equilibrium_PT` calculates equilibrium chemistry along the supplied profile, estimates important chemical quench levels, and builds the photochemical grid deep enough to include them. The initial state includes an approximate treatment of quenched species. `metallicity=10` means ten times the solar elemental metallicity, whereas `CtoO=1` means the solar C/O ratio rather than an absolute C/O ratio of one.
 
+# Gas giant initialization defaults to periodic synchronization of the prescribed pressure-temperature-eddy profile. The robust stepper holds temperature and eddy diffusion fixed between resynchronizations and checks their mismatch before accepting convergence. Pass `mode=1` to the initialization call for continuous synchronization during every right-hand-side evaluation.
+
 # %%
 pc.initialize_to_climate_equilibrium_PT(
     pressure,

@@ -88,6 +88,16 @@ cdef class PressureTempEddProfile:
       var_pxd.pressuretempeddprofile_mode_get(self._ptr, &val)
       return val
 
+  property hydro_pressure:
+    """bool. Whether profile mapping uses hydrostatic pressure (read-only).
+
+    Select this setting when installing the pressure-based profile.
+    """
+    def __get__(self):
+      cdef bool val
+      var_pxd.pressuretempeddprofile_hydro_pressure_get(self._ptr, &val)
+      return val
+
   property temperature_tol:
     """float. Relative temperature mismatch allowed in periodic mode (default 0.005)."""
     def __get__(self):

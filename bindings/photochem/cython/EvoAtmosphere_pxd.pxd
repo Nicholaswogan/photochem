@@ -33,11 +33,10 @@ cdef extern void evoatmosphere_initialize_atmosphere_p_wrapper(EvoAtmosphere *pt
                                             double *pressure, double *temperature, double *edd,
                                             int *nq, double *mix, bool *mix_present, int *np,
                                             double *particle_radius, bool *persistent,
-                                            double *trop_p, bool *trop_p_present,
+                                            double *trop_p, int *mode, bool *hydro_pressure,
                                             bool *maintain_toa_pressure,
-                                            bool *maintain_toa_pressure_present,
                                             double *target_pressure,
-                                            bool *target_pressure_present, char *err)
+                                            char *err)
 
 cdef extern void evoatmosphere_dat_get(EvoAtmosphere *ptr, dat_pxd.PhotochemData **ptr1)
 cdef extern void evoatmosphere_var_get(EvoAtmosphere *ptr, var_pxd.PhotochemVars **ptr1)
@@ -55,13 +54,13 @@ cdef extern void evoatmosphere_set_rate_fcn_wrapper(EvoAtmosphere *ptr, char *sp
 cdef extern void evoatmosphere_set_temperature_wrapper(EvoAtmosphere *ptr, int *nz, double *temperature, 
                                                     double *trop_alt, bool *trop_alt_present, char *err)
 cdef extern void evoatmosphere_set_press_temp_edd_wrapper(EvoAtmosphere *ptr, int *P_dim1, double *P, int *T_dim1, double *T, int *edd_dim1, double *edd,
-                                                      double *trop_p, bool *trop_p_present, 
-                                                      bool *hydro_pressure, bool *hydro_pressure_present, char *err)
+                                                      double *trop_p,
+                                                      bool *hydro_pressure, char *err)
 cdef extern void evoatmosphere_set_press_temp_edd_profile_wrapper(EvoAtmosphere *ptr, int *P_dim1, double *P, int *T_dim1, double *T, int *edd_dim1, double *edd,
-                                                              double *trop_p, bool *trop_p_present, int *mode,
-                                                              bool *hydro_pressure, bool *hydro_pressure_present,
-                                                              bool *maintain_toa_pressure, bool *maintain_toa_pressure_present,
-                                                              double *target_pressure, bool *target_pressure_present, char *err)
+                                                              double *trop_p, int *mode,
+                                                              bool *hydro_pressure,
+                                                              bool *maintain_toa_pressure,
+                                                              double *target_pressure, char *err)
 cdef extern void evoatmosphere_clear_press_temp_edd_profile_wrapper(EvoAtmosphere *ptr, char *err)
 cdef extern void evoatmosphere_update_vertical_grid_wrapper(EvoAtmosphere *ptr, double *toa_alt, bool *toa_alt_present,
                                                          double *toa_pressure, bool *toa_pressure_present, char *err)

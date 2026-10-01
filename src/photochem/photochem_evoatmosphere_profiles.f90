@@ -272,6 +272,7 @@ contains
     type(PressTempEddState) :: previous_state
     type(PressureTempEddProfile) :: previous_profile
     real(dp), allocatable :: usol_start(:,:)
+    real(dp) :: trop_p_
     logical :: maintain_toa_pressure_
     character(:), allocatable :: original_err, rollback_err
 
@@ -307,11 +308,9 @@ contains
       err = 'Unknown pressure-temperature-eddy profile mode.'
       return
     endif
-    if (present(trop_p)) then
-      self%var%press_temp_edd_profile%trop_p = trop_p
-    else
-      self%var%press_temp_edd_profile%trop_p = -1.0_dp
-    endif
+    trop_p_ = -1.0_dp
+    if (present(trop_p)) trop_p_ = trop_p
+    self%var%press_temp_edd_profile%trop_p = trop_p_
     if (present(hydro_pressure)) then
       self%var%press_temp_edd_profile%hydro_pressure = hydro_pressure
     else

@@ -816,6 +816,14 @@
     val = profile%mode
   end subroutine
 
+  subroutine pressuretempeddprofile_hydro_pressure_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    logical(c_bool), intent(out) :: val
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    val = profile%hydro_pressure
+  end subroutine
+
   subroutine pressuretempeddprofile_temperature_tol_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val

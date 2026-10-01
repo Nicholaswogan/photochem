@@ -309,7 +309,7 @@ def test_persistent_profile_controls_toa_maintenance():
     pc.clear_press_temp_edd_profile()
 
     # Positional mode follows trop_p, matching the Fortran API.
-    pc.set_press_temp_edd_profile(pressure, temperature, edd, None, 0, True, False)
+    pc.set_press_temp_edd_profile(pressure, temperature, edd, -1.0, 0, True, False)
     profile = pc.var.press_temp_edd_profile
     assert profile.enabled
     assert profile.mode == 0
@@ -453,7 +453,7 @@ def test_gas_giant_static_construction():
     assert pc.atmosphere_initialized
 
 
-def _make_initialized_gas_giant():
+def _make_initialized_gas_giant(**initialize_kwargs):
     from photochem.extensions.gasgiants import EvoAtmosphereGasGiant
 
     pc = EvoAtmosphereGasGiant(
@@ -489,7 +489,8 @@ def _make_initialized_gas_giant():
     pc.gdat.CtoO = 1.0
     pc.gdat.ind_b = 0
     pc._initialize_atmosphere(
-        pressure, temperature, edd, np.zeros(pressure.size), mix
+        pressure, temperature, edd, np.zeros(pressure.size), mix,
+        **initialize_kwargs
     )
     return pc
 
@@ -549,7 +550,7 @@ def test_gas_giant_uses_shared_robust_stepper():
 
     pc = _make_initialized_gas_giant()
     maintenance = pc.var.toa_pressure_maintenance
-    assert pc.var.press_temp_edd_profile.mode == 1
+    assert pc.var.press_temp_edd_profile.mode == 0
     assert pc.var.nerrors_before_giveup == 10
     assert pc.var.nsteps_before_conv_check == 300
     assert pc.var.nsteps_before_reinit == 1000
@@ -583,6 +584,9 @@ def test_gas_giant_uses_shared_robust_stepper():
     assert pc.wrk.robust_stepper_initialized
     pc.destroy_stepper()
 
+    continuous = _make_initialized_gas_giant(mode=1)
+    assert continuous.var.press_temp_edd_profile.mode == 1
+
 
 def test_gas_giant_shared_limits_and_state_restore():
     pc = _make_initialized_gas_giant()
@@ -590,7 +594,7 @@ def test_gas_giant_shared_limits_and_state_restore():
     pc.destroy_stepper()
     pc.set_press_temp_edd_profile(
         pc.gdat.P_desired, pc.gdat.T_desired, pc.gdat.Kzz_desired,
-        mode=0, hydro_pressure=True, target_pressure=custom_target
+        mode=0, hydro_pressure=False, target_pressure=custom_target
     )
     pc.var.press_temp_edd_profile.temperature_tol = 0.008
     pc.var.press_temp_edd_profile.edd_tol = 0.025
@@ -611,8 +615,10 @@ def test_gas_giant_shared_limits_and_state_restore():
     assert pc.wrk.nsteps_total == 1
 
     state = pc.model_state_to_dict()
+    assert state['press_temp_edd_profile']['hydro_pressure'] is False
     pc.initialize_from_dict(state)
     assert not pc.wrk.robust_stepper_initialized
+    assert pc.var.press_temp_edd_profile.hydro_pressure is False
     assert pc.var.press_temp_edd_profile.mode == 0
     assert pc.var.press_temp_edd_profile.temperature_tol == 0.008
     assert pc.var.press_temp_edd_profile.edd_tol == 0.025
@@ -635,7 +641,7 @@ def test_gas_giant_shared_limits_and_state_restore():
         assert np.array_equal(pc.var.temperature, temperature_before)
         pc.initialize_from_dict(state)
 
-    for missing_key in ('mode', 'temperature_tol', 'edd_tol', 'extreme_factor'):
+    for missing_key in ('mode', 'hydro_pressure', 'temperature_tol', 'edd_tol', 'extreme_factor'):
         incomplete_state = state.copy()
         incomplete_state['press_temp_edd_profile'] = state['press_temp_edd_profile'].copy()
         incomplete_state['press_temp_edd_profile'].pop(missing_key)
@@ -745,31 +751,43 @@ def test_initialize_atmosphere_p_no_particles():
     assert np.all(np.diff(pc.wrk.pressure_hydro) < 0.0)
     assert pc.var.toa_pressure_maintenance.enabled is True
     assert pc.var.toa_pressure_maintenance.target_pressure == 0.1
+    assert pc.var.press_temp_edd_profile.mode == 1
 
     pc.initialize_atmosphere_p(
         pressure, temperature, edd, mix,
-        persistent=True, maintain_toa_pressure=False
+        persistent=True, mode=0, hydro_pressure=False, maintain_toa_pressure=False
     )
     assert pc.var.toa_pressure_maintenance.enabled is False
+    assert pc.var.press_temp_edd_profile.mode == 0
 
     target_pressure = 0.25
     pc.initialize_atmosphere_p(
         pressure, temperature, edd, mix,
-        persistent=True, target_pressure=target_pressure
+        persistent=True, maintain_toa_pressure=True, target_pressure=target_pressure
     )
     assert pc.var.toa_pressure_maintenance.enabled is True
     assert pc.var.toa_pressure_maintenance.target_pressure == target_pressure
 
+    pc.initialize_atmosphere_p(
+        pressure, temperature, edd, mix, target_pressure=target_pressure
+    )
+    assert not pc.var.toa_pressure_maintenance.enabled
+
+    pc.clear_press_temp_edd_profile()
+
+    pc.initialize_atmosphere_p(
+        pressure, temperature, edd, mix, maintain_toa_pressure=False
+    )
+    assert not pc.var.press_temp_edd_profile.enabled
+    assert not pc.var.toa_pressure_maintenance.enabled
     try:
         pc.initialize_atmosphere_p(
-            pressure, temperature, edd, mix, target_pressure=target_pressure
+            pressure, temperature, edd, mix, maintain_toa_pressure=True
         )
     except PhotoException as exc:
         assert "persistent" in str(exc)
     else:
-        raise AssertionError("nonpersistent pressure initialization accepted a TOA target")
-
-    pc.clear_press_temp_edd_profile()
+        raise AssertionError("TOA maintenance accepted without persistence")
 
 
 def test_initialize_atmosphere_p_particles():
