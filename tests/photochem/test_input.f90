@@ -268,7 +268,7 @@ contains
       call fail('PhotochemWrk has inconsistent hydrostatic dimensions')
     endif
     if (wrk%robust_stepper_initialized) call fail('PhotochemWrk robust state was initialized prematurely')
-    if (wrk%nsteps_total /= -1 .or. wrk%nerrors_total /= -1) then
+    if (wrk%nsteps_total /= 0 .or. wrk%nerrors_total /= 0) then
       call fail('PhotochemWrk robust counters have the wrong initial values')
     endif
   end subroutine

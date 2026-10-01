@@ -21,7 +21,7 @@ Test inputs are resolved from the source tree, so the Fortran executables and Py
 ### Photochem
 
 - `test_input` contains focused input parsing and validation tests, including thermodynamic polynomial continuity at gas-phase joins.
-- `test_api` contains focused correctness and error-behavior tests for public `EvoAtmosphere` operations.
+- `test_api` contains focused correctness and error-behavior tests for public `EvoAtmosphere` operations, including continuous and periodic pressure-based profiles, combined TOA maintenance, and robust-stepper restart limits.
 - `test_jacobian` compares the analytical and automatic-differentiation chemistry Jacobians over focused numerical cases.
 - `test_production_loss` characterizes the species production-and-loss diagnostic and checks reactions, rainout, condensation and evaporation, vertical transport, boundary fluxes, distributed sources, custom rates, and Zahnle escape. For evolved species, it verifies that all reported contributions reconstruct the full right-hand side.
 - `test_memory` broadly exercises `EvoAtmosphere` workflows. It checks returned errors, but does not comprehensively validate numerical outputs; its primary purpose is execution under Valgrind.

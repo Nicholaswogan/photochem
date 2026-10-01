@@ -764,7 +764,7 @@ module photochem_evoatmosphere
     !! `set_temperature` and `set_press_temp_edd` cannot be used; call
     !! `clear_press_temp_edd_profile` first. Vertical-grid updates preserve and
     !! remap the persistent profiles.
-    module subroutine set_press_temp_edd_profile(self, P, T, edd, trop_p, hydro_pressure, &
+    module subroutine set_press_temp_edd_profile(self, P, T, edd, trop_p, mode, hydro_pressure, &
                                                  maintain_toa_pressure, target_pressure, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       real(dp), intent(in) :: P(:) !! Strictly decreasing pressure profile (dyn/cm^2).
@@ -773,6 +773,10 @@ module photochem_evoatmosphere
       !> Tropopause pressure (dyn/cm^2). Only valid and required when gas
       !! rainout is enabled; omit it otherwise.
       real(dp), optional, intent(in) :: trop_p
+      !> Profile update mode: `ContinuousPressTempEdd` (default) maps during
+      !! every RHS preparation; `PeriodicPressTempEdd` maps at robust-stepper
+      !! initialization and resynchronization points.
+      integer, optional, intent(in) :: mode
       !> If .true., use hydrostatic pressure. If .false., use actual gas
       !! pressure, `density*k_boltz*T`. Default is .true..
       logical, optional, intent(in) :: hydro_pressure

@@ -22,6 +22,7 @@ contains
     call test_robust_stepper_initialization()
     call test_toa_pressure_maintenance_settings()
     call test_toa_maintenance_requires_robust_stepper()
+    call test_periodic_press_temp_edd_profile()
     call test_toa_pressure_maintenance_initialization()
     call test_toa_pressure_maintenance()
     call test_toa_pressure_maintenance_policy()
@@ -405,6 +406,233 @@ contains
       print *, trim(err)
       stop 1
     endif
+
+  end subroutine
+
+  subroutine test_periodic_press_temp_edd_profile()
+    use photochem_enum, only: PeriodicPressTempEdd, ContinuousPressTempEdd
+    type(EvoAtmosphere) :: pc
+    character(:), allocatable :: err
+    real(dp) :: P(2), T(2), edd(2), P_bad(2), t_eval(1), t_before, tstart
+    real(dp), allocatable :: temperature_before(:), edd_before(:), usol_trial(:,:)
+    logical :: give_up, converged, success, toa_enabled
+    integer :: toa_mode
+
+    ! Both maintenance combinations must keep the profile fixed between
+    ! resyncs, and finish a scheduled resync with consistent P-T-Kzz.
+    do toa_mode = 0,1
+      toa_enabled = toa_mode == 1
+      pc = make_pressure_test_model(err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+      P = [2.0_dp*pc%wrk%surface_pressure*1.0e6_dp, &
+           0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
+      T = [300.0_dp, 180.0_dp]
+      edd = [3.0e7_dp, 4.0e5_dp]
+
+      ! Invalid periodic installation must fail before enabling either mode.
+      P_bad = [-1.0_dp, -2.0_dp]
+      call pc%set_press_temp_edd_profile(P_bad, T, edd, mode=PeriodicPressTempEdd, &
+           maintain_toa_pressure=toa_enabled, err=err)
+      if (.not.allocated(err) .or. pc%var%press_temp_edd_profile%enabled .or. &
+          pc%var%toa_pressure_maintenance%enabled) then
+        print *, 'Invalid periodic installation was accepted or changed maintenance state'
+        stop 1
+      endif
+      deallocate(err)
+
+      call pc%set_press_temp_edd_profile(P, T, edd, mode=PeriodicPressTempEdd, &
+           maintain_toa_pressure=toa_enabled, err=err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+      call check_press_temp_edd_profile(pc, P, T, edd)
+      temperature_before = pc%var%temperature
+      edd_before = pc%var%edd
+
+      ! A failed replacement preserves both the installed inputs and the
+      ! mapped atmospheric state, including the periodic mode.
+      call pc%set_press_temp_edd_profile(P(:1), T, edd, mode=PeriodicPressTempEdd, &
+           maintain_toa_pressure=.not.toa_enabled, err=err)
+      if (.not.allocated(err)) then
+        print *, 'Mismatched periodic profile lengths were accepted'
+        stop 1
+      endif
+      deallocate(err)
+      if (any(pc%var%press_temp_edd_profile%pressure /= P) .or. &
+          pc%var%press_temp_edd_profile%mode /= PeriodicPressTempEdd .or. &
+          (pc%var%toa_pressure_maintenance%enabled .neqv. toa_enabled)) then
+        print *, 'Failed periodic replacement changed profile configuration'
+        stop 1
+      endif
+      if (any(pc%var%temperature /= temperature_before) .or. any(pc%var%edd /= edd_before)) then
+        print *, 'Failed periodic replacement changed the mapped atmosphere'
+        stop 1
+      endif
+
+      call pc%set_press_temp_edd_profile(P, T, edd, mode=-1, err=err)
+      if (.not.allocated(err)) then
+        print *, 'Unknown pressure-profile mode was accepted'
+        stop 1
+      endif
+      deallocate(err)
+      if (pc%var%press_temp_edd_profile%mode /= PeriodicPressTempEdd) then
+        print *, 'Rejected profile mode changed the installed mode'
+        stop 1
+      endif
+
+      ! Trial-state preparation must leave periodic T and Kzz fixed, even
+      ! when the gas column changes enough to require a different mapping.
+      usol_trial = 1.2_dp*pc%wrk%usol
+      call pc%prep_atmosphere(usol_trial, err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+      if (any(pc%var%temperature /= temperature_before) .or. any(pc%var%edd /= edd_before)) then
+        print *, 'Atmospheric preparation remapped a periodic profile'
+        stop 1
+      endif
+
+      pc%var%toa_pressure_maintenance%target_pressure = pc%wrk%pressure(pc%var%nz)
+      pc%var%nsteps_before_conv_check = 1
+      pc%var%nsteps_before_reinit = 2
+      pc%var%equilibrium_time = huge(1.0_dp)
+      call pc%initialize_robust_stepper(usol_trial, err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+      call check_press_temp_edd_profile(pc, P, T, edd)
+
+      ! Isolate the periodic-mode rejection from the independent TOA guard.
+      if (.not.toa_enabled) then
+        call pc%initialize_stepper(pc%wrk%usol, err)
+        if (.not.allocated(err)) then
+          print *, 'Basic stepper accepted a periodic profile'
+          stop 1
+        endif
+        if (index(err, 'robust stepper') == 0 .or. .not.pc%wrk%robust_stepper_initialized) then
+          print *, 'Periodic-mode rejection was unclear or destroyed the robust session'
+          stop 1
+        endif
+        deallocate(err)
+        t_eval = [1.0_dp]
+        tstart = 0.0_dp
+        success = pc%evolve('unused_periodic_evolution.dat', tstart, pc%wrk%usol, t_eval, err=err)
+        if (.not.allocated(err)) then
+          print *, 'evolve accepted a periodic profile'
+          stop 1
+        endif
+        if (success .or. index(err, 'robust stepper') == 0 .or. .not.pc%wrk%robust_stepper_initialized) then
+          print *, 'evolve periodic-mode rejection was unclear or destroyed the robust session'
+          stop 1
+        endif
+        deallocate(err)
+      endif
+
+      ! Introduce a known moderate mismatch without changing the active
+      ! atmosphere. It must wait for the segment boundary before resyncing.
+      temperature_before = pc%var%temperature
+      edd_before = pc%var%edd
+      T = 1.01_dp*T
+      edd = 1.02_dp*edd
+      pc%var%press_temp_edd_profile%temperature = T
+      pc%var%press_temp_edd_profile%edd = edd
+      call pc%robust_step(give_up, converged, err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+      if (give_up .or. converged .or. pc%wrk%nsteps /= 1 .or. &
+          any(pc%var%temperature /= temperature_before) .or. any(pc%var%edd /= edd_before)) then
+        print *, 'Moderate periodic mismatch did not wait for the scheduled restart'
+        stop 1
+      endif
+      t_before = pc%wrk%tn
+      call pc%robust_step(give_up, converged, err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+      if (give_up .or. converged .or. pc%wrk%nsteps /= 0 .or. &
+          pc%wrk%nsteps_total /= 2 .or. pc%wrk%tn <= t_before .or. &
+          pc%wrk%nconverged_but_restarted /= 0) then
+        print *, 'Scheduled periodic resync lost time, counters, or chemistry convergence state'
+        stop 1
+      endif
+      call check_press_temp_edd_profile(pc, P, T, edd)
+      if (toa_enabled) then
+        if (abs(pc%wrk%pressure(pc%var%nz)/ &
+            pc%var%toa_pressure_maintenance%target_pressure-1.0_dp) > 2.0e-8_dp) then
+          print *, 'Combined periodic and TOA resync missed the pressure target'
+          stop 1
+        endif
+      endif
+
+      ! Extreme profile drift must resync immediately, even before chemistry
+      ! converges, without consuming the chemistry-converged restart allowance.
+      T = 1.1_dp*T
+      pc%var%press_temp_edd_profile%temperature = T
+      call pc%robust_step(give_up, converged, err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+      if (give_up .or. converged .or. pc%wrk%nsteps /= 0 .or. &
+          pc%wrk%nsteps_total /= 3 .or. pc%wrk%nconverged_but_restarted /= 0) then
+        print *, 'Extreme periodic drift did not resync immediately before chemistry convergence'
+        stop 1
+      endif
+      call check_press_temp_edd_profile(pc, P, T, edd)
+
+      ! With chemistry converged, the same extreme profile drift consumes one
+      ! allowance. The next drift must give up without changing the atmosphere.
+      pc%var%equilibrium_time = -1.0_dp
+      pc%var%nconverged_but_restarted_limit = 1
+      T = 1.1_dp*T
+      pc%var%press_temp_edd_profile%temperature = T
+      call pc%robust_step(give_up, converged, err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+      if (give_up .or. converged .or. pc%wrk%nconverged_but_restarted /= 1 .or. pc%wrk%nsteps /= 0) then
+        print *, 'Chemistry-converged extreme periodic resync did not consume its allowance'
+        stop 1
+      endif
+      call check_press_temp_edd_profile(pc, P, T, edd)
+      temperature_before = pc%var%temperature
+      pc%var%press_temp_edd_profile%temperature = 1.1_dp*T
+      call pc%robust_step(give_up, converged, err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+      if (.not.give_up .or. converged .or. pc%wrk%nconverged_but_restarted /= 1 .or. &
+          any(pc%var%temperature /= temperature_before)) then
+        print *, 'Extreme periodic drift bypassed the exhausted convergence-restart allowance'
+        stop 1
+      endif
+      call pc%destroy_stepper(err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+      call pc%clear_press_temp_edd_profile(err)
+      if (allocated(err)) then
+        print *, trim(err)
+        stop 1
+      endif
+      if (pc%var%press_temp_edd_profile%enabled .or. &
+          pc%var%press_temp_edd_profile%mode /= ContinuousPressTempEdd) then
+        print *, 'Clearing a periodic profile did not restore the default mode'
+        stop 1
+      endif
+    enddo
 
   end subroutine
 
@@ -1203,6 +1431,51 @@ contains
         pc_converged%wrk%nconverged_but_restarted /= 0 .or. &
         pc_converged%var%top_atmos /= top_before) then
       print *, 'converged-but-restarted limit was not enforced'
+      stop 1
+    endif
+
+    ! Extreme drift must obey the same zero allowance, without a grid update.
+    pc_converged%var%toa_pressure_maintenance%target_pressure = &
+         pc_converged%wrk%pressure(pc_converged%var%nz)/100.0_dp
+    call pc_converged%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not.give_up .or. converged .or. &
+        pc_converged%wrk%nconverged_but_restarted /= 0 .or. &
+        pc_converged%var%top_atmos /= top_before) then
+      print *, 'Extreme mismatch bypassed the zero convergence-restart limit'
+      stop 1
+    endif
+
+    ! A successful extreme resync consumes one allowance when chemistry is
+    ! converged. Another extreme mismatch must then stop before resyncing.
+    pc_converged%var%nconverged_but_restarted_limit = 1
+    pc_converged%var%toa_pressure_maintenance%extreme_pressure_factor = 1.02_dp
+    pc_converged%var%toa_pressure_maintenance%target_pressure = &
+         0.95_dp*pc_converged%wrk%pressure(pc_converged%var%nz)
+    call pc_converged%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (give_up .or. converged .or. pc_converged%wrk%nconverged_but_restarted /= 1 .or. &
+        pc_converged%wrk%nsteps /= 0 .or. pc_converged%var%top_atmos == top_before) then
+      print *, 'Successful extreme resync did not consume the convergence-restart allowance'
+      stop 1
+    endif
+    top_before = pc_converged%var%top_atmos
+    pc_converged%var%toa_pressure_maintenance%target_pressure = &
+         0.95_dp*pc_converged%wrk%pressure(pc_converged%var%nz)
+    call pc_converged%robust_step(give_up, converged, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    if (.not.give_up .or. converged .or. pc_converged%wrk%nconverged_but_restarted /= 1 .or. &
+        pc_converged%var%top_atmos /= top_before) then
+      print *, 'Extreme resync exceeded the convergence-restart allowance'
       stop 1
     endif
 

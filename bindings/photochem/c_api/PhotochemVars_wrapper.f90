@@ -791,3 +791,75 @@
     call c_f_pointer(ptr, maintenance)
     maintenance%max_failures = val
   end subroutine
+
+  subroutine photochemvars_press_temp_edd_profile_get(ptr, ptr1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    type(c_ptr), intent(out) :: ptr1
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    ptr1 = c_loc(var%press_temp_edd_profile)
+  end subroutine
+
+  subroutine pressuretempeddprofile_enabled_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    logical(c_bool), intent(out) :: val
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    val = profile%enabled
+  end subroutine
+
+  subroutine pressuretempeddprofile_mode_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: val
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    val = profile%mode
+  end subroutine
+
+  subroutine pressuretempeddprofile_temperature_tol_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    val = profile%temperature_tol
+  end subroutine
+
+  subroutine pressuretempeddprofile_temperature_tol_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    profile%temperature_tol = val
+  end subroutine
+
+  subroutine pressuretempeddprofile_edd_tol_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    val = profile%edd_tol
+  end subroutine
+
+  subroutine pressuretempeddprofile_edd_tol_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    profile%edd_tol = val
+  end subroutine
+
+  subroutine pressuretempeddprofile_extreme_factor_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    val = profile%extreme_factor
+  end subroutine
+
+  subroutine pressuretempeddprofile_extreme_factor_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    profile%extreme_factor = val
+  end subroutine

@@ -63,5 +63,10 @@ module photochem_enum
     OutOfTol = 2, &
     ExtremeOutOfTol = 3
 
+  ! PressureTempEddProfile%mode
+  enumerator :: &
+    PeriodicPressTempEdd = 0, &
+    ContinuousPressTempEdd = 1
+
   end enum
 end module

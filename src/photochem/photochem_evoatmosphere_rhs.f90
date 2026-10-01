@@ -753,6 +753,7 @@ contains
     use photochem_eqns, only: press_and_den
     use photochem_evoatmosphere_chemistry, only: molec_per_particle
     use photochem_const, only: N_avo, k_boltz
+    use photochem_enum, only: PeriodicPressTempEdd
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_in(:,:)
     real(dp), intent(out) :: usol(:,:)
@@ -770,7 +771,8 @@ contains
     dat => self%dat
     var => self%var
 
-    apply_profile = .true.
+    apply_profile = .not.(var%press_temp_edd_profile%enabled .and. &
+                          var%press_temp_edd_profile%mode == PeriodicPressTempEdd)
     if (present(apply_persistent_profile)) apply_profile = apply_persistent_profile
 
     ! A persistent pressure-based profile depends on the trial composition.

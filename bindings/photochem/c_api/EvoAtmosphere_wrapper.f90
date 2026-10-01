@@ -460,7 +460,7 @@
   end subroutine
 
   subroutine evoatmosphere_set_press_temp_edd_profile_wrapper(ptr, P_dim1, P, T_dim1, T, &
-                                                      edd_dim1, edd, trop_p, trop_p_present, &
+                                                      edd_dim1, edd, trop_p, trop_p_present, mode, &
                                                       hydro_pressure, hydro_pressure_present, &
                                                       maintain_toa_pressure, maintain_toa_pressure_present, &
                                                       target_pressure, target_pressure_present, err) bind(c)
@@ -479,6 +479,7 @@
     logical(c_bool), intent(in) :: maintain_toa_pressure_present
     real(c_double), intent(in) :: target_pressure
     logical(c_bool), intent(in) :: target_pressure_present
+    integer(c_int), intent(in) :: mode
     character(kind=c_char), intent(out) :: err(err_len+1)
 
     character(:), allocatable :: err_f
@@ -498,12 +499,12 @@
     ! passed uniformly while preserving the meaningful presence semantics of
     ! trop_p (which controls whether a tropopause is configured).
     if (trop_p_present) then
-      call pc%set_press_temp_edd_profile(P, T, edd, trop_p=trop_p, &
+      call pc%set_press_temp_edd_profile(P, T, edd, trop_p=trop_p, mode=mode, &
                                          hydro_pressure=hydro_pressure_f, &
                                          maintain_toa_pressure=maintain_toa_pressure_f, &
                                          target_pressure=target_pressure_f, err=err_f)
     else
-      call pc%set_press_temp_edd_profile(P, T, edd, &
+      call pc%set_press_temp_edd_profile(P, T, edd, mode=mode, &
                                          hydro_pressure=hydro_pressure_f, &
                                          maintain_toa_pressure=maintain_toa_pressure_f, &
                                          target_pressure=target_pressure_f, err=err_f)

@@ -2,7 +2,7 @@ module photochem_vars
   use, intrinsic :: iso_c_binding, only: c_double, c_int
   use photochem_const, only: dp
   use photochem_data, only: PhotochemData, ParticleXsections
-  use photochem_enum, only: AnalyticalJacobian
+  use photochem_enum, only: AnalyticalJacobian, ContinuousPressTempEdd
   use photochem_settings, only: PhotoSettings, CondensationParameters
   implicit none
   private
@@ -12,15 +12,25 @@ module photochem_vars
   public :: time_dependent_flux_fcn, time_dependent_rate_fcn
   public :: binary_diffusion_fcn
   public :: refresh_temperature_dependent_vars, interp2particlexsdata
+  public :: tropopause_layer_index
 
   !> Persistent temperature and eddy-diffusion profiles defined on pressure.
   type :: PressureTempEddProfile
     logical :: enabled = .false.
+    !> Continuous mapping is the backward-compatible default. Periodic mapping
+    !! is performed by the robust stepper at resynchronization points.
+    integer :: mode = ContinuousPressTempEdd
     logical :: hydro_pressure = .true.
     real(dp) :: trop_p = -1.0_dp !! Non-positive values disable the tropopause pressure.
     real(dp), allocatable :: pressure(:)
     real(dp), allocatable :: temperature(:)
     real(dp), allocatable :: edd(:)
+    ! Relative mismatch tolerances and multiplier for classifying extreme drift.
+    real(dp) :: temperature_tol = 0.005_dp
+    real(dp) :: edd_tol = 0.01_dp
+    real(dp) :: extreme_factor = 10.0_dp
+  contains
+    procedure :: validate => PressureTempEddProfile_validate
   end type
 
   !> Settings for optional robust-stepper maintenance of model-top pressure.
@@ -187,8 +197,8 @@ module photochem_vars
     !> Number of failed-step recovery restarts allowed. The next integration
     !> error ends the robust session.
     integer :: nerrors_before_giveup = 10
-    !> Limit for the number of times we can reach chemical convergence, and
-    !> still require a reset to sync up TOA pressure.
+    !> Limit for chemistry-converged states that still require a maintenance
+    !! resynchronization of TOA pressure or a periodic P-T-Kzz profile.
     integer :: nconverged_but_restarted_limit = 7
     !> Number of accepted steps after initialization or restart to take before
     !> checking the non-time convergence criteria.
@@ -213,6 +223,38 @@ module photochem_vars
   end interface
 
 contains
+
+  !> Return the layer index nearest a tropopause altitude.
+  pure integer function tropopause_layer_index(z, trop_alt) result(trop_ind)
+    real(dp), intent(in) :: z(:), trop_alt
+
+    trop_ind = max(minloc(abs(z - trop_alt), 1) - 1, 1)
+
+  end function
+
+  !> Validate the settings owned by the pressure-temperature-eddy profile.
+  subroutine PressureTempEddProfile_validate(self, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use photochem_enum, only: PeriodicPressTempEdd, ContinuousPressTempEdd
+    class(PressureTempEddProfile), intent(in) :: self
+    character(:), allocatable, intent(out) :: err
+
+    if (.not.self%enabled) return
+
+    if (self%mode /= PeriodicPressTempEdd .and. self%mode /= ContinuousPressTempEdd) then
+      err = 'Unknown pressure-temperature-eddy profile mode.'
+    elseif (self%mode == PeriodicPressTempEdd .and. &
+            (.not.ieee_is_finite(self%temperature_tol) .or. self%temperature_tol < 0.0_dp)) then
+      err = 'Periodic profile temperature tolerance must be finite and nonnegative.'
+    elseif (self%mode == PeriodicPressTempEdd .and. &
+            (.not.ieee_is_finite(self%edd_tol) .or. self%edd_tol < 0.0_dp)) then
+      err = 'Periodic profile eddy-diffusion tolerance must be finite and nonnegative.'
+    elseif (self%mode == PeriodicPressTempEdd .and. &
+            (.not.ieee_is_finite(self%extreme_factor) .or. self%extreme_factor <= 1.0_dp)) then
+      err = 'Periodic profile extreme factor must be finite and greater than one.'
+    endif
+
+  end subroutine
 
   !> Validate the settings owned by TOA-pressure maintenance.
   subroutine TOAPressureMaintenance_validate(self, err)
@@ -502,7 +544,7 @@ contains
       return
     endif
 
-    trop_ind = max(minloc(abs(z - trop_alt), 1) - 1, 1)
+    trop_ind = tropopause_layer_index(z, trop_alt)
     if (trop_ind < 3) then
       err = 'Tropopause is too low.'
       return

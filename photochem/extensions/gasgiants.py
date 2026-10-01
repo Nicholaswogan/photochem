@@ -630,6 +630,13 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         out['T_desired'] = gdat.T_desired
         out['Kzz_desired'] = gdat.Kzz_desired
         out['toa_pressure_target'] = self._toa_pressure_target()
+        profile = self.var.press_temp_edd_profile
+        out['press_temp_edd_profile'] = {
+            'mode': profile.mode,
+            'temperature_tol': profile.temperature_tol,
+            'edd_tol': profile.edd_tol,
+            'extreme_factor': profile.extreme_factor,
+        }
         out['ind_b'] = gdat.ind_b
         out['planet_radius_new'] = self.dat.planet_radius
         out['top_atmos'] = self.var.top_atmos
@@ -652,9 +659,29 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         """
 
         gdat = self.gdat
-        target_pressure = out.get('toa_pressure_target', 0.1)
+        target_pressure = out['toa_pressure_target']
+        profile_settings = out['press_temp_edd_profile']
+        required_keys = (
+            'P_clima_grid', 'T_clima_grid', 'Kzz_clima_grid',
+            'metallicity', 'CtoO', 'P_desired', 'T_desired', 'Kzz_desired',
+            'ind_b', 'planet_radius_new', 'top_atmos', 'temperature',
+            'edd', 'usol', 'P_i_surf',
+        )
+        for key in required_keys:
+            out[key]
+        for key in ('mode', 'temperature_tol', 'edd_tol', 'extreme_factor'):
+            profile_settings[key]
         if not np.isfinite(target_pressure) or target_pressure <= 0.0:
             raise ValueError('Saved TOA-pressure target must be finite and positive')
+        if profile_settings['mode'] not in (0, 1):
+            raise ValueError('Saved pressure-profile mode must be 0 or 1')
+        for key in ('temperature_tol', 'edd_tol'):
+            value = profile_settings[key]
+            if not np.isfinite(value) or value < 0.0:
+                raise ValueError(f'Saved pressure-profile {key} must be finite and nonnegative')
+        if (not np.isfinite(profile_settings['extreme_factor']) or
+                profile_settings['extreme_factor'] <= 1.0):
+            raise ValueError('Saved pressure-profile extreme_factor must be finite and greater than one')
 
         # The saved state replaces any current integration and prescribed
         # pressure profile.
@@ -662,15 +689,8 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         self.clear_press_temp_edd_profile()
 
         gdat.P_clima_grid = out['P_clima_grid']
-        # Fall back to the leading prescribed-profile values for states saved
-        # before the climate-grid temperature and Kzz fields were introduced.
-        nclima = gdat.P_clima_grid.shape[0]
-        gdat.T_clima_grid = out.get(
-            'T_clima_grid', out['T_desired'][:nclima]
-        )
-        gdat.Kzz_clima_grid = out.get(
-            'Kzz_clima_grid', out['Kzz_desired'][:nclima]
-        )
+        gdat.T_clima_grid = out['T_clima_grid']
+        gdat.Kzz_clima_grid = out['Kzz_clima_grid']
         gdat.metallicity = out['metallicity']
         gdat.CtoO = out['CtoO']
         gdat.P_desired = out['P_desired']
@@ -697,8 +717,13 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         self.set_press_temp_edd_profile(
             gdat.P_desired, gdat.T_desired, gdat.Kzz_desired,
             hydro_pressure=True, maintain_toa_pressure=True,
-            target_pressure=target_pressure
+            target_pressure=target_pressure,
+            mode=profile_settings['mode']
         )
+        profile = self.var.press_temp_edd_profile
+        profile.temperature_tol = profile_settings['temperature_tol']
+        profile.edd_tol = profile_settings['edd_tol']
+        profile.extreme_factor = profile_settings['extreme_factor']
 
 ###
 ### Helper functions for the EvoAtmosphereGasGiant class

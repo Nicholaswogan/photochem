@@ -57,6 +57,64 @@ cdef class TOAPressureMaintenance:
     def __set__(self, int val):
       var_pxd.taopressuremaintenance_max_failures_set(self._ptr, &val)
 
+cdef class PressureTempEddProfile:
+  """Live settings for the installed pressure-temperature-eddy profile.
+
+  Install or replace the profile with ``EvoAtmosphere.set_press_temp_edd_profile``.
+  Periodic tolerances are checked by the robust stepper. Instances are borrowed
+  views of the model and should not be constructed directly.
+  """
+
+  cdef var_pxd.PressureTempEddProfile *_ptr
+
+  def __cinit__(self):
+    self._ptr = NULL
+
+  property enabled:
+    """bool. Whether a pressure-based profile is installed (read-only)."""
+    def __get__(self):
+      cdef bool val
+      var_pxd.pressuretempeddprofile_enabled_get(self._ptr, &val)
+      return val
+
+  property mode:
+    """int. Installed mode: ``1`` is continuous, ``0`` is periodic (read-only).
+
+    Select the mode with ``EvoAtmosphere.set_press_temp_edd_profile`` after
+    destroying any active stepper.
+    """
+    def __get__(self):
+      cdef int val
+      var_pxd.pressuretempeddprofile_mode_get(self._ptr, &val)
+      return val
+
+  property temperature_tol:
+    """float. Relative temperature mismatch allowed in periodic mode (default 0.005)."""
+    def __get__(self):
+      cdef double val
+      var_pxd.pressuretempeddprofile_temperature_tol_get(self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.pressuretempeddprofile_temperature_tol_set(self._ptr, &val)
+
+  property edd_tol:
+    """float. Relative eddy-diffusion mismatch allowed in periodic mode (default 0.01)."""
+    def __get__(self):
+      cdef double val
+      var_pxd.pressuretempeddprofile_edd_tol_get(self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.pressuretempeddprofile_edd_tol_set(self._ptr, &val)
+
+  property extreme_factor:
+    """float. Multiplier of the periodic tolerances that triggers immediate resync (default 10)."""
+    def __get__(self):
+      cdef double val
+      var_pxd.pressuretempeddprofile_extreme_factor_get(self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.pressuretempeddprofile_extreme_factor_set(self._ptr, &val)
+
 cdef class PhotochemVars:
   """Prepared atmospheric state and mutable model configuration.
 
@@ -504,8 +562,8 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_nerrors_before_giveup_set(self._ptr, &val)
 
   property nconverged_but_restarted_limit:
-    """int. Maximum chemistry-converged steps that may require a TOA
-    resynchronization before the robust integration gives up.
+    """int. Maximum successful chemistry-converged resyncs of TOA pressure
+    or a periodic P-T-Kzz profile before the robust integration gives up.
     """
     def __get__(self):
       cdef int val
@@ -527,7 +585,8 @@ cdef class PhotochemVars:
 
   property nsteps_before_reinit:
     """int. Accepted steps per integration segment. At this count CVODE is
-    restarted and segment-local convergence history is discarded.
+    restarted, enabled maintenance is resynchronized, and segment-local
+    convergence history is discarded.
     """
     def __get__(self):
       cdef int val
@@ -566,3 +625,15 @@ cdef class PhotochemVars:
       cdef TOAPressureMaintenance maintenance = TOAPressureMaintenance()
       var_pxd.photochemvars_toa_pressure_maintenance_get(self._ptr, &maintenance._ptr)
       return maintenance
+
+  property press_temp_edd_profile:
+    """PressureTempEddProfile. Installed profile mode and periodic tolerances.
+
+    The mode and enabled state are read-only. Select the mode through
+    ``EvoAtmosphere.set_press_temp_edd_profile`` and adjust periodic tolerances
+    through this view.
+    """
+    def __get__(self):
+      cdef PressureTempEddProfile profile = PressureTempEddProfile()
+      var_pxd.photochemvars_press_temp_edd_profile_get(self._ptr, &profile._ptr)
+      return profile

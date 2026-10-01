@@ -153,8 +153,9 @@ contains
   ! **Time evolution that saves to a file**
   
   module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, restart_from_file, err) result(success)
-                                   
+
     use, intrinsic :: iso_c_binding, only: c_double, c_int
+    use photochem_enum, only: PeriodicPressTempEdd
     use fcvode_mod, only: CV_NORMAL, FCVode, FCVodeSVtolerances, &
                           FCVodeSetInitStep, FCVodeReInit, FCVodeSetMaxStep
     use photochem_wrk, only: SundialsDataFinalizer
@@ -194,6 +195,12 @@ contains
 
     if (self%var%toa_pressure_maintenance%enabled) then
       err = "TOA-pressure maintenance is not supported by 'evolve'; disable it before evolving the atmosphere."
+      return
+    endif
+    if (self%var%press_temp_edd_profile%enabled .and. &
+        self%var%press_temp_edd_profile%mode == PeriodicPressTempEdd) then
+      err = "Periodic pressure-temperature-eddy synchronization requires the robust stepper; "// &
+            "use initialize_robust_stepper and robust_step instead of evolve."
       return
     endif
 
@@ -774,6 +781,7 @@ contains
 
   module subroutine initialize_stepper(self, usol_start, err)
     use, intrinsic :: iso_c_binding, only: c_associated
+    use photochem_enum, only: PeriodicPressTempEdd
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
     character(:), allocatable, intent(out) :: err
@@ -783,6 +791,12 @@ contains
 
     if (self%var%toa_pressure_maintenance%enabled) then
       err = "TOA-pressure maintenance is only supported by 'initialize_robust_stepper'."
+      return
+    endif
+    if (self%var%press_temp_edd_profile%enabled .and. &
+        self%var%press_temp_edd_profile%mode == PeriodicPressTempEdd) then
+      err = "Periodic pressure-temperature-eddy synchronization requires the robust stepper; "// &
+            "use initialize_robust_stepper instead of initialize_stepper."
       return
     endif
 
@@ -956,18 +970,18 @@ contains
   end subroutine
 
   ! **Robust stepper**
-  ! These routines drive the robust stepper, which will restart the integrator
-  ! to try to make it more robust to stalling out. It can also optionally
-  ! maintain the TOA pressure.
+  ! These routines drive the robust stepper, which restarts the integrator to
+  ! recover from failures and synchronize configured atmospheric maintenance.
 
   module subroutine initialize_robust_stepper(self, usol_start, err)
-    use photochem_enum, only: WithinTol
+    use photochem_enum, only: WithinTol, PeriodicPressTempEdd
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: usol_start(:,:)
     character(:), allocatable, intent(out) :: err
 
     real(dp), allocatable :: usol_copy(:,:)
     integer :: toa_state
+    logical :: toa_enabled, periodic_pt
     type(PhotochemWrk), pointer :: wrk
 
     call self%require_atmosphere_initialized('initialize_robust_stepper', err)
@@ -986,32 +1000,35 @@ contains
     ! Make a copy of the input to prevent aliasing.
     usol_copy = usol_start
 
-    ! The TOA preflight below updates shared workspace. Discard any existing
-    ! stepper first so an error during preflight cannot leave it marked usable.
     call self%destroy_stepper(err)
     if (allocated(err)) return
 
-    ! Prepare the supplied composition before measuring TOA pressure.
-    if (self%var%toa_pressure_maintenance%enabled) then
+    toa_enabled = self%var%toa_pressure_maintenance%enabled
+    periodic_pt = self%var%press_temp_edd_profile%enabled .and. self%var%press_temp_edd_profile%mode == PeriodicPressTempEdd
+
+    if (toa_enabled .or. periodic_pt) then
+      ! If TOA maintenance is enabled, we need to get a TOA pressure consistent
+      ! with usol_start. Also, this syncs up P-T-Kzz profile if enabled.
       call self%prepare_atmosphere_structure( &
         usol_copy, wrk%usol, wrk%molecules_per_particle, wrk%pressure, &
         wrk%density, wrk%mix, wrk%mubar, wrk%pressure_hydro, &
-        wrk%density_hydro, err=err &
+        wrk%density_hydro, apply_persistent_profile=.true., err=err &
       )
       if (allocated(err)) return
+    endif
 
+    if (toa_enabled) then
+      ! Check the TOA state
       toa_state = toa_pressure_state(self, err)
       if (allocated(err)) return
 
-      ! Bring either out-of-tolerance state into the configured pressure band
-      ! before starting the robust integration session.
+      ! If needed, bring the TOA into tolerance.
       if (toa_state /= WithinTol) then
         call self%update_vertical_grid( &
           TOA_pressure=self%var%toa_pressure_maintenance%target_pressure, &
           err=err &
         )
         if (allocated(err)) return
-
         usol_copy = wrk%usol
       endif
     endif
@@ -1046,14 +1063,19 @@ contains
     elseif (self%var%nsteps_before_conv_check >= self%var%nsteps_before_reinit) then
       err = "`nsteps_before_conv_check` must be less than `nsteps_before_reinit`"
     elseif (.not.ieee_is_finite(self%var%reinit_min_density) .or. &
-            self%var%reinit_min_density <= 0.0_dp) then
+        self%var%reinit_min_density <= 0.0_dp) then
       err = "`reinit_min_density` must be finite and positive"
     elseif (self%var%toa_pressure_maintenance%enabled .and. &
-            .not.self%var%press_temp_edd_profile%enabled) then
+        .not.self%var%press_temp_edd_profile%enabled) then
       err = "TOA-pressure maintenance requires an enabled persistent pressure-based temperature and eddy-diffusion profile"
     endif
+    if (allocated(err)) return
 
-    if (.not.allocated(err)) call self%var%toa_pressure_maintenance%validate(err)
+    call self%var%press_temp_edd_profile%validate(err)
+    if (allocated(err)) return
+
+    call self%var%toa_pressure_maintenance%validate(err)
+    if (allocated(err)) return
 
   end subroutine
 
@@ -1070,7 +1092,7 @@ contains
     character(:), allocatable :: cleanup_err
     logical :: chemistry_converged, updated
     logical :: extreme_out_of_tol, out_of_tol, within_tol
-    integer :: toa_state
+    integer :: toa_state, profile_state
 
     type(PhotochemVars), pointer :: var
     type(PhotochemWrk), pointer :: wrk
@@ -1132,10 +1154,13 @@ contains
     ! Assess the TOA state
     toa_state = toa_pressure_state(self, err)
     if (allocated(err)) return
+    profile_state = press_temp_edd_state(self, err)
+    if (allocated(err)) return
 
-    within_tol = toa_state == WithinTol
-    out_of_tol = toa_state == OutOfTol
-    extreme_out_of_tol = toa_state == ExtremeOutOfTol
+    within_tol = toa_state == WithinTol .and. profile_state == WithinTol
+    out_of_tol = toa_state == OutOfTol .or. profile_state == OutOfTol
+    extreme_out_of_tol = toa_state == ExtremeOutOfTol .or. &
+                         profile_state == ExtremeOutOfTol
 
     ! Convergence!
     if (chemistry_converged .and. within_tol) then
@@ -1149,25 +1174,35 @@ contains
       return
     endif
 
+    ! Chemistry is converged, but maintenance still needs a resync.
+    ! Check the limit before either kind of maintenance restart.
+    if (chemistry_converged .and. .not.within_tol) then
+      if (wrk%nconverged_but_restarted >= var%nconverged_but_restarted_limit) then
+        give_up = .true.
+        return
+      endif
+    endif
+
     ! If we have an extreme diagreement, then we fix it and return
     if (extreme_out_of_tol) then
       call resync_and_restart(self, updated, err)
       if (allocated(err)) return
+
+      if (chemistry_converged .and. updated) then
+        wrk%nconverged_but_restarted = wrk%nconverged_but_restarted + 1
+      endif
       return
     endif
 
     ! If chemistry is converged but we are NOT within tolerance
     ! then we fix it and return.
     if (chemistry_converged .and. out_of_tol) then
-      ! Stop before exceeding the permitted number of successful resyncs
-      ! triggered by chemical convergence with a remaining TOA mismatch.
-      if (wrk%nconverged_but_restarted >= var%nconverged_but_restarted_limit) then
-        give_up = .true.
-        return
-      endif
       call resync_and_restart(self, updated, err)
       if (allocated(err)) return
-      if (updated) wrk%nconverged_but_restarted = wrk%nconverged_but_restarted + 1
+
+      if (updated) then
+        wrk%nconverged_but_restarted = wrk%nconverged_but_restarted + 1
+      endif
       return
     endif
 
@@ -1230,9 +1265,89 @@ contains
 
   end function
 
-  ! Resynchronize enabled TOA maintenance, then restart CVODE at the accepted
-  ! atmospheric state. Without TOA maintenance, this is a segment restart only.
+  function press_temp_edd_state(self, err) result(profile_state)
+    use photochem_enum, only: WithinTol, OutOfTol, ExtremeOutOfTol, PeriodicPressTempEdd
+    use photochem_vars, only: tropopause_layer_index
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    class(EvoAtmosphere), target, intent(inout) :: self
+    character(:), allocatable, intent(out) :: err
+    integer :: profile_state
+
+    real(dp) :: temperature_mapped(self%var%nz), edd_mapped(self%var%nz)
+    real(dp) :: log10P_mapped(self%var%nz), trop_alt_mapped
+    real(dp) :: temperature_difference, edd_difference
+    integer :: trop_ind_mapped
+
+    profile_state = WithinTol
+    if (.not.self%var%press_temp_edd_profile%enabled) return
+    if (self%var%press_temp_edd_profile%mode /= PeriodicPressTempEdd) return
+
+    call map_press_temp_edd( &
+      self, &
+      self%wrk%usol, &
+      self%var%press_temp_edd_profile%pressure, &
+      self%var%press_temp_edd_profile%temperature, &
+      self%var%press_temp_edd_profile%edd, &
+      trop_p=self%var%press_temp_edd_profile%trop_p, &
+      hydro_pressure=self%var%press_temp_edd_profile%hydro_pressure, &
+      grid_z=self%var%z, &
+      grid_dz=self%var%dz, &
+      grid_grav=self%var%grav, &
+      temperature_reference=self%var%temperature, &
+      pressure_reference=self%wrk%pressure_hydro, &
+      T_grid=temperature_mapped, &
+      edd_grid=edd_mapped, &
+      log10P_grid=log10P_mapped, &
+      trop_alt=trop_alt_mapped, &
+      err=err &
+    )
+    if (allocated(err)) then
+      err = 'Unable to measure periodic pressure-temperature-eddy mismatch: '//err
+      return
+    endif
+
+    if (.not.all(ieee_is_finite(self%var%temperature)) .or. &
+        any(self%var%temperature <= 0.0_dp) .or. &
+        .not.all(ieee_is_finite(self%var%edd)) .or. any(self%var%edd <= 0.0_dp)) then
+      err = 'The active temperature and eddy-diffusion profiles must be finite and positive.'
+      return
+    endif
+    if (.not.all(ieee_is_finite(temperature_mapped)) .or. &
+        any(temperature_mapped <= 0.0_dp) .or. &
+        .not.all(ieee_is_finite(edd_mapped)) .or. any(edd_mapped <= 0.0_dp)) then
+      err = 'The mapped temperature and eddy-diffusion profiles must be finite and positive.'
+      return
+    endif
+
+    temperature_difference = maxval(abs(temperature_mapped-self%var%temperature) / &
+                                    self%var%temperature)
+    edd_difference = maxval(abs(edd_mapped-self%var%edd) / self%var%edd)
+
+    if (temperature_difference <= self%var%press_temp_edd_profile%temperature_tol .and. &
+        edd_difference <= self%var%press_temp_edd_profile%edd_tol) then
+      profile_state = WithinTol
+    elseif (temperature_difference > &
+            self%var%press_temp_edd_profile%extreme_factor * &
+            self%var%press_temp_edd_profile%temperature_tol .or. &
+            edd_difference > self%var%press_temp_edd_profile%extreme_factor * &
+            self%var%press_temp_edd_profile%edd_tol) then
+      profile_state = ExtremeOutOfTol
+    else
+      profile_state = OutOfTol
+    endif
+
+    if (self%var%press_temp_edd_profile%trop_p > 0.0_dp) then
+      trop_ind_mapped = tropopause_layer_index(self%var%z, trop_alt_mapped)
+      if (trop_ind_mapped /= self%var%trop_ind .and. profile_state == WithinTol) then
+        profile_state = OutOfTol
+      endif
+    endif
+
+  end function
+
+  ! Resynchronize enabled maintenance, then restart CVODE at the accepted state.
   subroutine resync_and_restart(self, updated, err)
+    use photochem_enum, only: PeriodicPressTempEdd, ContinuousPressTempEdd
     class(EvoAtmosphere), target, intent(inout) :: self
     logical, intent(out) :: updated
     character(:), allocatable, intent(out) :: err
@@ -1240,12 +1355,16 @@ contains
     real(dp), allocatable :: usol_restart(:,:)
     real(dp) :: t_current
     integer :: nsteps_total, nerrors_total, nfailures, nconverged_restarts
+    logical :: toa_enabled, periodic_pt
 
     updated = .false.
     usol_restart = self%wrk%usol
     t_current = self%wrk%t_history(1)
 
-    if (self%var%toa_pressure_maintenance%enabled) then
+    toa_enabled = self%var%toa_pressure_maintenance%enabled
+    periodic_pt = self%var%press_temp_edd_profile%enabled .and. self%var%press_temp_edd_profile%mode == PeriodicPressTempEdd
+
+    if (toa_enabled) then
       ! update_vertical_grid can rebuild work state, so preserve robust-session
       ! totals and the accepted time across the grid update.
       nsteps_total = self%wrk%nsteps_total
@@ -1282,6 +1401,13 @@ contains
       self%wrk%nconverged_but_restarted = nconverged_restarts
       self%wrk%n_toa_pressure_failures = 0
       usol_restart = self%wrk%usol
+
+    elseif (.not.toa_enabled .and. periodic_pt) then
+      call apply_press_temp_edd_profile(self, usol_restart, err)
+      if (allocated(err)) then
+        self%wrk%robust_stepper_initialized = .false.
+        return
+      endif
     endif
 
     call restart_robust_stepper(self, usol_restart, t_current, err)

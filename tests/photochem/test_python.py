@@ -291,6 +291,7 @@ def test_persistent_profile_controls_toa_maintenance():
     edd = np.array([3.0e7, 4.0e5])
 
     pc.set_press_temp_edd_profile(pressure, temperature, edd)
+    assert pc.var.press_temp_edd_profile.mode == 1
     assert pc.var.toa_pressure_maintenance.enabled is True
     assert pc.var.toa_pressure_maintenance.target_pressure == 0.1
 
@@ -306,6 +307,71 @@ def test_persistent_profile_controls_toa_maintenance():
     )
     assert pc.var.toa_pressure_maintenance.enabled is False
     pc.clear_press_temp_edd_profile()
+
+    # Positional mode follows trop_p, matching the Fortran API.
+    pc.set_press_temp_edd_profile(pressure, temperature, edd, None, 0, True, False)
+    profile = pc.var.press_temp_edd_profile
+    assert profile.enabled
+    assert profile.mode == 0
+    assert pc.var.toa_pressure_maintenance.enabled is False
+    assert profile.temperature_tol == 0.005
+    assert profile.edd_tol == 0.01
+    assert profile.extreme_factor == 10.0
+    profile.temperature_tol = 0.006
+    profile.edd_tol = 0.02
+    profile.extreme_factor = 8.0
+    assert pc.var.press_temp_edd_profile.temperature_tol == 0.006
+    assert pc.var.press_temp_edd_profile.edd_tol == 0.02
+    assert pc.var.press_temp_edd_profile.extreme_factor == 8.0
+
+    before = pc.var.temperature.copy()
+    for mode, pressure_input in [(99, pressure), (0, -pressure)]:
+        try:
+            pc.set_press_temp_edd_profile(
+                pressure_input, temperature, edd, mode=mode
+            )
+        except PhotoException:
+            pass
+        else:
+            raise AssertionError('Invalid periodic profile configuration was accepted')
+        assert profile.mode == 0
+        assert np.array_equal(pc.var.temperature, before)
+
+    profile.temperature_tol = -1.0
+    try:
+        pc.initialize_robust_stepper(pc.wrk.usol)
+    except PhotoException as exc:
+        assert 'temperature tolerance' in str(exc)
+    else:
+        raise AssertionError('Invalid periodic temperature tolerance was accepted')
+    profile.temperature_tol = 0.006
+    for operation in [
+        lambda: pc.initialize_stepper(pc.wrk.usol),
+        lambda: pc.evolve('unused_periodic_evolution.dat', 0.0, pc.wrk.usol, np.array([1.0])),
+    ]:
+        try:
+            operation()
+        except PhotoException as exc:
+            assert 'robust stepper' in str(exc)
+        else:
+            raise AssertionError('Periodic profile accepted a basic integration pathway')
+
+    pc.var.nsteps_before_conv_check = 1
+    pc.var.nsteps_before_reinit = 2
+    pc.var.equilibrium_time = 1.0e100
+    pc.initialize_robust_stepper(pc.wrk.usol)
+    before = pc.var.temperature.copy()
+    give_up, converged = pc.robust_step()
+    assert not give_up and not converged
+    assert np.array_equal(pc.var.temperature, before)
+    give_up, converged = pc.robust_step()
+    assert not give_up and not converged
+    assert pc.wrk.nsteps_total == 2
+    assert pc.wrk.nsteps == 0
+    pc.destroy_stepper()
+    pc.clear_press_temp_edd_profile()
+    assert not profile.enabled
+    assert profile.mode == 1
 
 
 def test_robust_initial_toa_pressure_preflight():
@@ -483,6 +549,7 @@ def test_gas_giant_uses_shared_robust_stepper():
 
     pc = _make_initialized_gas_giant()
     maintenance = pc.var.toa_pressure_maintenance
+    assert pc.var.press_temp_edd_profile.mode == 1
     assert pc.var.nerrors_before_giveup == 10
     assert pc.var.nsteps_before_conv_check == 300
     assert pc.var.nsteps_before_reinit == 1000
@@ -523,8 +590,11 @@ def test_gas_giant_shared_limits_and_state_restore():
     pc.destroy_stepper()
     pc.set_press_temp_edd_profile(
         pc.gdat.P_desired, pc.gdat.T_desired, pc.gdat.Kzz_desired,
-        hydro_pressure=True, target_pressure=custom_target
+        mode=0, hydro_pressure=True, target_pressure=custom_target
     )
+    pc.var.press_temp_edd_profile.temperature_tol = 0.008
+    pc.var.press_temp_edd_profile.edd_tol = 0.025
+    pc.var.press_temp_edd_profile.extreme_factor = 12.0
 
     # The exact shared accepted-step ceiling replaces the legacy Python
     # counter, which allowed one extra step.
@@ -543,20 +613,52 @@ def test_gas_giant_shared_limits_and_state_restore():
     state = pc.model_state_to_dict()
     pc.initialize_from_dict(state)
     assert not pc.wrk.robust_stepper_initialized
+    assert pc.var.press_temp_edd_profile.mode == 0
+    assert pc.var.press_temp_edd_profile.temperature_tol == 0.008
+    assert pc.var.press_temp_edd_profile.edd_tol == 0.025
+    assert pc.var.press_temp_edd_profile.extreme_factor == 12.0
     assert np.array_equal(pc.gdat.T_clima_grid, state['T_clima_grid'])
     assert np.array_equal(pc.gdat.Kzz_clima_grid, state['Kzz_clima_grid'])
 
-    legacy_state = state.copy()
-    legacy_state.pop('T_clima_grid')
-    legacy_state.pop('Kzz_clima_grid')
-    pc.initialize_from_dict(legacy_state)
-    nclima = pc.gdat.P_clima_grid.size
-    assert np.array_equal(
-        pc.gdat.T_clima_grid, state['T_desired'][:nclima]
-    )
-    assert np.array_equal(
-        pc.gdat.Kzz_clima_grid, state['Kzz_desired'][:nclima]
-    )
+    for missing_key in ('T_clima_grid', 'Kzz_clima_grid',
+                        'toa_pressure_target', 'press_temp_edd_profile'):
+        incomplete_state = state.copy()
+        incomplete_state.pop(missing_key)
+        temperature_before = pc.var.temperature.copy()
+        try:
+            pc.initialize_from_dict(incomplete_state)
+        except KeyError as exc:
+            assert exc.args == (missing_key,)
+        else:
+            raise AssertionError(f'Missing {missing_key} was accepted')
+        assert pc.var.press_temp_edd_profile.mode == 0
+        assert np.array_equal(pc.var.temperature, temperature_before)
+        pc.initialize_from_dict(state)
+
+    for missing_key in ('mode', 'temperature_tol', 'edd_tol', 'extreme_factor'):
+        incomplete_state = state.copy()
+        incomplete_state['press_temp_edd_profile'] = state['press_temp_edd_profile'].copy()
+        incomplete_state['press_temp_edd_profile'].pop(missing_key)
+        temperature_before = pc.var.temperature.copy()
+        try:
+            pc.initialize_from_dict(incomplete_state)
+        except KeyError as exc:
+            assert exc.args == (missing_key,)
+        else:
+            raise AssertionError(f'Missing profile {missing_key} was accepted')
+        assert pc.var.press_temp_edd_profile.mode == 0
+        assert np.array_equal(pc.var.temperature, temperature_before)
+        pc.initialize_from_dict(state)
+    invalid_state = state.copy()
+    invalid_state['press_temp_edd_profile'] = state['press_temp_edd_profile'].copy()
+    invalid_state['press_temp_edd_profile']['temperature_tol'] = np.nan
+    try:
+        pc.initialize_from_dict(invalid_state)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('A non-finite profile tolerance was accepted')
+    assert pc.var.press_temp_edd_profile.mode == 0
     maintenance = pc.var.toa_pressure_maintenance
     assert maintenance.enabled
     assert np.isclose(maintenance.target_pressure, custom_target)

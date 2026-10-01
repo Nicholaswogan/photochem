@@ -8,6 +8,8 @@ cdef extern from *:
     pass
   struct TOAPressureMaintenance:
     pass
+  struct PressureTempEddProfile:
+    pass
 
 # callback signatures
 ctypedef void (*time_dependent_flux_fcn)(double tn, int nw, double *photon_flux)
@@ -150,3 +152,13 @@ cdef extern void taopressuremaintenance_extreme_pressure_factor_get(TOAPressureM
 cdef extern void taopressuremaintenance_extreme_pressure_factor_set(TOAPressureMaintenance *ptr, double *val)
 cdef extern void taopressuremaintenance_max_failures_get(TOAPressureMaintenance *ptr, int *val)
 cdef extern void taopressuremaintenance_max_failures_set(TOAPressureMaintenance *ptr, int *val)
+
+cdef extern void photochemvars_press_temp_edd_profile_get(PhotochemVars *ptr, PressureTempEddProfile **ptr1)
+cdef extern void pressuretempeddprofile_enabled_get(PressureTempEddProfile *ptr, bool *val)
+cdef extern void pressuretempeddprofile_mode_get(PressureTempEddProfile *ptr, int *val)
+cdef extern void pressuretempeddprofile_temperature_tol_get(PressureTempEddProfile *ptr, double *val)
+cdef extern void pressuretempeddprofile_temperature_tol_set(PressureTempEddProfile *ptr, double *val)
+cdef extern void pressuretempeddprofile_edd_tol_get(PressureTempEddProfile *ptr, double *val)
+cdef extern void pressuretempeddprofile_edd_tol_set(PressureTempEddProfile *ptr, double *val)
+cdef extern void pressuretempeddprofile_extreme_factor_get(PressureTempEddProfile *ptr, double *val)
+cdef extern void pressuretempeddprofile_extreme_factor_set(PressureTempEddProfile *ptr, double *val)

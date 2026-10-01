@@ -745,14 +745,15 @@ cdef class EvoAtmosphere:
       raise PhotoException(err.decode("utf-8").strip())
 
   def set_press_temp_edd_profile(self, ndarray[double, ndim=1] P, ndarray[double, ndim=1] T, ndarray[double, ndim=1] edd,
-                                 trop_p = None, hydro_pressure = None,
+                                 trop_p = None, int mode = 1, hydro_pressure = None,
                                  maintain_toa_pressure = None, target_pressure = None):
     """Prescribe persistent pressure-temperature and pressure-eddy profiles.
 
     The profiles are mapped onto the current altitude grid immediately and
-    during every subsequent atmospheric preparation, including every ODE
-    right-hand-side evaluation. Temperature and eddy diffusion therefore
-    remain functions of atmospheric pressure as composition evolves.
+    subsequently according to ``mode``. Continuous mode maps during every ODE
+    right-hand-side evaluation. Periodic mode keeps temperature and eddy
+    diffusion fixed between robust-stepper resynchronizations. Configure its
+    relative mismatch tolerances through ``self.var.press_temp_edd_profile``.
 
     Temperature is interpolated linearly in log10 pressure. Eddy diffusion
     is interpolated linearly in log10 pressure-log10 eddy space. If the input
@@ -784,6 +785,11 @@ cdef class EvoAtmosphere:
         enabled and invalid otherwise. Omit it when rainout is disabled. When
         supplied, the mapped pressure must decrease strictly with altitude so
         the tropopause altitude is unambiguous.
+    mode : int, default=1
+        ``1`` selects continuous synchronization and ``0`` selects periodic
+        synchronization. Periodic mode requires the robust stepper and
+        synchronizes at initialization, scheduled restarts, and when the
+        mismatch requires maintenance.
     hydro_pressure : bool, default=True
         Use hydrostatic pressure if True. If False, use actual gas pressure,
         ``density * k_boltz * T``.
@@ -829,7 +835,7 @@ cdef class EvoAtmosphere:
     ea_pxd.evoatmosphere_set_press_temp_edd_profile_wrapper(
       self._ptr, &P_dim1, <double *>P_.data,
       &T_dim1, <double *>T_.data, &edd_dim1, <double *>edd_.data,
-      &trop_p_, &trop_p_present, &hydro_pressure_,
+      &trop_p_, &trop_p_present, &mode, &hydro_pressure_,
       &hydro_pressure_present, &maintain_toa_pressure_,
       &maintain_toa_pressure_present, &target_pressure_,
       &target_pressure_present, err
@@ -1030,6 +1036,10 @@ cdef class EvoAtmosphere:
     accepted-step, failed-step, converged-but-restarted, and TOA-update-failure
     counters are reset.
 
+    A periodic pressure-temperature-eddy profile is synchronized with the
+    supplied starting composition before CVODE starts. Basic stepping and
+    ``evolve`` do not support periodic profile maintenance.
+
     Parameters
     ----------
     usol_start : ndarray, shape (nq, nz)
@@ -1056,10 +1066,16 @@ cdef class EvoAtmosphere:
     Scheduled CVODE restarts preserve logical time and total counters, but
     discard segment-local convergence history. When
     ``self.var.toa_pressure_maintenance.enabled`` is true, TOA pressure is
-    checked after each accepted step. A mismatch beyond the extreme factor is
-    corrected immediately. A smaller mismatch is corrected after chemistry
-    converges or when the current integration segment restarts. Successful
-    updates restart CVODE while preserving logical time and total counters.
+    checked after each accepted step. Periodic pressure-temperature-eddy
+    profiles are also checked against their relative mismatch tolerances.
+    An extreme mismatch is corrected immediately. A smaller mismatch is
+    corrected after chemistry converges or when the current integration
+    segment restarts. When TOA maintenance is enabled, resync updates the grid
+    and the profile together. Successful updates restart CVODE while preserving
+    logical time and total counters. Convergence requires both chemistry and
+    enabled maintenance to satisfy their criteria; chemistry must reconverge
+    after a resync. Repeated chemistry-converged resyncs are limited by
+    ``self.var.nconverged_but_restarted_limit``.
 
     Returns
     -------

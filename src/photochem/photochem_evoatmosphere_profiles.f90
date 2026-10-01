@@ -252,15 +252,17 @@ contains
 
   end subroutine
 
-  module subroutine set_press_temp_edd_profile(self, P, T, edd, trop_p, hydro_pressure, &
+  module subroutine set_press_temp_edd_profile(self, P, T, edd, trop_p, mode, hydro_pressure, &
                                                maintain_toa_pressure, target_pressure, err)
     use iso_c_binding, only: c_associated
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use photochem_enum, only: PeriodicPressTempEdd, ContinuousPressTempEdd
     class(EvoAtmosphere), target, intent(inout) :: self
     real(dp), intent(in) :: P(:)
     real(dp), intent(in) :: T(:)
     real(dp), intent(in) :: edd(:)
     real(dp), optional, intent(in) :: trop_p
+    integer, optional, intent(in) :: mode
     logical, optional, intent(in) :: hydro_pressure
     logical, optional, intent(in) :: maintain_toa_pressure
     real(dp), optional, intent(in) :: target_pressure
@@ -296,6 +298,14 @@ contains
     self%var%press_temp_edd_profile%pressure = P
     self%var%press_temp_edd_profile%temperature = T
     self%var%press_temp_edd_profile%edd = edd
+    self%var%press_temp_edd_profile%mode = ContinuousPressTempEdd
+    if (present(mode)) self%var%press_temp_edd_profile%mode = mode
+    if (self%var%press_temp_edd_profile%mode /= PeriodicPressTempEdd .and. &
+        self%var%press_temp_edd_profile%mode /= ContinuousPressTempEdd) then
+      self%var%press_temp_edd_profile = previous_profile
+      err = 'Unknown pressure-temperature-eddy profile mode.'
+      return
+    endif
     if (present(trop_p)) then
       self%var%press_temp_edd_profile%trop_p = trop_p
     else
@@ -313,7 +323,7 @@ contains
     ! Keep the input separate from wrk%usol because preparation writes the
     ! canonical working state through a distinct output argument.
     usol_start = self%wrk%usol
-    call self%prep_atmosphere(usol_start, err)
+    call self%prep_atmosphere_unchecked(usol_start, apply_persistent_profile=.true., err=err)
     if (allocated(err)) then
       original_err = err
       self%var%press_temp_edd_profile = previous_profile
@@ -357,9 +367,11 @@ contains
   end subroutine
 
   module subroutine reset_press_temp_edd_profile(var)
+    use photochem_enum, only: ContinuousPressTempEdd
     type(PhotochemVars), intent(inout) :: var
 
     var%press_temp_edd_profile%enabled = .false.
+    var%press_temp_edd_profile%mode = ContinuousPressTempEdd
     var%press_temp_edd_profile%hydro_pressure = .true.
     var%press_temp_edd_profile%trop_p = -1.0_dp
     ! A cleared persistent profile cannot support automatic TOA maintenance.
