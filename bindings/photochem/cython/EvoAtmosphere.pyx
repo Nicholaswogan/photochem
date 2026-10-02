@@ -870,7 +870,8 @@ cdef class EvoAtmosphere:
 
     This is separate from the basic and robust step-by-step pathways: it
     creates, owns, and releases its CVODE session internally. The vertical grid
-    remains fixed, and TOA-pressure maintenance is not performed. Grid changes
+    remains fixed. Enabled TOA-pressure maintenance or periodic profile
+    synchronization is rejected; use the robust stepper for these modes. Grid changes
     must be requested explicitly with [update_vertical_grid][photochem.EvoAtmosphere.update_vertical_grid] outside the
     integration.
 
@@ -940,6 +941,9 @@ cdef class EvoAtmosphere:
     [robust_step][photochem.EvoAtmosphere.robust_step]. Any existing stepper is replaced; call
     [destroy_stepper][photochem.EvoAtmosphere.destroy_stepper] when finished.
 
+    Enabled TOA-pressure maintenance or periodic profile synchronization is
+    rejected; use the robust stepper for these modes.
+
     Parameters
     ----------
     usol_start : ndarray, shape (nq, nz)
@@ -998,7 +1002,7 @@ cdef class EvoAtmosphere:
     composition is prepared and the model top is brought inside the configured
     pressure band before CVODE starts. This preflight allows pressure-based
     atmosphere initialization to retain its requested domain endpoints. The
-    accepted-step, failed-step, converged-but-restarted, and TOA-update-failure
+    accepted-step, failed-step, converged-but-restarted, and resync-failure
     counters are reset.
 
     A periodic pressure-temperature-eddy profile is synchronized with the
@@ -1040,7 +1044,7 @@ cdef class EvoAtmosphere:
     logical time and total counters. Convergence requires both chemistry and
     enabled maintenance to satisfy their criteria; chemistry must reconverge
     after a resync. Repeated chemistry-converged resyncs are limited by
-    ``self.var.nconverged_but_restarted_limit``. Resync failures that preserve
+    ``self.var.nconverged_but_restarted_limit``. Measurement failures and resync failures that preserve
     the previous atmosphere and stepper can be retried up to
     ``self.var.max_resync_failures``; ``self.wrk.n_resync_failures`` counts these
     failures and resets after successful resynchronization. Failures that leave

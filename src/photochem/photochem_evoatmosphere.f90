@@ -452,7 +452,8 @@ module photochem_evoatmosphere
     !!
     !! This is separate from the basic and robust step-by-step pathways: it
     !! creates, owns, and releases its CVODE session internally. The vertical
-    !! grid remains fixed, and TOA-pressure maintenance is not performed. Grid
+    !! grid remains fixed. Enabled TOA-pressure maintenance or periodic profile
+    !! synchronization is rejected; use the robust stepper for these modes. Grid
     !! changes must be requested explicitly with
     !! [[EvoAtmosphere:update_vertical_grid]] outside the integration.
     module function evolve(self, filename, tstart, usol_start, t_eval, overwrite, restart_from_file, err) result(success)
@@ -493,6 +494,8 @@ module photochem_evoatmosphere
     !! [[EvoAtmosphere:initialize_robust_stepper]] and
     !! [[EvoAtmosphere:robust_step]]. Any existing stepper is replaced; call
     !! [[EvoAtmosphere:destroy_stepper]] when finished.
+    !! Enabled TOA-pressure maintenance or periodic profile synchronization is
+    !! rejected; use the robust stepper for these modes.
     module subroutine initialize_stepper(self, usol_start, err)      
       class(EvoAtmosphere), target, intent(inout) :: self
       !> Initial evolved gas and condensed-material number densities
@@ -533,8 +536,9 @@ module photochem_evoatmosphere
     !! configured pressure band before CVODE is initialized. Maintenance
     !! requires a persistent pressure-based temperature and eddy-diffusion
     !! profile. This preflight allows pressure-based atmosphere initialization
-    !! to retain its requested domain endpoints. Total accepted-step and
-    !! failed-step counters are reset.
+    !! to retain its requested domain endpoints. Periodic profiles are synced
+    !! with the starting composition. Accepted-step, failed-step,
+    !! converged-but-restarted, and resync-failure counters are reset.
     module subroutine initialize_robust_stepper(self, usol_start, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       !> Initial evolved gas and condensed-material number densities
@@ -550,10 +554,15 @@ module photochem_evoatmosphere
     !! failure recovery, scheduled restarts, convergence checks, and integration
     !! counters. Failed steps recover from the last committed state without
     !! advancing logical time. Scheduled restarts retain logical time and total
-    !! counters but discard segment-local convergence history. When TOA-pressure
-    !! maintenance is enabled, an accepted step may trigger a pressure-targeted
-    !! vertical-grid update after chemistry has converged. A successful update
-    !! restarts CVODE while retaining logical time and total integration counters.
+    !! counters but discard segment-local convergence history. Enabled TOA and
+    !! periodic profile maintenance are checked after each accepted step.
+    !! Extreme mismatch triggers immediate resynchronization; smaller mismatch
+    !! is corrected after chemistry converges or at scheduled restarts. TOA
+    !! maintenance updates the grid and profile together. Chemistry must
+    !! reconverge after resynchronization before convergence can be reported.
+    !! Read-only measurement failures and resync failures that preserve state
+    !! use the shared `var%max_resync_failures` allowance. The counter resets
+    !! after successful resynchronization; uncertain-state failures are hard.
     module subroutine robust_step(self, give_up, converged, err)
       class(EvoAtmosphere), target, intent(inout) :: self
       logical, intent(out) :: give_up !! If .true., then the algorithm thinks it is time to give up.

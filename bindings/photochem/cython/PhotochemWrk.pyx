@@ -108,7 +108,7 @@ cdef class PhotochemWrk:
       return val
 
   property nconverged_but_restarted:
-    "int. Number of chemistry-converged states that still required a TOA resynchronization."
+    "int. Number of successful chemistry-converged resyncs of TOA pressure or a periodic P-T-Kzz profile."
     def __get__(self):
       cdef int val
       wrk_pxd.photochemwrk_nconverged_but_restarted_get(self._ptr, &val)
