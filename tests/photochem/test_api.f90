@@ -410,13 +410,15 @@ contains
   end subroutine
 
   subroutine test_periodic_press_temp_edd_profile()
+    use iso_c_binding, only: c_ptr, c_associated
     use photochem_enum, only: PeriodicPressTempEdd, ContinuousPressTempEdd
     type(EvoAtmosphere) :: pc
     character(:), allocatable :: err
     real(dp) :: P(2), T(2), edd(2), P_bad(2), t_eval(1), t_before, tstart
     real(dp), allocatable :: temperature_before(:), edd_before(:), usol_trial(:,:)
     logical :: give_up, converged, success, toa_enabled
-    integer :: toa_mode
+    integer :: toa_mode, attempt
+    type(c_ptr) :: stepper_before
 
     ! Both maintenance combinations must keep the profile fixed between
     ! resyncs, and finish a scheduled resync with consistent P-T-Kzz.
@@ -633,6 +635,115 @@ contains
         stop 1
       endif
     enddo
+
+    ! A valid input profile can fail to map when extrapolation outside its
+    ! pressure range would produce a nonpositive temperature. In periodic
+    ! mode the accepted atmosphere still uses the previous, valid T-z profile.
+    pc = make_pressure_test_model(err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    P = [2.0_dp*pc%wrk%surface_pressure*1.0e6_dp, &
+         0.5_dp*pc%wrk%pressure_hydro(pc%var%nz)]
+    T = [300.0_dp, 180.0_dp]
+    edd = [3.0e7_dp, 4.0e5_dp]
+    call pc%set_press_temp_edd_profile(P, T, edd, mode=PeriodicPressTempEdd, &
+         maintain_toa_pressure=.false., err=err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    pc%var%max_resync_failures = 2
+    pc%var%equilibrium_time = -1.0_dp
+    call pc%initialize_robust_stepper(pc%wrk%usol, err)
+    if (allocated(err)) then
+      print *, trim(err)
+      stop 1
+    endif
+    stepper_before = pc%wrk%sun%cvode_mem
+    temperature_before = pc%var%temperature
+    edd_before = pc%var%edd
+    pc%var%press_temp_edd_profile%pressure = 1.0e-12_dp*P
+    pc%var%press_temp_edd_profile%temperature = [300.0_dp, 600.0_dp]
+
+    do attempt = 1,3
+      t_before = pc%wrk%tn
+      call pc%robust_step(give_up, converged, err)
+      if (attempt <= 2) then
+        if (allocated(err)) then
+          print *, 'Periodic measurement did not permit its configured retries: '//err
+          stop 1
+        endif
+      else
+        if (.not.allocated(err)) then
+          print *, 'Periodic measurement did not enforce the failure limit'
+          stop 1
+        endif
+        if (index(err, 'failure limit exceeded') == 0 .or. &
+            index(err, 'non-positive') == 0) then
+          print *, 'Periodic measurement lost its original mapping error: '//err
+          stop 1
+        endif
+        deallocate(err)
+      endif
+      if (give_up .or. converged .or. pc%wrk%n_resync_failures /= attempt .or. &
+          pc%wrk%nsteps_total /= attempt .or. pc%wrk%nsteps /= attempt .or. &
+          pc%wrk%tn <= t_before .or. pc%wrk%tn /= pc%wrk%t_history(1) .or. &
+          pc%wrk%nerrors_total /= 0 .or. pc%wrk%nconverged_but_restarted /= 0 .or. &
+          .not.pc%wrk%robust_stepper_initialized .or. &
+          .not.c_associated(pc%wrk%sun%cvode_mem, stepper_before) .or. &
+          any(pc%var%temperature /= temperature_before) .or. any(pc%var%edd /= edd_before)) then
+        print *, 'Periodic measurement failure lost accepted state or falsely reported convergence'
+        stop 1
+      endif
+    enddo
+
+    ! Repairing the prescription allows measurement to succeed, but only a
+    ! successful resync resets the shared failure counter.
+    pc%var%press_temp_edd_profile%pressure = P
+    pc%var%press_temp_edd_profile%temperature = T
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err) .or. give_up .or. .not.converged .or. pc%wrk%n_resync_failures /= 3) then
+      if (allocated(err)) print *, trim(err)
+      print *, 'Successful periodic measurement incorrectly reset the failure counter'
+      stop 1
+    endif
+    pc%var%press_temp_edd_profile%edd = 2.0_dp*edd
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err) .or. give_up .or. converged .or. pc%wrk%n_resync_failures /= 0 .or. &
+        pc%wrk%nsteps /= 0 .or. pc%wrk%nsteps_total /= 5) then
+      if (allocated(err)) print *, trim(err)
+      print *, 'Successful periodic resync did not reset measurement failures'
+      stop 1
+    endif
+
+    ! Validation failures remain hard and do not consume measurement retries.
+    pc%var%press_temp_edd_profile%temperature_tol = -1.0_dp
+    t_before = pc%wrk%tn
+    call pc%robust_step(give_up, converged, err)
+    if (.not.allocated(err)) then
+      print *, 'Invalid periodic configuration did not fail immediately'
+      stop 1
+    endif
+    deallocate(err)
+    if (pc%wrk%n_resync_failures /= 0 .or. pc%wrk%nsteps_total /= 5 .or. pc%wrk%tn /= t_before) then
+      print *, 'Configuration validation consumed a step or a measurement retry'
+      stop 1
+    endif
+    pc%var%press_temp_edd_profile%temperature_tol = 0.005_dp
+
+    ! Recoverable measurement errors must not bypass the total-step ceiling.
+    pc%var%press_temp_edd_profile%pressure = 1.0e-12_dp*P
+    pc%var%press_temp_edd_profile%temperature = [300.0_dp, 600.0_dp]
+    pc%var%nsteps_before_giveup = 6
+    call pc%robust_step(give_up, converged, err)
+    if (allocated(err) .or. .not.give_up .or. converged .or. &
+        pc%wrk%nsteps_total /= 6 .or. pc%wrk%n_resync_failures /= 1) then
+      if (allocated(err)) print *, trim(err)
+      print *, 'Periodic measurement failure bypassed the total-step ceiling'
+      stop 1
+    endif
 
   end subroutine
 

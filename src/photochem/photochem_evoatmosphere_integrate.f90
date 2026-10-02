@@ -1159,9 +1159,28 @@ contains
 
     ! Assess the TOA state
     toa_state = toa_pressure_state(self, err)
-    if (allocated(err)) return
+    if (allocated(err)) then
+      ! Measurement is read-only; the accepted state and stepper remain usable.
+      wrk%n_resync_failures = wrk%n_resync_failures + 1
+      if (wrk%n_resync_failures > var%max_resync_failures) then
+        err = 'TOA-pressure measurement failed (failure limit exceeded): '//err
+        return
+      endif
+      deallocate(err)
+      give_up = wrk%nsteps_total >= var%nsteps_before_giveup
+      return
+    endif
     profile_state = press_temp_edd_state(self, err)
-    if (allocated(err)) return
+    if (allocated(err)) then
+      wrk%n_resync_failures = wrk%n_resync_failures + 1
+      if (wrk%n_resync_failures > var%max_resync_failures) then
+        err = 'Pressure-profile measurement failed (failure limit exceeded): '//err
+        return
+      endif
+      deallocate(err)
+      give_up = wrk%nsteps_total >= var%nsteps_before_giveup
+      return
+    endif
 
     within_tol = toa_state == WithinTol .and. profile_state == WithinTol
     out_of_tol = toa_state == OutOfTol .or. profile_state == OutOfTol
