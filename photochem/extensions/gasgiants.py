@@ -620,6 +620,8 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         checkpoint: solver history, time, callbacks, and most numerical settings
         are omitted. The destination must use the same mechanism, layer count,
         planet mass, reference radius, and reference pressure.
+        The exact installed pressure-temperature-eddy prescription is saved
+        separately from the climate-grid metadata.
 
         Returns
         -------
@@ -649,6 +651,10 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         out['max_resync_failures'] = self.var.max_resync_failures
         profile = self.var.press_temp_edd_profile
         out['press_temp_edd_profile'] = {
+            'pressure': profile.pressure,
+            'temperature': profile.temperature,
+            'edd': profile.edd,
+            'trop_p': profile.trop_p,
             'mode': profile.mode,
             'hydro_pressure': profile.hydro_pressure,
             'temperature_tol': profile.temperature_tol,
@@ -675,6 +681,8 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         profile is resynchronized immediately. This can change saved temperature,
         Kzz, and bottom-layer densities, particularly in periodic mode.
         TOA-maintenance enablement and profile tolerances are restored.
+        The exact installed prescription is restored independently of the saved
+        climate-grid metadata, including profiles replaced through the base API.
 
         Solver history and integration time are not restored. Other numerical
         settings and callbacks retain the destination's configuration. Input
@@ -689,8 +697,8 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
             reference radius, and reference pressure must match the source.
         """
         # Validate and copy inputs before touching the destination or its stepper.
-        def array(key, shape=None, positive=False):
-            value = np.array(out[key], dtype=np.double, copy=True)
+        def array(key, shape=None, positive=False, source=out):
+            value = np.array(source[key], dtype=np.double, copy=True)
             if shape is not None and value.shape != shape:
                 raise ValueError(f'Saved {key} must have shape {shape}')
             if not np.all(np.isfinite(value)) or (positive and np.any(value <= 0.0)):
@@ -752,6 +760,20 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         if np.any(partial_pressures < 0.0) or not 0.0 < partial_pressures.sum() < np.inf:
             raise ValueError('Saved P_i_surf must be nonnegative with a finite positive total')
         profile_settings = out['press_temp_edd_profile']
+        profile_pressure = array('pressure', positive=True, source=profile_settings)
+        if (profile_pressure.ndim != 1 or profile_pressure.size < 2 or
+                np.any(np.diff(profile_pressure) >= 0.0)):
+            raise ValueError('Saved pressure-profile pressure must be a strictly decreasing 1D profile')
+        profile_temperature = array('temperature', profile_pressure.shape,
+                                    positive=True, source=profile_settings)
+        profile_edd = array('edd', profile_pressure.shape,
+                           positive=True, source=profile_settings)
+        trop_p = profile_settings['trop_p']
+        if not np.isscalar(trop_p) or not np.isfinite(trop_p):
+            raise ValueError('Saved pressure-profile trop_p must be a finite scalar')
+        trop_p = float(trop_p)
+        if (self.dat.gas_rainout and trop_p <= 0.0) or (not self.dat.gas_rainout and trop_p > 0.0):
+            raise ValueError('Saved pressure-profile trop_p must be positive only when gas rainout is enabled')
         mode = integer(profile_settings['mode'], 'pressure-profile mode', 1)
         hydro_pressure = profile_settings['hydro_pressure']
         if not isinstance(hydro_pressure, (bool, np.bool_)):
@@ -802,7 +824,7 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         for sp, pressure in zip(names[nparticles:], partial_pressures):
             self.set_lower_bc(sp, bc_type='press', press=pressure)
         self.set_press_temp_edd_profile(
-            profiles['P_desired'], profiles['T_desired'], profiles['Kzz_desired'],
+            profile_pressure, profile_temperature, profile_edd, trop_p=trop_p,
             hydro_pressure=hydro_pressure, maintain_toa_pressure=maintain_toa,
             target_pressure=target_pressure, mode=mode
         )

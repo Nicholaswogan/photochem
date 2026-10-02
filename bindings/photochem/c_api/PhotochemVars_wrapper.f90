@@ -871,3 +871,65 @@
     call c_f_pointer(ptr, profile)
     profile%extreme_factor = val
   end subroutine
+
+  subroutine pressuretempeddprofile_pressure_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    dim1 = 0
+    if (allocated(profile%pressure)) dim1 = size(profile%pressure)
+  end subroutine
+
+  subroutine pressuretempeddprofile_pressure_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    if (allocated(profile%pressure)) arr = profile%pressure
+  end subroutine
+
+  subroutine pressuretempeddprofile_temperature_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    dim1 = 0
+    if (allocated(profile%temperature)) dim1 = size(profile%temperature)
+  end subroutine
+
+  subroutine pressuretempeddprofile_temperature_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    if (allocated(profile%temperature)) arr = profile%temperature
+  end subroutine
+
+  subroutine pressuretempeddprofile_edd_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    dim1 = 0
+    if (allocated(profile%edd)) dim1 = size(profile%edd)
+  end subroutine
+
+  subroutine pressuretempeddprofile_edd_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    if (allocated(profile%edd)) arr = profile%edd
+  end subroutine
+
+  subroutine pressuretempeddprofile_trop_p_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PressureTempEddProfile), pointer :: profile
+    call c_f_pointer(ptr, profile)
+    val = profile%trop_p
+  end subroutine

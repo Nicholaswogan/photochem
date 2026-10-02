@@ -643,7 +643,8 @@ def test_gas_giant_shared_limits_and_state_restore():
         assert np.array_equal(pc.var.temperature, temperature_before)
         pc.initialize_from_dict(state)
 
-    for missing_key in ('mode', 'hydro_pressure', 'temperature_tol', 'edd_tol', 'extreme_factor'):
+    for missing_key in ('pressure', 'temperature', 'edd', 'trop_p',
+                        'mode', 'hydro_pressure', 'temperature_tol', 'edd_tol', 'extreme_factor'):
         incomplete_state = state.copy()
         incomplete_state['press_temp_edd_profile'] = state['press_temp_edd_profile'].copy()
         incomplete_state['press_temp_edd_profile'].pop(missing_key)
@@ -729,6 +730,75 @@ def test_gas_giant_shared_limits_and_state_restore():
         assert np.array_equal(fresh.wrk.usol, usol_before)
         assert np.array_equal(fresh.var.temperature, temperature_before)
     fresh.destroy_stepper()
+
+    # The installed prescription can differ from the full climate metadata.
+    # Restoring above its original top must retain its constant extension.
+    for mode in (0, 1):
+        source = _make_initialized_gas_giant(mode=mode)
+        source.update_vertical_grid(TOA_pressure=0.04)
+        profile = source.var.press_temp_edd_profile
+        assert source.wrk.pressure[-1] < profile.pressure[-1]
+        assert source.wrk.pressure[-1] > source.var.toa_pressure_maintenance.target_pressure / 3.0
+        snapshot = source.model_state_to_dict()
+        destination = _make_initialized_gas_giant(mode=mode)
+        destination.initialize_from_dict(snapshot)
+        np.testing.assert_allclose(destination.var.temperature, source.var.temperature, rtol=1e-8)
+        np.testing.assert_allclose(destination.var.edd, source.var.edd, rtol=1e-8)
+        for key in ('pressure', 'temperature', 'edd'):
+            expected = snapshot['press_temp_edd_profile'][key]
+            assert np.array_equal(getattr(destination.var.press_temp_edd_profile, key), expected)
+            view_copy = getattr(profile, key)
+            view_copy[:] = -1.0
+            assert np.array_equal(getattr(profile, key), expected)
+            assert not np.shares_memory(getattr(destination.var.press_temp_edd_profile, key), expected)
+            try:
+                setattr(profile, key, expected)
+            except AttributeError:
+                pass
+            else:
+                raise AssertionError(f'Installed profile {key} is writable')
+        assert destination.var.press_temp_edd_profile.trop_p == profile.trop_p
+
+        # A base-API replacement must also round-trip without being replaced
+        # by the original climate-grid prescription.
+        replacement_pressure = np.array([2.0 * profile.pressure[0], 0.5 * profile.pressure[-1]])
+        replacement_temperature = np.array([330.0, 200.0])
+        replacement_edd = np.array([2.0e5, 8.0e6])
+        source.set_press_temp_edd_profile(
+            replacement_pressure, replacement_temperature, replacement_edd,
+            trop_p=-2.0, mode=mode, maintain_toa_pressure=False,
+        )
+        snapshot = source.model_state_to_dict()
+        destination.initialize_from_dict(snapshot)
+        np.testing.assert_allclose(destination.var.temperature, source.var.temperature, rtol=1e-8)
+        np.testing.assert_allclose(destination.var.edd, source.var.edd, rtol=1e-8)
+        assert destination.var.press_temp_edd_profile.trop_p == -2.0
+        assert np.array_equal(destination.var.press_temp_edd_profile.pressure, replacement_pressure)
+        assert np.array_equal(destination.gdat.P_desired, source.gdat.P_desired)
+
+        destination.initialize_robust_stepper(destination.wrk.usol)
+        usol_before = destination.wrk.usol.copy()
+        for key, value in (
+                ('pressure', replacement_pressure[::-1]),
+                ('temperature', np.array([330.0])),
+                ('edd', np.array([2.0e5, np.nan])),
+                ('trop_p', np.nan), ('trop_p', 1.0)):
+            invalid_state = copy.deepcopy(snapshot)
+            invalid_state['press_temp_edd_profile'][key] = value
+            try:
+                destination.initialize_from_dict(invalid_state)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(f'Invalid installed profile {key} was accepted')
+            assert destination.wrk.robust_stepper_initialized
+            assert np.array_equal(destination.wrk.usol, usol_before)
+        destination.robust_step()
+        assert destination.wrk.nsteps_total == 1
+        destination.destroy_stepper()
+        destination.clear_press_temp_edd_profile()
+        for key in ('pressure', 'temperature', 'edd'):
+            assert getattr(destination.var.press_temp_edd_profile, key).size == 0
 
     # Particle radii affect the physical model and belong to the saved state.
     particles = _make_initialized_gas_giant(mechanism_file=zahnle_earth)

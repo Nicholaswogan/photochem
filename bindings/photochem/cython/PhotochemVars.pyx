@@ -90,6 +90,52 @@ cdef class PressureTempEddProfile:
       var_pxd.pressuretempeddprofile_hydro_pressure_get(self._ptr, &val)
       return val
 
+  property pressure:
+    """ndarray[float]. Copy of installed pressure knots in dyn/cm^2 (read-only).
+
+    Returns an empty array when no profile is installed.
+    """
+    def __get__(self):
+      cdef int dim1
+      var_pxd.pressuretempeddprofile_pressure_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      var_pxd.pressuretempeddprofile_pressure_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property temperature:
+    """ndarray[float]. Copy of installed temperature knots in K (read-only).
+
+    Returns an empty array when no profile is installed.
+    """
+    def __get__(self):
+      cdef int dim1
+      var_pxd.pressuretempeddprofile_temperature_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      var_pxd.pressuretempeddprofile_temperature_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property edd:
+    """ndarray[float]. Copy of installed edd knots in cm^2/s (read-only).
+
+    Returns an empty array when no profile is installed.
+    """
+    def __get__(self):
+      cdef int dim1
+      var_pxd.pressuretempeddprofile_edd_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      var_pxd.pressuretempeddprofile_edd_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
+
+  property trop_p:
+    """float. Installed tropopause pressure in dyn/cm^2 (read-only).
+
+    Nonpositive values mean no tropopause pressure is supplied.
+    """
+    def __get__(self):
+      cdef double val
+      var_pxd.pressuretempeddprofile_trop_p_get(self._ptr, &val)
+      return val
+
   property temperature_tol:
     """float. Relative temperature mismatch allowed in periodic mode (default 0.005)."""
     def __get__(self):
