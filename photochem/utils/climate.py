@@ -2,12 +2,12 @@ from photochem_clima_data import DATA_DIR
 import os
 from ._format import yaml, Loader, MyDumper, FormatReactions_main, flowmap
 
-def species_dict_for_climate(species, condensates, particles=None):
+def species_dict_for_climate(species, condensates, particles=None, input_filename=None):
     """Generate species-file data for ``AdiabatClimate``.
 
-    Gas thermodynamic and saturation data are selected from the installed
-    Zahnle Earth mechanism. Requested names absent from that mechanism are not
-    included.
+    Gas thermodynamic and saturation data are selected from the input
+    mechanism, defaulting to the installed Zahnle Earth mechanism. Requested
+    names absent from that mechanism are not included.
 
     Parameters
     ----------
@@ -18,6 +18,9 @@ def species_dict_for_climate(species, condensates, particles=None):
     particles : list[dict], optional
         Particle definitions and their elemental compositions, for example
         ``[{'name': 'HCaer', 'composition': {'C': 6, 'H': 2}}]``.
+    input_filename : str or path-like, optional
+        Input mechanism YAML path. Defaults to the installed
+        ``reaction_mechanisms/zahnle_earth.yaml``.
     
     Returns
     -------
@@ -33,9 +36,10 @@ def species_dict_for_climate(species, condensates, particles=None):
     if not set(condensates).issubset(species):
         raise ValueError("`condensates` must be a subset of `species`.")
 
-    zahnle_earth = os.path.join(DATA_DIR,'reaction_mechanisms/zahnle_earth.yaml')
+    if input_filename is None:
+        input_filename = os.path.join(DATA_DIR,'reaction_mechanisms/zahnle_earth.yaml')
 
-    with open(zahnle_earth,'r') as f:
+    with open(input_filename,'r') as f:
         dat = yaml.load(f, Loader=Loader)
 
     # Get saturation information
@@ -74,7 +78,7 @@ def species_dict_for_climate(species, condensates, particles=None):
 
     return species_file
     
-def species_file_for_climate(filename, species, condensates, particles=None):
+def species_file_for_climate(filename, species, condensates, particles=None, input_filename=None):
     """Write a species file for climate simulations with AdiabatClimate.
 
     Parameters
@@ -88,9 +92,14 @@ def species_file_for_climate(filename, species, condensates, particles=None):
     particles : list[dict], optional
         Particle definitions and their elemental compositions, for example
         ``[{'name': 'HCaer', 'composition': {'C': 6, 'H': 2}}]``.
+    input_filename : str or path-like, optional
+        Input mechanism YAML path. Defaults to the installed
+        ``reaction_mechanisms/zahnle_earth.yaml``.
     """
 
-    species_file = species_dict_for_climate(species, condensates, particles)
+    species_file = species_dict_for_climate(
+        species, condensates, particles, input_filename=input_filename
+    )
 
     species_file = FormatReactions_main(species_file)
     with open(filename, 'w') as f:
