@@ -11,6 +11,46 @@
     nz = var%nz
   end subroutine
 
+  subroutine photochem_pressure_bc_get(val) bind(c)
+    use photochem_enum, only: PressureBC
+    integer(c_int), intent(out) :: val
+    val = PressureBC
+  end subroutine
+
+  subroutine photochemvars_lowerboundcond_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    dim1 = size(var%lowerboundcond)
+  end subroutine
+
+  subroutine photochemvars_lowerboundcond_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    integer(c_int), intent(out) :: arr(dim1)
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    arr = var%lowerboundcond
+  end subroutine
+
+  subroutine photochemvars_lower_fix_press_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    dim1 = size(var%lower_fix_press)
+  end subroutine
+
+  subroutine photochemvars_lower_fix_press_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    real(c_double), intent(out) :: arr(dim1)
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    arr = var%lower_fix_press
+  end subroutine
+
   subroutine photochemvars_top_atmos_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val

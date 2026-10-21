@@ -17,6 +17,14 @@ ctypedef double (*binary_diffusion_fcn)(double mu_i, double mubar, double T)
 
 cdef extern void photochemvars_nz_get(PhotochemVars *ptr, int *nz)
 
+cdef extern void photochem_pressure_bc_get(int *val)
+
+cdef extern void photochemvars_lowerboundcond_get_size(PhotochemVars *ptr, int *dim1)
+cdef extern void photochemvars_lowerboundcond_get(PhotochemVars *ptr, int *dim1, int *arr)
+
+cdef extern void photochemvars_lower_fix_press_get_size(PhotochemVars *ptr, int *dim1)
+cdef extern void photochemvars_lower_fix_press_get(PhotochemVars *ptr, int *dim1, double *arr)
+
 cdef extern void photochemvars_top_atmos_get(PhotochemVars *ptr, double *val)
 
 cdef extern void photochemvars_bottom_atmos_get(PhotochemVars *ptr, double *val)
