@@ -1,5 +1,10 @@
 cimport PhotochemVars_pxd as var_pxd
 
+# Obtain the boundary identifier from Fortran rather than duplicating its value.
+cdef int _pressure_bc
+var_pxd.photochem_pressure_bc_get(&_pressure_bc)
+PressureBC = _pressure_bc
+
 cdef class TOAPressureMaintenance:
   """Live configuration for optional robust-stepper TOA pressure maintenance.
 
@@ -184,6 +189,34 @@ cdef class PhotochemVars:
       cdef int nz
       var_pxd.photochemvars_nz_get(self._ptr, &nz)
       return nz
+
+  property lowerboundcond:
+    """ndarray[int], shape (nq,). Copy of lower-boundary type identifiers (read-only).
+
+    Entries follow ``dat.species_names[:dat.nq]``, including particles.
+    Compare with ``photochem.PressureBC`` to identify fixed partial pressures.
+    Use ``set_lower_bc`` to change boundary conditions.
+    """
+    def __get__(self):
+      cdef int dim1
+      var_pxd.photochemvars_lowerboundcond_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.intc)
+      var_pxd.photochemvars_lowerboundcond_get(self._ptr, &dim1, <int *>arr.data)
+      return arr
+
+  property lower_fix_press:
+    """ndarray[float], shape (nq,). Copy of fixed lower-boundary pressures in dyn/cm^2 (read-only).
+
+    Entries follow ``dat.species_names[:dat.nq]`` and are meaningful only
+    where ``lowerboundcond == photochem.PressureBC``. Use ``set_lower_bc``
+    to change boundary conditions.
+    """
+    def __get__(self):
+      cdef int dim1
+      var_pxd.photochemvars_lower_fix_press_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.double)
+      var_pxd.photochemvars_lower_fix_press_get(self._ptr, &dim1, <double *>arr.data)
+      return arr
 
   property top_atmos:
     """float. Altitude of the top of the model domain in cm."""
