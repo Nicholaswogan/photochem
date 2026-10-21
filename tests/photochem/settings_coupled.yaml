@@ -6,7 +6,7 @@ atmosphere-grid:
 planet:
   planet-mass: 5.972e27 # g
   planet-radius: 6.371e8 # cm
-  surface-albedo: 0.2
+  surface-albedo: 0.25
   solar-zenith-angle: 60.0 # degrees
   hydrogen-escape: {type: diffusion limited}
   water: {gas-rainout: false}
