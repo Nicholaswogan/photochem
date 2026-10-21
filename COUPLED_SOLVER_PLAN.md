@@ -1,0 +1,97 @@
+# Coupled photochemistry–climate solvers and rollback
+
+## Purpose and current baseline
+
+Develop the coupled model and atmospheric state support together on `plan/evoatmosphere-state-checkpoints`. The existing atmospheric-state design is in `EVOATMOSPHERE_STATE_PLAN.md` on that branch; this document adds coupling architecture and rollback requirements.
+
+The initial implementation alternates photochemical steady-state integration and radiative-convective climate solves with under-relaxation. The local `tests/photochem/test_coupled.py --full` case converged in 10 coupled iterations in about four minutes. Every chemical solve converged, with no integration or resync errors. Default test execution remains constructor-only smoke coverage; the full coupled calculation is local and outside CI.
+
+## Physical model and public API
+
+Keep `CoupledPhotochemistryClimate` as the owner of `pc` (`EvoAtmosphere`) and `c` (`AdiabatClimate`). Both remain accessible for configuration and inspection. Exclude aerosol optics for the initial implementation.
+
+The public methods are:
+
+- `solution()`: export the current photochemical atmosphere without changing it or claiming convergence.
+- `initialize_solver(...)`: initialize the atmosphere and the selected coupling algorithm.
+- `iterate()`: perform one useful unit of coupling work, returning `(give_up, converged)`.
+- `find_steady_state(...)`: initialize and repeatedly iterate until convergence or give-up.
+
+Other methods, including initial-guess construction, the fixed-point map, grid construction, and profile exchange, are implementation helpers and should use leading underscores. Keep shared prescribed Kzz and condensable-reservoir inputs on the coupling model; avoid duplicating planetary and atmospheric state already owned by `pc` or `c`.
+
+Use separate solver objects behind `model.solver`:
+
+| Solver | Owned controls and runtime state |
+| --- | --- |
+| `FixedPointSolver` | Temperature/log-pressure tolerances, relaxation, iteration limit, trial vectors, residuals, and history. |
+| `QuasiStaticSolver` | Outer chemical time, coupling interval, error tolerances, accepted/rejected-step counts, trial snapshots, and history. |
+
+Both expose common convergence/give-up and chemical-convergence diagnostics. Keep method-specific diagnostics with their solver rather than adding unrelated fields to the coupling model.
+
+Intended usage:
+
+```python
+model.initialize_solver(
+    edd=1e5,
+    method="fixed_point",
+    solver_options={"relaxation": 0.5},
+)
+while True:
+    give_up, converged = model.iterate()
+    if give_up or converged:
+        break
+atmosphere = model.solution()
+```
+
+Select `method="quasi_static"` for adaptive time-evolving coupling. One fixed-point iteration evaluates one chemistry-to-climate map. One quasi-static iteration completes one accepted outer time interval, including internal retries. No public warm-start or expanded solution serialization is required in the first pass.
+
+## State representations and final-result policy
+
+The photochemical model is authoritative for the atmospheric solution. The fixed-point vector is a separate representation: log10 surface pressure and temperatures on a fixed-size, equally spaced log-pressure grid between the surface and climate top. Surface pressure defines temperature coordinates; it is not imposed on the chemical model. Climate top defaults to 1 dyn/cm² and can differ from the photochemical top.
+
+The fixed-point map prepares the proposed T(P) with `set_press_temp_edd_profile`, advances chemistry, solves climate using the resulting composition, and returns the climate vector without applying it back to photochemistry. Use the unrelaxed residual for convergence. Never perform an extra final temperature update that invalidates chemical convergence.
+
+Current chemical defaults are 7,000 accepted steps and `conv_longdy=1e-3`, adjustable through `pc.var`. If chemical convergence is optional, permit continuation only after exhausting the accepted-step budget with usable state. Report chemical and coupled convergence separately. Other chemistry failures remain errors; climate must converge.
+
+## Quasi-static adaptive coupling
+
+The intended approximation is chemistry evolving in physical time with climate equilibrating rapidly to the changing composition:
+
+- Hold climate fixed while advancing chemistry over an outer interval.
+- Solve climate at the interval endpoint and update the thermal state.
+- Adapt the outer interval to control coupling error, independently of CVODE's internal chemistry tolerances.
+
+No artificial temperature-relaxation ODE or chosen thermal response timescale is required. This is a quasi-static approximation, not a model of finite thermal inertia.
+
+### Step doubling and rejection
+
+1. Capture the accepted physical state and time.
+2. Trial one full interval, followed by a climate update.
+3. Restore the same starting state and time.
+4. Trial two half intervals, with climate updates at the midpoint and endpoint.
+5. Compare the two endpoints on common pressure coordinates, using temperature, surface pressure, and suitable composition measures with relative and absolute tolerances.
+6. Accept the two-half-step result if the estimated error satisfies tolerance; otherwise restore the accepted state, reduce the interval, and retry.
+
+Establish the method order and corresponding error/step-size controller explicitly. A temperature-change limit alone is not an error estimator. Bound interval growth, rejection retries, and minimum interval size. Recoverable trial chemistry/climate failures can reject a step; invalid configuration and failed restoration are hard errors.
+
+Preserve absolute chemical time across segments and rejections, including the time seen by flux/rate callbacks. Rejected trial time is not accepted progress. Accurate outer time stepping does not itself prove steady state; final termination checks must address both chemical stationarity and climate consistency.
+
+## Atmospheric and climate snapshots
+
+Implement independent in-memory atmospheric capture/restore before the adaptive solver. Preserve composition, current T/Kzz, grid, particle radii, planetary geometry, tropopause, and installed profile/TOA configuration. Regenerate derived quantities, but do not resynchronize the stored P–T–Kzz profile or remove its existing periodic mismatch on restore. CVODE history need not be serialized; restarting it must preserve the outer absolute time.
+
+Reconcile this with the existing checkpoint plan, which deliberately retains destination boundary conditions and callbacks and excludes time/history. Coupling rollback must either preserve mutable boundary/condensation controls or ensure trial steps never change them. Store outer time and any mutable callback state separately; arbitrary external callback side effects cannot be assumed to roll back automatically.
+
+Capture climate state as well, including atmospheric fields and any solver guesses/configuration modified during trial climate solves. The second branch must not inherit unrecorded state from the first. Define failure guarantees honestly and validate that both physical models remain usable after restoration.
+
+HDF5 persistence is a later phase and is not needed for in-memory trial branching. The state design should also accommodate flat NumPy-array dictionary export/import for parameter-grid workflows, using version metadata, independent copies, and explicit validation. Grid aggregation requires consistent keys, shapes, and dtypes across points.
+
+## Implementation order
+
+1. Implement and test in-memory `EvoAtmosphereState` capture/restore and the absolute-time restart path needed by coupling. Keep expensive integrations out of routine CI.
+2. Separate the existing fixed-point algorithm into its solver object while preserving its tested behavior and public coupling API; rename implementation helpers with underscores.
+3. Implement climate snapshot/restore and a combined accepted-state transaction for both trial branches.
+4. Add bounded chemistry time segments and fixed outer-interval quasi-static coupling first.
+5. Add step doubling, scaled error measurement, acceptance/rejection, and adaptive intervals.
+6. Verify rollback, time-dependent callbacks, error control under interval refinement, and final chemical/climate status. Compare representative solutions and cost with the existing fixed-point method.
+7. Add HDF5 state persistence and flat dictionary interchange separately. Design public coupled warm starts afterward.
