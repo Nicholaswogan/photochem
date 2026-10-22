@@ -24,7 +24,7 @@ Use separate solver objects behind `model.solver`:
 | Solver | Owned controls and runtime state |
 | --- | --- |
 | `FixedPointSolver` | Temperature/log-pressure tolerances, relaxation, iteration limit, trial vectors, residuals, and history. |
-| `QuasiStaticSolver` | Outer chemical time, coupling interval, error tolerances, accepted/rejected-step counts, trial snapshots, and history. |
+| `QuasiStaticSolver` | Outer chemical time, coupling interval, timestep-control strategy and tolerances, accepted/rejected-step counts, trial snapshots, and history. |
 
 Both expose common convergence/give-up and chemical-convergence diagnostics. Keep method-specific diagnostics with their solver rather than adding unrelated fields to the coupling model.
 
@@ -59,9 +59,33 @@ The intended approximation is chemistry evolving in physical time with climate e
 
 - Hold climate fixed while advancing chemistry over an outer interval.
 - Solve climate at the interval endpoint and update the thermal state.
-- Adapt the outer interval to control coupling error, independently of CVODE's internal chemistry tolerances.
+- Adapt the outer interval using either a change limit or a coupling-error estimate, independently of CVODE's internal chemistry tolerances.
 
 No artificial temperature-relaxation ODE or chosen thermal response timescale is required. This is a quasi-static approximation, not a model of finite thermal inertia.
+
+### Two timestep-control strategies
+
+Both strategies use the same chemistry segments, climate updates, accepted-state snapshots, and rollback machinery. Select the controller within `QuasiStaticSolver`; separate coupling classes are unnecessary.
+
+| Strategy | Acceptance and interval control | Tradeoff |
+| --- | --- | --- |
+| Change limited | Limit the temperature change over one trial interval; reduce and retry when excessive, and grow the next interval gradually when changes are small. | One chemistry segment and climate solve per trial, but no estimate of coupling error. |
+| Step doubling | Compare one full interval with two half intervals; accept and adapt using the endpoint difference. | More expensive, but provides an estimate of coupling error. |
+
+### Change-limited stepping and rejection
+
+1. Capture the accepted physical state and time.
+2. Advance chemistry over one trial interval, then solve climate.
+3. Compare old and new temperatures on common pressure coordinates using a combined absolute and relative change limit:
+
+   ```python
+   change = max(abs(T_new - T_old) / (T_atol + T_rtol * abs(T_old)))
+   ```
+
+4. Accept the updated state when `change <= 1`; otherwise restore the accepted state, shorten the interval, and retry.
+5. Adjust the next interval using the measured change, with bounded growth and shrinkage. Consider additional surface-pressure or composition limits if temperature alone misses important evolution.
+
+These tolerances limit physical change per interval; they do not estimate timestep accuracy or guarantee stability. Check interval refinement when validating this strategy. Implement this simpler controller first, then reuse its trial and rollback framework for step doubling.
 
 ### Step doubling and rejection
 
@@ -72,7 +96,11 @@ No artificial temperature-relaxation ODE or chosen thermal response timescale is
 5. Compare the two endpoints on common pressure coordinates, using temperature, surface pressure, and suitable composition measures with relative and absolute tolerances.
 6. Accept the two-half-step result if the estimated error satisfies tolerance; otherwise restore the accepted state, reduce the interval, and retry.
 
-Establish the method order and corresponding error/step-size controller explicitly. A temperature-change limit alone is not an error estimator. Bound interval growth, rejection retries, and minimum interval size. Recoverable trial chemistry/climate failures can reject a step; invalid configuration and failed restoration are hard errors.
+Establish the method order and corresponding error/step-size controller explicitly.
+
+### Shared safeguards and termination
+
+For both controllers, bound interval growth, rejection retries, and minimum interval size. Recoverable trial chemistry/climate failures can reject a step; invalid configuration and failed restoration are hard errors.
 
 Preserve absolute chemical time across segments and rejections, including the time seen by flux/rate callbacks. Rejected trial time is not accepted progress. Accurate outer time stepping does not itself prove steady state; final termination checks must address both chemical stationarity and climate consistency.
 
@@ -90,8 +118,8 @@ HDF5 persistence is a later phase and is not needed for in-memory trial branchin
 
 1. Implement and test in-memory `EvoAtmosphereState` capture/restore and the absolute-time restart path needed by coupling. Keep expensive integrations out of routine CI.
 2. Separate the existing fixed-point algorithm into its solver object while preserving its tested behavior and public coupling API; rename implementation helpers with underscores.
-3. Implement climate snapshot/restore and a combined accepted-state transaction for both trial branches.
+3. Implement climate snapshot/restore and a combined accepted-state transaction for trials and rollback.
 4. Add bounded chemistry time segments and fixed outer-interval quasi-static coupling first.
-5. Add step doubling, scaled error measurement, acceptance/rejection, and adaptive intervals.
-6. Verify rollback, time-dependent callbacks, error control under interval refinement, and final chemical/climate status. Compare representative solutions and cost with the existing fixed-point method.
+5. Add change-limited adaptive intervals and acceptance/rejection first, then add step doubling with scaled error measurement using the same framework.
+6. Verify rollback, time-dependent callbacks, behavior under interval refinement, and final chemical/climate status for both controllers. Compare representative solutions and cost with the existing fixed-point method.
 7. Add HDF5 state persistence and flat dictionary interchange separately. Design public coupled warm starts afterward.
