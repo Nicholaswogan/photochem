@@ -114,6 +114,40 @@ Capture climate state as well, including atmospheric fields and any solver guess
 
 HDF5 persistence is a later phase and is not needed for in-memory trial branching. The state design should also accommodate flat NumPy-array dictionary export/import for parameter-grid workflows, using version metadata, independent copies, and explicit validation. Grid aggregation requires consistent keys, shapes, and dtypes across points.
 
+## Future cloud and haze coupling
+
+Add this after the basic solvers and state support are complete. Allow a replaceable cloud–climate component that internally converges climate and cloud/haze microphysics together. Its inputs may include composition, particle production rates from photochemistry, and atmospheric temperature, pressure, altitude, and density. Keep climate-specific exchange behind a few helpers now; defer the detailed component interface.
+
+Proposed constructor API:
+
+```python
+model = CoupledPhotochemistryClimate(
+    ...,
+    climate_model=HazyClimateModel,
+)
+```
+
+Here `climate_model` is a class constructed with shared model settings. The default implementation and custom components would follow the same small interface:
+
+- `solve(inputs)`: converge climate and any internal cloud/microphysics coupling; report convergence.
+- `profiles()`: return atmospheric profiles and optional haze opacity.
+- `capture_state()`: return an independent snapshot for rollback.
+- `restore_state(state)`: restore a captured state.
+
+Use an adapter around `AdiabatClimate`, allowing a custom component to own both climate and microphysics models. Finalize constructor arguments, method signatures, input/output fields, units, and failure guarantees when implementing this phase.
+
+Initially, microphysics could supply climate opacity only while photochemistry retains its own particle treatment. This approximation can give the two models different haze shielding and material removal. A later option should exchange microphysical opacity with photochemistry so that haze also affects photolysis consistently. Define production units, material accounting, and responsibility for particle transport/removal before implementing that exchange.
+
+The feedback would be:
+
+```text
+photochemistry ↔ (climate ↔ clouds/haze microphysics)
+```
+
+The full opacity array need not become an explicit fixed-point variable. Quasi-static coupling can exchange temperature and opacity as model state between chemical time segments. For a fixed-point solve, however, temperature and surface pressure alone do not define the map if it also depends on opacity left over from the previous evaluation. Resolve that feedback through an inner haze–photochemistry iteration or additional compact variables, such as a haze-production profile; decide after testing. Include haze consistency in convergence checks.
+
+The replaceable component must expose its resulting profiles and convergence status, and support capture/restore of microphysics state, opacity, and solver guesses for rejected outer timesteps. Its internal solver need not be prescribed by the outer coupling API.
+
 ## Implementation order
 
 1. Implement and test in-memory `EvoAtmosphereState` capture/restore and the absolute-time restart path needed by coupling. Keep expensive integrations out of routine CI.
@@ -123,3 +157,4 @@ HDF5 persistence is a later phase and is not needed for in-memory trial branchin
 5. Add change-limited adaptive intervals and acceptance/rejection first, then add step doubling with scaled error measurement using the same framework.
 6. Verify rollback, time-dependent callbacks, behavior under interval refinement, and final chemical/climate status for both controllers. Compare representative solutions and cost with the existing fixed-point method.
 7. Add HDF5 state persistence and flat dictionary interchange separately. Design public coupled warm starts afterward.
+8. Add the replaceable cloud–climate component and cloud/haze feedback options described above, including rollback and convergence checks for the additional state.
