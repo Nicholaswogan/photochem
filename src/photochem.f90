@@ -4,7 +4,7 @@ module photochem
   use photochem_const, only: dp
   use photochem_enum, only: AnalyticalJacobian, AutodiffJacobian, &
                             FiniteDifferenceJacobian
-  use photochem_evoatmosphere, only: EvoAtmosphere, ProductionLoss
+  use photochem_evoatmosphere, only: EvoAtmosphere, EvoAtmosphereState, ProductionLoss
   use photochem_version, only: version
   implicit none
 end module

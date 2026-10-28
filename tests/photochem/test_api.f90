@@ -1,7 +1,7 @@
 program test_api
   ! This executable contains focused correctness and error-behavior checks for
   ! public EvoAtmosphere operations. See tests/README.md.
-  use photochem, only: EvoAtmosphere, dp
+  use photochem, only: EvoAtmosphere, EvoAtmosphereState, dp
   use photochem_test_paths, only: test_file, data_file, data_dir
   implicit none
 
@@ -12,6 +12,7 @@ contains
 
   subroutine test()
     call test_initialization_state()
+    call test_model_state()
     call test_initialize_atmosphere_z()
     call test_initialize_atmosphere_p()
     call test_inferred_initialization_errors()
@@ -36,6 +37,148 @@ contains
     call test_update_vertical_grid_atomicity()
     call test_methods(data_file('reaction_mechanisms/zahnle_earth.yaml'))
     call test_methods(test_file('no_particle_test.yaml'))
+  end subroutine
+
+  subroutine test_model_state()
+    use iso_c_binding, only: c_associated, c_ptr
+    use photochem_enum, only: PeriodicPressTempEdd, ContinuousPressTempEdd
+    use photochem_eqns, only: gravity
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    type(EvoAtmosphere) :: source, destination, empty_model
+    type(EvoAtmosphereState) :: saved, invalid, captured
+    character(:), allocatable :: err, mechanism
+    real(dp) :: P(2), T(2), edd(2), time
+    real(dp), allocatable :: expected_gravity(:)
+    type(c_ptr) :: stepper_before
+    logical :: give_up, converged
+    integer :: particles, mode
+
+    call empty_model%initialize_from_state(saved, err)
+    if (.not.allocated(err)) error stop 'Restore into an unconstructed model was accepted'
+    do particles = 0,1
+      mechanism = test_file('no_particle_test.yaml')
+      if (particles == 1) mechanism = data_file('reaction_mechanisms/zahnle_earth.yaml')
+      do mode = -1,1
+        source = EvoAtmosphere(mechanism, test_file('test_settings_minimal.yaml'), &
+                              test_file('sun.txt'), test_file('atmosphere.txt'), data_dir, err)
+        call check_model_state_error(err)
+        destination = EvoAtmosphere(mechanism, test_file('test_settings_minimal.yaml'), &
+                                   test_file('sun.txt'), data_dir, err)
+        call check_model_state_error(err)
+        captured = destination%model_state(err)
+        if (.not.allocated(err)) error stop 'Snapshot of an uninitialized atmosphere was accepted'
+
+        if (mode >= 0) then
+          P = [2.0_dp*source%wrk%surface_pressure*1.0e6_dp, &
+               0.5_dp*source%wrk%pressure_hydro(source%var%nz)]
+          T = [300.0_dp, 180.0_dp]
+          edd = [3.0e7_dp, 4.0e5_dp]
+          call source%set_press_temp_edd_profile(P, T, edd, mode=mode, &
+               maintain_toa_pressure=mode == ContinuousPressTempEdd, err=err)
+          call check_model_state_error(err)
+          ! Save a mismatch to ensure restoration does not remap either mode.
+          source%var%temperature = source%var%temperature*1.001_dp
+          source%var%edd = source%var%edd*1.002_dp
+        endif
+        if (particles == 1) source%var%particle_radius = source%var%particle_radius*1.1_dp
+        saved = source%model_state(err)
+        call check_model_state_error(err)
+        source%var%temperature = source%var%temperature + 1.0_dp
+        if (any(saved%temperature == source%var%temperature)) error stop 'Snapshot aliases source arrays'
+        if (mode >= 0) then
+          source%var%press_temp_edd_profile%temperature = T + 1.0_dp
+          if (any(saved%press_temp_edd_profile%temperature /= T)) error stop 'Snapshot aliases profile arrays'
+        endif
+        ! The saved radius, rather than the constructor radius, sets gravity.
+        saved%planet_radius = saved%planet_radius*1.01_dp
+        saved%usol(saved%nq,2) = -1.0e-40_dp
+        destination%var%max_resync_failures = 7
+        call destination%initialize_from_state(saved, err)
+        call check_model_state_error(err)
+        if (.not.destination%atmosphere_initialized) error stop 'Restore did not initialize atmosphere'
+        if (destination%var%max_resync_failures /= 7) error stop 'Restore changed general solver settings'
+        if (destination%dat%planet_radius /= saved%planet_radius) error stop 'Restore lost radius'
+        if (any(destination%var%temperature /= saved%temperature) .or. &
+            any(destination%var%edd /= saved%edd) .or. &
+            any(destination%var%particle_radius /= saved%particle_radius) .or. &
+            any(destination%wrk%usol /= saved%usol)) error stop 'Restore changed primary arrays'
+        if (destination%var%press_temp_edd_profile%enabled .neqv. (mode >= 0)) &
+          error stop 'Restore lost profile enablement'
+        if (destination%var%toa_pressure_maintenance%enabled .neqv. &
+            (mode == ContinuousPressTempEdd)) error stop 'Restore lost TOA enablement'
+        if (allocated(expected_gravity)) deallocate(expected_gravity)
+        allocate(expected_gravity(destination%var%nz))
+        call gravity(saved%planet_radius, saved%planet_mass, saved%z, expected_gravity)
+        if (any(destination%var%grav /= expected_gravity)) error stop 'Restore did not regenerate gravity'
+        if (allocated(destination%var%gibbs_energy)) then
+          if (.not.all(ieee_is_finite(destination%var%gibbs_energy))) error stop 'Invalid restored thermodynamics'
+        endif
+
+        call destination%initialize_robust_stepper(destination%wrk%usol, err)
+        call check_model_state_error(err)
+        stepper_before = destination%wrk%sun%cvode_mem
+        captured = destination%model_state(err)
+        call check_model_state_error(err)
+        if (.not.c_associated(stepper_before, destination%wrk%sun%cvode_mem)) &
+          error stop 'Snapshot changed the active stepper'
+        invalid = saved
+        invalid%species_names(1) = 'incompatible'
+        call destination%initialize_from_state(invalid, err)
+        if (.not.allocated(err)) error stop 'Incompatible species were accepted'
+        invalid = saved
+        invalid%dz(1) = -1.0_dp
+        call destination%initialize_from_state(invalid, err)
+        if (.not.allocated(err)) error stop 'Invalid geometry was accepted'
+        invalid = saved
+        deallocate(invalid%usol)
+        call destination%initialize_from_state(invalid, err)
+        if (.not.allocated(err)) error stop 'Missing densities were accepted'
+        invalid = saved
+        invalid%planet_mass = invalid%planet_mass*1.01_dp
+        call destination%initialize_from_state(invalid, err)
+        if (.not.allocated(err)) error stop 'Incompatible planet mass was accepted'
+        invalid = saved
+        invalid%temperature = invalid%temperature(:size(invalid%temperature)-1)
+        call destination%initialize_from_state(invalid, err)
+        if (.not.allocated(err)) error stop 'Incompatible layer count was accepted'
+        if (mode >= 0) then
+          invalid = saved
+          deallocate(invalid%press_temp_edd_profile%pressure)
+          call destination%initialize_from_state(invalid, err)
+          if (.not.allocated(err)) error stop 'Missing enabled profile data were accepted'
+        endif
+        if (destination%dat%reverse) then
+          invalid = saved
+          invalid%temperature = 1.0e9_dp
+          call destination%initialize_from_state(invalid, err)
+          if (.not.allocated(err)) error stop 'Candidate with unsupported thermodynamics was accepted'
+        endif
+        if (.not.c_associated(stepper_before, destination%wrk%sun%cvode_mem)) &
+          error stop 'Validation failure destroyed the stepper'
+        if (any(destination%wrk%usol /= captured%usol)) error stop 'Validation failure changed densities'
+        call destination%initialize_from_state(saved, err)
+        call check_model_state_error(err)
+        if (c_associated(destination%wrk%sun%cvode_mem) .or. destination%wrk%robust_stepper_initialized) &
+          error stop 'Successful restore retained an active stepper'
+        captured = saved
+        call destination%initialize_robust_stepper(destination%wrk%usol, err)
+        call check_model_state_error(err)
+        call destination%robust_step(give_up, converged, err)
+        call check_model_state_error(err)
+        time = destination%wrk%tn
+        if (.not.ieee_is_finite(time) .or. time <= 0.0_dp) error stop 'Restored model could not step'
+        if (any(saved%temperature /= captured%temperature)) error stop 'Destination changed snapshot'
+      enddo
+    enddo
+
+  end subroutine
+
+  subroutine check_model_state_error(err)
+    character(:), allocatable, intent(in) :: err
+    if (allocated(err)) then
+      print *, err
+      stop 1
+    endif
   end subroutine
 
   subroutine test_update_vertical_grid_inputs()

@@ -1,5 +1,5 @@
 module photochem_evoatmosphere
-  use photochem_const, only: dp, m_str_len
+  use photochem_const, only: dp, s_str_len, m_str_len
   use photochem_data, only: PhotochemData, ParticleXsections
   use photochem_vars, only: PhotochemVars, PressureTempEddProfile, &
                             TOAPressureMaintenance
@@ -7,7 +7,7 @@ module photochem_evoatmosphere
   implicit none
 
   private
-  public :: EvoAtmosphere, ProductionLoss
+  public :: EvoAtmosphere, EvoAtmosphereState, ProductionLoss
 
   !> Process-resolved production and loss rates for one chemical species.
   !!
@@ -56,6 +56,36 @@ module photochem_evoatmosphere
     procedure :: allocate => AtmosphereState_allocate
   end type
 
+  !> Independent atmospheric snapshot for initialization and persistence.
+  !!
+  !! Owns copies of the primary atmospheric fields and persistent-profile
+  !! configuration. Derived atmospheric properties are recomputed on restore.
+  !! Compatibility metadata describe the source species ordering and planet
+  !! mass; they do not establish complete mechanism or optical-data equivalence.
+  !! General solver settings, callbacks, integration time, and solver history
+  !! are not included.
+  type :: EvoAtmosphereState
+    character(len=s_str_len), allocatable :: species_names(:) !! Ordered species names, including hv and M.
+    integer :: nq !! Number of evolved particle and gas species.
+    integer :: ng !! Number of gas species, including short-lived gases.
+    integer :: nsl !! Number of short-lived gas species.
+    real(dp) :: planet_mass !! Planet mass (g).
+
+    real(dp) :: bottom_atmos
+    real(dp) :: top_atmos
+    real(dp) :: trop_alt
+    real(dp), allocatable :: z(:)
+    real(dp), allocatable :: dz(:)
+    real(dp), allocatable :: temperature(:)
+    real(dp), allocatable :: edd(:)
+    real(dp), allocatable :: particle_radius(:,:)
+    real(dp), allocatable :: usol(:,:)
+    real(dp) :: planet_radius
+
+    type(PressureTempEddProfile) :: press_temp_edd_profile
+    type(TOAPressureMaintenance) :: toa_pressure_maintenance
+  end type
+
   !> A one-dimensional photochemical model.
   !!
   !! Construction loads the static mechanism and model configuration. The
@@ -77,6 +107,8 @@ module photochem_evoatmosphere
     procedure :: initialize_from_atmosphere_file
     procedure :: initialize_atmosphere_z
     procedure :: initialize_atmosphere_p
+    procedure :: model_state
+    procedure :: initialize_from_state
     procedure, private :: require_atmosphere_initialized
 
     !~~ photochem_evoatmosphere_rhs.f90 ~~!
@@ -187,6 +219,40 @@ module photochem_evoatmosphere
     module subroutine initialize_from_atmosphere_file(self, atmosphere_txt, err)
       class(EvoAtmosphere), intent(inout) :: self
       character(len=*), intent(in) :: atmosphere_txt !! Path to the legacy atmosphere text file.
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Capture an independent snapshot of the initialized atmosphere.
+    !!
+    !! Copies the current primary atmospheric fields, profile configuration,
+    !! and compatibility metadata without preparing or modifying the model.
+    !! Existing profile mismatch and numerical trace densities are preserved.
+    !! The active integrator is unchanged. An uninitialized atmosphere returns
+    !! an error; derived properties and solver history are not captured.
+    module function model_state(self, err) result(state)
+      class(EvoAtmosphere), intent(in) :: self
+      character(:), allocatable, intent(out) :: err
+      type(EvoAtmosphereState) :: state !! Owned atmospheric snapshot; use only if `err` is unallocated.
+    end function
+
+    !> Initialize a compatible model from an independent atmospheric snapshot.
+    !!
+    !! Static construction must be complete and species ordering, species
+    !! counts, layer count, and planet mass must match. Derived properties are
+    !! regenerated using the saved radius. Current temperatures and eddy
+    !! diffusion are retained without synchronizing the prescribed profile.
+    !! Destination boundary conditions, callbacks, and general solver settings
+    !! remain in effect; normal preparation applies boundary and clipping rules.
+    !!
+    !! Validation and candidate-construction errors leave the model and stepper
+    !! unchanged. After candidate construction the stepper is destroyed. A
+    !! preparation error attempts to restore the previous atmosphere, but does
+    !! not restore solver history or external callback side effects. Failed
+    !! rollback leaves the atmosphere marked uninitialized. Successful restore
+    !! requires a new stepper before integration can resume.
+    module subroutine initialize_from_state(self, state, err)
+      class(EvoAtmosphere), intent(inout) :: self
+      type(EvoAtmosphereState), intent(in) :: state !! Snapshot from a compatible model.
       character(:), allocatable, intent(out) :: err
     end subroutine
 
