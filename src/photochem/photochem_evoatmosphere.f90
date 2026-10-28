@@ -205,8 +205,6 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
     end subroutine
 
-    !~~ photochem_evoatmosphere_init.f90 ~~!
-
     module subroutine validate_atmosphere_state(state, err)
       type(EvoAtmosphereState), intent(in) :: state
       character(:), allocatable, intent(out) :: err
@@ -244,6 +242,8 @@ module photochem_evoatmosphere
       character(:), allocatable, intent(out) :: err
       type(EvoAtmosphereState) :: state
     end function
+
+    !~~ photochem_evoatmosphere_init.f90 ~~!
 
     module subroutine AtmosphereState_allocate(self, dat, nz)
       class(AtmosphereState), intent(inout) :: self
