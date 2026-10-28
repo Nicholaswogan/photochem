@@ -84,6 +84,9 @@ module photochem_evoatmosphere
 
     type(PressureTempEddProfile) :: press_temp_edd_profile
     type(TOAPressureMaintenance) :: toa_pressure_maintenance
+  contains
+    procedure :: save_to_h5 => EvoAtmosphereState_save_to_h5
+    procedure :: initialize_from_h5 => EvoAtmosphereState_initialize_from_h5
   end type
 
   !> A one-dimensional photochemical model.
@@ -155,9 +158,92 @@ module photochem_evoatmosphere
     module procedure :: create_EvoAtmosphere_static
   end interface
 
+  interface EvoAtmosphereState
+    module procedure :: create_EvoAtmosphereState
+    module procedure :: load_EvoAtmosphereState
+  end interface
+
   interface
 
+    !~~ photochem_evoatmosphere_state.f90 ~~!
+
+    !> Load an independent snapshot from a versioned HDF5 state file.
+    !! Uses the same validation as the field-based constructor. No model or
+    !! reaction data are needed to load the snapshot. Check `err` before use.
+    module function load_EvoAtmosphereState(filename, err) result(state)
+      character(*), intent(in) :: filename !! HDF5 snapshot filename.
+      character(:), allocatable, intent(out) :: err
+      type(EvoAtmosphereState) :: state
+    end function
+
+    !> Replace this snapshot from an HDF5 file after successful validation.
+    !! Reported read or validation errors leave the existing object unchanged.
+    !! Schema guards precede h5fortran reads; unexpected library I/O failures
+    !! can still terminate the process through h5fortran's error stop.
+    module subroutine EvoAtmosphereState_initialize_from_h5(self, filename, err)
+      class(EvoAtmosphereState), intent(inout) :: self
+      character(*), intent(in) :: filename !! HDF5 snapshot filename.
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Save a validated snapshot as uncompressed HDF5, schema version 1.
+    !!
+    !! Writes a temporary sibling file and renames it only after a successful
+    !! close. Existing destinations are replaced if the platform permits the
+    !! rename; failures preserve the existing file. The source is unchanged.
+    !! Dataset groups are compatibility, atmosphere, press_temp_edd_profile,
+    !! and toa_pressure_maintenance, with a root schema_version integer.
+    !! Scalars use scalar datasets; flags are integers 0 or 1. Real values are
+    !! float64 and species names are fixed-width strings. Two-dimensional
+    !! Fortran arrays (species,layer) appear as (layer,species) in h5py.
+    !! Predictable input errors return through err. Unexpected filesystem or
+    !! library failures can still trigger h5fortran's error stop; the temporary
+    !! file protects an existing destination but may remain after termination.
+    module subroutine EvoAtmosphereState_save_to_h5(self, filename, err)
+      class(EvoAtmosphereState), target, intent(in) :: self
+      character(*), intent(in) :: filename !! Destination HDF5 filename.
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
     !~~ photochem_evoatmosphere_init.f90 ~~!
+
+    module subroutine validate_atmosphere_state(state, err)
+      type(EvoAtmosphereState), intent(in) :: state
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+
+    !> Construct an independent atmospheric snapshot from primary fields.
+    !!
+    !! Validates internal consistency without requiring a live model. All
+    !! arrays, including arrays in the profile configuration, are copied.
+    !! Species order is particles, evolved gases, short-lived gases, hv, M.
+    !! Layer arrays run from bottom to top; no interpolation, normalization,
+    !! clipping, or profile synchronization is performed. Finite negative trace
+    !! densities are permitted when total gas density remains positive.
+    !! Destination compatibility and derived properties are checked separately
+    !! by [[EvoAtmosphere:initialize_from_state]]. Use the result only if `err`
+    !! is unallocated.
+    module function create_EvoAtmosphereState(species_names, nq, ng, nsl, planet_mass, &
+        bottom_atmos, top_atmos, trop_alt, z, dz, temperature, edd, particle_radius, &
+        usol, planet_radius, press_temp_edd_profile, toa_pressure_maintenance, err) result(state)
+      character(*), intent(in) :: species_names(:) !! Ordered species names, including hv and M.
+      integer, intent(in) :: nq !! Number of evolved particle and gas species.
+      integer, intent(in) :: ng !! Number of gases, including short-lived gases.
+      integer, intent(in) :: nsl !! Number of short-lived gases.
+      real(dp), intent(in) :: planet_mass !! Planet mass (g).
+      real(dp), intent(in) :: bottom_atmos, top_atmos !! Domain boundaries (cm).
+      real(dp), intent(in) :: trop_alt !! Tropopause altitude (cm).
+      real(dp), intent(in) :: z(:), dz(:) !! Layer centers and widths (cm), shape `(nz)`.
+      real(dp), intent(in) :: temperature(:) !! Layer temperatures (K), shape `(nz)`.
+      real(dp), intent(in) :: edd(:) !! Eddy diffusion (cm^2/s), shape `(nz)`.
+      real(dp), intent(in) :: particle_radius(:,:) !! Particle radii (cm), shape `(nq-ng+nsl,nz)`.
+      real(dp), intent(in) :: usol(:,:) !! Evolved species densities (molecules/cm^3), shape `(nq,nz)`.
+      real(dp), intent(in) :: planet_radius !! Planet radius (cm).
+      type(PressureTempEddProfile), intent(in) :: press_temp_edd_profile !! Prescribed profile and sync settings.
+      type(TOAPressureMaintenance), intent(in) :: toa_pressure_maintenance !! Model-top maintenance settings.
+      character(:), allocatable, intent(out) :: err
+      type(EvoAtmosphereState) :: state
+    end function
 
     module subroutine AtmosphereState_allocate(self, dat, nz)
       class(AtmosphereState), intent(inout) :: self
