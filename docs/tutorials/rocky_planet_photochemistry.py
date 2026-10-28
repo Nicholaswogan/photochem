@@ -23,7 +23,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
-from photochem import EvoAtmosphere
+from photochem import EvoAtmosphere, EvoAtmosphereState
 from photochem.utils import stars, zahnle_rx_and_thermo_files
 
 # %% [markdown]
@@ -338,34 +338,31 @@ print(f"{'Relative integrated net:':<30} {relative_net:.2e}")
 # %% [markdown]
 # ## Save and reload the atmosphere
 #
-# `out2atmosphere_txt` writes composition, temperature, eddy diffusion, and atmospheric structure to a human-readable text file. This is a convenient initialization file, but it is not a complete checkpoint: the reaction mechanism, stellar spectrum, boundary conditions, and other settings still come from the three files supplied to the constructor, and persistent pressure-profile configuration is not stored in the atmosphere file.
+# `model_state()` captures an independent snapshot of the atmosphere, including composition, temperature, eddy diffusion, particle radii, and persistent pressure-profile configuration. We can save it to HDF5 and load it later with `EvoAtmosphereState`.
 
 # %%
-pc.out2atmosphere_txt("rocky_planet_photochemistry/modern_earth_steady.txt", overwrite=True)
+state = pc.model_state()
+state.save_to_h5("rocky_planet_photochemistry/modern_earth_steady.h5")
+saved_state = EvoAtmosphereState("rocky_planet_photochemistry/modern_earth_steady.h5")
 
+
+# %% [markdown]
+# To restore the atmosphere, construct a new model with the same mechanism and compatible settings and data, then call `initialize_from_state`. No atmosphere text file or manual pressure-profile setup is needed. Boundary conditions and general solver settings come from the destination model; integration time and solver history are not restored.
+
+# %%
 pc_restart = EvoAtmosphere(
     mechanism_file="rocky_planet_photochemistry/zahnle_earth_HNOCHeS.yaml",
     settings_file="rocky_planet_photochemistry/settings.yaml",
     flux_file="rocky_planet_photochemistry/modern_sun.txt",
-    atmosphere_txt="rocky_planet_photochemistry/modern_earth_steady.txt",
 )
 pc_restart.var.verbose = 0
+pc_restart.initialize_from_state(saved_state)
 
 
 # %% [markdown]
-# The atmosphere file also does not preserve the persistent $P$–$T$–$K_{zz}$ configuration. We therefore restore the original pressure-based profiles and tropopause pressure before integrating the restarted model.
+# We can now integrate from the restored atmosphere using a new solver session.
 
 # %%
-pc_restart.set_press_temp_edd_profile(
-    pressure,
-    temperature,
-    eddy,
-    trop_p=tropopause_pressure,
-    hydro_pressure=True,
-    maintain_toa_pressure=True,
-    target_pressure=pressure[-1],
-)
-
 restart_start = time.perf_counter()
 restart_converged = pc_restart.find_steady_state()
 restart_elapsed = time.perf_counter() - restart_start
