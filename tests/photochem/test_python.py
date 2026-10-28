@@ -2,13 +2,14 @@
 
 import tempfile
 import copy
+import gc
 from pathlib import Path
 
 import numpy as np
 
 import photochem
 from photochem import clima, equilibrate
-from photochem import EvoAtmosphere, PhotoException, zahnle_earth
+from photochem import EvoAtmosphere, EvoAtmosphereState, PhotoException, zahnle_earth
 from photochem.utils import stars
 
 TEST_DIR = Path(__file__).resolve().parent
@@ -171,6 +172,197 @@ def _make_file_atmosphere():
     )
     pc.var.verbose = 0
     return pc
+
+
+def _assert_state_dict_equal(left, right):
+    assert left.keys() == right.keys()
+    for key in left:
+        assert isinstance(right[key], np.ndarray), key
+        assert left[key].shape == right[key].shape, key
+        np.testing.assert_array_equal(left[key], right[key], err_msg=key)
+
+
+def _expect_state_error(function, *args):
+    try:
+        function(*args)
+    except PhotoException as exc:
+        return str(exc)
+    raise AssertionError('Invalid atmospheric state operation was accepted')
+
+
+def test_model_state_round_trips():
+    """Snapshots survive model destruction and NumPy/HDF5 round trips."""
+    with tempfile.TemporaryDirectory() as tmp:
+        for particles in (False, True):
+            mechanism = str(DATA_DIR / 'reaction_mechanisms/zahnle_earth.yaml') if particles else fixture_file('no_particle_test.yaml')
+            for mode in (-1, 0, 1):
+                pc = EvoAtmosphere(
+                    mechanism, fixture_file('test_settings_minimal.yaml'),
+                    fixture_file('sun.txt'), fixture_file('atmosphere.txt'), data_dir=str(DATA_DIR),
+                )
+                if mode >= 0:
+                    pressure = np.array([2 * pc.wrk.surface_pressure * 1e6, 0.5 * pc.wrk.pressure_hydro[-1]])
+                    pc.set_press_temp_edd_profile(
+                        pressure, np.array([300., 180.]), np.array([3e7, 4e5]),
+                        mode=mode, maintain_toa_pressure=mode == 0, target_pressure=0.2,
+                    )
+                state = pc.model_state()
+                original = state.to_dict()
+                assert all(isinstance(value, np.ndarray) for value in original.values())
+                assert original['species_names'].dtype == np.dtype('S20')
+                np.testing.assert_array_equal(original['species_names'], np.array(pc.dat.species_names, dtype='S20'))
+                assert original['usol'].shape == (pc.dat.nq, pc.var.nz)
+                assert original['particle_radius'].shape == (pc.dat.np, pc.var.nz)
+                assert original['ng'] == pc.dat.ng
+                assert original['nsl'] == pc.dat.nsl
+                np.testing.assert_array_equal(original['usol'], pc.wrk.usol)
+                inputs = {key: value.copy() for key, value in original.items()}
+                inputs['temperature'] *= 1.001
+                inputs['edd'] *= 1.002
+                inputs['particle_radius'] *= 1.1
+                inputs['usol'][-1, 1] = -1e-40
+                inputs['profile_temperature_tol'] = np.array(0.004)
+                inputs['profile_edd_tol'] = np.array(0.03)
+                inputs['profile_extreme_factor'] = np.array(9.)
+                if mode >= 0:
+                    inputs['profile_hydro_pressure'] = np.array(0, dtype=np.int32)
+                    inputs['toa_target_pressure'] = np.array(0.25)
+                    inputs['toa_pressure_factor'] = np.array(2.)
+                    inputs['toa_extreme_pressure_factor'] = np.array(8.)
+                if mode < 0:
+                    # Preserve allocated-empty separately from unallocated arrays.
+                    inputs['profile_pressure_allocated'] = np.array(1, dtype=np.int32)
+                constructed = EvoAtmosphereState.from_dict(inputs)
+                expected = {key: value.copy() for key, value in inputs.items()}
+                inputs['temperature'] += 10.
+                inputs['species_names'][0] = b'changed'
+                inputs['profile_temperature'] += 10.
+                _assert_state_dict_equal(constructed.to_dict(), expected)
+                _assert_state_dict_equal(state.to_dict(), original)
+                pc.initialize_from_state(constructed)
+                np.testing.assert_array_equal(pc.var.temperature, expected['temperature'])
+                _assert_state_dict_equal(state.to_dict(), original)
+                del pc
+                gc.collect()
+                _assert_state_dict_equal(constructed.to_dict(), expected)
+
+                filename = Path(tmp) / 'atmosphere.h5'
+                constructed.save_to_h5(filename)
+                loaded = EvoAtmosphereState(filename)
+                _assert_state_dict_equal(loaded.to_dict(), expected)
+                loaded.initialize_from_h5(filename)
+                _assert_state_dict_equal(loaded.to_dict(), expected)
+                _expect_state_error(loaded.initialize_from_h5, Path(tmp) / 'missing.h5')
+                _assert_state_dict_equal(loaded.to_dict(), expected)
+                np.savez(Path(tmp) / 'arrays.npz', **expected)
+                with np.load(Path(tmp) / 'arrays.npz', allow_pickle=False) as archive:
+                    imported = EvoAtmosphereState.from_dict(dict(archive))
+                _assert_state_dict_equal(imported.to_dict(), expected)
+                # C-order arrays must be converted before crossing the Fortran ABI.
+                c_order = {key: np.array(value, order='C', copy=True) for key, value in expected.items()}
+                imported = EvoAtmosphereState.from_dict(c_order)
+                _assert_state_dict_equal(imported.to_dict(), expected)
+
+                destination = EvoAtmosphere(
+                    mechanism, fixture_file('test_settings_minimal.yaml'),
+                    fixture_file('sun.txt'), data_dir=str(DATA_DIR),
+                )
+                _expect_state_error(destination.model_state)
+                destination.var.max_resync_failures = 7
+                destination.initialize_from_state(imported)
+                assert destination.atmosphere_initialized
+                assert destination.var.max_resync_failures == 7
+                _assert_state_dict_equal(destination.model_state().to_dict(), expected)
+                profile = destination.var.press_temp_edd_profile
+                assert profile.temperature_tol == 0.004
+                assert profile.edd_tol == 0.03
+                assert profile.extreme_factor == 9.
+                if mode >= 0:
+                    assert profile.mode == mode
+                    assert profile.hydro_pressure is False
+                    assert destination.var.toa_pressure_maintenance.target_pressure == 0.25
+                    assert destination.var.toa_pressure_maintenance.pressure_factor == 2.
+                    assert destination.var.toa_pressure_maintenance.extreme_pressure_factor == 8.
+                # Deliberately changing the destination cannot change the state.
+                replacement = {key: value.copy() for key, value in expected.items()}
+                replacement['temperature'] += 1.
+                destination.initialize_from_state(EvoAtmosphereState.from_dict(replacement))
+                _assert_state_dict_equal(imported.to_dict(), expected)
+                if mode < 0:
+                    destination.initialize_stepper(destination.wrk.usol)
+                    captured = destination.model_state()
+                    destination.step()
+                    destination.initialize_from_state(captured)
+                    _expect_state_error(destination.step)
+                    destination.initialize_stepper(destination.wrk.usol)
+                    assert destination.step() > 0.
+
+
+def test_model_state_errors():
+    """Malformed dictionaries fail before unsafe array access or model mutation."""
+    pc = _make_file_atmosphere()
+    state = pc.model_state()
+    original = state.to_dict()
+    cases = []
+    missing = copy.deepcopy(original)
+    del missing['temperature']
+    cases.append(missing)
+    unknown = copy.deepcopy(original)
+    unknown['unknown'] = np.array(1)
+    cases.append(unknown)
+    for key, value in (
+        ('schema_version', np.array(99)),
+        ('schema_version', np.array(1.0)),
+        ('nq', np.array(-1)),
+        ('nq', np.array(2**63 - 1, dtype=np.int64)),
+        ('planet_mass', np.array(np.nan)),
+        ('profile_enabled', np.array(2)),
+        ('temperature', original['temperature'][:-1]),
+        ('temperature', np.array([1.])),
+        ('temperature', np.full_like(original['temperature'], -1.)),
+        ('usol', original['usol'].T.copy()),
+        ('temperature', original['temperature'].tolist()),
+        ('planet_mass', np.array([1.])),
+        ('profile_pressure_allocated', np.array(2)),
+    ):
+        invalid = copy.deepcopy(original)
+        invalid[key] = value
+        cases.append(invalid)
+    for first_name in ('x' * 21, 'invalid\x00name'):
+        invalid = copy.deepcopy(original)
+        invalid['species_names'] = original['species_names'].astype('U30')
+        invalid['species_names'][0] = first_name
+        cases.append(invalid)
+    invalid = copy.deepcopy(original)
+    invalid['species_names'][1] = invalid['species_names'][0]
+    cases.append(invalid)
+    for invalid in cases:
+        _expect_state_error(EvoAtmosphereState.from_dict, invalid)
+    _expect_state_error(EvoAtmosphereState.from_dict, None)
+    empty = EvoAtmosphereState.__new__(EvoAtmosphereState)
+    _expect_state_error(empty.to_dict)
+    _expect_state_error(pc.initialize_from_state, empty)
+    _expect_state_error(state.save_to_h5, 'invalid\x00filename')
+    _assert_state_dict_equal(state.to_dict(), original)
+    incompatible = copy.deepcopy(original)
+    incompatible['planet_mass'] *= 1.01
+    other = EvoAtmosphereState.from_dict(incompatible)
+    _expect_state_error(pc.initialize_from_state, other)
+    _assert_state_dict_equal(pc.model_state().to_dict(), original)
+
+
+def test_model_state_short_lived_species():
+    """Dictionary import preserves the evolved/short-lived species partition."""
+    pc = EvoAtmosphere(
+        str(DATA_DIR / 'reaction_mechanisms/zahnle_earth.yaml'),
+        fixture_file('test_settings_short_lived.yaml'), fixture_file('sun.txt'),
+        fixture_file('atmosphere.txt'), data_dir=str(DATA_DIR),
+    )
+    arrays = pc.model_state().to_dict()
+    assert arrays['nsl'] == 2
+    state = EvoAtmosphereState.from_dict(arrays)
+    pc.initialize_from_state(state)
+    _assert_state_dict_equal(pc.model_state().to_dict(), arrays)
 
 
 def test_evolve_uses_fixed_grid():
@@ -1195,6 +1387,9 @@ def main():
     test_exposed_photochem_state()
     test_solver_controls_api()
     test_static_construction()
+    test_model_state_round_trips()
+    test_model_state_errors()
+    test_model_state_short_lived_species()
     test_toa_pressure_maintenance_api()
     test_persistent_profile_controls_toa_maintenance()
     test_robust_initial_toa_pressure_preflight()

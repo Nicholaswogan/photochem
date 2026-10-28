@@ -8,6 +8,8 @@ set(_photochem_deps
   AtomConservation_pxd.pxd
   EvoAtmosphere.pyx
   EvoAtmosphere_pxd.pxd
+  EvoAtmosphereState.pyx
+  EvoAtmosphereState_pxd.pxd
   PhotochemData.pyx
   PhotochemData_pxd.pxd
   PhotochemVars.pyx
