@@ -220,6 +220,223 @@ contains
 
   end subroutine
 
+  module function model_state(self, err) result(state)
+    class(EvoAtmosphere), intent(in) :: self
+    character(:), allocatable, intent(out) :: err
+    type(EvoAtmosphereState) :: state
+
+    call self%require_atmosphere_initialized('model_state', err)
+    if (allocated(err)) return
+
+    state%species_names = self%dat%species_names
+    state%nq = self%dat%nq
+    state%ng = self%dat%ng
+    state%nsl = self%dat%nsl
+    state%planet_mass = self%dat%planet_mass
+
+    state%bottom_atmos = self%var%bottom_atmos
+    state%top_atmos = self%var%top_atmos
+    state%trop_alt = self%var%trop_alt
+    state%z = self%var%z
+    state%dz = self%var%dz
+    state%temperature = self%var%temperature
+    state%edd = self%var%edd
+    state%particle_radius = self%var%particle_radius
+    state%usol = self%wrk%usol
+    state%planet_radius = self%dat%planet_radius
+
+    state%press_temp_edd_profile = self%var%press_temp_edd_profile
+    state%toa_pressure_maintenance = self%var%toa_pressure_maintenance
+
+  end function
+
+  module subroutine initialize_from_state(self, state, err)
+    use photochem_eqns, only: gravity
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    class(EvoAtmosphere), intent(inout) :: self
+    type(EvoAtmosphereState), intent(in) :: state
+    character(:), allocatable, intent(out) :: err
+
+    type(AtmosphereState) :: candidate, previous_state
+    real(dp) :: previous_radius
+    logical :: was_initialized
+    character(:), allocatable :: original_err, rollback_err
+
+    if (.not.allocated(self%dat) .or. .not.allocated(self%var) .or. &
+        .not.allocated(self%wrk)) then
+      err = 'initialize_from_state requires a statically constructed EvoAtmosphere.'
+      return
+    endif
+    call validate_model_state(self, state, err)
+    if (allocated(err)) return
+
+    call candidate%allocate(self%dat, self%var%nz)
+    candidate%bottom_atmos = state%bottom_atmos
+    candidate%top_atmos = state%top_atmos
+    candidate%trop_alt = state%trop_alt
+    candidate%z = state%z
+    candidate%dz = state%dz
+    candidate%temperature = state%temperature
+    candidate%edd = state%edd
+    candidate%particle_radius = state%particle_radius
+    candidate%usol = state%usol
+    candidate%press_temp_edd_profile = state%press_temp_edd_profile
+    candidate%toa_pressure_maintenance = state%toa_pressure_maintenance
+    call gravity(state%planet_radius, self%dat%planet_mass, candidate%z, candidate%grav)
+    if (.not.all(ieee_is_finite(candidate%grav)) .or. any(candidate%grav <= 0.0_dp)) then
+      err = 'Atmospheric state geometry produced invalid gravity.'
+      return
+    endif
+    call finalize_atmosphere_state(self%dat, candidate, err)
+    if (allocated(err)) return
+
+    was_initialized = self%atmosphere_initialized
+    previous_radius = self%dat%planet_radius
+    if (was_initialized) call previous_state%allocate(self%dat, self%var%nz)
+    call copy_model_to_state(self, previous_state)
+
+    call self%destroy_stepper(err)
+    if (allocated(err)) return
+
+    self%dat%planet_radius = state%planet_radius
+    call copy_state_to_model(self, candidate)
+    call self%prep_atmosphere_unchecked(candidate%usol, KeepCurrentProfile, err)
+    if (allocated(err)) then
+      original_err = err
+      self%dat%planet_radius = previous_radius
+      if (was_initialized) then
+        call copy_state_to_model(self, previous_state)
+        call self%prep_atmosphere_unchecked(previous_state%usol, KeepCurrentProfile, rollback_err)
+        self%atmosphere_initialized = .not.allocated(rollback_err)
+        if (allocated(rollback_err)) err = original_err//' Rollback failed: '//rollback_err
+      else
+        self%var%press_temp_edd_profile = previous_state%press_temp_edd_profile
+        self%var%toa_pressure_maintenance = previous_state%toa_pressure_maintenance
+        self%atmosphere_initialized = .false.
+      endif
+      return
+    endif
+
+    self%atmosphere_initialized = .true.
+
+  end subroutine
+
+  subroutine validate_model_state(self, state, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    class(EvoAtmosphere), intent(in) :: self
+    type(EvoAtmosphereState), intent(in) :: state
+    character(:), allocatable, intent(out) :: err
+    integer :: nz, nprofile
+    real(dp) :: z_tol
+
+    if (.not.allocated(state%species_names)) then
+      err = 'Atmospheric state is missing species names.'
+      return
+    endif
+    if (size(state%species_names) /= size(self%dat%species_names)) then
+      err = 'Atmospheric state species count does not match the destination.'
+      return
+    endif
+    if (any(state%species_names /= self%dat%species_names) .or. &
+        state%nq /= self%dat%nq .or. state%ng /= self%dat%ng .or. state%nsl /= self%dat%nsl) then
+      err = 'Atmospheric state species ordering or partition does not match the destination.'
+      return
+    endif
+    if (.not.ieee_is_finite(state%planet_mass) .or. state%planet_mass /= self%dat%planet_mass) then
+      err = 'Atmospheric state planet mass does not match the destination.'
+      return
+    endif
+    if (.not.allocated(state%z) .or. .not.allocated(state%dz) .or. &
+        .not.allocated(state%temperature) .or. .not.allocated(state%edd) .or. &
+        .not.allocated(state%particle_radius) .or. .not.allocated(state%usol)) then
+      err = 'Atmospheric state is missing required atmospheric arrays.'
+      return
+    endif
+    nz = self%var%nz
+    if (size(state%z) /= nz .or. size(state%dz) /= nz .or. &
+        size(state%temperature) /= nz .or. size(state%edd) /= nz .or. &
+        any(shape(state%particle_radius) /= [self%dat%npq,nz]) .or. &
+        any(shape(state%usol) /= [self%dat%nq,nz])) then
+      err = 'Atmospheric state array dimensions do not match the destination.'
+      return
+    endif
+    if (.not.ieee_is_finite(state%bottom_atmos) .or. .not.ieee_is_finite(state%top_atmos) .or. &
+        .not.ieee_is_finite(state%planet_radius) .or. .not.ieee_is_finite(state%trop_alt) .or. &
+        .not.all(ieee_is_finite(state%z)) .or. .not.all(ieee_is_finite(state%dz))) then
+      err = 'Atmospheric state geometry must be finite.'
+      return
+    endif
+    if (state%planet_radius <= 0.0_dp .or. state%bottom_atmos < 0.0_dp .or. &
+        state%top_atmos <= state%bottom_atmos .or. any(state%dz <= 0.0_dp) .or. &
+        any(state%z(2:) <= state%z(:nz-1))) then
+      err = 'Atmospheric state requires positive radius, increasing altitudes, and positive layer widths.'
+      return
+    endif
+    z_tol = 1.0e-10_dp*max(1.0_dp, abs(state%bottom_atmos), abs(state%top_atmos))
+    if (abs(state%z(1)-state%dz(1)/2.0_dp-state%bottom_atmos) > z_tol .or. &
+        abs(state%z(nz)+state%dz(nz)/2.0_dp-state%top_atmos) > z_tol .or. &
+        any(abs(state%z(2:)-state%z(:nz-1)-(state%dz(2:)+state%dz(:nz-1))/2.0_dp) > z_tol)) then
+      err = 'Atmospheric state layer centers, widths, and domain boundaries are inconsistent.'
+      return
+    endif
+    if (.not.all(ieee_is_finite(state%temperature)) .or. any(state%temperature <= 0.0_dp) .or. &
+        .not.all(ieee_is_finite(state%edd)) .or. any(state%edd <= 0.0_dp) .or. &
+        .not.all(ieee_is_finite(state%particle_radius)) .or. any(state%particle_radius <= 0.0_dp)) then
+      err = 'Atmospheric state temperature, eddy diffusion, and particle radii must be finite and positive.'
+      return
+    endif
+    if (.not.all(ieee_is_finite(state%usol))) then
+      err = 'Atmospheric state densities must be finite.'
+      return
+    endif
+    if (.not.all(ieee_is_finite(sum(state%usol(self%dat%ng_1:,:),dim=1))) .or. &
+        any(sum(state%usol(self%dat%ng_1:,:),dim=1) <= 0.0_dp)) then
+      err = 'Atmospheric state must have positive total gas density in every layer.'
+      return
+    endif
+    call state%press_temp_edd_profile%validate(err)
+    if (allocated(err)) return
+    call state%toa_pressure_maintenance%validate(err)
+    if (allocated(err)) return
+    if (state%toa_pressure_maintenance%enabled .and. .not.state%press_temp_edd_profile%enabled) then
+      err = 'Atmospheric state TOA maintenance requires an enabled pressure-based profile.'
+      return
+    endif
+    if (state%press_temp_edd_profile%enabled) then
+      if (.not.allocated(state%press_temp_edd_profile%pressure) .or. &
+          .not.allocated(state%press_temp_edd_profile%temperature) .or. &
+          .not.allocated(state%press_temp_edd_profile%edd)) then
+        err = 'Atmospheric state is missing enabled pressure-profile arrays.'
+        return
+      endif
+      nprofile = size(state%press_temp_edd_profile%pressure)
+      if (nprofile < 2 .or. size(state%press_temp_edd_profile%temperature) /= nprofile .or. &
+          size(state%press_temp_edd_profile%edd) /= nprofile) then
+        err = 'Atmospheric state pressure-profile arrays must have matching lengths of at least two.'
+        return
+      endif
+      if (.not.all(ieee_is_finite(state%press_temp_edd_profile%pressure)) .or. &
+          .not.all(ieee_is_finite(state%press_temp_edd_profile%temperature)) .or. &
+          .not.all(ieee_is_finite(state%press_temp_edd_profile%edd)) .or. &
+          any(state%press_temp_edd_profile%pressure <= 0.0_dp) .or. &
+          any(state%press_temp_edd_profile%temperature <= 0.0_dp) .or. &
+          any(state%press_temp_edd_profile%edd <= 0.0_dp) .or. &
+          any(state%press_temp_edd_profile%pressure(2:) >= state%press_temp_edd_profile%pressure(:nprofile-1))) then
+        err = 'Atmospheric state pressure profile requires positive finite values and decreasing pressure.'
+        return
+      endif
+      if (.not.ieee_is_finite(state%press_temp_edd_profile%trop_p)) then
+        err = 'Atmospheric state tropopause pressure must be finite.'
+        return
+      endif
+      if ((state%press_temp_edd_profile%trop_p > 0.0_dp) .neqv. self%dat%gas_rainout) then
+        err = 'Atmospheric state tropopause pressure is incompatible with destination rainout settings.'
+        return
+      endif
+    endif
+
+  end subroutine
+
   module subroutine copy_model_to_state(self, state)
     class(EvoAtmosphere), intent(in) :: self
     type(AtmosphereState), intent(inout) :: state
