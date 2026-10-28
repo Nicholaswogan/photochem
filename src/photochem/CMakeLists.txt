@@ -18,6 +18,7 @@ set(PHOTOCHEM_EVOATMOSPHERE
   photochem_evoatmosphere.f90
   photochem_evoatmosphere_boundary.f90
   photochem_evoatmosphere_init.f90
+  photochem_evoatmosphere_state.f90
   photochem_evoatmosphere_integrate.f90
   photochem_evoatmosphere_output.f90
   photochem_evoatmosphere_profiles.f90

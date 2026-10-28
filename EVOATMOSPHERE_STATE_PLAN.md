@@ -131,6 +131,7 @@ Use the `photochem` conda environment. Build the Fortran library and Python exte
 
 ## Deferred work
 
+- Extend h5fortran with recoverable error reporting for open/read/write/close failures. The initial guarded implementation prevents predictable schema errors but cannot guarantee recovery from every library or filesystem failure.
 - CVODE restart/history serialization and preservation of convergence counters or logical time.
 - Full model configuration, custom boundary conditions, callback serialization, and reaction/optical data packaging.
 - Restore with a different mechanism or layer count.

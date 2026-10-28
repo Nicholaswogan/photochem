@@ -2,7 +2,7 @@ program test_api
   ! This executable contains focused correctness and error-behavior checks for
   ! public EvoAtmosphere operations. See tests/README.md.
   use photochem, only: EvoAtmosphere, EvoAtmosphereState, dp
-  use photochem_test_paths, only: test_file, data_file, data_dir
+  use photochem_test_paths, only: test_file, data_file, output_file, data_dir
   implicit none
 
   call test()
@@ -13,6 +13,7 @@ contains
   subroutine test()
     call test_initialization_state()
     call test_model_state()
+    call test_model_state_hdf5()
     call test_initialize_atmosphere_z()
     call test_initialize_atmosphere_p()
     call test_inferred_initialization_errors()
@@ -45,7 +46,7 @@ contains
     use photochem_eqns, only: gravity
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     type(EvoAtmosphere) :: source, destination, empty_model
-    type(EvoAtmosphereState) :: saved, invalid, captured
+    type(EvoAtmosphereState) :: saved, invalid, captured, constructed
     character(:), allocatable :: err, mechanism
     real(dp) :: P(2), T(2), edd(2), time
     real(dp), allocatable :: expected_gravity(:)
@@ -83,6 +84,46 @@ contains
         if (particles == 1) source%var%particle_radius = source%var%particle_radius*1.1_dp
         saved = source%model_state(err)
         call check_model_state_error(err)
+        invalid = saved
+        constructed = model_state_from_fields(invalid, err)
+        call check_model_state_error(err)
+        if (any(constructed%usol /= saved%usol) .or. &
+            any(constructed%temperature /= saved%temperature) .or. &
+            any(constructed%particle_radius /= saved%particle_radius)) error stop 'Constructor changed primary arrays'
+        invalid%temperature = invalid%temperature + 1.0_dp
+        if (any(constructed%temperature /= saved%temperature)) error stop 'Constructor aliases input arrays'
+        if (mode >= 0) then
+          invalid%press_temp_edd_profile%temperature = T + 1.0_dp
+          if (any(constructed%press_temp_edd_profile%temperature /= T)) &
+            error stop 'Constructor aliases input profile arrays'
+        endif
+        saved = constructed
+        invalid = saved
+        invalid%nq = -1
+        constructed = model_state_from_fields(invalid, err)
+        if (.not.allocated(err)) error stop 'Constructor accepted invalid species counts'
+        invalid = saved
+        invalid%species_names(2) = invalid%species_names(1)
+        constructed = model_state_from_fields(invalid, err)
+        if (.not.allocated(err)) error stop 'Constructor accepted duplicate species names'
+        invalid = saved
+        invalid%usol = invalid%usol(:,:size(invalid%usol,2)-1)
+        constructed = model_state_from_fields(invalid, err)
+        if (.not.allocated(err)) error stop 'Constructor accepted inconsistent array shapes'
+        invalid = saved
+        invalid%z = invalid%z(:0)
+        constructed = model_state_from_fields(invalid, err)
+        if (.not.allocated(err)) error stop 'Constructor accepted an empty grid'
+        invalid = saved
+        invalid%dz(1) = -1.0_dp
+        constructed = model_state_from_fields(invalid, err)
+        if (.not.allocated(err)) error stop 'Constructor accepted invalid geometry'
+        if (mode >= 0) then
+          invalid = saved
+          deallocate(invalid%press_temp_edd_profile%pressure)
+          constructed = model_state_from_fields(invalid, err)
+          if (.not.allocated(err)) error stop 'Constructor accepted missing enabled profile data'
+        endif
         source%var%temperature = source%var%temperature + 1.0_dp
         if (any(saved%temperature == source%var%temperature)) error stop 'Snapshot aliases source arrays'
         if (mode >= 0) then
@@ -92,6 +133,9 @@ contains
         ! The saved radius, rather than the constructor radius, sets gravity.
         saved%planet_radius = saved%planet_radius*1.01_dp
         saved%usol(saved%nq,2) = -1.0e-40_dp
+        constructed = model_state_from_fields(saved, err)
+        call check_model_state_error(err)
+        saved = constructed
         destination%var%max_resync_failures = 7
         call destination%initialize_from_state(saved, err)
         call check_model_state_error(err)
@@ -135,6 +179,8 @@ contains
         if (.not.allocated(err)) error stop 'Missing densities were accepted'
         invalid = saved
         invalid%planet_mass = invalid%planet_mass*1.01_dp
+        constructed = model_state_from_fields(invalid, err)
+        call check_model_state_error(err)
         call destination%initialize_from_state(invalid, err)
         if (.not.allocated(err)) error stop 'Incompatible planet mass was accepted'
         invalid = saved
@@ -171,7 +217,213 @@ contains
       enddo
     enddo
 
+    ! Short-lived gases occupy metadata entries but not rows of usol.
+    source = EvoAtmosphere(data_file('reaction_mechanisms/zahnle_earth.yaml'), &
+                           test_file('test_settings_short_lived.yaml'), &
+                           test_file('sun.txt'), test_file('atmosphere.txt'), data_dir, err)
+    call check_model_state_error(err)
+    saved = source%model_state(err)
+    call check_model_state_error(err)
+    constructed = model_state_from_fields(saved, err)
+    call check_model_state_error(err)
+    if (constructed%nsl /= 2 .or. size(constructed%usol,1) /= saved%nq .or. &
+        size(constructed%species_names) /= saved%nq+saved%nsl+2) error stop 'Constructor lost short-lived partition'
+    call source%initialize_from_state(constructed, err)
+    call check_model_state_error(err)
+
   end subroutine
+
+  subroutine test_model_state_hdf5()
+    use h5fortran, only: hdf5_file
+    use hdf5, only: h5ldelete_f
+    type(EvoAtmosphere) :: source, destination
+    type(EvoAtmosphereState) :: saved, loaded, before, invalid
+    type(hdf5_file) :: h
+    character(:), allocatable :: err, filename, mechanism
+    real(dp) :: P(2), T(2), edd(2)
+    integer :: particles, mode, unit, status
+
+    filename = output_file('atmosphere-state.h5')
+    do particles = 0,1
+      mechanism = test_file('no_particle_test.yaml')
+      if (particles == 1) mechanism = data_file('reaction_mechanisms/zahnle_earth.yaml')
+      do mode = -1,1
+        source = EvoAtmosphere(mechanism, test_file('test_settings_minimal.yaml'), &
+                              test_file('sun.txt'), test_file('atmosphere.txt'), data_dir, err)
+        call check_model_state_error(err)
+        if (mode >= 0) then
+          P = [2.0_dp*source%wrk%surface_pressure*1.0e6_dp, &
+               0.5_dp*source%wrk%pressure_hydro(source%var%nz)]
+          T = [300.0_dp, 180.0_dp]
+          edd = [3.0e7_dp, 4.0e5_dp]
+          call source%set_press_temp_edd_profile(P, T, edd, mode=mode, &
+               maintain_toa_pressure=.true., err=err)
+          call check_model_state_error(err)
+          source%var%temperature = source%var%temperature*1.001_dp
+        endif
+        saved = source%model_state(err)
+        call check_model_state_error(err)
+        ! Also preserve allocated empty arrays in a disabled profile.
+        if (mode < 0) saved%press_temp_edd_profile%pressure = [real(dp) ::]
+        saved%press_temp_edd_profile%temperature_tol = 0.003_dp
+        saved%press_temp_edd_profile%edd_tol = 0.02_dp
+        saved%press_temp_edd_profile%extreme_factor = 8.0_dp
+        saved%press_temp_edd_profile%hydro_pressure = .false.
+        if (mode >= 0) then
+          saved%toa_pressure_maintenance%target_pressure = 0.2_dp
+          saved%toa_pressure_maintenance%pressure_factor = 2.0_dp
+          saved%toa_pressure_maintenance%extreme_pressure_factor = 7.0_dp
+        endif
+        saved%usol(saved%nq,2) = -1.0e-40_dp
+        call saved%save_to_h5(filename, err)
+        call check_model_state_error(err)
+        loaded = EvoAtmosphereState(filename, err)
+        call check_model_state_error(err)
+        call check_hdf5_state_equal(saved, loaded)
+        loaded%temperature = loaded%temperature + 1.0_dp
+        call loaded%initialize_from_h5(filename, err)
+        call check_model_state_error(err)
+        call check_hdf5_state_equal(saved, loaded)
+        destination = EvoAtmosphere(mechanism, test_file('test_settings_minimal.yaml'), &
+                                   test_file('sun.txt'), data_dir, err)
+        call check_model_state_error(err)
+        call destination%initialize_from_state(loaded, err)
+        call check_model_state_error(err)
+        if (any(destination%var%temperature /= saved%temperature)) error stop 'HDF5 restore resynced temperature'
+
+        invalid = saved
+        invalid%temperature(1) = -1.0_dp
+        call invalid%save_to_h5(filename, err)
+        if (.not.allocated(err)) error stop 'Saving invalid state was accepted'
+        loaded = EvoAtmosphereState(filename, err)
+        call check_model_state_error(err)
+        call check_hdf5_state_equal(saved, loaded)
+      enddo
+    enddo
+
+    before = loaded
+    call loaded%initialize_from_h5(test_file('does-not-exist.h5'), err)
+    if (.not.allocated(err)) error stop 'Missing state file was accepted'
+    call check_hdf5_state_equal(before, loaded)
+    call loaded%initialize_from_h5(test_file('sun.txt'), err)
+    if (.not.allocated(err)) error stop 'Non-HDF5 state file was accepted'
+    call check_hdf5_state_equal(before, loaded)
+    call h%open(filename, 'r+')
+    call h%write('schema_version', 999)
+    call h%close()
+    call loaded%initialize_from_h5(filename, err)
+    if (.not.allocated(err)) error stop 'Unsupported state schema was accepted'
+    call check_hdf5_state_equal(before, loaded)
+    call before%save_to_h5(filename, err)
+    call check_model_state_error(err)
+    call h%open(filename, 'r+')
+    call h%write('press_temp_edd_profile/enabled', 2)
+    call h%close()
+    call loaded%initialize_from_h5(filename, err)
+    if (.not.allocated(err)) error stop 'Invalid state boolean was accepted'
+    call check_hdf5_state_equal(before, loaded)
+    call before%save_to_h5(filename, err)
+    call check_model_state_error(err)
+    call h%open(filename, 'r+')
+    call h5ldelete_f(h%lid, 'atmosphere/temperature', status)
+    if (status /= 0) error stop 'Could not prepare malformed dataset test'
+    call h%write('atmosphere/temperature', [1,2])
+    call h%close()
+    call loaded%initialize_from_h5(filename, err)
+    if (.not.allocated(err)) error stop 'Wrong state dataset type was accepted'
+    call check_hdf5_state_equal(before, loaded)
+    call before%save_to_h5(filename, err)
+    call check_model_state_error(err)
+    call h%open(filename, 'r+')
+    call h5ldelete_f(h%lid, 'atmosphere/temperature', status)
+    if (status /= 0) error stop 'Could not prepare malformed rank test'
+    call h%write('atmosphere/temperature', 300.0_dp)
+    call h%close()
+    call loaded%initialize_from_h5(filename, err)
+    if (.not.allocated(err)) error stop 'Wrong state dataset rank was accepted'
+    call check_hdf5_state_equal(before, loaded)
+    call before%save_to_h5(filename, err)
+    call check_model_state_error(err)
+    call h%open(filename, 'r+')
+    call h%write('atmosphere/temperature', -before%temperature)
+    call h%close()
+    call loaded%initialize_from_h5(filename, err)
+    if (.not.allocated(err)) error stop 'State file with invalid physical values was accepted'
+    call check_hdf5_state_equal(before, loaded)
+    call h%open(filename, 'w')
+    call h%write('schema_version', 1)
+    call h%close()
+    call loaded%initialize_from_h5(filename, err)
+    if (.not.allocated(err)) error stop 'State file with missing datasets was accepted'
+    call check_hdf5_state_equal(before, loaded)
+    call loaded%save_to_h5(output_file('missing-state-directory/state.h5'), err)
+    if (.not.allocated(err)) error stop 'Save into a missing directory was accepted'
+    open(newunit=unit, file=filename, status='old')
+    close(unit, status='delete')
+  end subroutine
+
+  subroutine check_hdf5_state_equal(a, b)
+    type(EvoAtmosphereState), intent(in) :: a, b
+    if (a%nq /= b%nq .or. a%ng /= b%ng .or. a%nsl /= b%nsl .or. &
+        any(a%species_names /= b%species_names) .or. a%planet_mass /= b%planet_mass .or. &
+        a%planet_radius /= b%planet_radius .or. a%bottom_atmos /= b%bottom_atmos .or. &
+        a%top_atmos /= b%top_atmos .or. a%trop_alt /= b%trop_alt .or. &
+        any(a%z /= b%z) .or. any(a%dz /= b%dz) .or. any(a%temperature /= b%temperature) .or. &
+        any(a%edd /= b%edd) .or. any(a%usol /= b%usol) .or. &
+        any(shape(a%particle_radius) /= shape(b%particle_radius)) .or. &
+        any(a%particle_radius /= b%particle_radius)) error stop 'HDF5 round trip changed state'
+    if ((a%press_temp_edd_profile%enabled .neqv. b%press_temp_edd_profile%enabled) .or. &
+        a%press_temp_edd_profile%mode /= b%press_temp_edd_profile%mode .or. &
+        (a%press_temp_edd_profile%hydro_pressure .neqv. b%press_temp_edd_profile%hydro_pressure) .or. &
+        a%press_temp_edd_profile%trop_p /= b%press_temp_edd_profile%trop_p .or. &
+        a%press_temp_edd_profile%temperature_tol /= b%press_temp_edd_profile%temperature_tol .or. &
+        a%press_temp_edd_profile%edd_tol /= b%press_temp_edd_profile%edd_tol .or. &
+        a%press_temp_edd_profile%extreme_factor /= b%press_temp_edd_profile%extreme_factor .or. &
+        (a%toa_pressure_maintenance%enabled .neqv. b%toa_pressure_maintenance%enabled) .or. &
+        a%toa_pressure_maintenance%target_pressure /= b%toa_pressure_maintenance%target_pressure .or. &
+        a%toa_pressure_maintenance%pressure_factor /= b%toa_pressure_maintenance%pressure_factor .or. &
+        a%toa_pressure_maintenance%extreme_pressure_factor /= b%toa_pressure_maintenance%extreme_pressure_factor) &
+      error stop 'HDF5 round trip changed configuration'
+    call check_hdf5_optional_array(a%press_temp_edd_profile%pressure, b%press_temp_edd_profile%pressure)
+    call check_hdf5_optional_array(a%press_temp_edd_profile%temperature, b%press_temp_edd_profile%temperature)
+    call check_hdf5_optional_array(a%press_temp_edd_profile%edd, b%press_temp_edd_profile%edd)
+  end subroutine
+
+  subroutine check_hdf5_optional_array(a, b)
+    real(dp), allocatable, intent(in) :: a(:), b(:)
+    if (allocated(a) .neqv. allocated(b)) error stop 'HDF5 changed array allocation'
+    if (.not.allocated(a)) return
+    if (size(a) /= size(b)) error stop 'HDF5 changed array shape'
+    if (any(a /= b)) error stop 'HDF5 changed array values'
+  end subroutine
+
+  function model_state_from_fields(fields, err) result(state)
+    type(EvoAtmosphereState), intent(in) :: fields
+    character(:), allocatable, intent(out) :: err
+    type(EvoAtmosphereState) :: state
+
+    state = EvoAtmosphereState( &
+      species_names=fields%species_names, &
+      nq=fields%nq, &
+      ng=fields%ng, &
+      nsl=fields%nsl, &
+      planet_mass=fields%planet_mass, &
+      bottom_atmos=fields%bottom_atmos, &
+      top_atmos=fields%top_atmos, &
+      trop_alt=fields%trop_alt, &
+      z=fields%z, &
+      dz=fields%dz, &
+      temperature=fields%temperature, &
+      edd=fields%edd, &
+      particle_radius=fields%particle_radius, &
+      usol=fields%usol, &
+      planet_radius=fields%planet_radius, &
+      press_temp_edd_profile=fields%press_temp_edd_profile, &
+      toa_pressure_maintenance=fields%toa_pressure_maintenance, &
+      err=err &
+    )
+
+  end function
 
   subroutine check_model_state_error(err)
     character(:), allocatable, intent(in) :: err

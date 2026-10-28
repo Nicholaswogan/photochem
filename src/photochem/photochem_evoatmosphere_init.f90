@@ -17,6 +17,46 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_init
 
 contains
 
+  module function create_EvoAtmosphereState(species_names, nq, ng, nsl, planet_mass, &
+      bottom_atmos, top_atmos, trop_alt, z, dz, temperature, edd, particle_radius, &
+      usol, planet_radius, press_temp_edd_profile, toa_pressure_maintenance, err) result(state)
+    character(*), intent(in) :: species_names(:)
+    integer, intent(in) :: nq, ng, nsl
+    real(dp), intent(in) :: planet_mass, bottom_atmos, top_atmos, trop_alt
+    real(dp), intent(in) :: z(:), dz(:), temperature(:), edd(:)
+    real(dp), intent(in) :: particle_radius(:,:), usol(:,:), planet_radius
+    type(PressureTempEddProfile), intent(in) :: press_temp_edd_profile
+    type(TOAPressureMaintenance), intent(in) :: toa_pressure_maintenance
+    character(:), allocatable, intent(out) :: err
+    type(EvoAtmosphereState) :: state
+
+    if (any(len_trim(species_names) > s_str_len)) then
+      err = 'Atmospheric state species names exceed the supported string length.'
+      return
+    endif
+
+    state%species_names = species_names
+    state%nq = nq
+    state%ng = ng
+    state%nsl = nsl
+    state%planet_mass = planet_mass
+    state%bottom_atmos = bottom_atmos
+    state%top_atmos = top_atmos
+    state%trop_alt = trop_alt
+    state%z = z
+    state%dz = dz
+    state%temperature = temperature
+    state%edd = edd
+    state%particle_radius = particle_radius
+    state%usol = usol
+    state%planet_radius = planet_radius
+    state%press_temp_edd_profile = press_temp_edd_profile
+    state%toa_pressure_maintenance = toa_pressure_maintenance
+
+    call validate_atmosphere_state(state, err)
+
+  end function
+
   module subroutine AtmosphereState_allocate(self, dat, nz)
     class(AtmosphereState), intent(inout) :: self
     type(PhotochemData), intent(in) :: dat
@@ -322,17 +362,13 @@ contains
   end subroutine
 
   subroutine validate_model_state(self, state, err)
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     class(EvoAtmosphere), intent(in) :: self
     type(EvoAtmosphereState), intent(in) :: state
     character(:), allocatable, intent(out) :: err
-    integer :: nz, nprofile
-    real(dp) :: z_tol
 
-    if (.not.allocated(state%species_names)) then
-      err = 'Atmospheric state is missing species names.'
-      return
-    endif
+    call validate_atmosphere_state(state, err)
+    if (allocated(err)) return
+
     if (size(state%species_names) /= size(self%dat%species_names)) then
       err = 'Atmospheric state species count does not match the destination.'
       return
@@ -342,8 +378,58 @@ contains
       err = 'Atmospheric state species ordering or partition does not match the destination.'
       return
     endif
-    if (.not.ieee_is_finite(state%planet_mass) .or. state%planet_mass /= self%dat%planet_mass) then
+    if (state%planet_mass /= self%dat%planet_mass) then
       err = 'Atmospheric state planet mass does not match the destination.'
+      return
+    endif
+    if (size(state%z) /= self%var%nz) then
+      err = 'Atmospheric state layer count does not match the destination.'
+      return
+    endif
+    if (state%press_temp_edd_profile%enabled) then
+      if ((state%press_temp_edd_profile%trop_p > 0.0_dp) .neqv. self%dat%gas_rainout) then
+        err = 'Atmospheric state tropopause pressure is incompatible with destination rainout settings.'
+        return
+      endif
+    endif
+
+  end subroutine
+
+  module subroutine validate_atmosphere_state(state, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    type(EvoAtmosphereState), intent(in) :: state
+    character(:), allocatable, intent(out) :: err
+    integer :: nz, np, nprofile, i
+    real(dp) :: z_tol
+
+    if (.not.allocated(state%species_names)) then
+      err = 'Atmospheric state is missing species names.'
+      return
+    endif
+    if (state%nq < 1 .or. state%nsl < 0 .or. state%ng <= state%nsl .or. &
+        state%nq > size(state%species_names) .or. state%ng > size(state%species_names)) then
+      err = 'Atmospheric state species counts are invalid.'
+      return
+    endif
+    np = state%nq - (state%ng-state%nsl)
+    if (np < 0 .or. size(state%species_names) /= state%nq+state%nsl+2) then
+      err = 'Atmospheric state species counts and names are inconsistent.'
+      return
+    endif
+    if (state%species_names(size(state%species_names)-1) /= 'hv' .or. &
+        state%species_names(size(state%species_names)) /= 'M' .or. &
+        any(len_trim(state%species_names) == 0)) then
+      err = 'Atmospheric state requires nonempty species names ending with hv and M.'
+      return
+    endif
+    do i = 1,size(state%species_names)-1
+      if (any(state%species_names(i+1:) == state%species_names(i))) then
+        err = 'Atmospheric state species names must be unique.'
+        return
+      endif
+    enddo
+    if (.not.ieee_is_finite(state%planet_mass) .or. state%planet_mass <= 0.0_dp) then
+      err = 'Atmospheric state planet mass must be finite and positive.'
       return
     endif
     if (.not.allocated(state%z) .or. .not.allocated(state%dz) .or. &
@@ -352,12 +438,16 @@ contains
       err = 'Atmospheric state is missing required atmospheric arrays.'
       return
     endif
-    nz = self%var%nz
-    if (size(state%z) /= nz .or. size(state%dz) /= nz .or. &
+    nz = size(state%z)
+    if (nz < 2) then
+      err = 'Atmospheric state requires at least two layers.'
+      return
+    endif
+    if (size(state%dz) /= nz .or. &
         size(state%temperature) /= nz .or. size(state%edd) /= nz .or. &
-        any(shape(state%particle_radius) /= [self%dat%npq,nz]) .or. &
-        any(shape(state%usol) /= [self%dat%nq,nz])) then
-      err = 'Atmospheric state array dimensions do not match the destination.'
+        any(shape(state%particle_radius) /= [np,nz]) .or. &
+        any(shape(state%usol) /= [state%nq,nz])) then
+      err = 'Atmospheric state array dimensions are inconsistent with species and layer counts.'
       return
     endif
     if (.not.ieee_is_finite(state%bottom_atmos) .or. .not.ieee_is_finite(state%top_atmos) .or. &
@@ -389,8 +479,8 @@ contains
       err = 'Atmospheric state densities must be finite.'
       return
     endif
-    if (.not.all(ieee_is_finite(sum(state%usol(self%dat%ng_1:,:),dim=1))) .or. &
-        any(sum(state%usol(self%dat%ng_1:,:),dim=1) <= 0.0_dp)) then
+    if (.not.all(ieee_is_finite(sum(state%usol(np+1:,:),dim=1))) .or. &
+        any(sum(state%usol(np+1:,:),dim=1) <= 0.0_dp)) then
       err = 'Atmospheric state must have positive total gas density in every layer.'
       return
     endif
@@ -427,10 +517,6 @@ contains
       endif
       if (.not.ieee_is_finite(state%press_temp_edd_profile%trop_p)) then
         err = 'Atmospheric state tropopause pressure must be finite.'
-        return
-      endif
-      if ((state%press_temp_edd_profile%trop_p > 0.0_dp) .neqv. self%dat%gas_rainout) then
-        err = 'Atmospheric state tropopause pressure is incompatible with destination rainout settings.'
         return
       endif
     endif
