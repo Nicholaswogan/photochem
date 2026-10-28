@@ -2,6 +2,7 @@ cimport ProductionLoss_pxd as pl_pxd
 cimport PhotochemData_pxd as dat_pxd
 cimport PhotochemVars_pxd as var_pxd
 cimport PhotochemWrk_pxd as wrk_pxd
+cimport EvoAtmosphereState_pxd as state_pxd
 from libcpp cimport bool
 cdef extern from "<stdbool.h>":
   pass
@@ -18,6 +19,8 @@ cdef extern EvoAtmosphere *allocate_evoatmosphere();
 cdef extern void deallocate_evoatmosphere(EvoAtmosphere *ptr);
 
 # subroutines
+cdef extern void evoatmosphere_model_state_wrapper(EvoAtmosphere *ptr, state_pxd.EvoAtmosphereState *state, char *err)
+cdef extern void evoatmosphere_initialize_from_state_wrapper(EvoAtmosphere *ptr, state_pxd.EvoAtmosphereState *state, char *err)
 cdef extern void evoatmosphere_create_wrapper(EvoAtmosphere *ptr, char *mechanism_file,
                                             char *settings_file, char *flux_file,
                                             char *atmosphere_txt, bool *atmosphere_txt_present,

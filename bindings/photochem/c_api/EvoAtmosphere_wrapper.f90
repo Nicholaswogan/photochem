@@ -22,6 +22,39 @@
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! subroutine wrappers  !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  subroutine evoatmosphere_model_state_wrapper(ptr, state_ptr, err) bind(c)
+    type(c_ptr), value, intent(in) :: ptr, state_ptr
+    character(c_char), intent(out) :: err(err_len+1)
+    type(EvoAtmosphere), pointer :: pc
+    type(EvoAtmosphereState), pointer :: state
+    type(EvoAtmosphereState) :: candidate
+    character(:), allocatable :: err_f
+
+    call c_f_pointer(ptr, pc)
+    call c_f_pointer(state_ptr, state)
+    candidate = pc%model_state(err_f)
+    err(1) = c_null_char
+    if (allocated(err_f)) then
+      call copy_string_ftoc(err_f, err)
+    else
+      state = candidate
+    endif
+  end subroutine
+
+  subroutine evoatmosphere_initialize_from_state_wrapper(ptr, state_ptr, err) bind(c)
+    type(c_ptr), value, intent(in) :: ptr, state_ptr
+    character(c_char), intent(out) :: err(err_len+1)
+    type(EvoAtmosphere), pointer :: pc
+    type(EvoAtmosphereState), pointer :: state
+    character(:), allocatable :: err_f
+
+    call c_f_pointer(ptr, pc)
+    call c_f_pointer(state_ptr, state)
+    call pc%initialize_from_state(state, err_f)
+    err(1) = c_null_char
+    if (allocated(err_f)) call copy_string_ftoc(err_f, err)
+  end subroutine
   
   subroutine evoatmosphere_create_wrapper(ptr, mechanism_file, &
                                         settings_file, flux_file, &

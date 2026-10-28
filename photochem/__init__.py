@@ -1,4 +1,4 @@
-from ._photochem import EvoAtmosphere, PhotoException, PressureBC, __version__
+from ._photochem import EvoAtmosphere, EvoAtmosphereState, PhotoException, PressureBC, __version__
 from photochem_clima_data import DATA_DIR
 
 # Limits OpenMP threads to 1

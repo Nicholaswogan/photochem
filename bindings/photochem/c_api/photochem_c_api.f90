@@ -1,7 +1,7 @@
 module photochem_c_api
   use iso_c_binding
   use clima_saturationdata, only: SaturationData
-  use photochem, only: EvoAtmosphere, ProductionLoss
+  use photochem, only: EvoAtmosphere, EvoAtmosphereState, ProductionLoss
   use photochem_data, only: PhotochemData
   use photochem_vars, only: PhotochemVars, TOAPressureMaintenance, PressureTempEddProfile
   use photochem_wrk, only: PhotochemWrk
@@ -13,6 +13,7 @@ module photochem_c_api
 contains
 
   include "EvoAtmosphere_wrapper.f90"
+  include "EvoAtmosphereState_wrapper.f90"
 
   include "PhotochemData_wrapper.f90"
   include "PhotochemVars_wrapper.f90"

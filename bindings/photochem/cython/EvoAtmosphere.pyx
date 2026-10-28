@@ -97,6 +97,48 @@ cdef class EvoAtmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
+  def model_state(self):
+    """Capture an independent atmospheric snapshot without changing the model.
+
+    Current profile mismatch is preserved. Solver history, integration time,
+    callbacks, boundary conditions, and general solver settings are excluded.
+
+    Returns
+    -------
+    EvoAtmosphereState
+        Owned snapshot of the initialized atmosphere.
+    """
+    cdef EvoAtmosphereState state = EvoAtmosphereState.__new__(EvoAtmosphereState)
+    cdef char err[ERR_LEN+1]
+    ea_pxd.evoatmosphere_model_state_wrapper(self._ptr, state._ptr, err)
+    if err[0] != 0:
+      raise PhotoException(err.decode('utf-8'))
+    state._ready = True
+    return state
+
+  def initialize_from_state(self, EvoAtmosphereState state not None):
+    """Restore a compatible atmospheric snapshot and invalidate the stepper.
+
+    Derived properties are rebuilt without resynchronizing the saved profile.
+    Destination boundary conditions, callbacks, and general solver settings
+    remain in effect. Normal boundary and density-clipping rules apply.
+    Initialize a new stepper before taking further steps.
+
+    Parameters
+    ----------
+    state : EvoAtmosphereState
+        Snapshot with compatible species ordering, counts, layers, and mass.
+
+    Returns
+    -------
+    None
+    """
+    state._require_ready()
+    cdef char err[ERR_LEN+1]
+    ea_pxd.evoatmosphere_initialize_from_state_wrapper(self._ptr, state._ptr, err)
+    if err[0] != 0:
+      raise PhotoException(err.decode('utf-8'))
+
   property atmosphere_initialized:
     """Whether atmosphere-dependent model state has been initialized."""
     def __get__(self):

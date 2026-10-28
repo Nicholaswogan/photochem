@@ -15,6 +15,7 @@ DEF STR_LEN = 1024;
 DEF ERR_LEN = 1024;
 
 include "EvoAtmosphere.pyx"
+include "EvoAtmosphereState.pyx"
 include "PhotochemData.pyx"
 include "PhotochemVars.pyx"
 include "PhotochemWrk.pyx"
