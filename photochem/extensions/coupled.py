@@ -735,11 +735,14 @@ class FixedPointSolver:
     require_chemistry_to_converge : bool, optional
         Require chemical convergence in every evaluation, default false.
         Otherwise only accepted-step-budget exhaustion permits continuation.
+    verbose : bool, optional
+        Print a fixed-width progress table after completed iterations,
+        default false. Chemical and climate model verbosity is independent.
     """
 
     def __init__(self, model, *, temperature_tol=1e-3, log10pressure_tol=1e-3,
                  relaxation=0.5, max_iterations=30,
-                 require_chemistry_to_converge=False):
+                 require_chemistry_to_converge=False, verbose=False):
         temperature_tol = float(temperature_tol)
         log10pressure_tol = float(log10pressure_tol)
         relaxation = float(relaxation)
@@ -759,6 +762,8 @@ class FixedPointSolver:
         self.relaxation = relaxation
         self.max_iterations = int(max_iterations)
         self.require_chemistry_to_converge = bool(require_chemistry_to_converge)
+        self.verbose = bool(verbose)
+        self._verbose_header_printed = False
         self._next_x = None
         self.fixed_point_x = None
         self.fixed_point_gx = None
@@ -843,7 +848,29 @@ class FixedPointSolver:
         if not self.converged and not self.give_up:
             self._next_x = x + self.relaxation*(gx - x)
         self._initialized = True
+        if self.verbose:
+            self._print_iteration()
         return self.give_up, self.converged
+
+    def _print_iteration(self):
+        """Print aligned residuals and independent convergence diagnostics."""
+        iteration_width = max(len('Iteration'), len(str(self.max_iterations)))
+        if not self._verbose_header_printed:
+            print(
+                f'{"Iteration":<{iteration_width}} '
+                f'{"dT/T":<14} {"dlog10P (dex)":<14} '
+                f'{"Chem. conv.":<12} {"Status":<12}',
+                flush=True,
+            )
+            self._verbose_header_printed = True
+        status = 'converged' if self.converged else 'give_up' if self.give_up else 'iterating'
+        chemistry = 'unknown' if self.chemistry_converged is None else str(self.chemistry_converged)
+        print(
+            f'{self.niterations:<{iteration_width}d} '
+            f'{self.temperature_residual:<14.3e} {self.log10pressure_residual:<14.3e} '
+            f'{chemistry:<12} {status:<12}',
+            flush=True,
+        )
 
 
 class AdiabatClimateForCoupled(AdiabatClimate):
