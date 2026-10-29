@@ -13,11 +13,13 @@ Keep `CoupledPhotochemistryClimate` as the owner of `pc` (`EvoAtmosphere`) and `
 The public methods are:
 
 - `solution()`: export the current photochemical atmosphere without changing it or claiming convergence.
-- `initialize_solver(...)`: initialize the atmosphere and the selected coupling algorithm.
+- `initial_guess(...)`: solve initial climate, initialize photochemistry, and return an independent coupled state. This modifies the model and invalidates any previous solver.
+- `model_state()`: capture an independent coupled state without modifying the models or claiming convergence.
+- `initialize_solver(initial_guess=state, ...)`: restore the atmosphere and initialize the selected coupling algorithm from a coupled state.
 - `iterate()`: perform one useful unit of coupling work, returning `(give_up, converged)`.
 - `find_steady_state(...)`: initialize and repeatedly iterate until convergence or give-up.
 
-Other methods, including initial-guess construction, the fixed-point map, grid construction, and profile exchange, are implementation helpers and should use leading underscores. Keep shared prescribed Kzz and condensable-reservoir inputs on the coupling model; avoid duplicating planetary and atmospheric state already owned by `pc` or `c`.
+Other methods, including the fixed-point map, grid construction, and profile exchange, are implementation helpers and should use leading underscores. Keep shared prescribed Kzz inputs on the coupling model; avoid duplicating planetary and atmospheric state already owned by `pc` or `c`. Climate condensate pressures use live photochemical fixed-pressure boundaries when present and lowest-layer mixing ratios times surface pressure otherwise. Climate determines condensate vertical profiles.
 
 Use separate solver objects behind `model.solver`:
 
@@ -31,8 +33,9 @@ Both expose common convergence/give-up and chemical-convergence diagnostics. Kee
 Intended usage:
 
 ```python
+guess = model.initial_guess(edd=1e5)
 model.initialize_solver(
-    edd=1e5,
+    initial_guess=guess,
     method="fixed_point",
     solver_options={"relaxation": 0.5},
 )
@@ -43,7 +46,31 @@ while True:
 atmosphere = model.solution()
 ```
 
-Select `method="quasi_static"` for adaptive time-evolving coupling. One fixed-point iteration evaluates one chemistry-to-climate map. One quasi-static iteration completes one accepted outer time interval, including internal retries. No public warm-start or expanded solution serialization is required in the first pass.
+Only `method="fixed_point"` is currently implemented. The future `method="quasi_static"` will select adaptive time-evolving coupling. One fixed-point iteration evaluates one chemistry-to-climate map. One quasi-static iteration will complete one accepted outer time interval, including internal retries.
+
+## Coupled warm starts
+
+`initial_guess()` and `model_state()` return the same versioned nested dictionary:
+
+- `schema_version`: currently 1.
+- `photochem`: `pc.model_state().to_dict()`.
+- `edd`, `edd_pressure`: independent arrays containing original prescribed Kzz knots.
+- `climate`: only `pressure` and `temperature` arrays (surface followed by layer centers), and layer `convecting_with_below`. Profile shapes and values are checked against the destination climate grid; climate configuration remains the destination's responsibility.
+
+The climate section is captured and restored through private helpers, leaving room for a future cloud–climate component to own its restart data. The model retains it in `_climate_state`, updated after each successful climate solve or restoration; capture always copies that stored representation. After restoration it holds valid restart profiles even before live `c` outputs are rebuilt. Fixed-point vectors are derived from the stored profiles rather than serving as shared physical state.
+
+```python
+state = model.model_state()
+other.initialize_solver(initial_guess=state)
+# Or restore and run a new solve:
+other.find_steady_state(initial_guess=state)
+```
+
+Initialization restores photochemistry directly, including its installed profile mismatch, and retains climate profiles as restart guesses without solving climate. Live `c` atmospheric outputs are rebuilt by the first map evaluation; before then, another `model_state()` captures the retained restart data. A new solver resets history and convergence flags and verifies convergence through iteration.
+
+Destination boundary conditions, callbacks, numerical settings, and climate configuration remain in effect. Compatible static mechanisms and optical data are the caller's responsibility; metadata checks do not prove complete physical equivalence. Snapshots exclude time, integrator history, and solver bookkeeping. They support warm restart, not exact trial rollback or identical iteration sequences. File persistence and quasi-static time/rollback guarantees remain later work.
+
+CI runs the smoke test only. Local `tests/photochem/test_coupled.py --restart` adds state round-trip and validation checks with an initial climate solve; `--full` also checks coupled convergence and restarting a converged state in a fresh model.
 
 ## State representations and final-result policy
 
@@ -156,5 +183,5 @@ The replaceable component must expose its resulting profiles and convergence sta
 4. Add bounded chemistry time segments and fixed outer-interval quasi-static coupling first.
 5. Add change-limited adaptive intervals and acceptance/rejection first, then add step doubling with scaled error measurement using the same framework.
 6. Verify rollback, time-dependent callbacks, behavior under interval refinement, and final chemical/climate status for both controllers. Compare representative solutions and cost with the existing fixed-point method.
-7. Add HDF5 state persistence and flat dictionary interchange separately. Design public coupled warm starts afterward.
+7. Add HDF5 coupled-state persistence and flat dictionary interchange separately. The initial public coupled warm-start API is described above; stronger rollback guarantees remain separate.
 8. Add the replaceable cloud–climate component and cloud/haze feedback options described above, including rollback and convergence checks for the additional state.

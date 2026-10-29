@@ -1,11 +1,13 @@
 import numpy as np
 
+from copy import deepcopy
+
 from tempfile import NamedTemporaryFile
 
 from photochem.utils import climate
 from photochem.utils._format import yaml
 from photochem.clima import AdiabatClimate, ClimaException
-from photochem import EvoAtmosphere, PhotoException, PressureBC
+from photochem import EvoAtmosphere, EvoAtmosphereState, PhotoException, PressureBC
 
 class CoupledPhotochemistryClimate():
 
@@ -82,6 +84,8 @@ class CoupledPhotochemistryClimate():
         self._edd = None
         self._edd_pressure = None
         self.solver = None
+        self._climate_state = None
+        self._state_ready = False
 
     def _set_climate_rh_from_photochem(self):
 
@@ -215,7 +219,7 @@ class CoupledPhotochemistryClimate():
 
         return pressure_grid, temperature_grid, edd_grid, mix_grid
 
-    def _initial_guess(self, edd, edd_pressure=None, surface_partial_pressures=None,
+    def initial_guess(self, edd, edd_pressure=None, surface_partial_pressures=None,
                        target_pressure=0.1, **kwargs):
         """Solve climate and initialize photochemistry without integrating it.
 
@@ -244,9 +248,10 @@ class CoupledPhotochemistryClimate():
 
         Returns
         -------
-        numpy.ndarray
-            Climate fixed-point vector from ``_fixed_point_state_from_climate``.
-            The initialized photochemical atmosphere is not chemically converged.
+        dict
+            Independent coupled state accepted by ``initialize_solver``.
+            This method modifies both physical models and invalidates any
+            previous solver. The atmosphere is not chemically converged.
         """
 
         # Validate the target TOA pressure
@@ -297,9 +302,15 @@ class CoupledPhotochemistryClimate():
         if not any(float(value) > 0.0 for value in surface_partial_pressures.values()):
             raise ValueError('At least one supplied surface partial pressure must be positive.')
 
+        if self.solver is not None:
+            self.solver._initialized = False
+        self._state_ready = False
+        self._climate_state = None
+
         # Solve for steady-state climate.
         if not self.c.RCE_robust(P_i):
             raise ClimaException('Climate did not converge while constructing the initial guess.')
+        self._update_climate_state()
 
         # Build profiles covering the photochemical domain.
         pressure_grid, temperature_grid, edd_grid, mix_grid = (
@@ -323,10 +334,8 @@ class CoupledPhotochemistryClimate():
         self._edd = edd.copy()
         self._edd_pressure = edd_pressure.copy()
 
-        # Extract the fixed point vector
-        x = self._fixed_point_state_from_climate()
-
-        return x
+        self._state_ready = True
+        return self.model_state()
 
     def _make_pressure_grid(self, log10P_surf):
         """Return log10 pressures from surface to climate top, in dyn/cm².
@@ -342,35 +351,98 @@ class CoupledPhotochemistryClimate():
             raise ValueError('Surface pressure must be finite and exceed climate top pressure.')
         return np.linspace(log10P_surf, log10P_top, self.c.T.size + 1)
 
-    def _fixed_point_state_from_climate(self):
-        """Return the fixed-point vector represented by the current climate.
+    def _update_climate_state(self):
+        """Store independent climate profiles after a successful RCE solve."""
+        self._climate_state = {
+            'pressure': np.concatenate(([self.c.P_surf], self.c.P)),
+            'temperature': np.concatenate(([self.c.T_surf], self.c.T)),
+            'convecting_with_below': self.c.convecting_with_below.copy(),
+        }
 
-        Neither model is modified, and climate convergence is not checked.
-        Temperature is interpolated linearly in log10 pressure. Above the
-        highest layer center, its temperature is held constant to ``P_top``.
+    def _capture_climate_state(self):
+        """Copy the stored climate profiles, including restored guesses.
 
-        Returns
-        -------
-        numpy.ndarray
-            ``[log10(P_surf), T_surface, ..., T_top]``, with pressure in
-            dyn/cm² and temperatures in K. The temperature samples span
-            equally spaced log10 pressures from the surface to climate top,
-            with one interval per climate layer. The returned array owns its
-            data and is independent of either model.
+        After restoration these profiles are valid restart data; live ``c``
+        outputs are rebuilt by the first map evaluation.
         """
-        c = self.c
-        pressure = np.concatenate(([c.P_surf], c.P))
-        temperature = np.concatenate(([c.T_surf], c.T))
-        if (pressure.ndim != 1 or temperature.shape != pressure.shape or
-                pressure.size < 2):
-            raise ValueError('Climate pressure and temperature profiles must have matching nonempty layers.')
-        if not np.all(np.isfinite(pressure)) or np.any(pressure <= 0.0):
-            raise ValueError('Climate pressures must be finite and positive; construct a climate profile first.')
-        if np.any(np.diff(pressure) >= 0.0):
-            raise ValueError('Climate pressure must strictly decrease from surface to top.')
-        if not np.all(np.isfinite(temperature)) or np.any(temperature <= 0.0):
-            raise ValueError('Climate temperatures must be finite and positive.')
+        return deepcopy(self._climate_state)
 
+    def _restore_climate_state(self, state):
+        """Retain climate guesses until the next climate solve rebuilds ``c``."""
+        self._climate_state = deepcopy(state)
+
+    def model_state(self):
+        """Return an independent, versioned dictionary for a coupled warm start.
+
+        Capture is supported after ``initial_guess``, successful solver
+        initialization, or a completed map evaluation. It does not modify the
+        models or certify convergence. Failed evaluations must be followed by
+        reinitialization before capture.
+
+        Contains atmospheric state, original Kzz knots, and climate restart
+        profiles. Boundary conditions, callbacks, numerical configuration,
+        chemical time, and solver history are excluded. This supports warm
+        restart, not exact trial rollback or identical iteration continuation.
+        """
+        if not self._state_ready:
+            raise RuntimeError('Construct or restore a coupled state before calling model_state.')
+        return {
+            'schema_version': 1,
+            'photochem': self.pc.model_state().to_dict(),
+            'edd': self._edd.copy(),
+            'edd_pressure': self._edd_pressure.copy(),
+            'climate': self._capture_climate_state(),
+        }
+
+    def _validate_state(self, state):
+        """Validate and copy restart data before modifying either model.
+
+        Atmospheric compatibility with the destination is checked by
+        ``pc.initialize_from_state`` before it changes the atmosphere.
+        """
+        keys = {'schema_version', 'photochem', 'edd', 'edd_pressure', 'climate'}
+        if not isinstance(state, dict) or set(state) != keys:
+            raise ValueError('Coupled state must contain exactly: ' + ', '.join(sorted(keys)))
+        if (type(state['schema_version']) is not int or state['schema_version'] != 1):
+            raise ValueError('Unsupported coupled state schema_version.')
+        edd = np.array(state['edd'], dtype=float, copy=True)
+        pressure = np.array(state['edd_pressure'], dtype=float, copy=True)
+        if (edd.ndim != 1 or edd.size < 2 or pressure.shape != edd.shape or
+                not np.all(np.isfinite(edd)) or np.any(edd <= 0.0) or
+                not np.all(np.isfinite(pressure)) or np.any(pressure <= 0.0) or
+                np.any(np.diff(pressure) >= 0.0)):
+            raise ValueError('State Kzz requires matching positive, finite 1D arrays with decreasing pressures.')
+
+        climate = deepcopy(state['climate'])
+        keys = {'pressure', 'temperature', 'convecting_with_below'}
+        if not isinstance(climate, dict) or set(climate) != keys:
+            raise ValueError('Invalid climate restart fields.')
+        nz = self.c.T.size
+        P = np.array(climate['pressure'], dtype=float, copy=True)
+        T = np.array(climate['temperature'], dtype=float, copy=True)
+        conv = np.asarray(climate['convecting_with_below'])
+        if (P.shape != (nz + 1,) or T.shape != P.shape or
+                not np.all(np.isfinite(P)) or np.any(P <= self.c.P_top) or
+                np.any(np.diff(P) >= 0.0) or
+                not np.all(np.isfinite(T)) or np.any(T <= 0.0) or
+                conv.shape != (nz,) or conv.dtype != np.dtype(bool)):
+            raise ValueError('Invalid climate restart pressure, temperature, or convective profiles.')
+        climate.update(pressure=P, temperature=T, convecting_with_below=conv.copy())
+        pc_state = EvoAtmosphereState.from_dict(state['photochem'])
+        if not state['photochem']['profile_enabled'] or not state['photochem']['toa_enabled']:
+            raise ValueError('Coupled restart requires persistent-profile and TOA maintenance enabled.')
+        return pc_state, edd, pressure, climate
+
+    def _fixed_point_state_from_climate(self, state=None):
+        """Derive the fixed-point vector from climate restart profiles.
+
+        Temperatures are interpolated linearly in log-pressure onto equally
+        spaced edges, holding the highest layer temperature constant to top.
+        Neither physical model is modified.
+        """
+        if state is None:
+            state = self._capture_climate_state()
+        pressure, temperature = state['pressure'], state['temperature']
         log10P_surf = np.log10(pressure[0])
         log10P = self._make_pressure_grid(log10P_surf)
         temperature_mapped = np.interp(
@@ -378,57 +450,41 @@ class CoupledPhotochemistryClimate():
         )
         return np.concatenate(([log10P_surf], temperature_mapped))
 
-    def initialize_solver(self, edd, edd_pressure=None, surface_partial_pressures=None,
-                          target_pressure=0.1, *, method="fixed_point",
-                          solver_options=None, **kwargs):
-        """Initialize the atmosphere and a new coupling solver.
+    def initialize_solver(self, initial_guess, *, method="fixed_point",
+                          solver_options=None):
+        """Restore a coupled state and initialize a fresh solver.
 
-        ``method`` currently supports only ``"fixed_point"``. Pass controls
-        such as ``relaxation``, ``temperature_tol``, ``log10pressure_tol``,
-        ``max_iterations``, and ``require_chemistry_to_converge`` through
-        ``solver_options``; see ``FixedPointSolver``. Other options are passed
-        to the photochemical atmosphere initializer, such as ``mode``.
+        ``initial_guess`` is a dictionary returned by ``initial_guess()`` or
+        ``model_state()`` on a compatible model. Method and state validation
+        precede restoration. Destination boundary conditions, callbacks, and
+        numerical/climate configuration remain in effect; identical mechanisms
+        and optical data are the caller's responsibility.
 
-        Chemical integration begins with the first ``iterate``. Controls and
-        method are validated before either physical model is changed. A new
-        solver resets all counters, residuals, and history.
+        No chemistry integration or climate solve is performed here. The
+        photochemical atmosphere is restored directly, preserving its installed
+        profile mismatch. Climate restart profiles seed the fixed-point vector
+        and convective guess; live ``c`` outputs are rebuilt at the first map
+        evaluation. Until then, ``model_state()`` uses the retained restart data.
 
-        Parameters
-        ----------
-        edd : float or array-like
-            Positive eddy diffusion in cm²/s. A profile requires matching
-            ``edd_pressure`` coordinates and is interpolated in log-pressure /
-            log-Kzz space, with constant endpoint values.
-        edd_pressure : array-like, optional
-            Finite, positive, strictly decreasing pressures in dyn/cm².
-        surface_partial_pressures : dict[str, float], optional
-            Initial climate partial pressures in dyn/cm². Defaults to current
-            fixed-pressure photochemical gas lower boundaries. Used only for
-            the initial guess; subsequent solves use live photochemical state
-            and boundary conditions.
-        target_pressure : float, optional
-            Photochemical top pressure and TOA maintenance target in dyn/cm²,
-            default 0.1; independent of the climate top pressure.
-        method : str, optional
-            Coupling algorithm, currently only ``"fixed_point"``.
-        solver_options : dict, optional
-            Keyword controls for ``FixedPointSolver``.
-        **kwargs
-            Additional ``pc.initialize_atmosphere_p`` options, such as
-            ``mode`` and ``tropopause_pressure``.
+        ``method`` currently supports only ``"fixed_point"``. ``solver_options``
+        supplies controls to ``FixedPointSolver``. Counters, history, and
+        convergence flags start fresh, even for a previously converged state.
+        This is a warm restart, not a complete model or integrator checkpoint.
         """
         if method != "fixed_point":
             raise ValueError(f'Unknown coupling method: {method!r}. Expected "fixed_point".')
         solver = FixedPointSolver(self, **({} if solver_options is None else solver_options))
+        pc_state, edd, pressure, climate = self._validate_state(initial_guess)
+        x = self._fixed_point_state_from_climate(climate)
         if self.solver is not None:
             self.solver._initialized = False
-        self.solver = solver
-        x = self._initial_guess(
-            edd, edd_pressure=edd_pressure,
-            surface_partial_pressures=surface_partial_pressures,
-            target_pressure=target_pressure, **kwargs
-        )
+        self._state_ready = False
+        self.pc.initialize_from_state(pc_state)
+        self._edd, self._edd_pressure = edd, pressure
+        self._restore_climate_state(climate)
         solver._initialize(x)
+        self.solver = solver
+        self._state_ready = True
 
     def iterate(self):
         """Perform one coupling iteration, returning ``(give_up, converged)``.
@@ -441,15 +497,15 @@ class CoupledPhotochemistryClimate():
             raise RuntimeError('Call initialize_solver before iterate.')
         return self.solver.iterate()
 
-    def find_steady_state(self, edd, **kwargs):
+    def find_steady_state(self, initial_guess, **kwargs):
         """Initialize and iterate until coupled convergence or the iteration limit.
 
         Parameters
         ----------
-        edd : float or array-like
-            Eddy diffusion input for ``_initial_guess``.
+        initial_guess : dict
+            Coupled state from ``initial_guess()`` or ``model_state()``.
         **kwargs
-            Atmospheric inputs and solver controls passed to
+            Method and solver controls passed to
             ``initialize_solver``.
 
         Returns
@@ -459,7 +515,7 @@ class CoupledPhotochemistryClimate():
             ``solver.chemistry_converged`` separately. Solver diagnostics and
             the last photochemical atmosphere remain available after return.
         """
-        self.initialize_solver(edd=edd, **kwargs)
+        self.initialize_solver(initial_guess=initial_guess, **kwargs)
         while True:
             give_up, converged = self.iterate()
             if give_up or converged:
@@ -518,7 +574,7 @@ class CoupledPhotochemistryClimate():
 
         The input surface pressure defines temperature coordinates; it is not
         imposed on the photochemical atmosphere. Kzz comes from the last
-        successful ``_initial_guess``. Condensate surface pressures come from
+        successful ``initial_guess`` or state restoration. Condensate surface pressures come from
         live photochemical state and boundary conditions. Chemistry uses its
         existing composition as a warm start, while climate must converge.
         The returned climate state is not applied back to photochemistry.
@@ -580,6 +636,9 @@ class CoupledPhotochemistryClimate():
             np.log10(self._edd[::-1])
         )
 
+        # Incomplete map evaluations cannot be captured as coupled states.
+        self._state_ready = False
+
         # Initialize photochem
         pc.destroy_stepper()
         pc.set_press_temp_edd_profile(
@@ -622,12 +681,15 @@ class CoupledPhotochemistryClimate():
         # Converge climate model.
         converged = c.RCE_robust(
             P_i, custom_dry_mix, T_init=T_init,
-            convecting_with_below_init=c.convecting_with_below
+            convecting_with_below_init=self._climate_state['convecting_with_below'].copy()
         )
         if not converged:
             converged = c.RCE_robust(P_i, custom_dry_mix)
         if not converged:
             raise ClimaException('Climate did not converge during _fixed_point_map.')
+
+        self._update_climate_state()
+        self._state_ready = True
 
         # Return new fixed point
         return self._fixed_point_state_from_climate()

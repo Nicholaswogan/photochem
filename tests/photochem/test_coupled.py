@@ -1,4 +1,6 @@
 import argparse
+from copy import deepcopy
+from types import SimpleNamespace
 import time
 
 import numpy as np
@@ -49,9 +51,9 @@ def test_smoke():
 
     # These must fail before climate solving or atmospheric initialization.
     for options in ({'method': 'quasi_static'},
-                    {'solver_options': {'relaxation': 0.0}}):
+                    {'solver_options': {'relaxation': 0.0}}, {}):
         try:
-            model.initialize_solver(edd=1e5, **options)
+            model.initialize_solver(initial_guess={}, **options)
         except ValueError:
             pass
         else:
@@ -65,12 +67,12 @@ def run_solver_checks():
     model = coupled.CoupledPhotochemistryClimate.__new__(coupled.CoupledPhotochemistryClimate)
     model.solver = None
     initial = np.array([6.0, 300.0, 200.0])
-    initialization_inputs = []
+    restored_states = []
     trials = []
-
-    def initial_guess(edd, **kwargs):
-        initialization_inputs.append((edd, kwargs))
-        return initial.copy()
+    model.pc = SimpleNamespace(initialize_from_state=restored_states.append)
+    state = {'local_test': True}
+    model._validate_state = lambda value: (value, np.ones(2), np.array([10., 1.]), {})
+    model._fixed_point_state_from_climate = lambda climate: initial.copy()
 
     def fixed_point_map(x, require_chemistry_to_converge, *, chemistry_diagnostics):
         assert require_chemistry_to_converge
@@ -78,17 +80,15 @@ def run_solver_checks():
         chemistry_diagnostics.update(converged=True, steps=1)
         return x + np.array([0.2, 20.0, 10.0])
 
-    model._initial_guess = initial_guess
     model._fixed_point_map = fixed_point_map
     model.initialize_solver(
-        edd=1e5, mode='periodic',
+        initial_guess=state,
         solver_options={'relaxation': 0.25, 'max_iterations': 2,
                         'require_chemistry_to_converge': True}
     )
     solver = model.solver
     assert isinstance(solver, coupled.FixedPointSolver)
-    assert initialization_inputs[0][0] == 1e5
-    assert initialization_inputs[0][1]['mode'] == 'periodic'
+    assert restored_states == [state]
     assert model.iterate() == (False, False)
     np.testing.assert_allclose(solver.fixed_point_x, initial)
     np.testing.assert_allclose(solver.fixed_point_gx, initial + [0.2, 20.0, 10.0])
@@ -107,7 +107,7 @@ def run_solver_checks():
         return x.copy()
 
     model._fixed_point_map = identity_map
-    assert model.find_steady_state(edd=1e5)
+    assert model.find_steady_state(initial_guess=state)
     assert model.solver is not solver
     assert model.solver.niterations == 1
     assert not model.solver.chemistry_converged
@@ -119,7 +119,7 @@ def run_solver_checks():
         raise coupled.ClimaException('Local test climate failure.')
 
     model._fixed_point_map = failing_map
-    model.initialize_solver(edd=1e5)
+    model.initialize_solver(initial_guess=state)
     try:
         model.iterate()
     except coupled.ClimaException:
@@ -138,6 +138,74 @@ def run_solver_checks():
     print('Local fixed-point solver checks passed.', flush=True)
 
 
+def assert_state_equal(actual, expected):
+    """Compare nested state dictionaries without coercing metadata arrays."""
+    assert actual.keys() == expected.keys()
+    for key in actual:
+        if isinstance(actual[key], dict):
+            assert_state_equal(actual[key], expected[key])
+        else:
+            np.testing.assert_equal(actual[key], expected[key])
+
+
+def run_restart_checks():
+    """Local state checks; requires one initial climate solve, no chemistry."""
+    model = initialize()
+    model.c.verbose = False
+    guess = model.initial_guess(edd=1e5)
+    assert set(guess['climate']) == {'pressure', 'temperature', 'convecting_with_below'}
+    assert model.solver is None
+    assert guess['edd'].shape == guess['edd_pressure'].shape == (2,)
+    assert_state_equal(model.model_state(), guess)
+
+    # Reinitialization preserves atmospheric fields and resets bookkeeping.
+    model.initialize_solver(initial_guess=guess)
+    assert model.solver.niterations == 0
+    assert not model.solver.converged
+    assert model.solver.chemistry_converged is None
+    restored = model.model_state()
+    assert_state_equal(restored, guess)
+    restored['climate']['temperature'][0] += 10.0
+    restored['edd'][0] *= 2.0
+    assert_state_equal(model.model_state(), guess)
+
+    fresh = initialize()
+    fresh.initialize_solver(initial_guess=guess)
+    assert_state_equal(fresh.model_state(), guess)
+    np.testing.assert_equal(fresh.pc.wrk.usol, model.pc.wrk.usol)
+    # A second capture before any climate rebuild must use restored guesses.
+    round_trip = fresh.model_state()
+    fresh.initialize_solver(initial_guess=round_trip)
+    assert_state_equal(fresh.model_state(), guess)
+
+    # Validation failures must leave the existing atmosphere and solver alone.
+    saved_solver = fresh.solver
+    invalid_states = []
+    for key, value in [('schema_version', 999), ('edd', np.array([-1., 1.]))]:
+        invalid = deepcopy(guess)
+        invalid[key] = value
+        invalid_states.append(invalid)
+    for key, value in [('pressure', np.array([1e6, 1.])),
+                       ('temperature', np.array([np.nan])),
+                       ('convecting_with_below', np.zeros(50, dtype=int))]:
+        invalid = deepcopy(guess)
+        invalid['climate'][key] = value
+        invalid_states.append(invalid)
+    invalid = deepcopy(guess)
+    del invalid['photochem']['temperature']
+    invalid_states.append(invalid)
+    for invalid in invalid_states:
+        try:
+            fresh.initialize_solver(initial_guess=invalid)
+        except (ValueError, coupled.PhotoException):
+            pass
+        else:
+            raise AssertionError('Invalid coupled state was accepted.')
+        assert fresh.solver is saved_solver
+        assert_state_equal(fresh.model_state(), guess)
+    print('Local coupled restart checks passed.', flush=True)
+
+
 def run_full():
     """Run the expensive coupled convergence check locally, outside CI."""
     model = initialize()
@@ -145,7 +213,8 @@ def run_full():
     model.pc.var.atol = 1.0e-18
     model.c.verbose = False
     started = time.monotonic()
-    model.initialize_solver(edd=1e5, method="fixed_point",
+    guess = model.initial_guess(edd=1e5)
+    model.initialize_solver(initial_guess=guess, method="fixed_point",
                             solver_options={"relaxation": 0.5})
     solver = model.solver
     print('Initialized coupled solver with default controls.', flush=True)
@@ -182,17 +251,38 @@ def run_full():
     assert np.all(solution['temp'] > 0.0)
     assert np.all(solution['pressure'] > 0.0)
     assert np.all(solution['density'] > 0.0)
-    print('Full coupled-model test passed.', flush=True)
+    # Restart a fresh compatible model from the converged atmosphere.
+    state = model.model_state()
+    fresh = initialize()
+    fresh.pc.var.verbose = 0
+    fresh.pc.var.atol = 1.0e-18
+    fresh.c.verbose = False
+    fresh.initialize_solver(initial_guess=state)
+    assert_state_equal(fresh.model_state(), state)
+    assert fresh.solver.niterations == 0
+    while True:
+        give_up, restarted_converged = fresh.iterate()
+        if give_up or restarted_converged:
+            break
+    assert restarted_converged and not give_up, 'Converged warm start failed to reconverge.'
+    assert fresh.solver.chemistry_converged
+    print('Full coupled-model and converged restart tests passed.', flush=True)
 
 
 def main():
     parser = argparse.ArgumentParser(description='Run the coupled-model smoke test by default.')
     parser.add_argument('--full', action='store_true',
                         help='Run the expensive full coupled convergence test locally.')
+    parser.add_argument('--restart', action='store_true',
+                        help='Run local restart checks with one climate solve and no chemistry integration.')
     args = parser.parse_args()
     if args.full:
         run_solver_checks()
+        run_restart_checks()
         run_full()
+    elif args.restart:
+        run_solver_checks()
+        run_restart_checks()
     else:
         test_smoke()
         print('Coupled-model smoke test passed.')
