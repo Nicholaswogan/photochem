@@ -1,6 +1,7 @@
 import numpy as np
 
 from copy import deepcopy
+from collections import deque
 
 from tempfile import NamedTemporaryFile
 
@@ -712,7 +713,7 @@ class CoupledPhotochemistryClimate():
 
 
 class FixedPointSolver:
-    """Under-relaxed chemistry-to-climate fixed-point iteration.
+    """Damped fixed-point iteration with optional Anderson acceleration.
 
     Created by ``CoupledPhotochemistryClimate.initialize_solver``. Owns all
     iteration controls and diagnostics; the coupling model owns the physical
@@ -728,8 +729,12 @@ class FixedPointSolver:
         Maximum absolute log10 surface-pressure mismatch (dex), default 1e-3.
         Both tolerances must be finite and nonnegative.
     relaxation : float, optional
-        Fraction of the unrelaxed update used for the next trial, in (0, 1],
-        default 0.5.
+        Damping factor in (0, 1], default 0.5. Used by both plain fixed-point
+        iteration and the damped Anderson update.
+    anderson_memory : int, optional
+        Number of recent iterate/residual differences used for Anderson
+        acceleration. Default 0 disables acceleration; 3 is a small starting
+        history. Resets and accelerated updates are recorded in solver_history.
     max_iterations : int, optional
         Maximum completed map evaluations, default 30.
     require_chemistry_to_converge : bool, optional
@@ -742,7 +747,8 @@ class FixedPointSolver:
 
     def __init__(self, model, *, temperature_tol=1e-3, log10pressure_tol=1e-3,
                  relaxation=0.5, max_iterations=30,
-                 require_chemistry_to_converge=False, verbose=False):
+                 require_chemistry_to_converge=False, verbose=False,
+                 anderson_memory=0):
         temperature_tol = float(temperature_tol)
         log10pressure_tol = float(log10pressure_tol)
         relaxation = float(relaxation)
@@ -755,12 +761,16 @@ class FixedPointSolver:
         if (isinstance(max_iterations, (bool, np.bool_)) or
                 not isinstance(max_iterations, (int, np.integer)) or max_iterations < 1):
             raise ValueError('max_iterations must be a positive integer.')
+        if (isinstance(anderson_memory, (bool, np.bool_)) or
+                not isinstance(anderson_memory, (int, np.integer)) or anderson_memory < 0):
+            raise ValueError('anderson_memory must be a nonnegative integer.')
 
         self._model = model
         self.temperature_tol = temperature_tol
         self.log10pressure_tol = log10pressure_tol
         self.relaxation = relaxation
         self.max_iterations = int(max_iterations)
+        self.anderson_memory = int(anderson_memory)
         self.require_chemistry_to_converge = bool(require_chemistry_to_converge)
         self.verbose = bool(verbose)
         self._verbose_header_printed = False
@@ -777,11 +787,83 @@ class FixedPointSolver:
 
         self.chemistry_converged = None
         self.chemistry_diagnostics = None
+        self._anderson_history = deque(maxlen=self.anderson_memory + 1)
+        self._anderson_scale = None
+        self._anderson_previous_norm = None
+        self._step_method = None
+        self._anderson_reset = None
 
     def _initialize(self, x):
         self._next_x = x.copy()
         self.fixed_point_x = x.copy()
+        if self.anderson_memory:
+            # Fixed scales keep every history column in the same coordinates.
+            # Positive tolerances weight pressure and temperature by accuracy;
+            # zero tolerances use physical scales rather than dividing by zero.
+            self._anderson_scale = np.concatenate((
+                [self.log10pressure_tol if self.log10pressure_tol > 0.0 else 1.0],
+                x[1:] * (self.temperature_tol if self.temperature_tol > 0.0 else 1.0),
+            ))
         self._initialized = True
+
+    def _restart_anderson(self, x, residual, reason):
+        """Discard unreliable secants, retaining the current converged-chemistry point."""
+        self._anderson_history.clear()
+        self._anderson_history.append((x.copy(), residual.copy()))
+        self._anderson_reset = reason
+
+    def _propose_next_iterate(self, x, gx):
+        """Choose a damped or Anderson trial without evaluating the physical map.
+
+        With r = g(x)-x, minimize ||(r - dR gamma)/scale||, then use
+        x_next = x + relaxation*r - (dX + relaxation*dR) gamma.
+        A history reset reacts to observed growth; it does not roll back the
+        current physical state or guarantee residual decrease on the next step.
+        """
+        residual = gx - x
+        plain = x + self.relaxation * residual
+        self._step_method = 'relaxation'
+        if not self.anderson_memory:
+            return plain
+        if not self.chemistry_converged:
+            self._anderson_history.clear()
+            self._anderson_previous_norm = None
+            self._anderson_reset = 'chemistry_unconverged'
+            return plain
+
+        norm = float(np.max(np.abs(residual / self._anderson_scale)))
+        previous_norm = self._anderson_previous_norm
+        self._anderson_previous_norm = norm
+        if previous_norm is not None and norm > 2.0 * previous_norm:
+            self._restart_anderson(x, residual, 'residual_growth')
+            return plain
+        self._anderson_history.append((x.copy(), residual.copy()))
+        if len(self._anderson_history) < 2:
+            return plain
+
+        xs, rs = zip(*self._anderson_history)
+        dX = np.diff(np.column_stack(xs), axis=1)
+        dR = np.diff(np.column_stack(rs), axis=1)
+        try:
+            gamma, _, rank, _ = np.linalg.lstsq(
+                dR / self._anderson_scale[:, None],
+                residual / self._anderson_scale, rcond=1e-10,
+            )
+        except np.linalg.LinAlgError:
+            self._restart_anderson(x, residual, 'least_squares_failure')
+            return plain
+        if rank < dR.shape[1]:
+            self._restart_anderson(x, residual, 'dependent_history')
+            return plain
+        candidate = plain - (dX + self.relaxation * dR) @ gamma
+        if (not np.all(np.isfinite(candidate)) or np.any(candidate[1:] <= 0.0) or
+                candidate[0] <= np.log10(self._model.c.P_top) or
+                candidate[0] <= np.log10(self._model.pc.var.toa_pressure_maintenance.target_pressure) or
+                candidate[0] > np.log10(np.finfo(float).max)):
+            self._restart_anderson(x, residual, 'invalid_proposal')
+            return plain
+        self._step_method = 'anderson'
+        return candidate
 
     def iterate(self):
         """Perform one chemistry-to-climate map evaluation.
@@ -839,14 +921,18 @@ class FixedPointSolver:
         self.converged = (self.temperature_residual <= self.temperature_tol and
                           self.log10pressure_residual <= self.log10pressure_tol)
         self.give_up = not self.converged and self.niterations >= self.max_iterations
+        self._step_method = None
+        self._anderson_reset = None
+        if not self.converged and not self.give_up:
+            self._next_x = self._propose_next_iterate(x, gx)
         self.solver_history.append({
             'iteration': self.niterations,
             'temperature_residual': self.temperature_residual,
             'log10pressure_residual': self.log10pressure_residual,
             'chemistry_converged': self.chemistry_converged,
+            'step_method': self._step_method,
+            'anderson_reset': self._anderson_reset,
         })
-        if not self.converged and not self.give_up:
-            self._next_x = x + self.relaxation*(gx - x)
         self._initialized = True
         if self.verbose:
             self._print_iteration()

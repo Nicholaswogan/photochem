@@ -80,6 +80,42 @@ The fixed-point map prepares the proposed T(P) with `set_press_temp_edd_profile`
 
 Current chemical defaults are 7,000 accepted steps and `conv_longdy=1e-3`, adjustable through `pc.var`. If chemical convergence is optional, permit continuation only after exhausting the accepted-step budget with usable state. Report chemical and coupled convergence separately. Other chemistry failures remain errors; climate must converge.
 
+### Optional damped Anderson acceleration
+
+`FixedPointSolver` accepts `anderson_memory` through `solver_options`. The default is 0 (plain damping); 3 enables a small Anderson history. The existing `relaxation` parameter damps both algorithms, with no additional mixing parameter or adaptive damping controller.
+
+For residual `r = g(x) - x`, form recent differences `dX`, `dR`, fit `gamma` by minimizing `||(r - dR gamma)/scale||`, and propose:
+
+```python
+x_next = x + relaxation*r - (dX + relaxation*dR) @ gamma
+```
+
+Residual scales are fixed at initialization: pressure uses its positive convergence tolerance, and temperature uses the initial temperature times its positive relative tolerance. Zero tolerances instead use 1 dex and initial temperatures. Solve the scaled least-squares problem directly with `numpy.linalg.lstsq`, not normal equations.
+
+The first step uses plain damping. Clear unreliable history and use damping if residual norm grows by more than a factor of 2, history loses rank (relative singular-value cutoff `1e-10`), least squares fails, or the proposal violates finite/positive temperature or pressure-domain constraints. Do not build acceleration history from unconverged chemistry. History is limited to `anderson_memory + 1` points. These safeguards do not guarantee convergence and do not retry or roll back physical model failures.
+
+Each iteration still performs one map evaluation and checks the original unrelaxed residuals. `solver_history` records the next proposal's `step_method` and any `anderson_reset` reason; a terminal evaluation has no next proposal. Acceleration history is reset with a new solver and excluded from coupled atmospheric snapshots.
+
+The local benchmark compares plain damping and memory-3 Anderson, both with relaxation 0.5, identical tolerances, and required chemical convergence. Both start from the same saved initial atmosphere in fresh compatible models; timing includes restoration and coupling work but excludes shared initial-guess construction and model loading:
+
+```bash
+PYTHONPATH="$PWD" python tests/photochem/test_coupled.py --benchmark \
+    --benchmark-output /tmp/coupled-anderson-benchmark.json
+```
+
+This benchmark and numerical acceleration checks remain outside CI; default test execution is smoke-only.
+
+Local result on 2026-10-29, using the current Earth coupled test:
+
+| Mode | Map evaluations | Elapsed time | Chemical steps | Final relative T residual | Final log10P residual |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Damping, relaxation 0.5 | 10 | 161.6 s | 9,238 | 5.502e-4 | 9.703e-5 dex |
+| Anderson memory 3, relaxation 0.5 | 6 | 126.9 s | 6,586 | 5.883e-4 | 3.192e-5 dex |
+
+Anderson saved four map evaluations and 21.5% elapsed time (1.27x speedup). Chemistry converged throughout both runs, with zero integration errors or resynchronization failures. The accelerated run required no history resets. Final climate surface temperatures were 294.5903 K and 294.5832 K; the maximum photochemical temperature difference on common pressure coordinates was 0.0542%, and surface pressures differed by 2.063e-5 dex.
+
+Recommendation: retain plain damping as the default and offer memory-3 Anderson as an optional mode. This is a useful improvement on one atmosphere, not evidence of robustness across different compositions, condensation transitions, or future haze feedback. Broader physical cases should precede a default change. Deterministic local checks also verify faster convergence on an affine map, bounded history, one evaluation per iteration, and damping fallback for dependent secants, invalid temperatures, and residual growth.
+
 ## Quasi-static adaptive coupling
 
 The intended approximation is chemistry evolving in physical time with climate equilibrating rapidly to the changing composition:
