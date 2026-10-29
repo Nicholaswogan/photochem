@@ -10,11 +10,11 @@ from photochem import EvoAtmosphere, PhotoException, PressureBC
 class CoupledPhotochemistryClimate():
 
     def __init__(
-            self, 
-            mechanism_file, 
-            settings_file, 
-            flux_file, 
-            climate_condensates=('H2O', 'CO2'), 
+            self,
+            mechanism_file,
+            settings_file,
+            flux_file,
+            climate_condensates=('H2O', 'CO2'),
             climate_number_of_layers=50,
             climate_top_pressure=1.0,
             data_dir=None,
@@ -28,18 +28,15 @@ class CoupledPhotochemistryClimate():
 
         # Initialize photochemistry code
         self.pc = EvoAtmosphere(
-            mechanism_file=mechanism_file, 
-            settings_file=settings_file, 
-            flux_file=flux_file, 
+            mechanism_file=mechanism_file,
+            settings_file=settings_file,
+            flux_file=flux_file,
             data_dir=data_dir
         )
 
+        # Adjust convergence criteria
         self.pc.var.nsteps_before_giveup = 7000
         self.pc.var.conv_longdy = 1e-3
-        self._edd = None
-        self._edd_pressure = None
-        self._climate_surface_partial_pressures = None
-        self.solver = None
 
         # Extract information from photochemistry species file
         climate_species = []
@@ -53,33 +50,38 @@ class CoupledPhotochemistryClimate():
         with NamedTemporaryFile(suffix='.yaml') as f1:
             climate.species_file_for_climate(
                 input_filename=mechanism_file,
-                filename=f1.name, 
-                species=climate_species, 
+                filename=f1.name,
+                species=climate_species,
                 condensates=climate_condensates
             )
             f1.flush()
             with NamedTemporaryFile(suffix='.yaml') as f2:
                 climate.settings_file_for_climate(
-                    filename=f2.name, 
-                    planet_mass=float(self.settings['planet']['planet-mass']), 
-                    planet_radius=float(self.settings['planet']['planet-radius']), 
-                    surface_albedo=float(self.settings['planet']['surface-albedo']), 
+                    filename=f2.name,
+                    planet_mass=float(self.settings['planet']['planet-mass']),
+                    planet_radius=float(self.settings['planet']['planet-radius']),
+                    surface_albedo=float(self.settings['planet']['surface-albedo']),
                     number_of_layers=climate_number_of_layers,
-                    number_of_zenith_angles=4, 
+                    number_of_zenith_angles=4,
                     photon_scale_factor=float(self.settings['planet'].get('photon-scale-factor', 1.0))
                 )
                 f2.flush()
 
                 self.c = AdiabatClimateForCoupled(
-                    species_file=f1.name, 
-                    settings_file=f2.name, 
+                    species_file=f1.name,
+                    settings_file=f2.name,
                     flux_file=flux_file,
-                    top_pressure=climate_top_pressure, 
+                    top_pressure=climate_top_pressure,
                     data_dir=data_dir,
                 )
 
         # Make the RH the same between models
         self._set_climate_rh_from_photochem()
+
+        # Attributes to be used later.
+        self._edd = None
+        self._edd_pressure = None
+        self.solver = None
 
     def _set_climate_rh_from_photochem(self):
 
@@ -130,22 +132,6 @@ class CoupledPhotochemistryClimate():
             if boundary_types[i] == PressureBC
         }
 
-    def solution(self):
-        """Return the current photochemical atmosphere without modifying it.
-
-        This does not check chemical or coupled convergence.
-
-        Returns
-        -------
-        dict[str, numpy.ndarray]
-            Layer-center altitude (``alt``, cm), temperature (``temp``, K),
-            pressure (dyn/cm²), gas density (molecules/cm³), and species
-            abundances, following ``pc.mole_fraction_dict`` conventions.
-        """
-        if not self.pc.atmosphere_initialized:
-            raise PhotoException('The photochemical atmosphere has not been initialized.')
-        return self.pc.mole_fraction_dict()
-
     def _profiles_from_climate(self):
         """Return bottom-to-top pressure (dyn/cm²), temperature (K), and gas VMRs.
 
@@ -189,9 +175,9 @@ class CoupledPhotochemistryClimate():
         Parameters
         ----------
         edd : numpy.ndarray
-            Validated scalar (zero-dimensional array) or Kzz profile in cm²/s.
-        edd_pressure : numpy.ndarray or None
-            Validated pressure knots in dyn/cm² for a Kzz profile.
+            Validated one-dimensional Kzz profile in cm²/s.
+        edd_pressure : numpy.ndarray
+            Matching, strictly decreasing pressure knots in dyn/cm².
         target_pressure : float
             Finite, positive photochemical top pressure in dyn/cm².
 
@@ -211,9 +197,8 @@ class CoupledPhotochemistryClimate():
         grid_parts = [pressure[pressure > target_pressure], [target_pressure]]
         if target_pressure < self.c.P_top < pressure[0]:
             grid_parts.append([self.c.P_top])
-        if edd.ndim == 1:
-            inside = (edd_pressure <= pressure[0]) & (edd_pressure >= target_pressure)
-            grid_parts.append(edd_pressure[inside])
+        inside = (edd_pressure <= pressure[0]) & (edd_pressure >= target_pressure)
+        grid_parts.append(edd_pressure[inside])
         pressure_grid = np.unique(np.concatenate(grid_parts))[::-1].copy()
         log_pressure_grid = np.log10(pressure_grid)
         log_pressure_climate = np.log10(pressure[::-1])
@@ -224,12 +209,9 @@ class CoupledPhotochemistryClimate():
             sp: np.interp(log_pressure_grid, log_pressure_climate, values[::-1])
             for sp, values in mix.items()
         }
-        if edd.ndim == 0:
-            edd_grid = np.full(pressure_grid.size, float(edd))
-        else:
-            edd_grid = 10.0**np.interp(
-                log_pressure_grid, np.log10(edd_pressure[::-1]), np.log10(edd[::-1])
-            )
+        edd_grid = 10.0**np.interp(
+            log_pressure_grid, np.log10(edd_pressure[::-1]), np.log10(edd[::-1])
+        )
 
         return pressure_grid, temperature_grid, edd_grid, mix_grid
 
@@ -267,13 +249,20 @@ class CoupledPhotochemistryClimate():
             The initialized photochemical atmosphere is not chemically converged.
         """
 
-        # Validate eddy diffusion
+        # Validate the target TOA pressure
+        target_pressure = float(target_pressure)
+        if not np.isfinite(target_pressure) or target_pressure <= 0.0:
+            raise ValueError('Photochemical target_pressure must be finite and positive (dyn/cm²).')
+
+        # Validate eddy diffusion and normalize it
         edd = np.asarray(edd, dtype=float)
         if edd.ndim > 1 or not np.all(np.isfinite(edd)) or np.any(edd <= 0.0):
             raise ValueError('edd must be a finite, positive scalar or one-dimensional profile.')
         if edd.ndim == 0:
             if edd_pressure is not None:
                 raise ValueError('edd_pressure must be omitted when edd is a scalar.')
+            edd = np.full(2, float(edd))
+            edd_pressure = np.array([target_pressure*10.0, target_pressure])
         else:
             if edd_pressure is None:
                 raise ValueError('edd_pressure is required when edd is a profile.')
@@ -284,11 +273,6 @@ class CoupledPhotochemistryClimate():
                 raise ValueError('edd_pressure must contain finite, positive pressures (dyn/cm²).')
             if np.any(np.diff(edd_pressure) >= 0.0):
                 raise ValueError('edd_pressure must be strictly decreasing.')
-
-        # Validate the target TOA pressure
-        target_pressure = float(target_pressure)
-        if not np.isfinite(target_pressure) or target_pressure <= 0.0:
-            raise ValueError('Photochemical target_pressure must be finite and positive (dyn/cm²).')
 
         # Use the surface pressures to construct a sensible initial atmosphere
         if surface_partial_pressures is None:
@@ -317,14 +301,12 @@ class CoupledPhotochemistryClimate():
         if not self.c.RCE_robust(P_i):
             raise ClimaException('Climate did not converge while constructing the initial guess.')
 
-        # Extract the fixed point vector
-        x = self._fixed_point_state_from_climate()
-
         # Build profiles covering the photochemical domain.
         pressure_grid, temperature_grid, edd_grid, mix_grid = (
             self._photochemical_profiles_from_climate(edd, edd_pressure, target_pressure)
         )
 
+        # Initialize the photochemical atmosphere to the climate state
         self.pc.initialize_atmosphere_p(
             pressure=pressure_grid,
             temperature=temperature_grid,
@@ -336,13 +318,14 @@ class CoupledPhotochemistryClimate():
             target_pressure=target_pressure,
             **kwargs
         )
+
         # Retain independent prescribed inputs for subsequent map evaluations.
         self._edd = edd.copy()
-        self._edd_pressure = None if edd_pressure is None else edd_pressure.copy()
-        self._climate_surface_partial_pressures = {
-            sp: float(P_i[i]) for i, sp in enumerate(self.c.species_names)
-            if sp in self.climate_condensates
-        }
+        self._edd_pressure = edd_pressure.copy()
+
+        # Extract the fixed point vector
+        x = self._fixed_point_state_from_climate()
+
         return x
 
     def _make_pressure_grid(self, log10P_surf):
@@ -420,8 +403,9 @@ class CoupledPhotochemistryClimate():
             Finite, positive, strictly decreasing pressures in dyn/cm².
         surface_partial_pressures : dict[str, float], optional
             Initial climate partial pressures in dyn/cm². Defaults to current
-            fixed-pressure photochemical gas lower boundaries. Condensable
-            inventories are retained for subsequent climate solves.
+            fixed-pressure photochemical gas lower boundaries. Used only for
+            the initial guess; subsequent solves use live photochemical state
+            and boundary conditions.
         target_pressure : float, optional
             Photochemical top pressure and TOA maintenance target in dyn/cm²,
             default 0.1; independent of the climate top pressure.
@@ -485,13 +469,16 @@ class CoupledPhotochemistryClimate():
         """Build climate pressures and dry-gas profiles from photochemistry.
 
         Estimate surface gas fractions by extending the lowest model layer
-        constantly to the surface. Use the column-derived surface pressure
-        and retain condensable inventories supplied to ``_initial_guess``.
+        constantly to the surface, using the column-derived surface pressure.
+        For climate condensates with fixed-pressure lower boundaries, use
+        their prescribed pressures instead. Climate determines condensate
+        vertical profiles; only dry gases supply custom mixing-ratio profiles.
         Negative numerical traces are floored for climate interpolation only;
         the photochemical state is unchanged. Dry profiles are normalized
         within the dry gases, as required by ``AdiabatClimate.RCE``.
         """
-        sol = self.solution()
+        # Extract composition from photochem
+        sol = self.pc.mole_fraction_dict()
         pressure = sol['pressure']
         if (not np.all(np.isfinite(pressure)) or np.any(pressure <= 0.0) or
                 np.any(np.diff(pressure) >= 0.0)):
@@ -502,18 +489,20 @@ class CoupledPhotochemistryClimate():
         if not np.isfinite(surface_pressure) or surface_pressure <= 0.0:
             raise PhotoException('Photochemical surface pressure must be finite and positive.')
 
+        # Build climate inputs from photochem
         gas_mix = np.array([sol[sp] for sp in self.c.species_names])
         if not np.all(np.isfinite(gas_mix)) or np.any(np.sum(gas_mix, axis=0) <= 0.0):
             raise PhotoException('Photochemical gas mixing ratios must be finite with a positive total.')
         gas_mix = np.maximum(gas_mix, 1e-30)
         gas_mix /= np.sum(gas_mix, axis=0)
         dry = np.array([sp not in self.climate_condensates for sp in self.c.species_names])
+        fixed_pressures = self._surface_partial_pressures_from_photochem()
         P_i = np.empty(len(self.c.species_names))
         for i, sp in enumerate(self.c.species_names):
-            if dry[i]:
-                P_i[i] = gas_mix[i, 0]*surface_pressure
+            if not dry[i] and sp in fixed_pressures:
+                P_i[i] = fixed_pressures[sp]
             else:
-                P_i[i] = self._climate_surface_partial_pressures[sp]
+                P_i[i] = gas_mix[i, 0]*surface_pressure
 
         custom_dry_mix = None
         if np.any(dry):
@@ -528,8 +517,9 @@ class CoupledPhotochemistryClimate():
         """Evaluate the chemistry-to-climate map without advancing a solver.
 
         The input surface pressure defines temperature coordinates; it is not
-        imposed on the photochemical atmosphere. Kzz and condensable inventories
-        come from the last successful ``_initial_guess``. Chemistry uses its
+        imposed on the photochemical atmosphere. Kzz comes from the last
+        successful ``_initial_guess``. Condensate surface pressures come from
+        live photochemical state and boundary conditions. Chemistry uses its
         existing composition as a warm start, while climate must converge.
         The returned climate state is not applied back to photochemistry.
 
@@ -552,54 +542,58 @@ class CoupledPhotochemistryClimate():
             Climate-derived fixed-point vector. Neither this result nor the
             chemical diagnostics indicate convergence of a coupled solver.
         """
-        if self._edd is None or not self.pc.atmosphere_initialized:
-            raise PhotoException('Call _initial_guess before evaluating _fixed_point_map.')
+
+        # Validate the input x
         x = np.asarray(x, dtype=float)
         if x.shape != (self.c.T.size + 2,) or not np.all(np.isfinite(x)):
             raise ValueError('x must be a finite vector containing log10 surface pressure and one temperature per coupling-grid point.')
         if np.any(x[1:] <= 0.0):
             raise ValueError('Fixed-point temperatures must be positive (K).')
+
+        # Make the pressure grid from x and validate
         log_pressure = self._make_pressure_grid(x[0])
         if x[0] > np.log10(np.finfo(float).max):
             raise ValueError('Fixed-point surface pressure exceeds the floating-point range.')
         pressure = 10.0**log_pressure
+
+        # Unpack
         pc, c = self.pc, self.c
         profile = pc.var.press_temp_edd_profile
         maintenance = pc.var.toa_pressure_maintenance
-        if not profile.enabled:
-            raise PhotoException('_fixed_point_map requires an enabled pressure-temperature-eddy profile.')
-        target_pressure = (maintenance.target_pressure if maintenance.enabled
-                           else profile.pressure[-1])
+        target_pressure = maintenance.target_pressure
 
-        # Include the actual surface and original Kzz knots without imposing
-        # x's surface pressure or rebuilding the chemical composition.
-        bottom_pressure = max(pressure[0], pc.wrk.surface_pressure*1e6)
+        # Build a pressure, temperature and edd grid for the photochemical model.
+        bottom_pressure = pressure[0]
         if (not np.isfinite(bottom_pressure) or not np.isfinite(target_pressure) or
                 target_pressure <= 0.0 or target_pressure >= bottom_pressure):
             raise ValueError('Photochemical pressure endpoints must be finite, positive, and strictly decreasing.')
         parts = [pressure[pressure > target_pressure], [bottom_pressure, target_pressure]]
-        if self._edd_pressure is not None:
-            inside = ((self._edd_pressure <= bottom_pressure) &
-                      (self._edd_pressure >= target_pressure))
-            parts.append(self._edd_pressure[inside])
+        inside = ((self._edd_pressure <= bottom_pressure) &
+                  (self._edd_pressure >= target_pressure))
+        parts.append(self._edd_pressure[inside])
         pressure_grid = np.unique(np.concatenate(parts))[::-1].copy()
         temperature_grid = np.interp(
             np.log10(pressure_grid), log_pressure[::-1], x[1:][::-1]
         )
-        if self._edd.ndim == 0:
-            edd_grid = np.full(pressure_grid.size, float(self._edd))
-        else:
-            edd_grid = 10.0**np.interp(
-                np.log10(pressure_grid), np.log10(self._edd_pressure[::-1]),
-                np.log10(self._edd[::-1])
-            )
+        edd_grid = 10.0**np.interp(
+            np.log10(pressure_grid), np.log10(self._edd_pressure[::-1]),
+            np.log10(self._edd[::-1])
+        )
+
+        # Initialize photochem
         pc.destroy_stepper()
         pc.set_press_temp_edd_profile(
-            pressure_grid, temperature_grid, edd_grid,
-            trop_p=profile.trop_p, mode=profile.mode,
+            pressure_grid,
+            temperature_grid,
+            edd_grid,
+            trop_p=profile.trop_p,
+            mode=profile.mode,
             hydro_pressure=profile.hydro_pressure,
-            maintain_toa_pressure=maintenance.enabled, target_pressure=target_pressure
+            maintain_toa_pressure=maintenance.enabled,
+            target_pressure=target_pressure
         )
+
+        # Integrate photochem to steady state
         try:
             converged = pc.find_steady_state()
             chemistry_diagnostics.update({
@@ -620,9 +614,12 @@ class CoupledPhotochemistryClimate():
             if not chemistry_diagnostics['step_limit_reached']:
                 raise PhotoException('Photochemistry gave up before reaching its step limit during _fixed_point_map.')
 
+        # Get inputs for climate model from photochemical model
         P_i, custom_dry_mix = self._climate_inputs_from_photochem()
         # Climate layers are at the midpoints of equally spaced log pressures.
         T_init = np.concatenate(([x[1]], 0.5*(x[1:-1] + x[2:])))
+
+        # Converge climate model.
         converged = c.RCE_robust(
             P_i, custom_dry_mix, T_init=T_init,
             convecting_with_below_init=c.convecting_with_below
@@ -631,7 +628,25 @@ class CoupledPhotochemistryClimate():
             converged = c.RCE_robust(P_i, custom_dry_mix)
         if not converged:
             raise ClimaException('Climate did not converge during _fixed_point_map.')
+
+        # Return new fixed point
         return self._fixed_point_state_from_climate()
+
+    def solution(self):
+        """Return the current photochemical atmosphere without modifying it.
+
+        This does not check chemical or coupled convergence.
+
+        Returns
+        -------
+        dict[str, numpy.ndarray]
+            Layer-center altitude (``alt``, cm), temperature (``temp``, K),
+            pressure (dyn/cm²), gas density (molecules/cm³), and species
+            abundances, following ``pc.mole_fraction_dict`` conventions.
+        """
+        if not self.pc.atmosphere_initialized:
+            raise PhotoException('The photochemical atmosphere has not been initialized.')
+        return self.pc.mole_fraction_dict()
 
 
 class FixedPointSolver:
@@ -779,8 +794,8 @@ class AdiabatClimateForCoupled(AdiabatClimate):
             raise ValueError('Climate top pressure must be finite and positive (dyn/cm²).')
 
         super().__init__(
-            species_file, 
-            settings_file, 
+            species_file,
+            settings_file,
             flux_file,
             data_dir
         )
@@ -805,11 +820,11 @@ class AdiabatClimateForCoupled(AdiabatClimate):
                 break
             except ClimaException as e:
                 converged = False
-        
+
         return converged
 
     def RCE_robust(self, P_i, custom_dry_mix=None, T_init=None, convecting_with_below_init=None):
-        
+
         if T_init is None:
             converged_simple = self.surface_temperature_robust(P_i)
             if not converged_simple:
