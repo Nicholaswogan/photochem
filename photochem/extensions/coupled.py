@@ -36,20 +36,10 @@ class CoupledPhotochemistryClimate():
 
         self.pc.var.nsteps_before_giveup = 7000
         self.pc.var.conv_longdy = 1e-3
-        self.chemistry_converged = None
-        self.chemistry_diagnostics = None
         self._edd = None
         self._edd_pressure = None
         self._climate_surface_partial_pressures = None
-        self._solver_initialized = False
-        self.niterations = 0
-        self.converged = False
-        self.give_up = False
-        self.fixed_point_x = None
-        self.fixed_point_gx = None
-        self.temperature_residual = None
-        self.log10pressure_residual = None
-        self.solver_history = []
+        self.solver = None
 
         # Extract information from photochemistry species file
         climate_species = []
@@ -156,7 +146,7 @@ class CoupledPhotochemistryClimate():
             raise PhotoException('The photochemical atmosphere has not been initialized.')
         return self.pc.mole_fraction_dict()
 
-    def profiles_from_climate(self):
+    def _profiles_from_climate(self):
         """Return bottom-to-top pressure (dyn/cm²), temperature (K), and gas VMRs.
 
         Profiles include an explicit surface point followed by climate layers.
@@ -171,7 +161,7 @@ class CoupledPhotochemistryClimate():
             mix[sp] = f_i[:,i]
         return pressure, temperature, mix
 
-    def profiles_from_photochem(self):
+    def _profiles_from_photochem(self):
         """Return bottom-to-top layer pressure (dyn/cm²), temperature (K), and mix.
 
         Includes evolving gases and particles, but no explicit surface point or
@@ -212,7 +202,7 @@ class CoupledPhotochemistryClimate():
             and a dictionary of gas volume-mixing-ratio profiles, ready for
             ``pc.initialize_atmosphere_p``.
         """
-        pressure, temperature, mix = self.profiles_from_climate()
+        pressure, temperature, mix = self._profiles_from_climate()
         if target_pressure >= pressure[0]:
             raise ValueError('Photochemical target_pressure must be below the climate surface pressure.')
 
@@ -243,8 +233,8 @@ class CoupledPhotochemistryClimate():
 
         return pressure_grid, temperature_grid, edd_grid, mix_grid
 
-    def initial_guess(self, edd, edd_pressure=None, surface_partial_pressures=None,
-                      target_pressure=0.1, **kwargs):
+    def _initial_guess(self, edd, edd_pressure=None, surface_partial_pressures=None,
+                       target_pressure=0.1, **kwargs):
         """Solve climate and initialize photochemistry without integrating it.
 
         Above the climate layers, temperature and gas mixing ratios are held
@@ -273,7 +263,7 @@ class CoupledPhotochemistryClimate():
         Returns
         -------
         numpy.ndarray
-            Climate fixed-point vector from ``fixed_point_state_from_climate``.
+            Climate fixed-point vector from ``_fixed_point_state_from_climate``.
             The initialized photochemical atmosphere is not chemically converged.
         """
 
@@ -311,7 +301,7 @@ class CoupledPhotochemistryClimate():
             raise ValueError(
                 'No surface partial pressures are available for initialization. '
                 'If the photochemical model has no fixed-pressure gas lower boundaries, '
-                'you must supply surface_partial_pressures to initial_guess.'
+                'you must supply surface_partial_pressures to initialize_solver.'
             )
         P_i = np.full(len(self.c.species_names), 1e-15)
         for i, sp in enumerate(self.c.species_names):
@@ -323,17 +313,12 @@ class CoupledPhotochemistryClimate():
         if not any(float(value) > 0.0 for value in surface_partial_pressures.values()):
             raise ValueError('At least one supplied surface partial pressure must be positive.')
 
-        # Reinitializing the atmosphere invalidates any previous solver session.
-        self._solver_initialized = False
-        self.converged = False
-        self.give_up = False
-
         # Solve for steady-state climate.
         if not self.c.RCE_robust(P_i):
             raise ClimaException('Climate did not converge while constructing the initial guess.')
 
         # Extract the fixed point vector
-        x = self.fixed_point_state_from_climate()
+        x = self._fixed_point_state_from_climate()
 
         # Build profiles covering the photochemical domain.
         pressure_grid, temperature_grid, edd_grid, mix_grid = (
@@ -358,11 +343,9 @@ class CoupledPhotochemistryClimate():
             sp: float(P_i[i]) for i, sp in enumerate(self.c.species_names)
             if sp in self.climate_condensates
         }
-        self.chemistry_converged = None
-        self.chemistry_diagnostics = None
         return x
 
-    def make_pressure_grid(self, log10P_surf):
+    def _make_pressure_grid(self, log10P_surf):
         """Return log10 pressures from surface to climate top, in dyn/cm².
 
         Use one equally spaced log-pressure interval per climate layer,
@@ -376,7 +359,7 @@ class CoupledPhotochemistryClimate():
             raise ValueError('Surface pressure must be finite and exceed climate top pressure.')
         return np.linspace(log10P_surf, log10P_top, self.c.T.size + 1)
 
-    def fixed_point_state_from_climate(self):
+    def _fixed_point_state_from_climate(self):
         """Return the fixed-point vector represented by the current climate.
 
         Neither model is modified, and climate convergence is not checked.
@@ -406,140 +389,73 @@ class CoupledPhotochemistryClimate():
             raise ValueError('Climate temperatures must be finite and positive.')
 
         log10P_surf = np.log10(pressure[0])
-        log10P = self.make_pressure_grid(log10P_surf)
+        log10P = self._make_pressure_grid(log10P_surf)
         temperature_mapped = np.interp(
             log10P, np.log10(pressure[::-1]), temperature[::-1]
         )
         return np.concatenate(([log10P_surf], temperature_mapped))
 
     def initialize_solver(self, edd, edd_pressure=None, surface_partial_pressures=None,
-                          target_pressure=0.1, *, temperature_tol=1e-3,
-                          log10pressure_tol=1e-3, relaxation=0.5, max_iterations=30,
-                          require_chemistry_to_converge=False, **kwargs):
-        """Initialize both the atmosphere and an incremental fixed-point solve.
+                          target_pressure=0.1, *, method="fixed_point",
+                          solver_options=None, **kwargs):
+        """Initialize the atmosphere and a new coupling solver.
 
-        Calls ``initial_guess`` to solve the initial climate and initialize
-        photochemistry. Chemical integration begins with the first ``iterate``.
-        Restarting this solver resets its counters, residuals, and history.
+        ``method`` currently supports only ``"fixed_point"``. Pass controls
+        such as ``relaxation``, ``temperature_tol``, ``log10pressure_tol``,
+        ``max_iterations``, and ``require_chemistry_to_converge`` through
+        ``solver_options``; see ``FixedPointSolver``. Other options are passed
+        to the photochemical atmosphere initializer, such as ``mode``.
+
+        Chemical integration begins with the first ``iterate``. Controls and
+        method are validated before either physical model is changed. A new
+        solver resets all counters, residuals, and history.
 
         Parameters
         ----------
         edd : float or array-like
-            Eddy diffusion input described by ``initial_guess``.
+            Positive eddy diffusion in cm²/s. A profile requires matching
+            ``edd_pressure`` coordinates and is interpolated in log-pressure /
+            log-Kzz space, with constant endpoint values.
         edd_pressure : array-like, optional
-            Pressure coordinates for a Kzz profile, as in ``initial_guess``.
+            Finite, positive, strictly decreasing pressures in dyn/cm².
         surface_partial_pressures : dict[str, float], optional
-            Initial climate partial pressures, as in ``initial_guess``.
+            Initial climate partial pressures in dyn/cm². Defaults to current
+            fixed-pressure photochemical gas lower boundaries. Condensable
+            inventories are retained for subsequent climate solves.
         target_pressure : float, optional
-            Photochemical top pressure in dyn/cm², by default 0.1.
-        temperature_tol : float, optional
-            Maximum relative temperature mismatch, by default 1e-3.
-        log10pressure_tol : float, optional
-            Maximum absolute difference in log10 surface pressure (dex),
-            by default 1e-3. Both tolerances must be finite and nonnegative.
-        relaxation : float, optional
-            Fraction of the unrelaxed update used for the next trial, in
-            (0, 1], by default 0.5.
-        max_iterations : int, optional
-            Maximum number of completed map evaluations, by default 30.
-        require_chemistry_to_converge : bool, optional
-            Passed to ``fixed_point_map``, by default false. Coupled and
-            chemical convergence are reported separately.
+            Photochemical top pressure and TOA maintenance target in dyn/cm²,
+            default 0.1; independent of the climate top pressure.
+        method : str, optional
+            Coupling algorithm, currently only ``"fixed_point"``.
+        solver_options : dict, optional
+            Keyword controls for ``FixedPointSolver``.
         **kwargs
-            Additional options passed to ``initial_guess`` and its
-            photochemical initializer, such as ``mode``.
+            Additional ``pc.initialize_atmosphere_p`` options, such as
+            ``mode`` and ``tropopause_pressure``.
         """
-        temperature_tol = float(temperature_tol)
-        log10pressure_tol = float(log10pressure_tol)
-        relaxation = float(relaxation)
-        if not np.isfinite(temperature_tol) or temperature_tol < 0.0:
-            raise ValueError('temperature_tol must be finite and nonnegative.')
-        if not np.isfinite(log10pressure_tol) or log10pressure_tol < 0.0:
-            raise ValueError('log10pressure_tol must be finite and nonnegative (dex).')
-        if not np.isfinite(relaxation) or not 0.0 < relaxation <= 1.0:
-            raise ValueError('relaxation must be finite and in (0, 1].')
-        if (isinstance(max_iterations, (bool, np.bool_)) or
-                not isinstance(max_iterations, (int, np.integer)) or max_iterations < 1):
-            raise ValueError('max_iterations must be a positive integer.')
-
-        self._solver_initialized = False
-        x = self.initial_guess(
+        if method != "fixed_point":
+            raise ValueError(f'Unknown coupling method: {method!r}. Expected "fixed_point".')
+        solver = FixedPointSolver(self, **({} if solver_options is None else solver_options))
+        if self.solver is not None:
+            self.solver._initialized = False
+        self.solver = solver
+        x = self._initial_guess(
             edd, edd_pressure=edd_pressure,
             surface_partial_pressures=surface_partial_pressures,
             target_pressure=target_pressure, **kwargs
         )
-        self.temperature_tol = temperature_tol
-        self.log10pressure_tol = log10pressure_tol
-        self.relaxation = relaxation
-        self.max_iterations = int(max_iterations)
-        self.require_chemistry_to_converge = bool(require_chemistry_to_converge)
-        self._solver_next_x = x.copy()
-        self.fixed_point_x = x.copy()
-        self.fixed_point_gx = None
-        self.niterations = 0
-        self.converged = False
-        self.give_up = False
-        self.temperature_residual = None
-        self.log10pressure_residual = None
-        self.solver_history = []
-        self._solver_initialized = True
+        solver._initialize(x)
 
     def iterate(self):
-        """Perform one chemistry-to-climate map evaluation.
+        """Perform one coupling iteration, returning ``(give_up, converged)``.
 
-        Call ``initialize_solver`` first. Convergence uses the unrelaxed
-        temperature and log-pressure mismatch. ``fixed_point_x`` stores the
-        evaluated input, ``fixed_point_gx`` its climate result, and residuals
-        and chemical status are recorded in ``solver_history``. The relaxed
-        next trial is retained internally and is not applied to either model.
-
-        Once converged or out of iterations, repeated calls return the same
-        flags without further model evaluations. Model errors propagate and
-        invalidate the solver session; reinitialize before continuing.
-
-        Returns
-        -------
-        give_up : bool
-            The iteration limit was reached without coupled convergence.
-        converged : bool
-            Both fixed-point residuals satisfy tolerance. This does not imply
-            chemical convergence unless that was explicitly required; inspect
-            ``chemistry_converged`` separately. ``solution`` remains the
-            photochemical atmosphere from the last map evaluation.
+        Call ``initialize_solver`` first. Controls, residuals, history, and
+        chemical convergence diagnostics are available on ``self.solver``.
+        ``solution()`` remains the last photochemical atmosphere.
         """
-        if not self._solver_initialized:
-            raise RuntimeError('Call initialize_solver before iterate, or reinitialize after a failed evaluation.')
-        if self.converged or self.give_up:
-            return self.give_up, self.converged
-
-        x = self._solver_next_x.copy()
-        # A failed model evaluation may have changed physical state. Do not
-        # permit a retry using stale solver bookkeeping after an exception.
-        self._solver_initialized = False
-        gx = np.asarray(self.fixed_point_map(
-            x, require_chemistry_to_converge=self.require_chemistry_to_converge
-        ), dtype=float)
-        if gx.shape != x.shape or not np.all(np.isfinite(gx)) or np.any(gx[1:] <= 0.0):
-            raise ValueError('fixed_point_map returned an invalid pressure-temperature vector.')
-
-        self.fixed_point_x = x.copy()
-        self.fixed_point_gx = gx.copy()
-        self.niterations += 1
-        self.temperature_residual = float(np.max(np.abs(gx[1:] - x[1:])/x[1:]))
-        self.log10pressure_residual = float(abs(gx[0] - x[0]))
-        self.converged = (self.temperature_residual <= self.temperature_tol and
-                          self.log10pressure_residual <= self.log10pressure_tol)
-        self.give_up = not self.converged and self.niterations >= self.max_iterations
-        self.solver_history.append({
-            'iteration': self.niterations,
-            'temperature_residual': self.temperature_residual,
-            'log10pressure_residual': self.log10pressure_residual,
-            'chemistry_converged': self.chemistry_converged,
-        })
-        if not self.converged and not self.give_up:
-            self._solver_next_x = x + self.relaxation*(gx - x)
-        self._solver_initialized = True
-        return self.give_up, self.converged
+        if self.solver is None:
+            raise RuntimeError('Call initialize_solver before iterate.')
+        return self.solver.iterate()
 
     def find_steady_state(self, edd, **kwargs):
         """Initialize and iterate until coupled convergence or the iteration limit.
@@ -547,7 +463,7 @@ class CoupledPhotochemistryClimate():
         Parameters
         ----------
         edd : float or array-like
-            Eddy diffusion input for ``initial_guess``.
+            Eddy diffusion input for ``_initial_guess``.
         **kwargs
             Atmospheric inputs and solver controls passed to
             ``initialize_solver``.
@@ -556,8 +472,8 @@ class CoupledPhotochemistryClimate():
         -------
         bool
             Whether the fixed-point solve converged. Inspect
-            ``chemistry_converged`` separately. Counters, residuals, and the
-            last photochemical atmosphere remain available after return.
+            ``solver.chemistry_converged`` separately. Solver diagnostics and
+            the last photochemical atmosphere remain available after return.
         """
         self.initialize_solver(edd=edd, **kwargs)
         while True:
@@ -570,7 +486,7 @@ class CoupledPhotochemistryClimate():
 
         Estimate surface gas fractions by extending the lowest model layer
         constantly to the surface. Use the column-derived surface pressure
-        and retain condensable inventories supplied to ``initial_guess``.
+        and retain condensable inventories supplied to ``_initial_guess``.
         Negative numerical traces are floored for climate interpolation only;
         the photochemical state is unchanged. Dry profiles are normalized
         within the dry gases, as required by ``AdiabatClimate.RCE``.
@@ -607,12 +523,13 @@ class CoupledPhotochemistryClimate():
                 custom_dry_mix[str(sp)] = values.copy()
         return P_i, custom_dry_mix
 
-    def fixed_point_map(self, x, require_chemistry_to_converge=False):
+    def _fixed_point_map(self, x, require_chemistry_to_converge=False, *,
+                         chemistry_diagnostics):
         """Evaluate the chemistry-to-climate map without advancing a solver.
 
         The input surface pressure defines temperature coordinates; it is not
         imposed on the photochemical atmosphere. Kzz and condensable inventories
-        come from the last successful ``initial_guess``. Chemistry uses its
+        come from the last successful ``_initial_guess``. Chemistry uses its
         existing composition as a warm start, while climate must converge.
         The returned climate state is not applied back to photochemistry.
 
@@ -620,27 +537,29 @@ class CoupledPhotochemistryClimate():
         ----------
         x : array-like
             ``[log10(P_surface), T_surface, ..., T_top]`` in the representation
-            returned by ``fixed_point_state_from_climate``.
+            returned by ``_fixed_point_state_from_climate``.
         require_chemistry_to_converge : bool, optional
             If false (default), chemistry may exhaust its accepted-step budget
             and still supply climate inputs. Other integration failures remain
             errors. If true, chemical nonconvergence always raises an error.
+        chemistry_diagnostics : dict
+            Solver-owned output populated after chemistry returns, including
+            when a subsequent climate solve fails.
 
         Returns
         -------
         numpy.ndarray
-            Climate-derived fixed-point vector. ``chemistry_converged`` and
-            ``chemistry_diagnostics`` describe this evaluation's chemical run;
-            neither indicates convergence of a coupled fixed-point solver.
+            Climate-derived fixed-point vector. Neither this result nor the
+            chemical diagnostics indicate convergence of a coupled solver.
         """
         if self._edd is None or not self.pc.atmosphere_initialized:
-            raise PhotoException('Call initial_guess before evaluating fixed_point_map.')
+            raise PhotoException('Call _initial_guess before evaluating _fixed_point_map.')
         x = np.asarray(x, dtype=float)
         if x.shape != (self.c.T.size + 2,) or not np.all(np.isfinite(x)):
             raise ValueError('x must be a finite vector containing log10 surface pressure and one temperature per coupling-grid point.')
         if np.any(x[1:] <= 0.0):
             raise ValueError('Fixed-point temperatures must be positive (K).')
-        log_pressure = self.make_pressure_grid(x[0])
+        log_pressure = self._make_pressure_grid(x[0])
         if x[0] > np.log10(np.finfo(float).max):
             raise ValueError('Fixed-point surface pressure exceeds the floating-point range.')
         pressure = 10.0**log_pressure
@@ -648,7 +567,7 @@ class CoupledPhotochemistryClimate():
         profile = pc.var.press_temp_edd_profile
         maintenance = pc.var.toa_pressure_maintenance
         if not profile.enabled:
-            raise PhotoException('fixed_point_map requires an enabled pressure-temperature-eddy profile.')
+            raise PhotoException('_fixed_point_map requires an enabled pressure-temperature-eddy profile.')
         target_pressure = (maintenance.target_pressure if maintenance.enabled
                            else profile.pressure[-1])
 
@@ -674,8 +593,6 @@ class CoupledPhotochemistryClimate():
                 np.log10(pressure_grid), np.log10(self._edd_pressure[::-1]),
                 np.log10(self._edd[::-1])
             )
-        self.chemistry_converged = None
-        self.chemistry_diagnostics = None
         pc.destroy_stepper()
         pc.set_press_temp_edd_profile(
             pressure_grid, temperature_grid, edd_grid,
@@ -685,8 +602,7 @@ class CoupledPhotochemistryClimate():
         )
         try:
             converged = pc.find_steady_state()
-            self.chemistry_converged = bool(converged)
-            self.chemistry_diagnostics = {
+            chemistry_diagnostics.update({
                 'converged': bool(converged),
                 'steps': pc.wrk.nsteps_total,
                 'integration_errors': pc.wrk.nerrors_total,
@@ -695,14 +611,14 @@ class CoupledPhotochemistryClimate():
                 'longdydt': pc.wrk.longdydt,
                 'time': pc.wrk.tn,
                 'step_limit_reached': pc.wrk.nsteps_total >= pc.var.nsteps_before_giveup,
-            }
+            })
         finally:
             pc.destroy_stepper()
         if not converged:
             if require_chemistry_to_converge:
-                raise PhotoException('Photochemistry did not converge during fixed_point_map.')
-            if not self.chemistry_diagnostics['step_limit_reached']:
-                raise PhotoException('Photochemistry gave up before reaching its step limit during fixed_point_map.')
+                raise PhotoException('Photochemistry did not converge during _fixed_point_map.')
+            if not chemistry_diagnostics['step_limit_reached']:
+                raise PhotoException('Photochemistry gave up before reaching its step limit during _fixed_point_map.')
 
         P_i, custom_dry_mix = self._climate_inputs_from_photochem()
         # Climate layers are at the midpoints of equally spaced log pressures.
@@ -714,8 +630,143 @@ class CoupledPhotochemistryClimate():
         if not converged:
             converged = c.RCE_robust(P_i, custom_dry_mix)
         if not converged:
-            raise ClimaException('Climate did not converge during fixed_point_map.')
-        return self.fixed_point_state_from_climate()
+            raise ClimaException('Climate did not converge during _fixed_point_map.')
+        return self._fixed_point_state_from_climate()
+
+
+class FixedPointSolver:
+    """Under-relaxed chemistry-to-climate fixed-point iteration.
+
+    Created by ``CoupledPhotochemistryClimate.initialize_solver``. Owns all
+    iteration controls and diagnostics; the coupling model owns the physical
+    models and prescribed atmospheric inputs.
+
+    Parameters
+    ----------
+    model : CoupledPhotochemistryClimate
+        Physical model whose private map is evaluated each iteration.
+    temperature_tol : float, optional
+        Maximum relative temperature mismatch, default 1e-3.
+    log10pressure_tol : float, optional
+        Maximum absolute log10 surface-pressure mismatch (dex), default 1e-3.
+        Both tolerances must be finite and nonnegative.
+    relaxation : float, optional
+        Fraction of the unrelaxed update used for the next trial, in (0, 1],
+        default 0.5.
+    max_iterations : int, optional
+        Maximum completed map evaluations, default 30.
+    require_chemistry_to_converge : bool, optional
+        Require chemical convergence in every evaluation, default false.
+        Otherwise only accepted-step-budget exhaustion permits continuation.
+    """
+
+    def __init__(self, model, *, temperature_tol=1e-3, log10pressure_tol=1e-3,
+                 relaxation=0.5, max_iterations=30,
+                 require_chemistry_to_converge=False):
+        temperature_tol = float(temperature_tol)
+        log10pressure_tol = float(log10pressure_tol)
+        relaxation = float(relaxation)
+        if not np.isfinite(temperature_tol) or temperature_tol < 0.0:
+            raise ValueError('temperature_tol must be finite and nonnegative.')
+        if not np.isfinite(log10pressure_tol) or log10pressure_tol < 0.0:
+            raise ValueError('log10pressure_tol must be finite and nonnegative (dex).')
+        if not np.isfinite(relaxation) or not 0.0 < relaxation <= 1.0:
+            raise ValueError('relaxation must be finite and in (0, 1].')
+        if (isinstance(max_iterations, (bool, np.bool_)) or
+                not isinstance(max_iterations, (int, np.integer)) or max_iterations < 1):
+            raise ValueError('max_iterations must be a positive integer.')
+
+        self._model = model
+        self.temperature_tol = temperature_tol
+        self.log10pressure_tol = log10pressure_tol
+        self.relaxation = relaxation
+        self.max_iterations = int(max_iterations)
+        self.require_chemistry_to_converge = bool(require_chemistry_to_converge)
+        self._next_x = None
+        self.fixed_point_x = None
+        self.fixed_point_gx = None
+        self.niterations = 0
+        self.converged = False
+        self.give_up = False
+        self.temperature_residual = None
+        self.log10pressure_residual = None
+        self.solver_history = []
+        self._initialized = False
+
+        self.chemistry_converged = None
+        self.chemistry_diagnostics = None
+
+    def _initialize(self, x):
+        self._next_x = x.copy()
+        self.fixed_point_x = x.copy()
+        self._initialized = True
+
+    def iterate(self):
+        """Perform one chemistry-to-climate map evaluation.
+
+        Call ``model.initialize_solver`` first. Convergence uses the unrelaxed
+        temperature and log-pressure mismatch. ``fixed_point_x`` stores the
+        evaluated input, ``fixed_point_gx`` its climate result, and residuals
+        and chemical status are recorded in ``solver_history``. The relaxed
+        next trial is retained internally and is not applied to either model.
+
+        Once converged or out of iterations, repeated calls return the same
+        flags without further model evaluations. Model errors propagate and
+        invalidate the solver session; reinitialize before continuing.
+
+        Returns
+        -------
+        give_up : bool
+            The iteration limit was reached without coupled convergence.
+        converged : bool
+            Both fixed-point residuals satisfy tolerance. This does not imply
+            chemical convergence unless that was explicitly required; inspect
+            ``chemistry_converged`` separately. ``model.solution()`` remains the
+            photochemical atmosphere from the last map evaluation.
+        """
+        if not self._initialized:
+            raise RuntimeError('Call initialize_solver before iterate, or reinitialize after a failed evaluation.')
+        if self.converged or self.give_up:
+            return self.give_up, self.converged
+
+        x = self._next_x.copy()
+        # A failed model evaluation may have changed physical state. Do not
+        # permit a retry using stale solver bookkeeping after an exception.
+        self._initialized = False
+        self.chemistry_converged = None
+        self.chemistry_diagnostics = None
+        chemistry_diagnostics = {}
+        try:
+            gx = self._model._fixed_point_map(
+                x, require_chemistry_to_converge=self.require_chemistry_to_converge,
+                chemistry_diagnostics=chemistry_diagnostics
+            )
+        finally:
+            if chemistry_diagnostics:
+                self.chemistry_diagnostics = chemistry_diagnostics
+                self.chemistry_converged = chemistry_diagnostics['converged']
+        gx = np.asarray(gx, dtype=float)
+        if gx.shape != x.shape or not np.all(np.isfinite(gx)) or np.any(gx[1:] <= 0.0):
+            raise ValueError('_fixed_point_map returned an invalid pressure-temperature vector.')
+
+        self.fixed_point_x = x.copy()
+        self.fixed_point_gx = gx.copy()
+        self.niterations += 1
+        self.temperature_residual = float(np.max(np.abs(gx[1:] - x[1:])/x[1:]))
+        self.log10pressure_residual = float(abs(gx[0] - x[0]))
+        self.converged = (self.temperature_residual <= self.temperature_tol and
+                          self.log10pressure_residual <= self.log10pressure_tol)
+        self.give_up = not self.converged and self.niterations >= self.max_iterations
+        self.solver_history.append({
+            'iteration': self.niterations,
+            'temperature_residual': self.temperature_residual,
+            'log10pressure_residual': self.log10pressure_residual,
+            'chemistry_converged': self.chemistry_converged,
+        })
+        if not self.converged and not self.give_up:
+            self._next_x = x + self.relaxation*(gx - x)
+        self._initialized = True
+        return self.give_up, self.converged
 
 
 class AdiabatClimateForCoupled(AdiabatClimate):
