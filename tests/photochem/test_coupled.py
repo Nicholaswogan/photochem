@@ -1,4 +1,5 @@
 import argparse
+import json
 from copy import deepcopy
 from types import SimpleNamespace
 import time
@@ -51,7 +52,8 @@ def test_smoke():
 
     # These must fail before climate solving or atmospheric initialization.
     for options in ({'method': 'quasi_static'},
-                    {'solver_options': {'relaxation': 0.0}}, {}):
+                    {'solver_options': {'relaxation': 0.0}},
+                    {'solver_options': {'anderson_memory': -1}}, {}):
         try:
             model.initialize_solver(initial_guess={}, **options)
         except ValueError:
@@ -206,6 +208,155 @@ def run_restart_checks():
     print('Local coupled restart checks passed.', flush=True)
 
 
+def run_acceleration_checks():
+    """Local inexpensive checks of Anderson convergence and fallbacks."""
+    def make_solver(mapping, memory, **options):
+        calls = []
+
+        def evaluate(x, require_chemistry_to_converge, *, chemistry_diagnostics):
+            calls.append(x.copy())
+            chemistry_diagnostics['converged'] = True
+            return mapping(x)
+
+        physical_model = SimpleNamespace(
+            _fixed_point_map=evaluate, c=SimpleNamespace(P_top=1.0),
+            pc=SimpleNamespace(var=SimpleNamespace(
+                toa_pressure_maintenance=SimpleNamespace(target_pressure=0.1))))
+        solver = coupled.FixedPointSolver(
+            physical_model, anderson_memory=memory, max_iterations=500, **options)
+        return solver, calls
+
+    root = np.array([6.0, 300.0, 200.0])
+    mapping = lambda x: root + np.array([0.3, 0.9, 0.7]) * (x - root)
+    counts = []
+    for memory in (0, 3):
+        solver, calls = make_solver(mapping, memory, temperature_tol=1e-8,
+                                    log10pressure_tol=1e-8)
+        initial = np.array([6.1, 320., 210.])
+        solver._initialize(initial)
+        assert solver.iterate() == (False, False)
+        np.testing.assert_allclose(solver._next_x, initial + 0.5*(mapping(initial)-initial))
+        while True:
+            give_up, converged = solver.iterate()
+            assert len(solver._anderson_history) <= memory + 1
+            if give_up or converged:
+                break
+        assert converged and not give_up
+        np.testing.assert_allclose(solver.fixed_point_x, root, rtol=2e-7, atol=2e-7)
+        assert len(calls) == solver.niterations
+        solver.iterate()
+        assert len(calls) == solver.niterations
+        counts.append(solver.niterations)
+    assert counts[1] < counts[0]
+
+    # Singular residual differences must fall back to damping.
+    solver, _ = make_solver(lambda x: x + [0., 10., 10.], 3)
+    solver._initialize(root)
+    solver.iterate()
+    solver.iterate()
+    assert solver.solver_history[-1]['anderson_reset'] == 'dependent_history'
+    assert solver.solver_history[-1]['step_method'] == 'relaxation'
+
+    # The secant fit predicts a negative temperature; never evaluate that trial.
+    solver, calls = make_solver(lambda x: np.array([6., 2*x[1]+10., 200.]), 3)
+    solver._initialize(np.array([6., 100., 200.]))
+    solver.iterate()
+    solver.iterate()
+    assert solver.solver_history[-1]['anderson_reset'] == 'invalid_proposal'
+    assert np.all(solver._next_x[1:] > 0.)
+    assert len(calls) == 2
+
+    solver, _ = make_solver(lambda x: np.array([6., 5*x[1], 200.]), 3)
+    solver._initialize(root)
+    solver.iterate()
+    solver.iterate()
+    assert solver.solver_history[-1]['anderson_reset'] == 'residual_growth'
+    print(f'Local Anderson checks passed (affine map: {counts[0]} damped vs {counts[1]} accelerated evaluations).',
+          flush=True)
+
+
+def run_benchmark(output=None):
+    """Compare damping and Anderson from one saved atmosphere, outside CI.
+
+    Both runs use fresh compatible models and identical solver/chemistry
+    settings. Shared initial-guess construction and model loading are excluded
+    from timings; state restoration and all coupling evaluations are included.
+    """
+    source = initialize()
+    source.pc.var.verbose = 0
+    source.pc.var.atol = 1e-18
+    source.c.verbose = False
+    guess = source.initial_guess(edd=1e5)
+    results = {}
+    solutions = {}
+    for label, memory in [('damped', 0), ('anderson', 3)]:
+        model = initialize()
+        model.pc.var.verbose = 0
+        model.pc.var.atol = 1e-18
+        model.c.verbose = False
+        print(f'Starting {label} benchmark from the shared initial state.', flush=True)
+        started = time.monotonic()
+        model.initialize_solver(
+            initial_guess=guess,
+            solver_options={'relaxation': 0.5, 'anderson_memory': memory,
+                            'require_chemistry_to_converge': True, 'verbose': True})
+        total_steps = total_errors = total_resyncs = 0
+        while True:
+            give_up, converged = model.iterate()
+            chemistry = model.solver.chemistry_diagnostics
+            total_steps += chemistry['steps']
+            total_errors += chemistry['integration_errors']
+            total_resyncs += chemistry['resync_failures']
+            if give_up or converged:
+                break
+        seconds = time.monotonic() - started
+        solver = model.solver
+        assert converged and not give_up, f'{label} did not converge.'
+        assert solver.chemistry_converged
+        solution = model.solution()
+        assert all(np.all(np.isfinite(values)) for values in solution.values())
+        assert np.all(solution['temp'] > 0.)
+        assert np.all(solution['density'] > 0.)
+        solutions[label] = solution
+        results[label] = {
+            'anderson_memory': memory,
+            'iterations': solver.niterations,
+            'seconds': seconds,
+            'temperature_residual': solver.temperature_residual,
+            'log10pressure_residual': solver.log10pressure_residual,
+            'chemistry_converged': solver.chemistry_converged,
+            'chemical_steps': total_steps,
+            'integration_errors': total_errors,
+            'resync_failures': total_resyncs,
+            'climate_surface_temperature': float(model.c.T_surf),
+            'photochemical_surface_pressure_bar': float(model.pc.wrk.surface_pressure),
+            'history': solver.solver_history,
+        }
+        print(f'{label}: converged in {solver.niterations} evaluations, {seconds:.1f} seconds.', flush=True)
+
+    # Compare photochemical temperatures at common physical pressures.
+    damped, accelerated = solutions['damped'], solutions['anderson']
+    low = max(damped['pressure'][-1], accelerated['pressure'][-1])
+    high = min(damped['pressure'][0], accelerated['pressure'][0])
+    logP = np.linspace(np.log10(low), np.log10(high), 100)
+    temperatures = [np.interp(logP, np.log10(sol['pressure'][::-1]), sol['temp'][::-1])
+                    for sol in (damped, accelerated)]
+    results['comparison'] = {
+        'runtime_speedup': results['damped']['seconds']/results['anderson']['seconds'],
+        'map_evaluations_saved': results['damped']['iterations']-results['anderson']['iterations'],
+        'max_relative_photochemical_temperature_difference': float(np.max(
+            np.abs(temperatures[1]-temperatures[0])/temperatures[0])),
+        'log10_photochemical_surface_pressure_difference': float(abs(np.log10(
+            results['anderson']['photochemical_surface_pressure_bar']/
+            results['damped']['photochemical_surface_pressure_bar']))),
+    }
+    summary = json.dumps(results, indent=2)
+    if output is not None:
+        Path(output).write_text(summary + '\n')
+    print(summary, flush=True)
+    return results
+
+
 def run_full():
     """Run the expensive coupled convergence check locally, outside CI."""
     model = initialize()
@@ -275,8 +426,15 @@ def main():
                         help='Run the expensive full coupled convergence test locally.')
     parser.add_argument('--restart', action='store_true',
                         help='Run local restart checks with one climate solve and no chemistry integration.')
+    parser.add_argument('--benchmark', action='store_true',
+                        help='Compare plain damping and Anderson on the coupled test, outside CI.')
+    parser.add_argument('--benchmark-output', help='Optional JSON file for benchmark results.')
     args = parser.parse_args()
-    if args.full:
+    if args.benchmark:
+        run_acceleration_checks()
+        run_benchmark(args.benchmark_output)
+    elif args.full:
+        run_acceleration_checks()
         run_solver_checks()
         run_restart_checks()
         run_full()
