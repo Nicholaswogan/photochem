@@ -85,6 +85,7 @@ jobs:
       working-directory: ${{github.workspace}}/tests/photochem
       run: |
         python test_python.py
+        python test_coupled.py
         python ../clima/test_python.py
         python ../equilibrate/test_python.py
         python ../test_thermo_continuity.py
