@@ -11,6 +11,41 @@ from photochem.clima import AdiabatClimate, ClimaException
 from photochem import EvoAtmosphere, EvoAtmosphereState, PhotoException, PressureBC
 
 class CoupledPhotochemistryClimate():
+    """Couple photochemical steady state and radiative-convective equilibrium.
+
+    Parameters
+    ----------
+    mechanism_file : str
+        Photochemical reaction mechanism YAML file. Also supplies the species
+        and thermodynamic data used to construct the climate model.
+    settings_file : str
+        Photochemical settings YAML file. Planet properties are shared with
+        the climate model.
+    flux_file : str
+        Stellar spectrum file used by both models.
+    climate_condensates : sequence of str, optional
+        Species whose vertical profiles are determined by climate condensation,
+        default ``('H2O', 'CO2')``. Each must have a saturation particle in the
+        photochemical mechanism.
+    climate_number_of_layers : int, optional
+        Number of climate layers, default 50. Independent of the photochemical
+        layer count.
+    climate_top_pressure : float, optional
+        Climate top pressure in dyn/cm², default 1.0. Independent of the
+        photochemical top pressure.
+    data_dir : str, optional
+        Model data directory. Defaults to the package data directory.
+
+    Attributes
+    ----------
+    pc : EvoAtmosphere
+        Photochemical model, available for configuration and inspection.
+    c : AdiabatClimateForCoupled
+        Climate model, available for configuration and inspection.
+    solver : FixedPointSolver or None
+        Coupling solver created by ``initialize_solver``.
+
+    """
 
     def __init__(
             self,
@@ -222,10 +257,10 @@ class CoupledPhotochemistryClimate():
 
     def initial_guess(self, edd, edd_pressure=None, surface_partial_pressures=None,
                        target_pressure=0.1, **kwargs):
-        """Solve climate and initialize photochemistry without integrating it.
-
-        Above the climate layers, temperature and gas mixing ratios are held
-        constant. The photochemical grid extends to the TOA maintenance target.
+        """Compute a sensible initial guess for a coupled solve. This is
+        accomplished by doing a single climate model with fixed surface
+        partial pressures, then initializing the photochemical model to
+        the resulting atmosphere.
 
         Parameters
         ----------
@@ -374,16 +409,9 @@ class CoupledPhotochemistryClimate():
 
     def model_state(self):
         """Return an independent, versioned dictionary for a coupled warm start.
-
         Capture is supported after ``initial_guess``, successful solver
-        initialization, or a completed map evaluation. It does not modify the
-        models or certify convergence. Failed evaluations must be followed by
-        reinitialization before capture.
+        initialization, or a completed map evaluation.
 
-        Contains atmospheric state, original Kzz knots, and climate restart
-        profiles. Boundary conditions, callbacks, numerical configuration,
-        chemical time, and solver history are excluded. This supports warm
-        restart, not exact trial rollback or identical iteration continuation.
         """
         if not self._state_ready:
             raise RuntimeError('Construct or restore a coupled state before calling model_state.')
@@ -455,22 +483,15 @@ class CoupledPhotochemistryClimate():
                           solver_options=None):
         """Restore a coupled state and initialize a fresh solver.
 
-        ``initial_guess`` is a dictionary returned by ``initial_guess()`` or
-        ``model_state()`` on a compatible model. Method and state validation
-        precede restoration. Destination boundary conditions, callbacks, and
-        numerical/climate configuration remain in effect; identical mechanisms
-        and optical data are the caller's responsibility.
-
-        No chemistry integration or climate solve is performed here. The
-        photochemical atmosphere is restored directly, preserving its installed
-        profile mismatch. Climate restart profiles seed the fixed-point vector
-        and convective guess; live ``c`` outputs are rebuilt at the first map
-        evaluation. Until then, ``model_state()`` uses the retained restart data.
-
-        ``method`` currently supports only ``"fixed_point"``. ``solver_options``
-        supplies controls to ``FixedPointSolver``. Counters, history, and
-        convergence flags start fresh, even for a previously converged state.
-        This is a warm restart, not a complete model or integrator checkpoint.
+        Parameters
+        ----------
+        initial_guess : dict
+            Coupled state returned by ``initial_guess()`` or ``model_state()``
+            on a compatible model.
+        method : str, optional
+            Coupling algorithm, currently only ``"fixed_point"`` (default).
+        solver_options : dict, optional
+            Keyword arguments passed to ``FixedPointSolver``.
         """
         if method != "fixed_point":
             raise ValueError(f'Unknown coupling method: {method!r}. Expected "fixed_point".')
@@ -488,12 +509,7 @@ class CoupledPhotochemistryClimate():
         self._state_ready = True
 
     def iterate(self):
-        """Perform one coupling iteration, returning ``(give_up, converged)``.
-
-        Call ``initialize_solver`` first. Controls, residuals, history, and
-        chemical convergence diagnostics are available on ``self.solver``.
-        ``solution()`` remains the last photochemical atmosphere.
-        """
+        """Perform one coupling iteration, returning ``(give_up, converged)``."""
         if self.solver is None:
             raise RuntimeError('Call initialize_solver before iterate.')
         return self.solver.iterate()
@@ -513,8 +529,7 @@ class CoupledPhotochemistryClimate():
         -------
         bool
             Whether the fixed-point solve converged. Inspect
-            ``solver.chemistry_converged`` separately. Solver diagnostics and
-            the last photochemical atmosphere remain available after return.
+            ``solver.chemistry_converged`` separately.
         """
         self.initialize_solver(initial_guess=initial_guess, **kwargs)
         while True:
@@ -523,17 +538,7 @@ class CoupledPhotochemistryClimate():
                 return converged
 
     def _climate_inputs_from_photochem(self):
-        """Build climate pressures and dry-gas profiles from photochemistry.
-
-        Estimate surface gas fractions by extending the lowest model layer
-        constantly to the surface, using the column-derived surface pressure.
-        For climate condensates with fixed-pressure lower boundaries, use
-        their prescribed pressures instead. Climate determines condensate
-        vertical profiles; only dry gases supply custom mixing-ratio profiles.
-        Negative numerical traces are floored for climate interpolation only;
-        the photochemical state is unchanged. Dry profiles are normalized
-        within the dry gases, as required by ``AdiabatClimate.RCE``.
-        """
+        """Build climate pressures and dry-gas profiles from photochemistry."""
         # Extract composition from photochem
         sol = self.pc.mole_fraction_dict()
         pressure = sol['pressure']
@@ -596,8 +601,7 @@ class CoupledPhotochemistryClimate():
         Returns
         -------
         numpy.ndarray
-            Climate-derived fixed-point vector. Neither this result nor the
-            chemical diagnostics indicate convergence of a coupled solver.
+            Climate-derived fixed-point vector.
         """
 
         # Validate the input x
@@ -698,8 +702,6 @@ class CoupledPhotochemistryClimate():
     def solution(self):
         """Return the current photochemical atmosphere without modifying it.
 
-        This does not check chemical or coupled convergence.
-
         Returns
         -------
         dict[str, numpy.ndarray]
@@ -731,10 +733,6 @@ class FixedPointSolver:
     relaxation : float, optional
         Damping factor in (0, 1], default 0.5. Used by both plain fixed-point
         iteration and the damped Anderson update.
-    anderson_memory : int, optional
-        Number of recent iterate/residual differences used for Anderson
-        acceleration. Default 0 disables acceleration; 3 is a small starting
-        history. Resets and accelerated updates are recorded in solver_history.
     max_iterations : int, optional
         Maximum completed map evaluations, default 30.
     require_chemistry_to_converge : bool, optional
@@ -743,6 +741,10 @@ class FixedPointSolver:
     verbose : bool, optional
         Print a fixed-width progress table after completed iterations,
         default false. Chemical and climate model verbosity is independent.
+    anderson_memory : int, optional
+        Number of recent iterate/residual differences used for Anderson
+        acceleration. Default 0 disables acceleration; 3 is a small starting
+        history. Resets and accelerated updates are recorded in solver_history.
     """
 
     def __init__(self, model, *, temperature_tol=1e-3, log10pressure_tol=1e-3,
@@ -868,25 +870,12 @@ class FixedPointSolver:
     def iterate(self):
         """Perform one chemistry-to-climate map evaluation.
 
-        Call ``model.initialize_solver`` first. Convergence uses the unrelaxed
-        temperature and log-pressure mismatch. ``fixed_point_x`` stores the
-        evaluated input, ``fixed_point_gx`` its climate result, and residuals
-        and chemical status are recorded in ``solver_history``. The relaxed
-        next trial is retained internally and is not applied to either model.
-
-        Once converged or out of iterations, repeated calls return the same
-        flags without further model evaluations. Model errors propagate and
-        invalidate the solver session; reinitialize before continuing.
-
         Returns
         -------
         give_up : bool
             The iteration limit was reached without coupled convergence.
         converged : bool
-            Both fixed-point residuals satisfy tolerance. This does not imply
-            chemical convergence unless that was explicitly required; inspect
-            ``chemistry_converged`` separately. ``model.solution()`` remains the
-            photochemical atmosphere from the last map evaluation.
+            Both fixed-point residuals satisfy tolerance.
         """
         if not self._initialized:
             raise RuntimeError('Call initialize_solver before iterate, or reinitialize after a failed evaluation.')
