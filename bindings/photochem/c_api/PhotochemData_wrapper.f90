@@ -260,6 +260,66 @@
     arr = dat%species_redox
   end subroutine
   
+  subroutine photochemdata_particle_formation_method_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    dim1 = 0
+    if (.not.allocated(dat%particle_formation_method)) return
+    dim1 = size(dat%particle_formation_method)
+  end subroutine
+
+  subroutine photochemdata_particle_formation_method_get(ptr, dim1, arr) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    integer(c_int), intent(out) :: arr(dim1)
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    if (dim1 > 0) arr = dat%particle_formation_method
+  end subroutine
+
+  subroutine photochemdata_particle_gas_phase_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    dim1 = 0
+    if (.not.allocated(dat%particle_gas_phase)) return
+    dim1 = size(dat%particle_gas_phase)
+  end subroutine
+
+  subroutine photochemdata_particle_gas_phase_get(ptr, dim1, names) bind(c)
+    use photochem_enum, only: CondensingParticle
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    character(kind=c_char), intent(out) :: names(dim1*s_str_len+1)
+    type(PhotochemData), pointer :: dat
+    integer :: i, j, k
+    call c_f_pointer(ptr, dat)
+    names = ' '
+    do i = 1,dim1
+      if (dat%particle_formation_method(i) /= CondensingParticle) cycle
+      do j = 1,s_str_len
+        k = j + (i - 1) * s_str_len
+        names(k) = dat%particle_gas_phase(i)(j:j)
+      enddo
+    enddo
+    names(dim1*s_str_len+1) = c_null_char
+  end subroutine
+
+  subroutine photochem_condensing_particle_get(val) bind(c)
+    use photochem_enum, only: CondensingParticle
+    integer(c_int), intent(out) :: val
+    val = CondensingParticle
+  end subroutine
+
+  subroutine photochem_reaction_particle_get(val) bind(c)
+    use photochem_enum, only: ReactionParticle
+    integer(c_int), intent(out) :: val
+    val = ReactionParticle
+  end subroutine
+
   subroutine photochemdata_particle_sat_get_size(ptr, dim1) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     integer(c_int), intent(out) :: dim1
