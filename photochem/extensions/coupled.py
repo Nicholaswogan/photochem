@@ -750,14 +750,14 @@ class FixedPointSolver:
         default false. Chemical and climate model verbosity is independent.
     anderson_memory : int, optional
         Number of recent iterate/residual differences used for Anderson
-        acceleration. Default 0 disables acceleration; 3 is a small starting
-        history. Resets and accelerated updates are recorded in solver_history.
+        acceleration. Default 3; 0 disables acceleration. Resets and accelerated
+        updates are recorded in solver_history.
     """
 
     def __init__(self, model, *, temperature_tol=1e-3, log10pressure_tol=1e-3,
                  relaxation=0.5, max_iterations=30,
                  require_chemistry_to_converge=False, verbose=False,
-                 anderson_memory=0):
+                 anderson_memory=3):
         temperature_tol = float(temperature_tol)
         log10pressure_tol = float(log10pressure_tol)
         relaxation = float(relaxation)
