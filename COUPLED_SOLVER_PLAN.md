@@ -2,7 +2,7 @@
 
 ## Purpose and current baseline
 
-Develop the coupled model and atmospheric state support together on `plan/evoatmosphere-state-checkpoints`. The existing atmospheric-state design is in `EVOATMOSPHERE_STATE_PLAN.md` on that branch; this document adds coupling architecture and rollback requirements.
+Atmospheric state support is implemented through `EvoAtmosphereState`, including in-memory capture/restore, HDF5 persistence, and NumPy dictionary interchange. This document covers coupled-solver architecture and the additional rollback requirements for future adaptive coupling.
 
 The concrete four-mode extension (haze-free/haze-coupled, each with free or prescribed surface temperature) is planned in [COUPLED_HAZE_FIXED_T_PLAN.md](COUPLED_HAZE_FIXED_T_PLAN.md). It starts with single-sweep fixed-point updates: chemistry, then climate with trial haze optics fixed, then microphysics. Prescribed-temperature updates use a climate-only CO2 search before the one microphysical solve. A future quasi-static endpoint update will repeat the same fast sweep to self-consistency. That companion plan supersedes the generic cloud–climate interface proposal below; this document retains the baseline solver and future quasi-static/rollback design.
 
