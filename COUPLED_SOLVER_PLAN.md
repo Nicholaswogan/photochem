@@ -74,7 +74,9 @@ CI runs the smoke test only. Local `tests/photochem/test_coupled.py --restart` a
 
 ## State representations and final-result policy
 
-The photochemical model is authoritative for the atmospheric solution. The fixed-point vector is a separate representation: log10 surface pressure and temperatures on a fixed-size, equally spaced log-pressure grid between the surface and climate top. Surface pressure defines temperature coordinates; it is not imposed on the chemical model. Climate top defaults to 1 dyn/cm² and can differ from the photochemical top.
+The photochemical model is authoritative for the atmospheric solution. The fixed-point vector is a separate representation: log10 surface pressure and temperatures on a fixed-size, equally spaced log-pressure grid between the surface and the prescribed photochemical TOA `target_pressure`. Retain one pressure interval per climate layer, so there are `climate_number_of_layers + 1` temperature samples and one additional pressure entry. Surface pressure defines temperature coordinates; it is not imposed on the chemical model. Climate top defaults to 1 dyn/cm² and can differ from the photochemical top. Climate output temperatures are extended constantly outside their sampled pressure range when building the vector.
+
+For the climate solve, interpolate the trial T(P) onto climate-layer log-pressure midpoints spanning the trial surface to the climate top. Averaging adjacent coupling temperatures is only equivalent when both domain tops coincide. Climate determines its own surface pressure during RCE. During warm-start initialization, restore the photochemical state first, then derive coupling coordinates using its restored TOA target. Local `test_coupled.py --grid` checks these mappings without physical model solves.
 
 The fixed-point map prepares the proposed T(P) with `set_press_temp_edd_profile`, advances chemistry, solves climate using the resulting composition, and returns the climate vector without applying it back to photochemistry. Use the unrelaxed residual for convergence. Never perform an extra final temperature update that invalidates chemical convergence.
 

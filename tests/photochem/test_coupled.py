@@ -72,7 +72,7 @@ def run_solver_checks():
     restored_states = []
     trials = []
     model.pc = SimpleNamespace(initialize_from_state=restored_states.append)
-    state = {'local_test': True}
+    state = {'photochem': {'toa_target_pressure': np.array(0.1)}}
     model._validate_state = lambda value: (value, np.ones(2), np.array([10., 1.]), {})
     model._fixed_point_state_from_climate = lambda climate: initial.copy()
 
@@ -193,6 +193,11 @@ def run_restart_checks():
         invalid = deepcopy(guess)
         invalid['climate'][key] = value
         invalid_states.append(invalid)
+    for factor in (1.0, 2.0):
+        invalid = deepcopy(guess)
+        invalid['photochem']['toa_target_pressure'] = np.array(
+            factor * guess['climate']['pressure'][0])
+        invalid_states.append(invalid)
     invalid = deepcopy(guess)
     del invalid['photochem']['temperature']
     invalid_states.append(invalid)
@@ -206,6 +211,50 @@ def run_restart_checks():
         assert fresh.solver is saved_solver
         assert_state_equal(fresh.model_state(), guess)
     print('Local coupled restart checks passed.', flush=True)
+
+
+def run_grid_checks():
+    """Check shared-grid coordinates and climate guesses without model solves."""
+    model = coupled.CoupledPhotochemistryClimate.__new__(coupled.CoupledPhotochemistryClimate)
+    model.c = SimpleNamespace(P_top=1.0, T=np.zeros(4))
+    maintenance = SimpleNamespace(target_pressure=0.1)
+    model.pc = SimpleNamespace(var=SimpleNamespace(toa_pressure_maintenance=maintenance))
+
+    grid = model._make_pressure_grid(6.0)
+    assert grid.size == model.c.T.size + 1
+    np.testing.assert_allclose(grid, [6., 4.25, 2.5, 0.75, -1.])
+    # For a linear T(log10 P), interpolation has an analytical answer.
+    x = np.concatenate(([6.0], 200.0 + 10.0*grid))
+    T_init = model._climate_temperature_guess(x)
+    np.testing.assert_allclose(T_init, [260., 252.5, 237.5, 222.5, 207.5])
+    assert T_init.size == model.c.T.size + 1
+    assert not np.allclose(T_init[1:], 0.5*(x[1:-1] + x[2:]))
+
+    # Equal domain tops recover the original midpoint averaging exactly.
+    maintenance.target_pressure = model.c.P_top
+    grid = model._make_pressure_grid(6.0)
+    x = np.concatenate(([6.0], 200.0 + 10.0*grid))
+    np.testing.assert_allclose(model._climate_temperature_guess(x),
+                               np.concatenate(([x[1]], 0.5*(x[1:-1] + x[2:]))))
+
+    # A shallower chemical domain uses constant endpoint extrapolation for
+    # the remaining climate layers.
+    maintenance.target_pressure = 10.0
+    grid = model._make_pressure_grid(6.0)
+    x = np.concatenate(([6.0], 200.0 + 10.0*grid))
+    np.testing.assert_allclose(model._climate_temperature_guess(x),
+                               [260., 252.5, 237.5, 222.5, 210.])
+
+    # Derive the vector after the saved chemical top has been restored.
+    maintenance.target_pressure = 0.01
+    climate = {'pressure': np.array([1e6, 1e5, 1e3, 1e1, 2.]),
+               'temperature': np.array([300., 280., 240., 200., 180.])}
+    vector = model._fixed_point_state_from_climate(climate)
+    assert vector.size == model.c.T.size + 2
+    np.testing.assert_allclose(vector[[0, 1, -1]], [6., 300., 180.])
+    np.testing.assert_allclose(model._make_pressure_grid(vector[0])[-1], -2.0)
+    assert maintenance.target_pressure == 0.01
+    print('Local coupling-grid checks passed.', flush=True)
 
 
 def run_acceleration_checks():
@@ -429,16 +478,22 @@ def main():
     parser.add_argument('--benchmark', action='store_true',
                         help='Compare plain damping and Anderson on the coupled test, outside CI.')
     parser.add_argument('--benchmark-output', help='Optional JSON file for benchmark results.')
+    parser.add_argument('--grid', action='store_true',
+                        help='Run inexpensive coupling-grid interpolation checks without model solves.')
     args = parser.parse_args()
-    if args.benchmark:
+    if args.grid:
+        run_grid_checks()
+    elif args.benchmark:
         run_acceleration_checks()
         run_benchmark(args.benchmark_output)
     elif args.full:
+        run_grid_checks()
         run_acceleration_checks()
         run_solver_checks()
         run_restart_checks()
         run_full()
     elif args.restart:
+        run_grid_checks()
         run_solver_checks()
         run_restart_checks()
     else:
