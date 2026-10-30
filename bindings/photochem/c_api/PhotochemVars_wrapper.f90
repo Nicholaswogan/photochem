@@ -94,6 +94,38 @@
     var%particle_radius = arr
   end subroutine
 
+  subroutine photochemvars_surface_albedo_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%surface_albedo
+  end subroutine
+
+  subroutine photochemvars_surface_albedo_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%surface_albedo = val
+  end subroutine
+
+  subroutine photochemvars_photon_scale_factor_get(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(out) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    val = var%photon_scale_factor
+  end subroutine
+
+  subroutine photochemvars_photon_scale_factor_set(ptr, val) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    real(c_double), intent(in) :: val
+    type(PhotochemVars), pointer :: var
+    call c_f_pointer(ptr, var)
+    var%photon_scale_factor = val
+  end subroutine
+
   subroutine photochemvars_diurnal_fac_get(ptr, val) bind(c)
     type(c_ptr), value, intent(in) :: ptr
     real(c_double), intent(out) :: val

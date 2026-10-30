@@ -95,6 +95,29 @@ def test_exposed_photochem_state():
     """Useful prepared-state diagnostics are available through Python."""
     pc = _make_file_atmosphere()
 
+    formation = pc.dat.particle_formation_method
+    gas_phase = pc.dat.particle_gas_phase
+    assert formation.shape == (pc.dat.np,)
+    assert np.issubdtype(formation.dtype, np.integer)
+    assert len(gas_phase) == pc.dat.np
+    assert np.all(np.isin(formation, [photochem.CondensingParticle,
+                                    photochem.ReactionParticle]))
+    for method, gas in zip(formation, gas_phase):
+        if method == photochem.CondensingParticle:
+            assert gas in pc.dat.species_names[pc.dat.np:pc.dat.nsp]
+        else:
+            assert gas == ""
+    water = pc.dat.species_names.index("H2Oaer")
+    assert formation[water] == photochem.CondensingParticle
+    assert gas_phase[water] == "H2O"
+
+    for name, value in [("surface_albedo", 0.3), ("photon_scale_factor", 0.8)]:
+        original = getattr(pc.var, name)
+        assert np.isfinite(original)
+        setattr(pc.var, name, value)
+        assert getattr(pc.var, name) == value
+        setattr(pc.var, name, original)
+
     assert pc.dat.gas_rainout
     assert pc.var.rainfall_rate == 1.0
     assert pc.var.dz.shape == (pc.var.nz,)
@@ -125,6 +148,9 @@ def test_exposed_photochem_state():
         fixture_file("sun.txt"),
         data_dir=str(DATA_DIR),
     )
+    assert no_particles.dat.particle_formation_method.shape == (0,)
+    assert np.issubdtype(no_particles.dat.particle_formation_method.dtype, np.integer)
+    assert no_particles.dat.particle_gas_phase == []
     z = np.array([0.0, 5.0e6, 1.0e7])
     no_particles.initialize_atmosphere_z(
         z,

@@ -8,6 +8,7 @@ import numpy as np
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from photochem import CondensingParticle
 from photochem.extensions import coupled
 
 from photochem.utils import stars
@@ -44,6 +45,14 @@ def test_smoke():
     assert model.solver is None
     assert not model.pc.atmosphere_initialized
     assert model.c.P_top == 1.0
+
+    # Climate inherits the photochemical condensation RH.
+    formation = model.pc.dat.particle_formation_method
+    for i, gas in enumerate(model.pc.dat.particle_gas_phase):
+        if formation[i] == CondensingParticle and gas in model.c.species_names:
+            ind = model.c.species_names.index(gas)
+            assert model.c.RH[ind] == model.pc.var.cond_params[i].RHc
+
     solver = coupled.FixedPointSolver(model)
     assert solver.niterations == 0
     assert not solver.converged and not solver.give_up

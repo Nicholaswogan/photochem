@@ -248,6 +248,24 @@ cdef class PhotochemVars:
         raise PhotoException("particle_radius must have shape (np, nz).")
       var_pxd.photochemvars_particle_radius_set(self._ptr, &dim1, &dim2, <double *>arr_.data)
 
+  property surface_albedo:
+    """float. Surface albedo used by photochemical radiative transfer."""
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_surface_albedo_get(self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.photochemvars_surface_albedo_set(self._ptr, &val)
+
+  property photon_scale_factor:
+    """float. Stellar photon-flux multiplier, independent of ``diurnal_fac``."""
+    def __get__(self):
+      cdef double val
+      var_pxd.photochemvars_photon_scale_factor_get(self._ptr, &val)
+      return val
+    def __set__(self, double val):
+      var_pxd.photochemvars_photon_scale_factor_set(self._ptr, &val)
+
   property diurnal_fac:
     """float. Factor multiplying photon flux in photolysis-rate calculations.
 

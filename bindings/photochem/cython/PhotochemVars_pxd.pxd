@@ -179,3 +179,11 @@ cdef extern void pressuretempeddprofile_temperature_get(PressureTempEddProfile *
 cdef extern void pressuretempeddprofile_edd_get_size(PressureTempEddProfile *ptr, int *dim1)
 cdef extern void pressuretempeddprofile_edd_get(PressureTempEddProfile *ptr, int *dim1, double *arr)
 cdef extern void pressuretempeddprofile_trop_p_get(PressureTempEddProfile *ptr, double *val)
+
+cdef extern void photochemvars_surface_albedo_get(PhotochemVars *ptr, double *val)
+
+cdef extern void photochemvars_surface_albedo_set(PhotochemVars *ptr, double *val)
+
+cdef extern void photochemvars_photon_scale_factor_get(PhotochemVars *ptr, double *val)
+
+cdef extern void photochemvars_photon_scale_factor_set(PhotochemVars *ptr, double *val)

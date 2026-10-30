@@ -6,9 +6,8 @@ from collections import deque
 from tempfile import NamedTemporaryFile
 
 from photochem.utils import climate
-from photochem.utils._format import yaml
 from photochem.clima import AdiabatClimate, ClimaException
-from photochem import EvoAtmosphere, EvoAtmosphereState, PhotoException, PressureBC
+from photochem import EvoAtmosphere, EvoAtmosphereState, PhotoException, PressureBC, CondensingParticle
 
 class CoupledPhotochemistryClimate():
     """Couple photochemical steady state and radiative-convective equilibrium.
@@ -58,12 +57,6 @@ class CoupledPhotochemistryClimate():
             data_dir=None,
         ):
 
-        # Load files for later use
-        with open(mechanism_file, 'r') as f:
-            self.mechanism = yaml.load(f, yaml.Loader)
-        with open(settings_file, 'r') as f:
-            self.settings = yaml.load(f, yaml.Loader)
-
         # Initialize photochemistry code
         self.pc = EvoAtmosphere(
             mechanism_file=mechanism_file,
@@ -76,10 +69,8 @@ class CoupledPhotochemistryClimate():
         self.pc.var.nsteps_before_giveup = 7000
         self.pc.var.conv_longdy = 1e-3
 
-        # Extract information from photochemistry species file
-        climate_species = []
-        for i,sp in enumerate(self.mechanism['species']):
-            climate_species.append(sp['name'])
+        # Include all gas species, excluding particles, hv, and M.
+        climate_species = self.pc.dat.species_names[self.pc.dat.np:self.pc.dat.nsp]
 
         # Validate and save the climate condensibles
         climate_condensates = tuple(climate_condensates)
@@ -96,12 +87,12 @@ class CoupledPhotochemistryClimate():
             with NamedTemporaryFile(suffix='.yaml') as f2:
                 climate.settings_file_for_climate(
                     filename=f2.name,
-                    planet_mass=float(self.settings['planet']['planet-mass']),
-                    planet_radius=float(self.settings['planet']['planet-radius']),
-                    surface_albedo=float(self.settings['planet']['surface-albedo']),
+                    planet_mass=float(self.pc.dat.planet_mass),
+                    planet_radius=float(self.pc.dat.planet_radius),
+                    surface_albedo=float(self.pc.var.surface_albedo),
                     number_of_layers=climate_number_of_layers,
                     number_of_zenith_angles=4,
-                    photon_scale_factor=float(self.settings['planet'].get('photon-scale-factor', 1.0))
+                    photon_scale_factor=float(self.pc.var.photon_scale_factor)
                 )
                 f2.flush()
 
@@ -125,25 +116,22 @@ class CoupledPhotochemistryClimate():
 
     def _set_climate_rh_from_photochem(self):
 
-        particles = self.mechanism.get('particles', [])
-        gas_phase = {}
-        for i, particle in enumerate(particles):
-            if particle['formation'] == 'saturation':
-                gas_phase[particle['name']] = particle['gas-phase']
         RH = np.ones_like(self.c.RH)
-        for i,sp in enumerate(self.pc.dat.species_names[:self.pc.dat.np]):
-            sp1 = gas_phase.get(sp)
-            if sp1 in self.c.species_names:
-                ind = self.c.species_names.index(sp1)
+        formation = self.pc.dat.particle_formation_method
+        for i, gas in enumerate(self.pc.dat.particle_gas_phase):
+            if formation[i] == CondensingParticle and gas in self.c.species_names:
+                ind = self.c.species_names.index(gas)
                 RH[ind] = self.pc.var.cond_params[i].RHc
         self.c.RH = RH
 
     def _save_climate_condensates(self, climate_condensates):
 
         photochem_condensates = {
-            particle['gas-phase']
-            for particle in self.mechanism.get('particles', [])
-            if particle['formation'] == 'saturation'
+            gas for method, gas in zip(
+                self.pc.dat.particle_formation_method,
+                self.pc.dat.particle_gas_phase,
+            )
+            if method == CondensingParticle
         }
         unsupported = set(climate_condensates) - photochem_condensates
         if unsupported:

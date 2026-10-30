@@ -1,5 +1,12 @@
 cimport PhotochemData_pxd as dat_pxd
 
+# Obtain particle formation identifiers from Fortran.
+cdef int _condensing_particle, _reaction_particle
+dat_pxd.photochem_condensing_particle_get(&_condensing_particle)
+dat_pxd.photochem_reaction_particle_get(&_reaction_particle)
+CondensingParticle = _condensing_particle
+ReactionParticle = _reaction_particle
+
 cdef class PhotochemData:
   """Read-mostly mechanism and planetary data owned by a model.
 
@@ -159,6 +166,31 @@ cdef class PhotochemData:
       cdef ndarray arr = np.empty(dim1, np.double)
       dat_pxd.photochemdata_species_redox_get(self._ptr, &dim1, <double *>arr.data)
       return arr
+
+  property particle_formation_method:
+    """ndarray[int], shape (np,). Particle formation identifiers.
+
+    Entries follow ``species_names[:np]``. Compare with
+    ``photochem.CondensingParticle`` or ``photochem.ReactionParticle``.
+    """
+    def __get__(self):
+      cdef int dim1
+      dat_pxd.photochemdata_particle_formation_method_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1, np.intc)
+      dat_pxd.photochemdata_particle_formation_method_get(self._ptr, &dim1, <int *>arr.data)
+      return arr
+
+  property particle_gas_phase:
+    """list[str], length ``np``. Condensing particles' gas species.
+
+    Entries follow ``species_names[:np]``. Reaction particles have an empty string.
+    """
+    def __get__(self):
+      cdef int dim1
+      dat_pxd.photochemdata_particle_gas_phase_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1*S_STR_LEN + 1, 'S1')
+      dat_pxd.photochemdata_particle_gas_phase_get(self._ptr, &dim1, <char *>arr.data)
+      return c2stringarr(arr, S_STR_LEN, dim1)
 
   property particle_sat:
     """list[SaturationData], length ``np``. Particle saturation models.
