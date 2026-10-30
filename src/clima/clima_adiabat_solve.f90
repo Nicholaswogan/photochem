@@ -731,7 +731,6 @@ contains
     do i = 1,self%nz+1
       f_total(i) = self%rad%f_total(2*i-1)
     enddo
-    f_total(1) = f_total(1) + self%surface_heat_flow
 
     call AdiabatClimate_residuals_with_convection(self, f_total, self%lapse_rate, self%lapse_rate_intended, dFdt, dTdt, err)
     if (allocated(err)) return
@@ -1233,7 +1232,7 @@ contains
     allocate(fluxes(self%nz+1), mubar(self%nz), cp(self%nz), rho(self%nz), density(self%nz))
 
     ! Radiative energy going into each layer (ergs/(cm^2*s))
-    fluxes(1) = f_total(1)
+    fluxes(1) = f_total(1) + self%surface_heat_flow
     do i = 2,self%nz+1
       fluxes(i) = (f_total(i) - f_total(i-1))
     enddo
