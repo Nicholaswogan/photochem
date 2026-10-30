@@ -4,6 +4,8 @@
 
 Develop the coupled model and atmospheric state support together on `plan/evoatmosphere-state-checkpoints`. The existing atmospheric-state design is in `EVOATMOSPHERE_STATE_PLAN.md` on that branch; this document adds coupling architecture and rollback requirements.
 
+The concrete four-mode extension (haze-free/haze-coupled, each with free or prescribed surface temperature) is planned in [COUPLED_HAZE_FIXED_T_PLAN.md](COUPLED_HAZE_FIXED_T_PLAN.md). It starts with single-sweep fixed-point updates: chemistry, then climate with trial haze optics fixed, then microphysics. Prescribed-temperature updates use a climate-only CO2 search before the one microphysical solve. A future quasi-static endpoint update will repeat the same fast sweep to self-consistency. That companion plan supersedes the generic cloud–climate interface proposal below; this document retains the baseline solver and future quasi-static/rollback design.
+
 The initial implementation alternates photochemical steady-state integration and radiative-convective climate solves with under-relaxation. The local `tests/photochem/test_coupled.py --full` case converged in 10 coupled iterations in about four minutes. Every chemical solve converged, with no integration or resync errors. Default test execution remains constructor-only smoke coverage; the full coupled calculation is local and outside CI.
 
 ## Physical model and public API
@@ -181,6 +183,8 @@ HDF5 persistence is a later phase and is not needed for in-memory trial branchin
 
 ## Future cloud and haze coupling
 
+The following is an earlier interface proposal. Use [COUPLED_HAZE_FIXED_T_PLAN.md](COUPLED_HAZE_FIXED_T_PLAN.md) for the current implementation scope, exchanged variables, and work order.
+
 Add this after the basic solvers and state support are complete. Allow a replaceable cloud–climate component that internally converges climate and cloud/haze microphysics together. Its inputs may include composition, particle production rates from photochemistry, and atmospheric temperature, pressure, altitude, and density. Keep climate-specific exchange behind a few helpers now; defer the detailed component interface.
 
 Proposed constructor API:
@@ -222,4 +226,4 @@ The replaceable component must expose its resulting profiles and convergence sta
 5. Add change-limited adaptive intervals and acceptance/rejection first, then add step doubling with scaled error measurement using the same framework.
 6. Verify rollback, time-dependent callbacks, behavior under interval refinement, and final chemical/climate status for both controllers. Compare representative solutions and cost with the existing fixed-point method.
 7. Add HDF5 coupled-state persistence and flat dictionary interchange separately. The initial public coupled warm-start API is described above; stronger rollback guarantees remain separate.
-8. Add the replaceable cloud–climate component and cloud/haze feedback options described above, including rollback and convergence checks for the additional state.
+8. Implement the concrete haze and prescribed-temperature modes in [COUPLED_HAZE_FIXED_T_PLAN.md](COUPLED_HAZE_FIXED_T_PLAN.md). A general replaceable climate-component interface is deferred.
