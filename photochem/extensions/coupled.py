@@ -374,18 +374,32 @@ class CoupledPhotochemistryClimate():
         return self.model_state()
 
     def _make_pressure_grid(self, log10P_surf):
-        """Return log10 pressures from surface to climate top, in dyn/cm².
+        """Return log10 pressures from surface to the prescribed chemical top.
 
-        Use one equally spaced log-pressure interval per climate layer,
-        independent of the photochemical layer count.
+        Retain one equally spaced interval per climate layer. Use the TOA
+        target configured on the initialized photochemical atmosphere.
         """
-        top_pressure = self.c.P_top
-        if not np.isfinite(top_pressure) or top_pressure <= 0.0:
-            raise ValueError('Climate top pressure must be finite and positive (dyn/cm²).')
-        log10P_top = np.log10(top_pressure)
-        if not np.isfinite(log10P_surf) or log10P_surf <= log10P_top:
-            raise ValueError('Surface pressure must be finite and exceed climate top pressure.')
+        target_pressure = self.pc.var.toa_pressure_maintenance.target_pressure
+        if not np.isfinite(target_pressure) or target_pressure <= 0.0:
+            raise ValueError('Photochemical target pressure must be finite and positive (dyn/cm²).')
+        log10P_top = np.log10(target_pressure)
+        if (not np.isfinite(log10P_surf) or
+                log10P_surf <= max(log10P_top, np.log10(self.c.P_top))):
+            raise ValueError('Surface pressure must be finite and exceed both model top pressures.')
         return np.linspace(log10P_surf, log10P_top, self.c.T.size + 1)
+
+    def _climate_temperature_guess(self, x):
+        """Interpolate trial T(P) onto climate layer centers for an RCE guess.
+
+        Guess coordinates span the trial surface to the climate top, whose
+        pressure domain can differ from the shared coupling grid. RCE itself
+        determines its surface pressure from the supplied composition.
+        """
+        log_pressure = self._make_pressure_grid(x[0])
+        climate_edges = np.linspace(x[0], np.log10(self.c.P_top), self.c.T.size + 1)
+        climate_centers = 0.5 * (climate_edges[:-1] + climate_edges[1:])
+        temperatures = np.interp(climate_centers, log_pressure[::-1], x[1:][::-1])
+        return np.concatenate(([x[1]], temperatures))
 
     def _update_climate_state(self):
         """Store independent climate profiles after a successful RCE solve."""
@@ -460,13 +474,18 @@ class CoupledPhotochemistryClimate():
         pc_state = EvoAtmosphereState.from_dict(state['photochem'])
         if not state['photochem']['profile_enabled'] or not state['photochem']['toa_enabled']:
             raise ValueError('Coupled restart requires persistent-profile and TOA maintenance enabled.')
+        target_pressure = float(state['photochem']['toa_target_pressure'])
+        if (not np.isfinite(target_pressure) or target_pressure <= 0.0 or
+                P[0] <= target_pressure):
+            raise ValueError('Saved photochemical TOA target must be finite, positive, and below the climate surface pressure.')
         return pc_state, edd, pressure, climate
 
     def _fixed_point_state_from_climate(self, state=None):
         """Derive the fixed-point vector from climate restart profiles.
 
         Temperatures are interpolated linearly in log-pressure onto equally
-        spaced edges, holding the highest layer temperature constant to top.
+        spaced pressures spanning the photochemical domain, with constant
+        endpoint extrapolation outside the climate samples.
         Neither physical model is modified.
         """
         if state is None:
@@ -497,13 +516,13 @@ class CoupledPhotochemistryClimate():
             raise ValueError(f'Unknown coupling method: {method!r}. Expected "fixed_point".')
         solver = FixedPointSolver(self, **({} if solver_options is None else solver_options))
         pc_state, edd, pressure, climate = self._validate_state(initial_guess)
-        x = self._fixed_point_state_from_climate(climate)
         if self.solver is not None:
             self.solver._initialized = False
         self._state_ready = False
         self.pc.initialize_from_state(pc_state)
         self._edd, self._edd_pressure = edd, pressure
         self._restore_climate_state(climate)
+        x = self._fixed_point_state_from_climate(climate)
         solver._initialize(x)
         self.solver = solver
         self._state_ready = True
@@ -680,8 +699,8 @@ class CoupledPhotochemistryClimate():
 
         # Get inputs for climate model from photochemical model
         P_i, custom_dry_mix = self._climate_inputs_from_photochem()
-        # Climate layers are at the midpoints of equally spaced log pressures.
-        T_init = np.concatenate(([x[1]], 0.5*(x[1:-1] + x[2:])))
+        # Climate and coupling grids can have different top pressures.
+        T_init = self._climate_temperature_guess(x)
 
         # Converge climate model.
         converged = c.RCE_robust(
