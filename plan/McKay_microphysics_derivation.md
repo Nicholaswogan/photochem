@@ -95,9 +95,11 @@ $$\boxed{\frac{dr}{dz} = -\frac{qr}{3C} - \frac{KC}{4\pi\rho r^2v^2}}$$
 
 Both terms are negative when $q\geq 0$: particles grow as they descend toward smaller $z$. The first term represents addition of produced mass to the existing particle population. The second represents coagulation, which reduces particle number while conserving mass.
 
-The cumulative mass flux $C$ (given by a simple integral) can be used to compute particle radius by integrating the equation above. Then, particle mass density or number density can be computed with
+The cumulative mass flux $C$ (given by a simple integral) can be used to compute particle radius by integrating the equation above from the top of the atmosphere to the bottom. The radius equation should be integrated starting at the highest altitude layer that has production ($C > 0$). The integration must choose an initial "seed" radius, which McKay takes to be $10^{-3}$ $\mu$m. Above the highest altitude layer that has production, the haze number and mass is zero.
 
-$$\rho_h = -\frac{C}{v}, \qquad n = -\frac{C}{m v}$$
+Once radius is known, then particle number density can be computed with
+
+$$n = -\frac{C}{m v}$$
 
 ## Fall velocity
 
@@ -105,9 +107,11 @@ To estimate the fall velocity of aerosols, we use Stokes' law with a Cunningham 
 
 $$v = -\frac{2(\rho-\rho_a)gr^2}{9\eta}C_c$$
 
+Here, $\eta$ is the gas dynamic viscosity. We will use a temperature-dependent viscosity parameterization for Earth air. The correction term $C_c$ is then,
+
 $$C_c = 1+\mathrm{Kn}\left[1.257+0.4\exp\left(-\frac{1.1}{\mathrm{Kn}}\right)\right], \qquad \mathrm{Kn}=\frac{\lambda_{\rm gas}}{r}$$
 
-Where $\lambda_{\rm gas} = 1/(n_a A_{\rm eff})$, with $A_{\rm eff}=6.0\times10^{-15}\ \mathrm{cm^2}$ is the effective molecular collision area that we adopt.
+Here, $\lambda_{\rm gas} = 1/(n_a A_{\rm eff})$, with $A_{\rm eff}=6.0\times10^{-15}\ \mathrm{cm^2}$ is the effective molecular collision area that we adopt. This differs from McKay's original settling prescription, which blends a free-molecular settling coefficient toward a continuum expression rather than using the Cunningham correction.
 
 ## Coagulation
 
@@ -129,9 +133,9 @@ $$K_{\rm enc} = \frac{\mathrm{Kn}\,K_{\rm fm}+K_{\rm cont}}{1+\mathrm{Kn}}.$$
 
 This approximate interpolation approaches the free-molecular kernel at large $\mathrm{Kn}$ and the continuum kernel at small $\mathrm{Kn}$. McKay's Fortran code uses this blend for $\mathrm{Kn}<100$ and the free-molecular kernel alone for $\mathrm{Kn}\geq100$.
 
-Each particle encounters others at a rate $nK_{\rm enc}$. Multiplying by the number density gives $K_{\rm enc}n^2$, but counts every pair twice: once from each particle's perspective. The number of distinct encounters per unit volume per unit time is therefore $K_{\rm enc}n^2/2$. Each merger turns two particles into one, so it removes one particle from the count. Consequently, the uncharged number-loss coefficient is $K=K_{\rm enc}/2$.
+Each particle encounters others at a rate $nK_{\rm enc}$, with units s$^{-1}$: this is the encounter rate per particle. Multiplying by the number density gives $K_{\rm enc}n^2$, but counts every pair twice: once from each particle's perspective. The number of distinct encounters per unit volume per unit time is therefore $K_{\rm enc}n^2/2$, with units encounters cm$^{-3}$ s$^{-1}$. Each merger turns two particles into one, so it removes one particle from the count. Thus, the corresponding particle-number loss rate has units particles cm$^{-3}$ s$^{-1}$, and the uncharged number-loss coefficient is $K=K_{\rm enc}/2$. Particle and encounter counts are treated as dimensionless in the dimensional analysis; the kernel itself has units cm$^3$ s$^{-1}$.
 
-Finally, similarly charged particles repel one another, reducing the rate at which they reach contact. Following McKay, we parameterize this inhibition with
+Finally, similarly charged particles repel one another, reducing the rate at which they reach contact. Following McKay, we crudely parameterize this inhibition with
 
 $$f_{\rm charge}=\exp(-r/r_c),$$
 
