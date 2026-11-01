@@ -95,7 +95,9 @@ $$\boxed{\frac{dr}{dz} = -\frac{qr}{3C} - \frac{KC}{4\pi\rho r^2v^2}}$$
 
 Both terms are negative when $q\geq 0$: particles grow as they descend toward smaller $z$. The first term represents addition of produced mass to the existing particle population. The second represents coagulation, which reduces particle number while conserving mass.
 
-The cumulative mass flux $C(z)$ and this radius equation determine the steady haze profile once expressions for the settling velocity $v$ and coagulation coefficient $K$ are supplied. 
+The cumulative mass flux $C$ (given by simple integral) can be used to compute particle radius by integrating the equation above. Then, particle mass density or number density can be computed with
+
+$$\rho_h = -\frac{C}{v}, \qquad n = -\frac{C}{m v}$$
 
 ## Fall velocity
 
