@@ -2,12 +2,12 @@
 
 ## Introduction
 
-Here, I derive the core equations in [McKay et al. (1989)](https://doi.org/10.1016/0019-1035(89)90160-7) microphysics code for Titan haze. The model has the following assumptions
+Here, I derive the core equations in [McKay et al. (1989)](https://doi.org/10.1016/0019-1035(89)90160-7) microphysics code for Titan haze. The model has the following assumptions:
 
 - The atmosphere is one-dimensional.
 - The model is steady state.
-- Haze is produced at a perscribed rate. Production adds mass to existing particles instead of making new particles.
-- The only haze transport mechanism is sedimentation. We neglect any lofting (i.e. through an eddy diffusion).
+- Haze is produced at a prescribed rate. Production adds mass to existing particles instead of making new particles.
+- The only haze transport mechanism is sedimentation. We neglect any lofting (i.e. through eddy diffusion).
 - Particle radius evolves from coagulation and haze production. There is no mechanism for mass removal from aerosols (i.e. evaporation).
 - At a given altitude, all particles have the same radius (i.e., monodisperse).
 - Aerosols are compact spherical particles with constant material density.
@@ -24,15 +24,15 @@ Here, $\rho_h$ is the haze mass per volume in the atmosphere. It is altered by t
 
 $$\Phi_m = \rho_h v$$
 
-Where, $v$ is a fall velocity that we derive later. In reality, particles can also be lofted (say by eddy diffusion), but we ignore this possibility. We can also make a statement of particle conservation:
+Where $v$ is a fall velocity that we derive later. In reality, particles can also be lofted (say by eddy diffusion), but we ignore this possibility. We can also make a statement of particle conservation:
 
 $$\frac{\partial n}{\partial t} + \frac{\partial \Phi_N}{\partial z} = S_N$$
 
-Here, the particles/cm$^3$ changes in time because of the flux $\Phi_N$ and the source term $S_N$. If we assume that the source term is only production and coagulation, then,
+Here, the particles/cm$^3$ change in time because of the flux $\Phi_N$ and the source term $S_N$. If we assume that the source term is only production and coagulation, then
 
 $$S_N = -Kn^2 + J$$
 
-where $J$ is the production rate of new particles and $Kn^2$ is the loss rate of particle number through coagulation. Following McKay, we assume $J=0$: mass production adds material to the existing particle population without independently creating new particles. Thus, $S_N=-Kn^2$. Note that later we describe why coagulation is $Kn^2$, and derives an expression for $K$ based on Brownian motion. 
+where $J$ is the production rate of new particles and $Kn^2$ is the loss rate of particle number through coagulation. Following McKay, we assume $J=0$: mass production adds material to the existing particle population without independently creating new particles. Thus, $S_N=-Kn^2$. Note that later we describe why coagulation is $Kn^2$, and derive an expression for $K$ based on Brownian motion.
 
 Now, assume steady state, so $\partial\rho_h/\partial t=\partial n/\partial t=0$. Also, we define positive downward mass and particle-number fluxes, $C=-\Phi_m$ and $F=-\Phi_N$. The continuity equations become
 
@@ -95,7 +95,7 @@ $$\boxed{\frac{dr}{dz} = -\frac{qr}{3C} - \frac{KC}{4\pi\rho r^2v^2}}$$
 
 Both terms are negative when $q\geq 0$: particles grow as they descend toward smaller $z$. The first term represents addition of produced mass to the existing particle population. The second represents coagulation, which reduces particle number while conserving mass.
 
-The cumulative mass flux $C$ (given by simple integral) can be used to compute particle radius by integrating the equation above. Then, particle mass density or number density can be computed with
+The cumulative mass flux $C$ (given by a simple integral) can be used to compute particle radius by integrating the equation above. Then, particle mass density or number density can be computed with
 
 $$\rho_h = -\frac{C}{v}, \qquad n = -\frac{C}{m v}$$
 
@@ -107,7 +107,7 @@ $$v = -\frac{2(\rho-\rho_a)gr^2}{9\eta}C_c$$
 
 $$C_c = 1+\mathrm{Kn}\left[1.257+0.4\exp\left(-\frac{1.1}{\mathrm{Kn}}\right)\right], \qquad \mathrm{Kn}=\frac{\lambda_{\rm gas}}{r}$$
 
-Where, $\lambda_{\rm gas} = 1/(n_a A_{\rm eff})$, with $A_{\rm eff}=6.0\times10^{-15}\ \mathrm{cm^2}$ is the effective molecular collision area that we adopt.
+Where $\lambda_{\rm gas} = 1/(n_a A_{\rm eff})$, with $A_{\rm eff}=6.0\times10^{-15}\ \mathrm{cm^2}$ is the effective molecular collision area that we adopt.
 
 ## Coagulation
 
