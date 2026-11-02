@@ -44,11 +44,12 @@ def test_empty_and_mass_budget():
 
 def test_production_without_coagulation():
     inputs = atmosphere(np.linspace(0, 1e6, 9))
-    result = mckay_microphysics(**inputs, charging_radius=1e-30)
-    # Each mass increment introduces exactly q/m0 new primary particles.
-    np.testing.assert_allclose(result[0], 1e-7, rtol=1e-12)
-    F = fluxes(inputs, result)
-    np.testing.assert_allclose(F, result[2]/((4*np.pi/3)*1e-21), rtol=1e-12)
+    for method in ('RK45', 'Radau', 'BDF', 'LSODA'):
+        result = mckay_microphysics(**inputs, charging_radius=1e-30, method=method)
+        # Each mass increment introduces exactly q/m0 new primary particles.
+        np.testing.assert_allclose(result[0], 1e-7, rtol=1e-12)
+        F = fluxes(inputs, result)
+        np.testing.assert_allclose(F, result[2]/((4*np.pi/3)*1e-21), rtol=1e-12)
 
 
 def test_coagulation_and_refinement():
@@ -101,15 +102,17 @@ def test_cap_and_sweep():
 
 
 def test_integration_failures():
-    state = np.array([250., 1e-6, 2e16, 980., 1e-20])
-    args = (1e5, state, state, 0., 1., (4*np.pi/3)*1e-21, 9e-6, 1e-6, 1e-10)
-    _, status = haze._integrate_number_flux(np.nan, *args)
-    assert status == 1
-    _, status = haze._integrate_number_flux(0., *args, max_steps=0)
-    assert status == 3
-    tiny = (np.nextafter(0., 1.), *args[1:])
-    _, status = haze._integrate_number_flux(0., *tiny)
-    assert status == 2
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    inputs = atmosphere(np.linspace(0, 1e6, 5))
+    with patch.object(haze, 'solve_ivp', return_value=SimpleNamespace(
+            success=False, message='forced integration failure')):
+        try:
+            mckay_microphysics(**inputs)
+        except RuntimeError as error:
+            assert 'forced integration failure' in str(error)
+        else:
+            raise AssertionError('Solver failure was ignored.')
 
 
 def test_invalid_inputs():
@@ -119,7 +122,7 @@ def test_invalid_inputs():
                     {'production_rate': -np.ones(5)}, {'production_rate': np.full(5, np.nan)},
                     {'seed_radius': 0.}, {'charging_radius': 0.}, {'max_radius': 1e-8},
                     {'max_radius': np.inf}, {'sweep_below': np.nan}, {'particle_density': 1e-7},
-                    {'rtol': 0.}, {'atol': np.inf}, {'column_production': -1.},
+                    {'rtol': 0.}, {'atol': np.inf}, {'method': 'unknown'}, {'column_production': -1.},
                     {'column_production': 1., 'production_rate': np.zeros(5)}):
         try:
             mckay_microphysics(**dict(inputs, **updates))

@@ -1,6 +1,7 @@
 import numpy as np
 import numba as nb
 from scipy import constants
+from scipy.integrate import solve_ivp
 
 K_BOLTZ = constants.Boltzmann*1.0e7  # erg/K
 
@@ -293,151 +294,89 @@ def _number_flux_loss(number_flux, mass_flux, state, particle_density, charging_
     return coefficient*number*number
 
 
-@nb.njit
-def _implicit_number_flux(available, mass_flux, state, step, particle_density,
-                          seed_mass, charging_radius, maximum_mass):
-    """Solve F + step*loss(F) = available inside physical flux bounds.
-
-    A safeguarded Newton iteration uses a finite-difference slope and a
-    bracket. The radius cap supplies a lower flux bound, limiting coagulation
-    at the cap; new primary particles can subsequently release that bound.
-    """
-    lower = mass_flux/maximum_mass
-    upper = min(available, mass_flux/seed_mass)
-    if not np.isfinite(available):
-        return 0.0, False
-    if available < lower:
-        # Project constrained stages onto the cap. A source tapering to zero
-        # can otherwise drive an intermediate stage below the bound at every
-        # step size, preventing the integrator from reaching an interval edge.
-        return (lower, True) if lower > 0.0 else (0.0, False)
-    if upper <= 0.0:
-        return 0.0, True
-    floor_loss = _number_flux_loss(lower, mass_flux, state, particle_density, charging_radius)
-    if lower + step*floor_loss >= available:
-        return lower, True
-    # The sink is monotone in F for the adopted settling and coagulation laws.
-    value = upper
-    for iteration in range(100):
-        loss = _number_flux_loss(value, mass_flux, state, particle_density, charging_radius)
-        residual = value + step*loss - available
-        if abs(residual) <= 2e-13*max(available, np.finfo(np.float64).tiny):
-            return value, True
-        if residual > 0.0 or not np.isfinite(residual):
-            upper = value
-        else:
-            lower = value
-        if upper - lower <= 2e-13*max(upper, np.finfo(np.float64).tiny):
-            return .5*(lower + upper), True
-        trial = .5*(lower + upper)
-        if np.isfinite(loss) and value > 0.0:
-            nearby = value*(1.0 - 1e-5)
-            other_loss = _number_flux_loss(nearby, mass_flux, state, particle_density, charging_radius)
-            slope = 1.0 + step*(loss - other_loss)/(value - nearby)
-            newton = value - residual/slope
-            if lower < newton < upper:
-                trial = newton
-        value = trial
-    return value, False
-
-
-@nb.njit
-def _interval_mass_flux(distance, thickness, above, below, flux_above):
-    """Analytically integrate the linearly interpolated mass source."""
+@nb.njit(error_model="numpy")
+def _number_flux_rhs(distance, excess, thickness, above, below, flux_above,
+                     particle_density, seed_mass, charging_radius, maximum_mass):
+    """Derivative of F-C/m_max; C is analytic and the cap is a fixed zero bound."""
     fraction = distance/thickness
-    return flux_above + distance*(above[4] + .5*fraction*(below[4] - above[4]))
+    state = (1.0 - fraction)*above + fraction*below
+    mass_flux = flux_above + distance*(above[4] + .5*fraction*(below[4] - above[4]))
+    floor = mass_flux/maximum_mass
+    number_flux = max(excess[0], 0.0) + floor
+    loss = _number_flux_loss(number_flux, mass_flux, state, particle_density, charging_radius)
+    derivative = state[4]*(1.0/seed_mass - 1.0/maximum_mass) - loss
+    return np.array([derivative])
 
 
-@nb.njit
-def _number_flux_step(distance, number_flux, step, thickness, above, below,
-                      flux_above, particle_density, seed_mass, charging_radius,
-                      maximum_mass):
-    """One second-order L-stable SDIRK step with exact source integration.
-
-    Applying the two-stage method to the cumulative coagulation loss leaves
-    mass production analytic. Negative unconstrained stages reject the step;
-    capped stages are projected onto their minimum number flux. The diagonal
-    coefficient is 1 - 1/sqrt(2).
-    """
-    gamma = 1.0 - 1.0/np.sqrt(2.0)
-    middle = distance + gamma*step
-    endpoint = distance + step
-    c0 = _interval_mass_flux(distance, thickness, above, below, flux_above)
-    c1 = _interval_mass_flux(middle, thickness, above, below, flux_above)
-    c2 = _interval_mass_flux(endpoint, thickness, above, below, flux_above)
-    state1 = (1.0 - middle/thickness)*above + middle/thickness*below
-    state2 = (1.0 - endpoint/thickness)*above + endpoint/thickness*below
-    available1 = number_flux + (c1 - c0)/seed_mass
-    first, ok = _implicit_number_flux(available1, c1, state1, gamma*step,
-                                      particle_density, seed_mass, charging_radius,
-                                      maximum_mass)
-    if not ok:
-        return number_flux, False
-    # Effective loss includes any suppression needed to respect the radius cap.
-    used = available1 - first
-    available2 = number_flux + (c2 - c0)/seed_mass - (1.0 - gamma)/gamma*used
-    return _implicit_number_flux(available2, c2, state2, gamma*step,
-                                  particle_density, seed_mass, charging_radius,
-                                  maximum_mass)
-
-
-@nb.njit
 def _integrate_number_flux(number_flux, thickness, state_above, state_below,
                            flux_above, particle_density, seed_mass, charging_radius,
-                           rtol, atol, maximum_mass=np.inf, max_steps=100000):
-    """Advance downward number flux using adaptive implicit step doubling.
+                           rtol, atol, maximum_mass=np.inf, method='LSODA'):
+    """Advance one interval with SciPy, preserving analytic mass production.
 
-    Flux is in particles/(cm^2 s), thickness in cm, and endpoint states are
-    [temperature K, gas density g/cm^3, gas number density cm^-3, gravity
-    cm/s^2, mass production g/(cm^3 s)]. Mass flux is in g/(cm^2 s).
-    Relative/absolute tolerances apply to log(F*m0/C), the surviving fraction
-    of the primary-particle number flux. This controls fractional radius and
-    number-flux error even when number production spans many orders of magnitude.
-    Returns (number_flux, status): 0 success, 1 invalid/nonfinite state,
-    2 minimum step, 3 attempted-step budget exhausted.
+    Number flux and atol have units particles/(cm^2 s); distance is in cm.
+    The integrated excess F-C/m_max is nonnegative. At a radius cap its
+    entry and release are located with events. While capped, F=C/m_max
+    is followed analytically; fresh production can release the constraint.
     """
-    if (not np.isfinite(number_flux) or number_flux < 0.0 or
-            not np.isfinite(flux_above) or flux_above < 0.0):
-        return number_flux, 1
-    distance = 0.0
-    step = thickness
-    rtol = max(rtol, 100*np.finfo(np.float64).eps)
-    for attempt in range(max_steps):
-        if step < 10*(np.nextafter(distance, np.inf) - distance) or distance + step == distance:
-            return number_flux, 2
-        endpoint = min(distance + step, thickness)
-        step = endpoint - distance
-        full, ok1 = _number_flux_step(distance, number_flux, step, thickness,
-                                      state_above, state_below, flux_above,
-                                      particle_density, seed_mass, charging_radius, maximum_mass)
-        half, ok2 = _number_flux_step(distance, number_flux, .5*step, thickness,
-                                      state_above, state_below, flux_above,
-                                      particle_density, seed_mass, charging_radius, maximum_mass)
-        fine, ok3 = _number_flux_step(distance + .5*step, half, .5*step, thickness,
-                                      state_above, state_below, flux_above,
-                                      particle_density, seed_mass, charging_radius, maximum_mass)
-        error = np.inf
-        c = _interval_mass_flux(endpoint, thickness, state_above, state_below, flux_above)
-        if ok1 and ok2 and ok3 and np.isfinite(full) and np.isfinite(fine):
-            if c == 0.0:
-                error = 0.0
-            elif full > 0.0 and fine > 0.0:
-                log_full = np.log(full) + np.log(seed_mass) - np.log(c)
-                log_fine = np.log(fine) + np.log(seed_mass) - np.log(c)
-                scale = atol + rtol*max(abs(log_full), abs(log_fine))
-                error = abs(log_fine - log_full)/(3.0*scale)
-        if error <= 1.0:
-            number_flux = fine
-            distance = endpoint
-            if distance >= thickness:
-                return number_flux, 0
-            step *= 5.0 if error == 0.0 else min(5.0, max(.2, .9*error**(-1.0/3.0)))
-        else:
-            step *= max(.2, .9*error**(-1.0/3.0)) if np.isfinite(error) else .2
-    return number_flux, 3
+    args = (thickness, state_above, state_below, flux_above,
+            particle_density, seed_mass, charging_radius, maximum_mass)
+    initial = max(number_flux - flux_above/maximum_mass, 0.0)
+    position = 0.0
+
+    def hits_cap(s, y, *args):
+        return y[0]
+
+    hits_cap.terminal = True
+    hits_cap.direction = -1
+
+    def release_cap(s, y, *args):
+        drive = _number_flux_rhs(s, np.zeros(1), *args)[0]
+        # A zero drive keeps a particle population pinned; only a transition
+        # to positive growth in number flux releases the radius constraint.
+        return drive if drive != 0.0 else -np.finfo(float).tiny
+
+    release_cap.terminal = True
+    release_cap.direction = 1
+
+    def pinned(s, y, *args):
+        return np.zeros(1)
+
+    for transition in range(1000):
+        if np.isfinite(maximum_mass) and initial == 0.0:
+            drive = _number_flux_rhs(position, np.zeros(1), *args)[0]
+            if drive <= 0.0:
+                # While capped, F=C/m_max is analytic. The auxiliary solve
+                # locates a release event; limit its steps within this single
+                # linear-profile interval to resolve changes in the drive.
+                solution = solve_ivp(
+                    pinned, (position, thickness), [0.0], method=method, args=args,
+                    events=release_cap, max_step=thickness/16.0,
+                    rtol=rtol, atol=atol,
+                )
+                if not solution.success:
+                    raise RuntimeError(f'{method} cap-release search failed: {solution.message}')
+                position = solution.t[-1]
+                if solution.status == 0:
+                    break
+        solution = solve_ivp(
+            _number_flux_rhs, (position, thickness), [initial], method=method,
+            args=args, events=hits_cap if np.isfinite(maximum_mass) else None,
+            rtol=rtol, atol=atol,
+        )
+        if not solution.success:
+            raise RuntimeError(f'{method} number-flux integration failed: {solution.message}')
+        position = solution.t[-1]
+        initial = max(solution.y[0, -1], 0.0)
+        if solution.status == 0:
+            break
+        initial = 0.0
+    else:
+        raise RuntimeError('Too many radius-cap transitions in one interval.')
+    mass_flux = flux_above + .5*(state_above[4] + state_below[4])*thickness
+    flux = initial + mass_flux/maximum_mass
+    return min(flux, mass_flux/seed_mass)
 
 
-@nb.njit
 def _validate_haze_profile(profile, size):
     """Validate the dimensions, length, and finite values of one point profile."""
     if profile.ndim != 1 or profile.size != size:
@@ -446,7 +385,6 @@ def _validate_haze_profile(profile, size):
         raise ValueError('All input profiles must contain finite values.')
 
 
-@nb.njit
 def mckay_microphysics(
     altitude,
     temperature,
@@ -462,12 +400,11 @@ def mckay_microphysics(
     sweep_below=None,
     rtol=1.0e-6,
     atol=1.0e-10,
+    method='LSODA',
 ):
     """Solve steady monodisperse haze microphysics on a supplied altitude
-    grid, with production of new primary particles. This extends the
-    coagulation/sedimentation model of McKay et al. (1989),
-    DOI: 10.1016/0019-1035(89)90160-7.
-
+    grid, with production of new primary particles. 
+    
     Parameters
     ----------
     altitude : ndarray, shape (N,)
@@ -507,10 +444,12 @@ def mckay_microphysics(
         Radius below it is held at the lowest retained sample's radius, or at
         seed_radius if no samples remain. Represents prescribed haze removal.
     rtol : float, optional
-        Dimensionless relative tolerance on log(F*m0/C), the surviving
-        primary-particle number-flux fraction; default 1e-6.
+        Relative number-flux tolerance for SciPy integration; default 1e-6.
     atol : float, optional
-        Dimensionless absolute tolerance on log(F*m0/C); default 1e-10.
+        Absolute number-flux tolerance in particles/(cm^2 s); default 1e-10.
+    method : str, optional
+        SciPy integration method; default LSODA. RK45, Radau, and BDF
+        are also supported.
 
     Returns
     -------
@@ -524,16 +463,10 @@ def mckay_microphysics(
         Positive downward mass flux in g/(cm^2 s), ordered from bottom to top.
         Zero at the upper boundary and below sweep_below. Without sweeping,
         the bottom value is total internal column production.
-
-    Notes
-    -----
-    Production creates primary particles with number source J=q/m0, extending
-    McKay's mass-only production assumption. Incoming mass and number fluxes
-    are zero. Atmospheric profiles and production are interpolated linearly;
-    cumulative mass production is integrated analytically. A Numba-compiled
-    adaptive implicit number-flux integration handles stiff coagulation.
-    Representative radius follows from C=mF wherever haze is present.
     """
+
+    if method not in ('RK45', 'RK23', 'DOP853', 'Radau', 'BDF', 'LSODA'):
+        raise ValueError('Unknown SciPy integration method.')
 
     # Check input floats
     particle_density = float(particle_density)
@@ -661,12 +594,10 @@ def mckay_microphysics(
                 temperature[i], air_density[i], air_number_density[i],
                 gravity[i], production_rate[i]
             ])
-            number_flux, status = _integrate_number_flux(
+            number_flux = _integrate_number_flux(
                 number_flux, dz, state_above, state_below, haze_mass_flux[i + 1],
-                particle_density, seed_mass, charging_radius, rtol, atol, maximum_mass
+                particle_density, seed_mass, charging_radius, rtol, atol, maximum_mass, method
             )
-            if status != 0:
-                raise RuntimeError(f'Number-flux integration failed in altitude interval {i} (status {status}).')
         if not np.isfinite(number_flux) or number_flux <= 0.0:
             raise RuntimeError(f'Invalid particle number flux at altitude index {i}.')
         radius = np.cbrt(3.0*(haze_mass_flux[i]/number_flux)/(4.0*np.pi*particle_density))
