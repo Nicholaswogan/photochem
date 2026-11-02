@@ -311,6 +311,8 @@ def mckay_microphysics(
     charging_radius=9.0e-6,
     *,
     column_production=None,
+    max_radius=None,
+    sweep_below=None,
     rtol=1.0e-6,
     atol=1.0e-10,
 ):
@@ -343,8 +345,18 @@ def mckay_microphysics(
         Use np.inf to disable charge suppression.
     column_production : float, optional
         Total column production in g/(cm^2 s). If supplied, scale the production
-        profile to this integral over altitude. Must be finite and nonnegative;
+        profile to this integral over altitude before any sweeping is applied.
+        Must be finite and nonnegative;
         a positive value requires a profile with positive integrated production.
+    max_radius : float, optional
+        Maximum particle radius in cm. Must be finite and at least seed_radius.
+        Integration stops growing particles when this imposed cap is reached;
+        number density is still calculated from the prescribed mass flux.
+    sweep_below : float, optional
+        Finite altitude in cm below which haze number density and mass flux
+        are set to zero after integration. The point at the threshold is retained.
+        Radius below it is held at the lowest retained sample's radius, or at
+        seed_radius if no samples remain. Represents prescribed haze removal.
     rtol : float, optional
         Positive relative tolerance for integrating log radius; default 1e-6.
         Dimensionless and applied to ln(radius / 1 cm), not directly to radius.
@@ -356,12 +368,14 @@ def mckay_microphysics(
     -------
     particle_radius : ndarray, shape (N,)
         Particle radius in cm, ordered from bottom to top. Empty regions
-        retain seed_radius as a placeholder.
+        retain seed_radius as a placeholder, except where sweep_below holds
+        radius constant below the lowest retained sample.
     particle_number_density : ndarray, shape (N,)
         Particle number density in particles/cm^3, ordered from bottom to top.
     haze_mass_flux : ndarray, shape (N,)
         Positive downward mass flux in g/(cm^2 s), ordered from bottom to top.
-        Zero at the upper boundary; the bottom value is total column production.
+        Zero at the upper boundary and below sweep_below. Without sweeping,
+        the bottom value is total column production.
 
     """
 
@@ -400,6 +414,14 @@ def mckay_microphysics(
         raise ValueError('seed_radius must be finite and positive.')
     if np.isnan(charging_radius) or charging_radius <= 0.0:
         raise ValueError('charging_radius must be positive (or np.inf).')
+    if max_radius is not None:
+        max_radius = float(max_radius)
+        if not np.isfinite(max_radius) or max_radius < seed_radius:
+            raise ValueError('max_radius must be finite and at least seed_radius.')
+    if sweep_below is not None:
+        sweep_below = float(sweep_below)
+        if not np.isfinite(sweep_below):
+            raise ValueError('sweep_below must be finite.')
     if np.any(temperature <= 0.0) or np.any(air_number_density <= 0.0) or np.any(gravity <= 0.0):
         raise ValueError('Temperature, gas number density, and gravity must be positive.')
     if np.any(air_density < 0.0) or np.any(air_density >= particle_density):
@@ -464,50 +486,71 @@ def mckay_microphysics(
             particle_number_density[seed_index] <= 0.0):
         raise RuntimeError(f'Invalid particle number density at altitude index {seed_index}.')
 
+    radius_limit = None
+    if max_radius is not None:
+        log_max_radius = np.log(max_radius)
+
+        def radius_limit(distance, log_radius, *args):
+            return log_radius[0] - log_max_radius
+
+        radius_limit.terminal = True
+        radius_limit.direction = 1
+    capped = max_radius == seed_radius
+
     # From the seed point downward, we do a loop
     for i in range(seed_index - 1, -1, -1):
 
-        # Between each interval, integrate the radius equation through each interval.
-        # In practice we integrate the natural log of radius, for numerical purposes.
+        if capped:
+            particle_radius[i] = max_radius
+        else:
+            # Between each interval, integrate the radius equation through each interval.
+            # In practice we integrate the natural log of radius, for numerical purposes.
 
-        # Prepare inputs
-        dz = altitude[i + 1] - altitude[i]
-        state_above = np.array([
-            temperature[i + 1], air_density[i + 1], air_number_density[i + 1],
-            gravity[i + 1], production_rate[i + 1]
-        ])
-        state_below = np.array([
-            temperature[i], air_density[i], air_number_density[i],
-            gravity[i], production_rate[i]
-        ])
-        flux_above = haze_mass_flux[i + 1]
-        log_radius = np.log(particle_radius[i + 1])
-        initial = np.array([log_radius])
-        args = (
-            dz, state_above, state_below, flux_above,
-            particle_density, charging_radius
-        )
-        gradient = _mckay_log_radius_rhs(0.0, initial, *args)[0]
-        if not np.isfinite(gradient):
-            raise RuntimeError(f'Nonfinite radius gradient in altitude interval {i}.')
-        # Limit the first trial step near the rapidly growing seed particles.
-        first_step = min(dz, 0.05/gradient) if gradient > 0.0 else dz
-
-        # Run integration
-        solution = solve_ivp(
-            _mckay_log_radius_rhs, (0.0, dz), initial, args=args,
-            method='RK45', rtol=rtol, atol=atol, first_step=first_step,
-            t_eval=[dz]
-        )
-        if not solution.success:
-            raise RuntimeError(
-                f'Radius integration failed in altitude interval {i}: {solution.message}'
+            # Prepare inputs
+            dz = altitude[i + 1] - altitude[i]
+            state_above = np.array([
+                temperature[i + 1], air_density[i + 1], air_number_density[i + 1],
+                gravity[i + 1], production_rate[i + 1]
+            ])
+            state_below = np.array([
+                temperature[i], air_density[i], air_number_density[i],
+                gravity[i], production_rate[i]
+            ])
+            flux_above = haze_mass_flux[i + 1]
+            log_radius = np.log(particle_radius[i + 1])
+            initial = np.array([log_radius])
+            args = (
+                dz, state_above, state_below, flux_above,
+                particle_density, charging_radius
             )
+            gradient = _mckay_log_radius_rhs(0.0, initial, *args)[0]
+            if not np.isfinite(gradient):
+                raise RuntimeError(f'Nonfinite radius gradient in altitude interval {i}.')
+            # Limit the first trial step near the rapidly growing seed particles.
+            first_step = min(dz, 0.05/gradient) if gradient > 0.0 else dz
 
-        # Extract the particle radius
-        particle_radius[i] = np.exp(solution.y[0, -1])
-        if not np.isfinite(particle_radius[i]) or particle_radius[i] <= 0.0:
-            raise RuntimeError(f'Invalid particle radius in altitude interval {i}.')
+            # Run integration
+            solution = solve_ivp(
+                _mckay_log_radius_rhs, (0.0, dz), initial, args=args,
+                method='RK45', rtol=rtol, atol=atol, first_step=first_step,
+                t_eval=[dz], events=radius_limit
+            )
+            if not solution.success:
+                raise RuntimeError(
+                    f'Radius integration failed in altitude interval {i}: {solution.message}'
+                )
+
+            # A terminal cap event can occur before the requested endpoint sample.
+            if solution.status == 1:
+                particle_radius[i] = max_radius
+                capped = True
+            else:
+                particle_radius[i] = np.exp(solution.y[0, -1])
+                if max_radius is not None:
+                    particle_radius[i] = min(particle_radius[i], max_radius)
+                    capped = particle_radius[i] == max_radius
+            if not np.isfinite(particle_radius[i]) or particle_radius[i] <= 0.0:
+                raise RuntimeError(f'Invalid particle radius in altitude interval {i}.')
 
         # Compute the particle number density from the radius
         speed = fall_velocity(
@@ -518,5 +561,14 @@ def mckay_microphysics(
         particle_number_density[i] = haze_mass_flux[i]/(mass*speed)
         if not np.isfinite(particle_number_density[i]) or particle_number_density[i] <= 0.0:
             raise RuntimeError(f'Invalid particle number density at altitude index {i}.')
+
+    if sweep_below is not None:
+        first_retained = np.searchsorted(altitude, sweep_below, side='left')
+        if first_retained < altitude.size:
+            particle_radius[:first_retained] = particle_radius[first_retained]
+        else:
+            particle_radius.fill(seed_radius)
+        particle_number_density[:first_retained] = 0.0
+        haze_mass_flux[:first_retained] = 0.0
 
     return particle_radius, particle_number_density, haze_mass_flux

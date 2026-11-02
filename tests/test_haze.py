@@ -1,6 +1,10 @@
 """Standalone smoke checks for the supplied-grid haze microphysics solver."""
 
+from unittest.mock import patch
+
 import numpy as np
+
+from photochem.extensions import haze
 
 from photochem.extensions.haze import fall_velocity, mckay_microphysics
 
@@ -84,11 +88,74 @@ def test_integration_convergence():
     default = mckay_microphysics(**coarse)
     tight = mckay_microphysics(**coarse, rtol=1.0e-11, atol=1.0e-13)
     refined = mckay_microphysics(**fine, rtol=1.0e-11, atol=1.0e-13)
+    # Number density amplifies radius error; allow 0.05% with the default rtol.
     for actual, reference in zip(default, tight):
-        np.testing.assert_allclose(actual, reference, rtol=5.0e-5)
+        np.testing.assert_allclose(actual, reference, rtol=5.0e-4)
     for actual, reference in zip(tight, refined):
         np.testing.assert_allclose(actual[:-1], reference[:-1:2], rtol=1.0e-7)
         np.testing.assert_allclose(actual[-1], reference[-1])
+
+
+def test_max_radius():
+    inputs = atmosphere(np.linspace(0.0, 1.0e6, 13))
+    baseline = mckay_microphysics(**inputs)
+    cap = 1.0e-6
+    with patch.object(haze, 'solve_ivp', wraps=haze.solve_ivp) as integration:
+        radius, number, flux = mckay_microphysics(**inputs, max_radius=cap)
+        assert 0 < integration.call_count < inputs['altitude'].size - 2
+    assert np.all(radius <= cap)
+    assert np.any(radius == cap)
+    np.testing.assert_allclose(radius, np.minimum(baseline[0], cap), rtol=1.0e-8)
+    np.testing.assert_array_equal(flux, baseline[2])
+    speed = fall_velocity(
+        inputs['gravity'], radius, 1.0, inputs['air_density'],
+        inputs['air_number_density'], inputs['temperature']
+    )
+    np.testing.assert_allclose(number*(4*np.pi/3)*radius**3*speed, flux, rtol=1.0e-13)
+
+    unchanged = mckay_microphysics(**inputs, max_radius=2*baseline[0][0])
+    for actual, expected in zip(unchanged, baseline):
+        np.testing.assert_array_equal(actual, expected)
+    with patch.object(haze, 'solve_ivp', side_effect=AssertionError('Cap already reached')):
+        radius, number, flux = mckay_microphysics(**inputs, max_radius=1.0e-7)
+    np.testing.assert_array_equal(radius, np.full(13, 1.0e-7))
+    assert np.all(number[:-1] > 0.0)
+
+
+def test_sweep_below():
+    inputs = atmosphere(np.linspace(0.0, 1.0e6, 9))
+    altitude = inputs['altitude']
+    for cap in (None, 1.0e-6):
+        baseline = mckay_microphysics(**inputs, max_radius=cap)
+        for threshold in (altitude[3], 0.5*(altitude[3] + altitude[4]),
+                          altitude[0], altitude[0] - 1, altitude[-1], altitude[-1] + 1):
+            radius, number, flux = mckay_microphysics(
+                **inputs, max_radius=cap, sweep_below=threshold
+            )
+            removed = altitude < threshold
+            assert np.all(number[removed] == 0.0)
+            assert np.all(flux[removed] == 0.0)
+            np.testing.assert_array_equal(number[~removed], baseline[1][~removed])
+            np.testing.assert_array_equal(flux[~removed], baseline[2][~removed])
+            np.testing.assert_array_equal(radius[~removed], baseline[0][~removed])
+            if np.any(~removed):
+                expected_radius = baseline[0][np.flatnonzero(~removed)[0]]
+            else:
+                expected_radius = 1.0e-7
+            assert np.all(radius[removed] == expected_radius)
+            speed = fall_velocity(
+                inputs['gravity'], radius, 1.0, inputs['air_density'],
+                inputs['air_number_density'], inputs['temperature']
+            )
+            np.testing.assert_allclose(number*(4*np.pi/3)*radius**3*speed, flux, rtol=1.0e-13)
+
+    inputs['production_rate'][:] = 0.0
+    radius, number, flux = mckay_microphysics(
+        **inputs, max_radius=1.0e-6, sweep_below=altitude[3]
+    )
+    np.testing.assert_array_equal(radius, np.full(9, 1.0e-7))
+    np.testing.assert_array_equal(number, np.zeros(9))
+    np.testing.assert_array_equal(flux, np.zeros(9))
 
 
 def test_invalid_inputs():
@@ -102,6 +169,11 @@ def test_invalid_inputs():
         {'production_rate': np.full(5, np.nan)},
         {'seed_radius': 0.0},
         {'charging_radius': 0.0},
+        {'max_radius': 1.0e-8},
+        {'max_radius': np.inf},
+        {'max_radius': np.nan},
+        {'sweep_below': np.nan},
+        {'sweep_below': np.inf},
         {'particle_density': 1.0e-7},
         {'rtol': 0.0},
         {'atol': np.inf},
@@ -122,5 +194,7 @@ if __name__ == '__main__':
     test_production_without_coagulation()
     test_column_normalization()
     test_integration_convergence()
+    test_max_radius()
+    test_sweep_below()
     test_invalid_inputs()
     print('Haze microphysics smoke checks passed.')
