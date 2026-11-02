@@ -48,13 +48,21 @@ def test_haze_optics():
     for actual, expected in zip(defaults, explicit):
         np.testing.assert_allclose(actual, expected)
 
+    # Outside the table, hold the refractive index at the nearest endpoint.
+    outside = np.array([KHARE_WAVELENGTH[0]/2, KHARE_WAVELENGTH[-1]*2])
+    defaults = haze_optics(outside, radius[1:2], number[1:2])
+    explicit = haze_optics(outside, radius[1:2], number[1:2],
+                           KHARE_REFRACTIVE_INDEX[[0, -1]])
+    for actual, expected in zip(defaults, explicit):
+        np.testing.assert_allclose(actual, expected)
+
 
 def test_invalid_inputs():
     args = dict(wavelength=np.array([5e-5]), particle_radius=np.array([1e-5]),
                 particle_number_density=np.array([1.0]))
     for update in (
         dict(wavelength=[0.0]), dict(wavelength=[5e-5, 4e-5]),
-        dict(wavelength=[1.0]), dict(particle_radius=[-1.0]),
+        dict(particle_radius=[-1.0]),
         dict(particle_number_density=[-1.0]), dict(particle_number_density=[1., 2.]),
         dict(refractive_index=[1.5+0.1j]), dict(refractive_index=[complex('nan')]),
         dict(refractive_index=[1.5+0j, 1.5+0j]),

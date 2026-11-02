@@ -233,7 +233,8 @@ def haze_optics(wavelength, particle_radius, particle_number_density, refractive
     refractive_index : ndarray of complex, shape (n_wavelength,), optional
         Index at each wavelength, using m = n - i*k with n > 0 and k >= 0.
         Defaults to Khare et al. (1984) tholins, interpolating real and
-        imaginary parts linearly in log wavelength without extrapolation.
+        imaginary parts linearly in log wavelength with constant extrapolation
+        beyond the tabulated wavelength range.
 
     Returns
     -------
@@ -259,8 +260,6 @@ def haze_optics(wavelength, particle_radius, particle_number_density, refractive
     if particle_number_density.shape != particle_radius.shape or np.any(particle_number_density < 0.0):
         raise ValueError('particle_number_density must be nonnegative and match particle_radius.')
     if refractive_index is None:
-        if wavelength[0] < KHARE_WAVELENGTH[0] or wavelength[-1] > KHARE_WAVELENGTH[-1]:
-            raise ValueError('wavelength lies outside the Khare refractive-index table.')
         log_wavelength = np.log(wavelength)
         log_table = np.log(KHARE_WAVELENGTH)
         refractive_index = (np.interp(log_wavelength, log_table, KHARE_REFRACTIVE_INDEX.real)

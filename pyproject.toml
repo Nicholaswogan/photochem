@@ -17,6 +17,7 @@ dependencies = [
   "scipy",
   "pyyaml",
   "numba",
+  "miepython>=3.3,<4",
   "h5py",
   "astropy",
   "threadpoolctl",
