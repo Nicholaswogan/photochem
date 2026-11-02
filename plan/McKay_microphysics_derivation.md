@@ -2,14 +2,14 @@
 
 ## Introduction
 
-Here, I derive the core equations in [McKay et al. (1989)](https://doi.org/10.1016/0019-1035(89)90160-7) microphysics code for Titan haze. The model has the following assumptions:
+Here, I derive a microphysical model that is motivated by the one used in [McKay et al. (1989)](https://doi.org/10.1016/0019-1035(89)90160-7) for Titan. The main difference with the McKay model is that this derivation assumes that new haze production generates monomers. McKay, on the other hand, assumed that all new haze production added mass to existing particles. I made this change because in the McKay approach, you have to make assumptions about the upper boundary conditions that seem hard to justify for an exoplanet model. The model presented here has the following assumptions:
 
 - The atmosphere is one-dimensional.
 - The model is steady state.
-- Haze is produced at a prescribed rate. Production adds mass to existing particles instead of making new particles.
+- Haze mass is produced at a rate $q$, and production introduces particles of a prescribed monomer radius $r_0$.
 - The only haze transport mechanism is sedimentation. We neglect any lofting (i.e. through eddy diffusion).
 - Particle radius evolves from coagulation and haze production. There is no mechanism for mass removal from aerosols (i.e. evaporation).
-- At a given altitude, all particles have the same radius (i.e., monodisperse).
+- At a given altitude, particles are represented by a single radius (i.e., a monodisperse approximation).
 - Aerosols are compact spherical particles with constant material density.
 
 I'm going to generally use the McKay et al. (1989) notation. All variables and their definitions are in a table at the end of the document.
@@ -20,11 +20,7 @@ We begin our derivation with a statement of mass conservation.
 
 $$\frac{\partial \rho_h}{\partial t} + \frac{\partial \Phi_m}{\partial z} = q$$
 
-Here, $\rho_h$ is the haze mass per volume in the atmosphere. It is altered by the flux of mass entering/leaving that volume ($\Phi_m$) and the production or loss of mass, $q$. Here, we assume that the mass flux is from particles falling:
-
-$$\Phi_m = \rho_h v$$
-
-Where $v$ is a fall velocity that we derive later. In reality, particles can also be lofted (say by eddy diffusion), but we ignore this possibility. We can also make a statement of particle conservation:
+Here, $\rho_h$ is the haze mass per volume in the atmosphere. It is altered by the flux of mass entering/leaving that volume ($\Phi_m$) and the production or loss of mass, $q$. We can also make a statement of particle conservation:
 
 $$\frac{\partial n}{\partial t} + \frac{\partial \Phi_N}{\partial z} = S_N$$
 
@@ -32,74 +28,62 @@ Here, the particles/cm$^3$ change in time because of the flux $\Phi_N$ and the s
 
 $$S_N = -Kn^2 + J$$
 
-where $J$ is the production rate of new particles and $Kn^2$ is the loss rate of particle number through coagulation. Following McKay, we assume $J=0$: mass production adds material to the existing particle population without independently creating new particles. Thus, $S_N=-Kn^2$. Note that later we describe why coagulation is $Kn^2$, and derive an expression for $K$ based on Brownian motion.
+where $J$ is the production rate of new particles and $Kn^2$ is the loss rate of particle number through coagulation. McKay assumes $J=0$, so production adds mass to the existing particle population without independently creating new particles. Here, we retain $J$ until specifying the monomer source. Note that in a later subsection we describe why coagulation is $Kn^2$, and derive an expression for $K$ based on Brownian motion.
 
 Now, assume steady state, so $\partial\rho_h/\partial t=\partial n/\partial t=0$. Also, we define positive downward mass and particle-number fluxes, $C=-\Phi_m$ and $F=-\Phi_N$. The continuity equations become
 
 $$\frac{dC}{dz} = -q$$
-$$\frac{dF}{dz} = Kn^2$$
+$$\frac{dF}{dz} = Kn^2 - J$$
 
 Integrating mass conservation from altitude $z$ to the upper boundary gives
 
 $$C(z) = C(z_{\rm top}) + \int_z^{z_{\rm top}} q(z') dz'$$
 
-Assuming no haze enters through the upper boundary, $C(z_{\rm top})=0$, so
+For a given specified production rate $q$ as a function of altitude, and the incoming mass flux at the top of the model domain $C(z_{\rm top})\geq0$ (often set to zero), we can easily compute $C$ everywhere in the atmosphere through the above integral.
 
-$$C(z) = \int_z^{z_{\rm top}} q(z') dz'$$
-
-For a given specified production rate $q$ as a function of altitude, we can easily compute $C$ everywhere in the atmosphere through the above integral.
-
-We now make a key assumption of the McKay model: **all particles at a given altitude have the same radius $r(z)$**. We also treat them as compact spheres with constant material density $\rho$. Thus, each particle has mass
+We now make a key approximation: **all particles at a given altitude are represented by the same radius $r(z)$**. We also treat them as compact spheres with constant material density $\rho$. Thus, the representative particle has mass
 
 $$m=\frac{4\pi}{3}\rho r^3,$$
 
-and the haze mass density is
+and so the haze mass density is
 
-$$\rho_h=nm.$$
+$$\rho_h=nm$$
 
-Also, with this assumption, all particles at a given altitude have the same settling velocity $v$. Their positive downward number and mass fluxes are therefore
+Further, we assume that particles are transported only from falling (no lofting from eddy diffusion). Given that all particles have the same radius, then they also have the same settling velocity $v$. Therefore,
 
-$$F=-nv, \qquad C=-nmv.$$
+$$F=-nv, \qquad C=-nmv$$
 
-These imply the useful relations
+These imply the useful relation
 
-$$C=mF, \qquad F=\frac{C}{m}, \qquad n=-\frac{C}{mv}.$$
+$$C=mF$$
 
-With this monodisperse assumption, we can combine mass and particle-number conservation to derive an equation for how particle radius changes with altitude. Differentiate $F=C/m$ using the quotient rule:
+Now, we further assume that all produced haze mass enters as new particles of a prescribed monomer radius $r_0$
 
-$$\frac{dF}{dz} = \frac{1}{m}\frac{dC}{dz} - \frac{C}{m^2}\frac{dm}{dz}$$
+$$m_0=\frac{4\pi}{3}\rho r_0^3.$$
 
-Now differentiate $m=(4\pi/3)\rho r^3$ using the chain rule (note $\rho$ is constant):
+For nonnegative mass production $q$, the corresponding particle-number production is
 
-$$\frac{dm}{dz} = 4\pi\rho r^2\frac{dr}{dz} = \frac{3m}{r}\frac{dr}{dz}$$
+$$J=\frac{q}{m_0}$$
 
-Substitute this expression, along with $dC/dz=-q$ and $dF/dz=Kn^2$, into the differentiated flux relation:
+The mass of these new particles is already included in $q$; $J$ is not an additional mass source. The number conservation equation is then
 
-$$Kn^2 = -\frac{q}{m} - \frac{3C}{mr}\frac{dr}{dz}$$
+$$\frac{dF}{dz} = Kn^2 - \frac{q}{m_0}$$
 
-Move the radius-derivative term to the left and the coagulation term to the right:
+Substituting in $n=-F/v$,
 
-$$\frac{3C}{mr}\frac{dr}{dz} = -\frac{q}{m} - Kn^2$$
+$$\frac{dF}{dz}=K\frac{F^2}{v(r)^2}-\frac{q}{m_0}.$$
 
-Multiplying by $mr/(3C)$ gives
+We can simply integrate the above equation downward from the top of the atmosphere. Here, $C$ is known from the production integral. Wherever haze is present, we can compute the radius with:
 
-$$\frac{dr}{dz} = -\frac{qr}{3C} - \frac{mrKn^2}{3C}$$
+$$r=\left(\frac{3C}{4\pi\rho F}\right)^{1/3}$$
 
-Substituting the relation $n=-C/(mv)$ derived above gives
+The above relation comes from combining $C=mF$ and $m=\frac{4\pi}{3}\rho r^3$. We evaluate the above formula for radius during integration with the current $C$ and $F$, then use that radius to compute settling and coagulation. Also, particle number density can be derived with $n=-\frac{F}{v(r)}$.
 
-$$\frac{dr}{dz} = -\frac{qr}{3C} - \frac{mrK}{3C}\frac{C^2}{m^2v^2} = -\frac{qr}{3C} - \frac{KrC}{3mv^2}$$
+At the upper boundary, we assume that any incoming mass flux at the top of the model domain consists of monomers, giving the number-flux boundary condition
 
-Using $m=(4\pi/3)\rho r^3$, we obtain the radius equation:
+$$F(z_{\rm top})=\frac{C(z_{\rm top})}{m_0}.$$
 
-$$\boxed{\frac{dr}{dz} = -\frac{qr}{3C} - \frac{KC}{4\pi\rho r^2v^2}}$$
-
-Both terms are negative when $q\geq 0$: particles grow as they descend toward smaller $z$. The first term represents addition of produced mass to the existing particle population. The second represents coagulation, which reduces particle number while conserving mass.
-
-The cumulative mass flux $C$ (given by a simple integral) can be used to compute particle radius by integrating the equation above from the top of the atmosphere to the bottom. The radius equation should be integrated starting at the highest altitude layer that has production ($C > 0$). The integration must choose an initial "seed" radius, which McKay takes to be $10^{-3}$ $\mu$m. Above the highest altitude layer that has production, the haze number and mass is zero.
-
-Once radius is known, then particle number density can be computed with
-
-$$n = -\frac{C}{m v}$$
+A positive incoming monomer flux gives $r(z_{\rm top})=r_0$. With zero incoming flux, $C/F\to m_0$ at the onset of production, so $r\to r_0$. In any empty region above production, $C=F=n=\rho_h=0$; the monomer radius $r_0$ can be used as a radius placeholder without introducing particles.
 
 ## Fall velocity
 
@@ -152,7 +136,7 @@ The particle-number sink in the continuity equation is then $-Kn^2$.
 | $t$ | Time. | s |
 | $z$ | Altitude, increasing upward. | cm |
 | $z_{\rm top}$ | Upper boundary of the haze model. | cm |
-| $r(z)$ | Representative particle radius; all particles at a given altitude have this radius. | cm |
+| $r(z)$ | Representative particle radius used in the local single-radius approximation. | cm |
 | $n(z)$ | Particle number density. | particles cm$^{-3}$ |
 | $\rho$ | Material density of the compact spherical particles, taken to be constant. | g cm$^{-3}$ |
 | $m(r)$ | Mass of one particle, $m=(4\pi/3)\rho r^3$. | g particle$^{-1}$ |
@@ -163,8 +147,10 @@ The particle-number sink in the continuity equation is then $-Kn^2$.
 | $v(z)$ | Signed particle settling velocity; negative because particles fall toward decreasing $z$. | cm s$^{-1}$ |
 | $\Phi_m(z)$ | Signed upward haze mass flux, $\Phi_m=nmv$; negative for sedimentation. | g cm$^{-2}$ s$^{-1}$ |
 | $\Phi_N(z)$ | Signed upward particle-number flux, $\Phi_N=nv$; negative for sedimentation. | particles cm$^{-2}$ s$^{-1}$ |
-| $C(z)$ | Positive downward haze mass flux, $C=-\Phi_m$; at steady state with zero incoming mass flux at the top, it equals the integrated mass production above $z$. | g cm$^{-2}$ s$^{-1}$ |
+| $C(z)$ | Positive downward haze mass flux, $C=-\Phi_m$; incoming mass flux plus integrated mass production above $z$. | g cm$^{-2}$ s$^{-1}$ |
 | $F(z)$ | Positive downward particle-number flux, $F=-\Phi_N$. | particles cm$^{-2}$ s$^{-1}$ |
+| $r_0$ | Prescribed monomer radius, used for newly produced and incoming particles. | cm |
+| $m_0$ | Mass of one monomer, $(4\pi/3)\rho r_0^3$; relates number and mass sources through $J=q/m_0$. | g particle$^{-1}$ |
 | $K$ | Coagulation number-loss coefficient: the particle-number sink is $Kn^2$. Includes charge suppression when applied. Particle counts are treated as dimensionless in the coefficient's units. | cm$^3$ s$^{-1}$ |
 | $K_{\rm enc}$ | Uncharged Brownian pair-encounter kernel; with perfect sticking and no charge suppression, $K=K_{\rm enc}/2$. | cm$^3$ s$^{-1}$ |
 | $K_{\rm fm}$ | Uncharged pair-encounter kernel in the free-molecular limit. | cm$^3$ s$^{-1}$ |
