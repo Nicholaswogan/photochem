@@ -5,3 +5,4 @@ benchmark_mckay_fortran.json
 tgm3.f
 tgmsubs.for
 benchmark_haze_integrators.json
+benchmark_mckay_fortran.py
