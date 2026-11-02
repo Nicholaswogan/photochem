@@ -78,14 +78,21 @@ def run_benchmark():
 def main():
     reference, result = run_benchmark()
     z = reference['altitude_cm']/1e5
+    plt.rcParams.update({'font.size': 14})
     fig, axes = plt.subplots(1, 4, figsize=(13, 6.5), sharey=True)
     ours, native = '#2166ac', '#b2182b'
-    axes[0].semilogx(result['radius']*1e4, z, color=ours, label='Python (J=q/m₀)')
+    axes[0].semilogx(result['radius']*1e4, z, color=ours, label='Our model')
     axes[0].semilogx(reference['particle_radius_cm']*1e4, z, color=native,
-                     ls='--', label='Native McKay Fortran')
+                     ls='--', label="McKay's Fortran")
     axes[0].set_xlabel('Radius (µm)')
-    axes[1].semilogx(np.where(result['number'] > 0, result['number'], np.nan), z, color=ours)
-    axes[1].semilogx(reference['particle_number_density_cm3'], z, color=native, ls='--')
+    # Include the zero-density top boundary without imposing a density floor.
+    axes[1].plot(np.maximum(result['number'], 1.0e-40), z, color=ours)
+    axes[1].plot(np.maximum(reference['particle_number_density_cm3'], 1.0e-40), z, color=native, ls='--')
+    axes[1].set_xscale('log')
+    axes[1].set_xlim(
+        0.5*np.min(reference['particle_number_density_cm3']),
+        2*np.maximum(np.max(result['number']), np.max(reference['particle_number_density_cm3'])),
+    )
     axes[1].set_xlabel('Number density (cm$^{-3}$)')
     source = reference['production_g_cm3_s']
     axes[2].plot(source/np.max(source), z, color='0.3')
@@ -97,15 +104,11 @@ def main():
     for ax in axes:
         ax.set_ylim(0, z[-1])
         ax.tick_params(which='both', direction='in', top=True, right=True)
-        ax.grid(alpha=.2)
-    fig.suptitle('Titan haze: identical atmospheric inputs and native production samples')
-    fig.legend(*axes[0].get_legend_handles_labels(), loc='upper center',
-               bbox_to_anchor=(.5, .94), ncol=2, frameon=False)
-    fig.text(.5, .025,
-             'Native initial atmosphere; no rainout or climate iteration.\n'
-             'Python creates primary particles (J=q/m₀); McKay adds mass to existing particles (J=0).',
-             ha='center', fontsize=9)
-    fig.tight_layout(rect=(0, .09, 1, .89))
+    axes[2].legend(*axes[0].get_legend_handles_labels(), loc='center right',
+                   framealpha=.95)
+    fig.tight_layout(rect=(0, 0, 1, .95))
+    fig.suptitle('Titan haze: identical atmospheric inputs and native production samples',
+                 y=axes[0].get_position().y1 + .012, va='bottom')
     output = HERE/'benchmark_haze_titan.pdf'
     fig.savefig(output)
     plt.close(fig)
