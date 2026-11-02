@@ -276,167 +276,165 @@ def coagulation_coefficient(particle_radius, particle_density, air_number_densit
 
 
 @nb.njit(error_model="numpy")
-def _mckay_log_radius_rhs(distance, log_radius, thickness, state_above,
-                          state_below, flux_above, particle_density,
-                          charging_radius):
-    """Return d(log r)/d(downward distance), in cm^-1, within one interval."""
-    fraction = distance/thickness
-    state = (1.0 - fraction)*state_above + fraction*state_below
-    temperature, density, number_density, gravity, production = state
-    flux = flux_above + distance*(
-        state_above[4] + 0.5*fraction*(state_below[4] - state_above[4])
-    )
-    if not np.isfinite(log_radius):
-        return np.nan
-    radius = np.exp(log_radius)
+def _number_flux_loss(number_flux, mass_flux, state, particle_density, charging_radius):
+    """Return coagulation loss per downward cm, in particles/(cm^3 s)."""
+    if number_flux <= 0.0 or mass_flux <= 0.0:
+        return 0.0
+    mass = mass_flux/number_flux
+    radius = np.cbrt(3.0*mass/(4.0*np.pi*particle_density))
     if not np.isfinite(radius) or radius <= 0.0:
-        return np.nan
-    speed = fall_velocity(
-        gravity, radius, particle_density, density, number_density, temperature
-    )
-    coefficient = coagulation_coefficient(
-        radius, particle_density, number_density, temperature, charging_radius
-    )
-    gradient = production/(3.0*flux) + coefficient*flux/(
-        4.0*np.pi*particle_density*radius**3*speed**2
-    )
-    return gradient
-
-
-# Dormand-Prince 5(4) tableau; the seventh stage is the next step's first RHS.
-_RK45_C = np.array([0.0, 1/5, 3/10, 4/5, 8/9, 1.0])
-_RK45_A = np.array([
-    [0.0, 0.0, 0.0, 0.0, 0.0],
-    [1/5, 0.0, 0.0, 0.0, 0.0],
-    [3/40, 9/40, 0.0, 0.0, 0.0],
-    [44/45, -56/15, 32/9, 0.0, 0.0],
-    [19372/6561, -25360/2187, 64448/6561, -212/729, 0.0],
-    [9017/3168, -355/33, 46732/5247, 49/176, -5103/18656],
-])
-_RK45_B = np.array([35/384, 0.0, 500/1113, 125/192, -2187/6784, 11/84])
-_RK45_E = np.array([-71/57600, 0.0, 71/16695, -71/1920, 17253/339200, -22/525, 1/40])
+        return np.inf
+    temperature, density, number_density, gravity, production = state
+    speed = fall_velocity(gravity, radius, particle_density, density,
+                          number_density, temperature)
+    coefficient = coagulation_coefficient(radius, particle_density,
+                                          number_density, temperature, charging_radius)
+    number = number_flux/speed
+    return coefficient*number*number
 
 
 @nb.njit
-def _integrate_log_radius(log_radius, thickness, state_above, state_below,
-                          flux_above, particle_density, charging_radius,
-                          rtol, atol, log_max_radius=np.inf, max_steps=100000):
-    """Advance scalar log radius downward using adaptive Dormand-Prince RK45.
+def _implicit_number_flux(available, mass_flux, state, step, particle_density,
+                          seed_mass, charging_radius, maximum_mass):
+    """Solve F + step*loss(F) = available inside physical flux bounds.
 
-    Parameters
-    ----------
-    log_radius : float
-        Initial ln(radius / 1 cm).
-    thickness : float
-        Positive interval thickness in cm.
-    state_above, state_below : ndarray, shape (5,)
-        Endpoint temperature (K), gas mass density (g/cm^3), gas number density
-        (molecules/cm^3), gravity (cm/s^2), and production (g/(cm^3 s)).
-    flux_above : float
-        Positive downward mass flux at the upper endpoint in g/(cm^2 s).
-    particle_density : float
-        Particle material density in g/cm^3.
-    charging_radius : float
-        Charge-suppression radius in cm; np.inf disables suppression.
-    rtol, atol : float
-        Positive dimensionless relative and absolute log-radius tolerances.
-    log_max_radius : float, optional
-        ln(maximum radius / 1 cm); default np.inf disables the cap.
-    max_steps : int, optional
-        Maximum attempted steps, including rejections; default 100000.
-
-    Returns
-    -------
-    log_radius : float
-        Final log radius, or the last accepted value on failure.
-    capped : bool
-        Whether an accepted state reached the maximum radius.
-    status : int
-        0: success; 1: nonfinite RHS; 2: minimum step; 3: step budget exhausted.
-
-    References
-    ----------
-    Dormand and Prince (1980), A family of embedded Runge-Kutta formulae,
-    Journal of Computational and Applied Mathematics 6, 19-26.
+    A safeguarded Newton iteration uses a finite-difference slope and a
+    bracket. The radius cap supplies a lower flux bound, limiting coagulation
+    at the cap; new primary particles can subsequently release that bound.
     """
-    if log_radius >= log_max_radius:
-        return log_max_radius, True, 0
-    gradient = _mckay_log_radius_rhs(
-        0.0, log_radius, thickness, state_above, state_below,
-        flux_above, particle_density, charging_radius
-    )
-    if not np.isfinite(gradient):
-        return log_radius, False, 1
+    lower = mass_flux/maximum_mass
+    upper = min(available, mass_flux/seed_mass)
+    if not np.isfinite(available):
+        return 0.0, False
+    if available < lower:
+        # Project constrained stages onto the cap. A source tapering to zero
+        # can otherwise drive an intermediate stage below the bound at every
+        # step size, preventing the integrator from reaching an interval edge.
+        return (lower, True) if lower > 0.0 else (0.0, False)
+    if upper <= 0.0:
+        return 0.0, True
+    floor_loss = _number_flux_loss(lower, mass_flux, state, particle_density, charging_radius)
+    if lower + step*floor_loss >= available:
+        return lower, True
+    # The sink is monotone in F for the adopted settling and coagulation laws.
+    value = upper
+    for iteration in range(100):
+        loss = _number_flux_loss(value, mass_flux, state, particle_density, charging_radius)
+        residual = value + step*loss - available
+        if abs(residual) <= 2e-13*max(available, np.finfo(np.float64).tiny):
+            return value, True
+        if residual > 0.0 or not np.isfinite(residual):
+            upper = value
+        else:
+            lower = value
+        if upper - lower <= 2e-13*max(upper, np.finfo(np.float64).tiny):
+            return .5*(lower + upper), True
+        trial = .5*(lower + upper)
+        if np.isfinite(loss) and value > 0.0:
+            nearby = value*(1.0 - 1e-5)
+            other_loss = _number_flux_loss(nearby, mass_flux, state, particle_density, charging_radius)
+            slope = 1.0 + step*(loss - other_loss)/(value - nearby)
+            newton = value - residual/slope
+            if lower < newton < upper:
+                trial = newton
+        value = trial
+    return value, False
 
-    # Keep the first trial near the seed small; subsequent steps use error control.
-    step = min(thickness, 0.05/gradient) if gradient > 0.0 else thickness
-    rtol = max(rtol, 100.0*np.finfo(np.float64).eps)
+
+@nb.njit
+def _interval_mass_flux(distance, thickness, above, below, flux_above):
+    """Analytically integrate the linearly interpolated mass source."""
+    fraction = distance/thickness
+    return flux_above + distance*(above[4] + .5*fraction*(below[4] - above[4]))
+
+
+@nb.njit
+def _number_flux_step(distance, number_flux, step, thickness, above, below,
+                      flux_above, particle_density, seed_mass, charging_radius,
+                      maximum_mass):
+    """One second-order L-stable SDIRK step with exact source integration.
+
+    Applying the two-stage method to the cumulative coagulation loss leaves
+    mass production analytic. Negative unconstrained stages reject the step;
+    capped stages are projected onto their minimum number flux. The diagonal
+    coefficient is 1 - 1/sqrt(2).
+    """
+    gamma = 1.0 - 1.0/np.sqrt(2.0)
+    middle = distance + gamma*step
+    endpoint = distance + step
+    c0 = _interval_mass_flux(distance, thickness, above, below, flux_above)
+    c1 = _interval_mass_flux(middle, thickness, above, below, flux_above)
+    c2 = _interval_mass_flux(endpoint, thickness, above, below, flux_above)
+    state1 = (1.0 - middle/thickness)*above + middle/thickness*below
+    state2 = (1.0 - endpoint/thickness)*above + endpoint/thickness*below
+    available1 = number_flux + (c1 - c0)/seed_mass
+    first, ok = _implicit_number_flux(available1, c1, state1, gamma*step,
+                                      particle_density, seed_mass, charging_radius,
+                                      maximum_mass)
+    if not ok:
+        return number_flux, False
+    # Effective loss includes any suppression needed to respect the radius cap.
+    used = available1 - first
+    available2 = number_flux + (c2 - c0)/seed_mass - (1.0 - gamma)/gamma*used
+    return _implicit_number_flux(available2, c2, state2, gamma*step,
+                                  particle_density, seed_mass, charging_radius,
+                                  maximum_mass)
+
+
+@nb.njit
+def _integrate_number_flux(number_flux, thickness, state_above, state_below,
+                           flux_above, particle_density, seed_mass, charging_radius,
+                           rtol, atol, maximum_mass=np.inf, max_steps=100000):
+    """Advance downward number flux using adaptive implicit step doubling.
+
+    Flux is in particles/(cm^2 s), thickness in cm, and endpoint states are
+    [temperature K, gas density g/cm^3, gas number density cm^-3, gravity
+    cm/s^2, mass production g/(cm^3 s)]. Mass flux is in g/(cm^2 s).
+    Relative/absolute tolerances apply to log(F*m0/C), the surviving fraction
+    of the primary-particle number flux. This controls fractional radius and
+    number-flux error even when number production spans many orders of magnitude.
+    Returns (number_flux, status): 0 success, 1 invalid/nonfinite state,
+    2 minimum step, 3 attempted-step budget exhausted.
+    """
+    if (not np.isfinite(number_flux) or number_flux < 0.0 or
+            not np.isfinite(flux_above) or flux_above < 0.0):
+        return number_flux, 1
     distance = 0.0
-    slopes = np.empty(7, dtype=np.float64)
-    rejected = False
-    nonfinite_trial = False
+    step = thickness
+    rtol = max(rtol, 100*np.finfo(np.float64).eps)
     for attempt in range(max_steps):
-        minimum_step = 10.0*(np.nextafter(distance, np.inf) - distance)
-        if step < minimum_step or distance + step == distance:
-            return log_radius, False, 1 if nonfinite_trial else 2
+        if step < 10*(np.nextafter(distance, np.inf) - distance) or distance + step == distance:
+            return number_flux, 2
         endpoint = min(distance + step, thickness)
         step = endpoint - distance
-
-        slopes[0] = gradient
-        finite = True
-        for stage in range(1, 6):
-            increment = 0.0
-            for j in range(stage):
-                increment += _RK45_A[stage, j]*slopes[j]
-            slopes[stage] = _mckay_log_radius_rhs(
-                distance + _RK45_C[stage]*step, log_radius + step*increment,
-                thickness, state_above, state_below, flux_above,
-                particle_density, charging_radius
-            )
-            if not np.isfinite(slopes[stage]):
-                finite = False
-                break
-
-        error_norm = np.inf
-        candidate = log_radius
-        if finite:
-            increment = 0.0
-            for j in range(6):
-                increment += _RK45_B[j]*slopes[j]
-            candidate = log_radius + step*increment
-            slopes[6] = _mckay_log_radius_rhs(
-                endpoint, candidate, thickness, state_above, state_below,
-                flux_above, particle_density, charging_radius
-            )
-            finite = np.isfinite(candidate) and np.isfinite(slopes[6])
-            if finite:
+        full, ok1 = _number_flux_step(distance, number_flux, step, thickness,
+                                      state_above, state_below, flux_above,
+                                      particle_density, seed_mass, charging_radius, maximum_mass)
+        half, ok2 = _number_flux_step(distance, number_flux, .5*step, thickness,
+                                      state_above, state_below, flux_above,
+                                      particle_density, seed_mass, charging_radius, maximum_mass)
+        fine, ok3 = _number_flux_step(distance + .5*step, half, .5*step, thickness,
+                                      state_above, state_below, flux_above,
+                                      particle_density, seed_mass, charging_radius, maximum_mass)
+        error = np.inf
+        c = _interval_mass_flux(endpoint, thickness, state_above, state_below, flux_above)
+        if ok1 and ok2 and ok3 and np.isfinite(full) and np.isfinite(fine):
+            if c == 0.0:
                 error = 0.0
-                for j in range(7):
-                    error += _RK45_E[j]*slopes[j]
-                scale = atol + rtol*max(abs(log_radius), abs(candidate))
-                error_norm = abs(step*error)/scale
-
-        if np.isfinite(error_norm) and error_norm < 1.0:
+            elif full > 0.0 and fine > 0.0:
+                log_full = np.log(full) + np.log(seed_mass) - np.log(c)
+                log_fine = np.log(fine) + np.log(seed_mass) - np.log(c)
+                scale = atol + rtol*max(abs(log_full), abs(log_fine))
+                error = abs(log_fine - log_full)/(3.0*scale)
+        if error <= 1.0:
+            number_flux = fine
             distance = endpoint
-            log_radius = candidate
-            gradient = slopes[6]
-            if log_radius >= log_max_radius:
-                return log_max_radius, True, 0
             if distance >= thickness:
-                return log_radius, False, 0
-            factor = 10.0 if error_norm == 0.0 else min(10.0, 0.9*error_norm**(-0.2))
-            if rejected:
-                factor = min(1.0, factor)
-            step *= factor
-            rejected = False
-            nonfinite_trial = False
+                return number_flux, 0
+            step *= 5.0 if error == 0.0 else min(5.0, max(.2, .9*error**(-1.0/3.0)))
         else:
-            nonfinite_trial = not finite or not np.isfinite(error_norm)
-            factor = max(0.2, 0.9*error_norm**(-0.2)) if np.isfinite(error_norm) else 0.2
-            step *= factor
-            rejected = True
-
-    return log_radius, False, 3
+            step *= max(.2, .9*error**(-1.0/3.0)) if np.isfinite(error) else .2
+    return number_flux, 3
 
 
 @nb.njit
@@ -466,7 +464,8 @@ def mckay_microphysics(
     atol=1.0e-10,
 ):
     """Solve steady monodisperse haze microphysics on a supplied altitude
-    grid. The model generally follows the one used in McKay et al. (1989), 
+    grid, with production of new primary particles. This extends the
+    coagulation/sedimentation model of McKay et al. (1989),
     DOI: 10.1016/0019-1035(89)90160-7.
 
     Parameters
@@ -487,20 +486,20 @@ def mckay_microphysics(
     particle_density : float, optional
         Constant particle material density in g/cm^3; default 1.
     seed_radius : float, optional
-        Radius in cm at the highest point with positive cumulative production;
-        default 1e-7. This prescribes the initial particle population.
+        Radius of newly produced primary particles in cm; default 1e-7.
+        Their mass m0 sets the number source J = production_rate/m0.
     charging_radius : float, optional
         Positive charge-suppression radius in cm; default 9e-6.
         Use np.inf to disable charge suppression.
     column_production : float, optional
-        Total column production in g/(cm^2 s). If supplied, scale the production
-        profile to this integral over altitude before any sweeping is applied.
+        Internal column production in g/(cm^2 s). If supplied, scale the
+        production profile to this integral over altitude before sweeping.
         Must be finite and nonnegative;
         a positive value requires a profile with positive integrated production.
     max_radius : float, optional
         Maximum particle radius in cm. Must be finite and at least seed_radius.
-        Integration stops growing particles when this imposed cap is reached;
-        number density is still calculated from the prescribed mass flux.
+        Coagulation is limited at the imposed cap, conserving mass. Fresh
+        primary-particle production can reduce radius below the cap again.
     sweep_below : float, optional
         Finite altitude in cm below which haze number density and mass flux
         are zero. Integration stops at the lowest retained sample, and a point
@@ -508,34 +507,32 @@ def mckay_microphysics(
         Radius below it is held at the lowest retained sample's radius, or at
         seed_radius if no samples remain. Represents prescribed haze removal.
     rtol : float, optional
-        Positive relative tolerance for integrating log radius; default 1e-6.
-        Dimensionless and applied to ln(radius / 1 cm), not directly to radius.
+        Dimensionless relative tolerance on log(F*m0/C), the surviving
+        primary-particle number-flux fraction; default 1e-6.
     atol : float, optional
-        Positive absolute tolerance for integrating log radius; default 1e-10.
-        Dimensionless; small errors in log radius are fractional radius errors.
+        Dimensionless absolute tolerance on log(F*m0/C); default 1e-10.
 
     Returns
     -------
     particle_radius : ndarray, shape (N,)
-        Particle radius in cm, ordered from bottom to top. Empty regions
-        retain seed_radius as a placeholder, except where sweep_below holds
+        Particle radius in cm, ordered from bottom to top. An empty atmosphere
+        retains seed_radius as a placeholder, except where sweep_below holds
         radius constant below the lowest retained sample.
     particle_number_density : ndarray, shape (N,)
         Particle number density in particles/cm^3, ordered from bottom to top.
     haze_mass_flux : ndarray, shape (N,)
         Positive downward mass flux in g/(cm^2 s), ordered from bottom to top.
         Zero at the upper boundary and below sweep_below. Without sweeping,
-        the bottom value is total column production.
+        the bottom value is total internal column production.
 
     Notes
     -----
-    Input validation, the numerical driver, and scalar adaptive
-    Dormand-Prince RK45 integration are Numba compiled. Atmospheric profiles
-    and production are interpolated linearly,
-    and cumulative production is integrated analytically within each interval.
-    Integration restarts at input points and stops once an accepted step
-    reaches max_radius; its precise crossing altitude is not calculated.
-
+    Production creates primary particles with number source J=q/m0, extending
+    McKay's mass-only production assumption. Incoming mass and number fluxes
+    are zero. Atmospheric profiles and production are interpolated linearly;
+    cumulative mass production is integrated analytically. A Numba-compiled
+    adaptive implicit number-flux integration handles stiff coagulation.
+    Representative radius follows from C=mF wherever haze is present.
     """
 
     # Check input floats
@@ -630,50 +627,31 @@ def mckay_microphysics(
                     not np.all(np.isfinite(haze_mass_flux)) or haze_mass_flux[0] <= 0.0):
                 raise ValueError('Normalized haze production must be finite and have a positive integral.')
 
-    # Prepare the outputs. We start with the seed_radius then we will overwrite.
+    seed_mass = (4.0/3.0)*np.pi*particle_density*seed_radius**3
+    if not np.isfinite(seed_mass) or seed_mass <= 0.0:
+        raise ValueError('Primary-particle mass must be finite and positive.')
+    if not np.isfinite(haze_mass_flux[0]/seed_mass):
+        raise ValueError('Integrated primary-particle production must be finite.')
+    maximum_mass = np.inf
+    if np.isfinite(radius_cap):
+        maximum_mass = (4.0/3.0)*np.pi*particle_density*radius_cap**3
+        if not np.isfinite(maximum_mass):
+            raise ValueError('Maximum particle mass must be finite.')
+
     particle_radius = np.full(altitude.size, seed_radius, dtype=np.float64)
     particle_number_density = np.zeros(altitude.size, dtype=np.float64)
     first_retained = np.searchsorted(altitude, sweep_altitude, side='left')
-
-    # Determine the highest point in the atmosphere, where there is
-    # non-zero haze production.
-    seed_index = -1
-    for i in range(altitude.size - 1, -1, -1):
-        if haze_mass_flux[i] > 0.0:
-            seed_index = i
-            break
-    if seed_index == -1 or seed_index < first_retained:
-        # No haze remains above the sweep threshold.
+    if haze_mass_flux[0] == 0.0 or first_retained >= altitude.size:
         haze_mass_flux.fill(0.0)
         return particle_radius, particle_number_density, haze_mass_flux
 
-    # Initialize the number density at the prescribed seed radius.
-    speed = fall_velocity(
-        gravity[seed_index], seed_radius, particle_density, air_density[seed_index],
-        air_number_density[seed_index], temperature[seed_index]
-    )
-    mass = (4.0/3.0)*np.pi*particle_density*seed_radius**3
-    mass_flux_per_particle = mass*speed
-    if not np.isfinite(mass_flux_per_particle) or mass_flux_per_particle <= 0.0:
-        raise RuntimeError(f'Invalid particle settling flux at altitude index {seed_index}.')
-    particle_number_density[seed_index] = haze_mass_flux[seed_index]/mass_flux_per_particle
-    if (not np.isfinite(particle_number_density[seed_index]) or
-            particle_number_density[seed_index] <= 0.0):
-        raise RuntimeError(f'Invalid particle number density at altitude index {seed_index}.')
-
-    log_max_radius = np.log(radius_cap)
-    capped = radius_cap == seed_radius
-
-    # From the seed point downward, we do a loop
-    for i in range(seed_index - 1, first_retained - 1, -1):
-
-        if capped:
-            particle_radius[i] = radius_cap
+    number_flux = 0.0
+    for i in range(altitude.size - 2, first_retained - 1, -1):
+        if haze_mass_flux[i] == 0.0:
+            continue
+        if radius_cap == seed_radius:
+            number_flux = haze_mass_flux[i]/seed_mass
         else:
-            # Between each interval, integrate the radius equation through each interval.
-            # In practice we integrate the natural log of radius, for numerical purposes.
-
-            # Prepare inputs
             dz = altitude[i + 1] - altitude[i]
             state_above = np.array([
                 temperature[i + 1], air_density[i + 1], air_number_density[i + 1],
@@ -683,40 +661,23 @@ def mckay_microphysics(
                 temperature[i], air_density[i], air_number_density[i],
                 gravity[i], production_rate[i]
             ])
-            flux_above = haze_mass_flux[i + 1]
-            log_radius = np.log(particle_radius[i + 1])
-
-            # Run adaptive scalar RK45 through this interval.
-            log_radius, capped, status = _integrate_log_radius(
-                log_radius, dz, state_above, state_below, flux_above,
-                particle_density, charging_radius, rtol, atol, log_max_radius
+            number_flux, status = _integrate_number_flux(
+                number_flux, dz, state_above, state_below, haze_mass_flux[i + 1],
+                particle_density, seed_mass, charging_radius, rtol, atol, maximum_mass
             )
             if status != 0:
-                if status == 1:
-                    raise RuntimeError(f'Nonfinite radius integration in altitude interval {i}.')
-                if status == 2:
-                    raise RuntimeError(f'Radius integration step too small in altitude interval {i}.')
-                raise RuntimeError(f'Radius integration exceeded its step budget in altitude interval {i}.')
-            particle_radius[i] = radius_cap if capped else np.exp(log_radius)
-
-            if not np.isfinite(particle_radius[i]) or particle_radius[i] <= 0.0:
-                raise RuntimeError(f'Invalid particle radius in altitude interval {i}.')
-
-        # Compute the particle number density from the radius
-        speed = fall_velocity(
-            gravity[i], particle_radius[i], particle_density, air_density[i],
-            air_number_density[i], temperature[i]
-        )
-        mass = (4.0/3.0)*np.pi*particle_density*particle_radius[i]**3
-        mass_flux_per_particle = mass*speed
-        if not np.isfinite(mass_flux_per_particle) or mass_flux_per_particle <= 0.0:
-            raise RuntimeError(f'Invalid particle settling flux at altitude index {i}.')
-        particle_number_density[i] = haze_mass_flux[i]/mass_flux_per_particle
+                raise RuntimeError(f'Number-flux integration failed in altitude interval {i} (status {status}).')
+        if not np.isfinite(number_flux) or number_flux <= 0.0:
+            raise RuntimeError(f'Invalid particle number flux at altitude index {i}.')
+        radius = np.cbrt(3.0*(haze_mass_flux[i]/number_flux)/(4.0*np.pi*particle_density))
+        particle_radius[i] = max(seed_radius, min(radius, radius_cap))
+        speed = fall_velocity(gravity[i], particle_radius[i], particle_density,
+                              air_density[i], air_number_density[i], temperature[i])
+        particle_number_density[i] = number_flux/speed
         if not np.isfinite(particle_number_density[i]) or particle_number_density[i] <= 0.0:
             raise RuntimeError(f'Invalid particle number density at altitude index {i}.')
 
     if first_retained > 0:
         particle_radius[:first_retained] = particle_radius[first_retained]
         haze_mass_flux[:first_retained] = 0.0
-
     return particle_radius, particle_number_density, haze_mass_flux
