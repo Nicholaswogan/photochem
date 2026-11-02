@@ -26,7 +26,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-from photochem.extensions.haze import mckay_microphysics
+from photochem.extensions.haze_microphysics import microphysics
 
 
 HERE = Path(__file__).resolve().parent
@@ -57,7 +57,7 @@ def run_benchmark():
     monomer_radius = float(metadata['monomer_radius_cm'])
     charging_radius = float(metadata['charging_radius_cm'])
     # Preserve the exported source samples and their original normalization.
-    radius, number, flux = mckay_microphysics(
+    radius, number, flux = microphysics(
         reference['altitude_cm'], reference['temperature_K'],
         reference['air_density_g_cm3'], reference['air_number_density_cm3'],
         reference['gravity_cm_s2'], reference['production_g_cm3_s'],
