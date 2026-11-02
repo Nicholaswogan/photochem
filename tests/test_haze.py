@@ -12,14 +12,14 @@ def atmosphere(altitude):
                 gravity=980.0*ones, production_rate=1e-20*ones)
 
 
-def fluxes(inputs, result, seed_radius=1e-7):
+def fluxes(inputs, result, monomer_radius=1e-7):
     radius, number, mass_flux = result
     speed = fall_velocity(inputs['gravity'], radius, 1.0, inputs['air_density'],
                           inputs['air_number_density'], inputs['temperature'])
     np.testing.assert_allclose(number*(4*np.pi/3)*radius**3*speed, mass_flux,
                                rtol=1e-12, atol=0)
     assert mass_flux[-1] == number[-1] == 0.0
-    assert np.all(radius >= seed_radius)
+    assert np.all(radius >= monomer_radius)
     return number*speed
 
 
@@ -120,7 +120,7 @@ def test_invalid_inputs():
     for updates in ({'altitude': inputs['altitude'][::-1]}, {'temperature': np.ones(4)},
                     {'temperature': np.ones((5, 1))}, {'air_number_density': np.zeros(5)},
                     {'production_rate': -np.ones(5)}, {'production_rate': np.full(5, np.nan)},
-                    {'seed_radius': 0.}, {'charging_radius': 0.}, {'max_radius': 1e-8},
+                    {'monomer_radius': 0.}, {'charging_radius': 0.}, {'max_radius': 1e-8},
                     {'max_radius': np.inf}, {'sweep_below': np.nan}, {'particle_density': 1e-7},
                     {'rtol': 0.}, {'atol': np.inf}, {'method': 'unknown'}, {'column_production': -1.},
                     {'column_production': 1., 'production_rate': np.zeros(5)}):

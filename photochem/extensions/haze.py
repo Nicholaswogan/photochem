@@ -393,7 +393,7 @@ def mckay_microphysics(
     gravity,
     production_rate,
     particle_density=1.0,
-    seed_radius=1.0e-7,
+    monomer_radius=1.0e-7,
     charging_radius=9.0e-6,
     column_production=None,
     max_radius=None,
@@ -422,7 +422,7 @@ def mckay_microphysics(
         Nonnegative haze mass production at each sample point in g/(cm^3 s).
     particle_density : float, optional
         Constant particle material density in g/cm^3; default 1.
-    seed_radius : float, optional
+    monomer_radius : float, optional
         Radius of newly produced primary particles in cm; default 1e-7.
         Their mass m0 sets the number source J = production_rate/m0.
     charging_radius : float, optional
@@ -434,7 +434,7 @@ def mckay_microphysics(
         Must be finite and nonnegative;
         a positive value requires a profile with positive integrated production.
     max_radius : float, optional
-        Maximum particle radius in cm. Must be finite and at least seed_radius.
+        Maximum particle radius in cm. Must be finite and at least monomer_radius.
         Coagulation is limited at the imposed cap, conserving mass. Fresh
         primary-particle production can reduce radius below the cap again.
     sweep_below : float, optional
@@ -442,7 +442,7 @@ def mckay_microphysics(
         are zero. Integration stops at the lowest retained sample, and a point
         exactly at the threshold is retained.
         Radius below it is held at the lowest retained sample's radius, or at
-        seed_radius if no samples remain. Represents prescribed haze removal.
+        monomer_radius if no samples remain. Represents prescribed haze removal.
     rtol : float, optional
         Relative number-flux tolerance for SciPy integration; default 1e-6.
     atol : float, optional
@@ -455,7 +455,7 @@ def mckay_microphysics(
     -------
     particle_radius : ndarray, shape (N,)
         Particle radius in cm, ordered from bottom to top. An empty atmosphere
-        retains seed_radius as a placeholder, except where sweep_below holds
+        retains monomer_radius as a placeholder, except where sweep_below holds
         radius constant below the lowest retained sample.
     particle_number_density : ndarray, shape (N,)
         Particle number density in particles/cm^3, ordered from bottom to top.
@@ -470,7 +470,7 @@ def mckay_microphysics(
 
     # Check input floats
     particle_density = float(particle_density)
-    seed_radius = float(seed_radius)
+    monomer_radius = float(monomer_radius)
     charging_radius = float(charging_radius)
     rtol = float(rtol)
     atol = float(atol)
@@ -507,15 +507,15 @@ def mckay_microphysics(
         raise ValueError('altitude must be finite and strictly increasing from bottom to top.')
     if not np.isfinite(particle_density) or particle_density <= 0.0:
         raise ValueError('particle_density must be finite and positive.')
-    if not np.isfinite(seed_radius) or seed_radius <= 0.0:
-        raise ValueError('seed_radius must be finite and positive.')
+    if not np.isfinite(monomer_radius) or monomer_radius <= 0.0:
+        raise ValueError('monomer_radius must be finite and positive.')
     if np.isnan(charging_radius) or charging_radius <= 0.0:
         raise ValueError('charging_radius must be positive (or np.inf).')
     radius_cap = np.inf
     if max_radius is not None:
         radius_cap = float(max_radius)
-        if not np.isfinite(radius_cap) or radius_cap < seed_radius:
-            raise ValueError('max_radius must be finite and at least seed_radius.')
+        if not np.isfinite(radius_cap) or radius_cap < monomer_radius:
+            raise ValueError('max_radius must be finite and at least monomer_radius.')
     sweep_altitude = -np.inf
     if sweep_below is not None:
         sweep_altitude = float(sweep_below)
@@ -560,7 +560,7 @@ def mckay_microphysics(
                     not np.all(np.isfinite(haze_mass_flux)) or haze_mass_flux[0] <= 0.0):
                 raise ValueError('Normalized haze production must be finite and have a positive integral.')
 
-    seed_mass = (4.0/3.0)*np.pi*particle_density*seed_radius**3
+    seed_mass = (4.0/3.0)*np.pi*particle_density*monomer_radius**3
     if not np.isfinite(seed_mass) or seed_mass <= 0.0:
         raise ValueError('Primary-particle mass must be finite and positive.')
     if not np.isfinite(haze_mass_flux[0]/seed_mass):
@@ -571,7 +571,7 @@ def mckay_microphysics(
         if not np.isfinite(maximum_mass):
             raise ValueError('Maximum particle mass must be finite.')
 
-    particle_radius = np.full(altitude.size, seed_radius, dtype=np.float64)
+    particle_radius = np.full(altitude.size, monomer_radius, dtype=np.float64)
     particle_number_density = np.zeros(altitude.size, dtype=np.float64)
     first_retained = np.searchsorted(altitude, sweep_altitude, side='left')
     if haze_mass_flux[0] == 0.0 or first_retained >= altitude.size:
@@ -582,7 +582,7 @@ def mckay_microphysics(
     for i in range(altitude.size - 2, first_retained - 1, -1):
         if haze_mass_flux[i] == 0.0:
             continue
-        if radius_cap == seed_radius:
+        if radius_cap == monomer_radius:
             number_flux = haze_mass_flux[i]/seed_mass
         else:
             dz = altitude[i + 1] - altitude[i]
@@ -601,7 +601,7 @@ def mckay_microphysics(
         if not np.isfinite(number_flux) or number_flux <= 0.0:
             raise RuntimeError(f'Invalid particle number flux at altitude index {i}.')
         radius = np.cbrt(3.0*(haze_mass_flux[i]/number_flux)/(4.0*np.pi*particle_density))
-        particle_radius[i] = max(seed_radius, min(radius, radius_cap))
+        particle_radius[i] = max(monomer_radius, min(radius, radius_cap))
         speed = fall_velocity(gravity[i], particle_radius[i], particle_density,
                               air_density[i], air_number_density[i], temperature[i])
         particle_number_density[i] = number_flux/speed

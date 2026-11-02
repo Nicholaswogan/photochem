@@ -54,14 +54,14 @@ def run_benchmark():
     """Solve on the reference grid with native mass production and J=q/m0."""
     reference, metadata = load_reference()
     density = float(metadata['particle_density_g_cm3'])
-    seed_radius = float(metadata['seed_radius_cm'])
+    monomer_radius = float(metadata['monomer_radius_cm'])
     charging_radius = float(metadata['charging_radius_cm'])
     # Preserve the exported source samples and their original normalization.
     radius, number, flux = mckay_microphysics(
         reference['altitude_cm'], reference['temperature_K'],
         reference['air_density_g_cm3'], reference['air_number_density_cm3'],
         reference['gravity_cm_s2'], reference['production_g_cm3_s'],
-        particle_density=density, seed_radius=seed_radius,
+        particle_density=density, monomer_radius=monomer_radius,
         charging_radius=charging_radius, rtol=1e-6,
     )
     internal_column = np.sum(

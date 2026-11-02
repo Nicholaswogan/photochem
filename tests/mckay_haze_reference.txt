@@ -1,7 +1,7 @@
 # McKay native steady haze reference; exported numerical results, not source code.
 # source: tgm3.f
 # source_sha256: a0883edd4ab0b2d7c61cd23d5b7a940bf8835836ed75e825c3f27c739515b401
-# driver_sha256: 38cbd7e29ce8357274fd5dfdc05373ecc5b3504e50d432cfd7c6aefa13d5f391
+# driver_sha256: d2e6d36f3542deaceb6429db245738e17836930e7248951d2fb1bd76e5bea243
 # compiler: GNU Fortran (Homebrew GCC 15.2.0_1) 15.2.0
 # compiler_flags: -std=legacy -ffixed-line-length-none -fcheck=all
 # atmosphere: Native initial HUYGENS atmosphere; no climate iteration
@@ -17,7 +17,7 @@
 # native_column_production_g_cm2_s: 1.050000083218207e-14
 # production_peak_pressure_dyn_cm2: 0.1000000014901161
 # production_width_pressure_dyn_cm2: 0.03249773010611534
-# seed_radius_cm: 1.000000011686097e-07
+# monomer_radius_cm: 1.000000011686097e-07
 # top_number_density_cm3: 1.0
 # columns: altitude_cm pressure_dyn_cm2 temperature_K molecular_weight_amu air_number_density_cm3 air_density_g_cm3 gravity_cm_s2 production_g_cm3_s mass_flux_g_cm2_s particle_radius_cm particle_number_density_cm3 fall_speed_cm_s methane_mole_fraction
 0.000000000000000e+00 1.467000126838684e+06 9.390000152587891e+01 2.737849426269531e+01 1.132101768149792e+20 5.147001240402460e-03 1.350000000000000e+02 0.000000000000000e+00 1.050000083218207e-14 4.673419971368276e-05 7.132155895233154e+00 3.443304914981127e-03 5.086604505777359e-02
