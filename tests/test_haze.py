@@ -126,12 +126,21 @@ def test_sweep_below():
     inputs = atmosphere(np.linspace(0.0, 1.0e6, 9))
     altitude = inputs['altitude']
     for cap in (None, 1.0e-6):
-        baseline = mckay_microphysics(**inputs, max_radius=cap)
+        baseline = mckay_microphysics(**inputs, max_radius=cap, column_production=3.0e-14)
         for threshold in (altitude[3], 0.5*(altitude[3] + altitude[4]),
                           altitude[0], altitude[0] - 1, altitude[-1], altitude[-1] + 1):
-            radius, number, flux = mckay_microphysics(
-                **inputs, max_radius=cap, sweep_below=threshold
-            )
+            with patch.object(haze, 'solve_ivp', wraps=haze.solve_ivp) as integration:
+                radius, number, flux = mckay_microphysics(
+                    **inputs, max_radius=cap, sweep_below=threshold,
+                    column_production=3.0e-14
+                )
+                expected_intervals = max(
+                    altitude.size - 2 - np.count_nonzero(altitude < threshold), 0
+                )
+                if cap is None:
+                    assert integration.call_count == expected_intervals
+                else:
+                    assert integration.call_count <= expected_intervals
             removed = altitude < threshold
             assert np.all(number[removed] == 0.0)
             assert np.all(flux[removed] == 0.0)
@@ -148,6 +157,14 @@ def test_sweep_below():
                 inputs['air_number_density'], inputs['temperature']
             )
             np.testing.assert_allclose(number*(4*np.pi/3)*radius**3*speed, flux, rtol=1.0e-13)
+
+    # Production can be nonzero, yet lie entirely below the retained region.
+    inputs['production_rate'][3:] = 0.0
+    with patch.object(haze, 'solve_ivp', side_effect=AssertionError('All haze swept away')):
+        radius, number, flux = mckay_microphysics(**inputs, sweep_below=altitude[5])
+    np.testing.assert_array_equal(radius, np.full(9, 1.0e-7))
+    np.testing.assert_array_equal(number, np.zeros(9))
+    np.testing.assert_array_equal(flux, np.zeros(9))
 
     inputs['production_rate'][:] = 0.0
     radius, number, flux = mckay_microphysics(

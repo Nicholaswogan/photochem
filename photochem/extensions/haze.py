@@ -354,7 +354,8 @@ def mckay_microphysics(
         number density is still calculated from the prescribed mass flux.
     sweep_below : float, optional
         Finite altitude in cm below which haze number density and mass flux
-        are set to zero after integration. The point at the threshold is retained.
+        are zero. Integration stops at the lowest retained sample, and a point
+        exactly at the threshold is retained.
         Radius below it is held at the lowest retained sample's radius, or at
         seed_radius if no samples remain. Represents prescribed haze removal.
     rtol : float, optional
@@ -464,6 +465,9 @@ def mckay_microphysics(
     # Prepare the outputs. We start with the seed_radius then we will overwrite.
     particle_radius = np.full(altitude.size, seed_radius, dtype=np.float64)
     particle_number_density = np.zeros(altitude.size, dtype=np.float64)
+    first_retained = 0
+    if sweep_below is not None:
+        first_retained = np.searchsorted(altitude, sweep_below, side='left')
 
     # Determine the highest point in the atmosphere, where there is
     # non-zero haze production.
@@ -472,7 +476,9 @@ def mckay_microphysics(
         if haze_mass_flux[i] > 0.0:
             seed_index = i
             break
-    if seed_index == -1:
+    if seed_index == -1 or seed_index < first_retained:
+        # No haze remains above the sweep threshold.
+        haze_mass_flux.fill(0.0)
         return particle_radius, particle_number_density, haze_mass_flux
 
     # Initialize the number density at the prescribed seed radius.
@@ -498,7 +504,7 @@ def mckay_microphysics(
     capped = max_radius == seed_radius
 
     # From the seed point downward, we do a loop
-    for i in range(seed_index - 1, -1, -1):
+    for i in range(seed_index - 1, first_retained - 1, -1):
 
         if capped:
             particle_radius[i] = max_radius
@@ -562,13 +568,8 @@ def mckay_microphysics(
         if not np.isfinite(particle_number_density[i]) or particle_number_density[i] <= 0.0:
             raise RuntimeError(f'Invalid particle number density at altitude index {i}.')
 
-    if sweep_below is not None:
-        first_retained = np.searchsorted(altitude, sweep_below, side='left')
-        if first_retained < altitude.size:
-            particle_radius[:first_retained] = particle_radius[first_retained]
-        else:
-            particle_radius.fill(seed_radius)
-        particle_number_density[:first_retained] = 0.0
+    if first_retained > 0:
+        particle_radius[:first_retained] = particle_radius[first_retained]
         haze_mass_flux[:first_retained] = 0.0
 
     return particle_radius, particle_number_density, haze_mass_flux
