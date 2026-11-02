@@ -1,4 +1,4 @@
-# McKay Microphysics
+# Simple Microphysics
 
 ## Introduction
 

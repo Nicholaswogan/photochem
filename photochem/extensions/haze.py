@@ -385,7 +385,7 @@ def _validate_haze_profile(profile, size):
         raise ValueError('All input profiles must contain finite values.')
 
 
-def mckay_microphysics(
+def microphysics(
     altitude,
     temperature,
     air_density,
