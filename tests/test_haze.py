@@ -1,12 +1,21 @@
 """Standalone smoke checks for the supplied-grid haze microphysics solver."""
 
 from unittest.mock import patch
+from contextlib import contextmanager
 
 import numpy as np
 
 from photochem.extensions import haze
 
 from photochem.extensions.haze import fall_velocity, mckay_microphysics
+
+
+@contextmanager
+def track_integration():
+    """Inspect interval calls using the same driver body without JIT binding."""
+    with patch.object(haze, 'mckay_microphysics', haze.mckay_microphysics.py_func):
+        with patch.object(haze, '_integrate_log_radius', wraps=haze._integrate_log_radius) as integration:
+            yield integration
 
 
 def atmosphere(altitude):
@@ -100,8 +109,8 @@ def test_max_radius():
     inputs = atmosphere(np.linspace(0.0, 1.0e6, 13))
     baseline = mckay_microphysics(**inputs)
     cap = 1.0e-6
-    with patch.object(haze, 'solve_ivp', wraps=haze.solve_ivp) as integration:
-        radius, number, flux = mckay_microphysics(**inputs, max_radius=cap)
+    with track_integration() as integration:
+        radius, number, flux = haze.mckay_microphysics(**inputs, max_radius=cap)
         assert 0 < integration.call_count < inputs['altitude'].size - 2
     assert np.all(radius <= cap)
     assert np.any(radius == cap)
@@ -116,8 +125,9 @@ def test_max_radius():
     unchanged = mckay_microphysics(**inputs, max_radius=2*baseline[0][0])
     for actual, expected in zip(unchanged, baseline):
         np.testing.assert_array_equal(actual, expected)
-    with patch.object(haze, 'solve_ivp', side_effect=AssertionError('Cap already reached')):
-        radius, number, flux = mckay_microphysics(**inputs, max_radius=1.0e-7)
+    with track_integration() as integration:
+        radius, number, flux = haze.mckay_microphysics(**inputs, max_radius=1.0e-7)
+        assert integration.call_count == 0
     np.testing.assert_array_equal(radius, np.full(13, 1.0e-7))
     assert np.all(number[:-1] > 0.0)
 
@@ -129,8 +139,8 @@ def test_sweep_below():
         baseline = mckay_microphysics(**inputs, max_radius=cap, column_production=3.0e-14)
         for threshold in (altitude[3], 0.5*(altitude[3] + altitude[4]),
                           altitude[0], altitude[0] - 1, altitude[-1], altitude[-1] + 1):
-            with patch.object(haze, 'solve_ivp', wraps=haze.solve_ivp) as integration:
-                radius, number, flux = mckay_microphysics(
+            with track_integration() as integration:
+                radius, number, flux = haze.mckay_microphysics(
                     **inputs, max_radius=cap, sweep_below=threshold,
                     column_production=3.0e-14
                 )
@@ -144,9 +154,9 @@ def test_sweep_below():
             removed = altitude < threshold
             assert np.all(number[removed] == 0.0)
             assert np.all(flux[removed] == 0.0)
-            np.testing.assert_array_equal(number[~removed], baseline[1][~removed])
-            np.testing.assert_array_equal(flux[~removed], baseline[2][~removed])
-            np.testing.assert_array_equal(radius[~removed], baseline[0][~removed])
+            np.testing.assert_allclose(number[~removed], baseline[1][~removed], rtol=1.0e-13)
+            np.testing.assert_allclose(flux[~removed], baseline[2][~removed], rtol=1.0e-13)
+            np.testing.assert_allclose(radius[~removed], baseline[0][~removed], rtol=1.0e-13)
             if np.any(~removed):
                 expected_radius = baseline[0][np.flatnonzero(~removed)[0]]
             else:
@@ -160,8 +170,9 @@ def test_sweep_below():
 
     # Production can be nonzero, yet lie entirely below the retained region.
     inputs['production_rate'][3:] = 0.0
-    with patch.object(haze, 'solve_ivp', side_effect=AssertionError('All haze swept away')):
-        radius, number, flux = mckay_microphysics(**inputs, sweep_below=altitude[5])
+    with track_integration() as integration:
+        radius, number, flux = haze.mckay_microphysics(**inputs, sweep_below=altitude[5])
+        assert integration.call_count == 0
     np.testing.assert_array_equal(radius, np.full(9, 1.0e-7))
     np.testing.assert_array_equal(number, np.zeros(9))
     np.testing.assert_array_equal(flux, np.zeros(9))
@@ -173,6 +184,37 @@ def test_sweep_below():
     np.testing.assert_array_equal(radius, np.full(9, 1.0e-7))
     np.testing.assert_array_equal(number, np.zeros(9))
     np.testing.assert_array_equal(flux, np.zeros(9))
+
+
+def test_integrator_failures():
+    state = np.array([250.0, 1.0e-6, 2.0e16, 980.0, 1.0e-20])
+    kwargs = dict(
+        log_radius=np.log(1.0e-7), thickness=1.0e5,
+        state_above=state, state_below=state, flux_above=1.0e-15,
+        particle_density=1.0, charging_radius=9.0e-6, rtol=1.0e-6, atol=1.0e-10,
+    )
+    _, capped, status = haze._integrate_log_radius(**kwargs, max_steps=1)
+    assert not capped and status == 3
+    _, capped, status = haze._integrate_log_radius(**dict(kwargs, flux_above=0.0))
+    assert not capped and status == 1
+    _, capped, status = haze._integrate_log_radius(
+        **dict(kwargs, thickness=np.nextafter(0.0, 1.0))
+    )
+    assert not capped and status == 2
+
+
+def test_nonfinite_trial_recovery():
+    # A coarse interval on a steep source tail generates nonfinite RK trial
+    # states. The integrator must reject those trials rather than abort.
+    above = np.array([278.177727, 7.41031595e-12, 1.54381582e11, 945.968033, 3.99761877e-34])
+    below = np.array([227.568339, 2.75189088e-11, 5.73310600e11, 948.300025, 1.05086645e-28])
+    initial = -17.12841732
+    thickness = 797812.5744476914
+    args = (thickness, above, below, 9.796764923311649e-29, 1.2876324544508917, 9.0e-6)
+    result, capped, status = haze._integrate_log_radius(initial, *args, 1.0e-6, 1.0e-10)
+    assert status == 0 and not capped
+
+    assert np.isfinite(result) and result >= initial
 
 
 def test_invalid_inputs():
@@ -213,5 +255,7 @@ if __name__ == '__main__':
     test_integration_convergence()
     test_max_radius()
     test_sweep_below()
+    test_integrator_failures()
+    test_nonfinite_trial_recovery()
     test_invalid_inputs()
     print('Haze microphysics smoke checks passed.')
