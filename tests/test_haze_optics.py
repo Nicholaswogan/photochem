@@ -3,7 +3,7 @@
 import numpy as np
 from miepython import efficiencies_mx
 from photochem.extensions.haze_optics import (
-    haze_optics, KHARE_WAVELENGTH, KHARE_REFRACTIVE_INDEX, _haze_optics,
+    haze_optics, KHARE_WAVELENGTH, KHARE_REFRACTIVE_INDEX,
 )
 
 
@@ -22,7 +22,7 @@ def test_haze_optics():
     np.testing.assert_array_equal(doubled[2], result[2])
     assert np.all((result[1] >= 0.0) & (result[1] <= 1.0))
     assert np.all(np.abs(result[2]) <= 1.0)
-    assert _haze_optics.nopython_signatures
+    assert haze_optics.nopython_signatures
 
     # Direct efficiencies and a Rayleigh-limit check independently constrain
     # radius/wavelength units, geometric area, and refractive-index convention.

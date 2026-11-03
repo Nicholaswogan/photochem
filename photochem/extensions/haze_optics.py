@@ -197,28 +197,6 @@ KHARE_REFRACTIVE_INDEX.setflags(write=False)
 
 
 @nb.njit
-def _haze_optics(wavelength, particle_radius, particle_number_density, refractive_index):
-    shape = (particle_radius.size, wavelength.size)
-    dtau_dz = np.zeros(shape)
-    w0 = np.zeros(shape)
-    g0 = np.zeros(shape)
-    for i in range(particle_radius.size):
-        if particle_number_density[i] == 0.0:
-            continue
-        area_density = np.pi*particle_radius[i]**2*particle_number_density[i]
-        for j in range(wavelength.size):
-            x = 2.0*np.pi*particle_radius[i]/wavelength[j]
-            # Explicitly use miepython's compiled kernel, independent of its
-            # process-wide MIEPYTHON_USE_JIT setting.
-            qext, qsca, _, asymmetry = _single_sphere_nb(refractive_index[j], x, 0, True)
-            dtau_dz[i, j] = area_density*qext
-            if qext > 0.0:
-                w0[i, j] = qsca/qext
-            if qsca > 0.0:
-                g0[i, j] = asymmetry
-    return dtau_dz, w0, g0
-
-
 def haze_optics(wavelength, particle_radius, particle_number_density, refractive_index=None):
     """Compute Mie optical properties.
 
@@ -249,10 +227,13 @@ def haze_optics(wavelength, particle_radius, particle_number_density, refractive
     wavelength = np.asarray(wavelength, dtype=np.float64)
     particle_radius = np.asarray(particle_radius, dtype=np.float64)
     particle_number_density = np.asarray(particle_number_density, dtype=np.float64)
-    for name, array in (('wavelength', wavelength), ('particle_radius', particle_radius),
-                        ('particle_number_density', particle_number_density)):
-        if array.ndim != 1 or array.size == 0 or not np.all(np.isfinite(array)):
-            raise ValueError(name + ' must be a nonempty, finite, one-dimensional array.')
+    if wavelength.ndim != 1 or wavelength.size == 0 or not np.all(np.isfinite(wavelength)):
+        raise ValueError('wavelength must be a nonempty, finite, one-dimensional array.')
+    if particle_radius.ndim != 1 or particle_radius.size == 0 or not np.all(np.isfinite(particle_radius)):
+        raise ValueError('particle_radius must be a nonempty, finite, one-dimensional array.')
+    if (particle_number_density.ndim != 1 or particle_number_density.size == 0
+            or not np.all(np.isfinite(particle_number_density))):
+        raise ValueError('particle_number_density must be a nonempty, finite, one-dimensional array.')
     if np.any(wavelength <= 0.0) or np.any(np.diff(wavelength) <= 0.0):
         raise ValueError('wavelength must be positive and strictly increasing.')
     if np.any(particle_radius <= 0.0):
@@ -271,7 +252,25 @@ def haze_optics(wavelength, particle_radius, particle_number_density, refractive
                 or np.any(refractive_index.real <= 0.0)
                 or np.any(refractive_index.imag > 0.0)):
             raise ValueError('refractive_index must match wavelength and have finite n > 0, k >= 0 in n - i*k.')
-    result = _haze_optics(wavelength, particle_radius, particle_number_density, refractive_index)
-    if any(not np.all(np.isfinite(array)) for array in result):
+    shape = (particle_radius.size, wavelength.size)
+    dtau_dz = np.zeros(shape)
+    w0 = np.zeros(shape)
+    g0 = np.zeros(shape)
+    for i in range(particle_radius.size):
+        if particle_number_density[i] == 0.0:
+            continue
+        area_density = np.pi*particle_radius[i]**2*particle_number_density[i]
+        for j in range(wavelength.size):
+            x = 2.0*np.pi*particle_radius[i]/wavelength[j]
+            # Explicitly use miepython's compiled kernel, independent of its
+            # process-wide MIEPYTHON_USE_JIT setting.
+            qext, qsca, _, asymmetry = _single_sphere_nb(refractive_index[j], x, 0, True)
+            dtau_dz[i, j] = area_density*qext
+            if qext > 0.0:
+                w0[i, j] = qsca/qext
+            if qsca > 0.0:
+                g0[i, j] = asymmetry
+    if (not np.all(np.isfinite(dtau_dz)) or not np.all(np.isfinite(w0))
+            or not np.all(np.isfinite(g0))):
         raise RuntimeError('Mie calculation produced nonfinite optical properties.')
-    return result
+    return dtau_dz, w0, g0
