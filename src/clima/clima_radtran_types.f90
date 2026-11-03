@@ -6,6 +6,10 @@ module clima_radtran_types
   implicit none
   public
 
+  enum, bind(c)
+    enumerator :: TAU_MODE_DZ = 1, TAU_MODE_DLOG10P = 2
+  end enum
+
   real(dp), parameter :: max_w0 = 0.99999_dp
   real(dp), parameter :: max_gt = 0.999999_dp
   real(dp), parameter :: tau_min = 1.0e-20_dp
@@ -128,7 +132,8 @@ module clima_radtran_types
     type(WaterContinuum), allocatable :: cont
 
     ! Custom optical properties
-    type(linear_interp_1d), private, allocatable :: dtau_dz_interp(:) ! nw
+    integer, private :: tau_mode = TAU_MODE_DZ
+    type(linear_interp_1d), private, allocatable :: dtau_interp(:) ! nw
     type(linear_interp_1d), private, allocatable :: w0_interp(:) ! nw
     type(linear_interp_1d), private, allocatable :: g0_interp(:) ! nw
 
@@ -432,18 +437,30 @@ contains
   !! strictly decreasing and wavelengths strictly increasing; both grids must
   !! be positive. The profiles are retained as interpolation data for subsequent
   !! opacity calculations.
-  subroutine OpticalProperties_set_custom_optical_properties(self, wv, P, dtau_dz, w0, g0, err)
+  !! TAU_MODE_DZ interprets dtau as positive extinction per cm.
+  !! TAU_MODE_DLOG10P interprets dtau as positive extinction per pressure decade.
+  !! The latter requires scale_height during opacity calculation and uses the
+  !! hydrostatic layer-center approximation dtau*dz/(scale_height*ln(10)); this
+  !! is a midpoint approximation rather than an exact pressure-interval integral.
+  subroutine OpticalProperties_set_custom_optical_properties(self, wv, P, dtau, w0, g0, tau_mode, err)
     use futils, only: interp
     class(OpticalProperties), intent(inout) :: self
     real(dp), intent(in) :: wv(:) !! Wavelengths (nm).
     real(dp), intent(in) :: P(:) !! Pressure grid (dyn/cm^2).
-    real(dp), intent(in) :: dtau_dz(:,:) !! Optical depth per altitude (1/cm).
+    real(dp), intent(in) :: dtau(:,:) !! Extinction per cm or per pressure decade, according to tau_mode.
     real(dp), intent(in) :: w0(:,:) !! Dimensionless single-scattering albedo.
     real(dp), intent(in) :: g0(:,:) !! Dimensionless asymmetry parameter.
-    character(:), allocatable, intent(out) :: err
     
-    real(dp), allocatable :: wv1(:), log10P(:), dtau_dz_tmp(:,:), w0_tmp(:,:), g0_tmp(:,:)
+    integer, intent(in) :: tau_mode !! TAU_MODE_DZ or TAU_MODE_DLOG10P.
+
+    character(:), allocatable, intent(out) :: err
+    real(dp), allocatable :: wv1(:), log10P(:), dtau_tmp(:,:), w0_tmp(:,:), g0_tmp(:,:)
     integer :: i, j, ierr
+
+    if (tau_mode /= TAU_MODE_DZ .and. tau_mode /= TAU_MODE_DLOG10P) then
+      err = 'Invalid tau_mode in set_custom_optical_properties'
+      return
+    endif
 
     ! Check inputs
     if (any(wv <= 0.0_dp)) then
@@ -454,12 +471,12 @@ contains
       err = 'All elements of `P` must be larger than zero'
       return
     endif
-    if (size(P) /= size(dtau_dz,1)) then
-      err = '`P` and `dtau_dz` have incompatible shapes'
+    if (size(P) /= size(dtau,1)) then
+      err = '`P` and `dtau` have incompatible shapes'
       return
     endif
-    if (size(wv) /= size(dtau_dz,2)) then
-      err = '`wv` and `dtau_dz` have incompatible shapes'
+    if (size(wv) /= size(dtau,2)) then
+      err = '`wv` and `dtau` have incompatible shapes'
       return
     endif
     if (size(P) /= size(w0,1)) then
@@ -480,7 +497,7 @@ contains
     endif
 
     allocate(wv1(size(self%wavl)-1))
-    allocate(dtau_dz_tmp(size(P),size(self%wavl)-1))
+    allocate(dtau_tmp(size(P),size(self%wavl)-1))
     allocate(w0_tmp(size(P),size(self%wavl)-1))
     allocate(g0_tmp(size(P),size(self%wavl)-1))
 
@@ -490,7 +507,7 @@ contains
     ! At each pressure, interpolate to the wavelength grid
     do i = 1,size(P)
       j = size(P) + 1 - i
-      call interp(wv1, wv, dtau_dz(i,:), dtau_dz_tmp(j,:), ierr=ierr)
+      call interp(wv1, wv, dtau(i,:), dtau_tmp(j,:), ierr=ierr)
       if (ierr /= 0) then
         err = 'Interpolation error in `set_custom_optical_properties`'
         return
@@ -511,15 +528,15 @@ contains
     log10P = log10(P)
     log10P = log10P(size(log10P):1:-1)
 
-    if (.not.allocated(self%dtau_dz_interp)) then
-      allocate(self%dtau_dz_interp(self%nw))
+    if (.not.allocated(self%dtau_interp)) then
+      allocate(self%dtau_interp(self%nw))
       allocate(self%w0_interp(self%nw))
       allocate(self%g0_interp(self%nw))
     endif
    
-    ! At each wavelength bin, create an interpolator for altitude
+    ! At each wavelength bin, create an interpolator in log10 pressure
     do i = 1,size(wv1)
-      call self%dtau_dz_interp(i)%initialize(log10P, dtau_dz_tmp(:,i), ierr)
+      call self%dtau_interp(i)%initialize(log10P, dtau_tmp(:,i), ierr)
       if (ierr /= 0) then
         err = 'Interpolation initialization error in `set_custom_optical_properties`'
         return
@@ -536,20 +553,23 @@ contains
       endif
     enddo
 
+    self%tau_mode = tau_mode
+
   end subroutine
 
   !> Remove custom optical properties installed by `set_custom_optical_properties`.
   subroutine OpticalProperties_unset_custom_optical_properties(self)
     class(OpticalProperties), intent(inout) :: self
-    if (allocated(self%dtau_dz_interp)) then
-      deallocate(self%dtau_dz_interp)
+    self%tau_mode = TAU_MODE_DZ
+    if (allocated(self%dtau_interp)) then
+      deallocate(self%dtau_interp)
       deallocate(self%w0_interp)
       deallocate(self%g0_interp)
     endif
   end subroutine
 
   !> Interpolates the custom optical properties
-  subroutine OpticalProperties_custom_optical_properties(self, log10P, dz, l, tau, w0, g0)
+  subroutine OpticalProperties_custom_optical_properties(self, log10P, dz, l, tau, w0, g0, scale_height)
     use clima_eqns, only: ten2power
     class(OpticalProperties), intent(inout) :: self
     real(dp), intent(in) :: log10P(:) !! Base-10 logarithm of pressure in dyn/cm^2.
@@ -559,9 +579,12 @@ contains
     real(dp), intent(out) :: w0(:) !! (nz), Single scattering albedo
     real(dp), intent(out) :: g0(:) !! Asymmetry parameter, shape `(nz)`.
 
+    ! Validated by compute_opacity when the per-decade prescription is active.
+    real(dp), optional, intent(in) :: scale_height(:) !! Local hydrostatic pressure scale height (cm).
+
     integer :: j
 
-    if (.not.allocated(self%dtau_dz_interp)) then
+    if (.not.allocated(self%dtau_interp)) then
       tau = tiny(0.0_dp)
       w0 = tiny(0.0_dp)
       g0 = tiny(0.0_dp)
@@ -569,15 +592,21 @@ contains
     endif
 
     do j = 1,size(log10P)
-      call self%dtau_dz_interp(l)%evaluate(log10P(j), tau(j))
+      call self%dtau_interp(l)%evaluate(log10P(j), tau(j))
       tau(j) = tau(j)*dz(j)
+      if (self%tau_mode == TAU_MODE_DLOG10P) then
+        ! Layer-center hydrostatic approximation: |dlog10(P)/dz| = 1/(H*ln(10)).
+        tau(j) = tau(j)/(scale_height(j)*log(10.0_dp))
+      endif
       call self%w0_interp(l)%evaluate(log10P(j), w0(j))
       call self%g0_interp(l)%evaluate(log10P(j), g0(j))
     enddo
 
   end subroutine
 
-  subroutine OpticalProperties_compute_opacity(self, P, T, densities, dz, pdensities, radii, opw, res, err)
+  subroutine OpticalProperties_compute_opacity(self, P, T, densities, dz, pdensities, radii, scale_height, &
+                                               opw, res, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use clima_const, only: pi
     use clima_eqns, only: ten2power
     use futils, only: is_close
@@ -589,12 +618,28 @@ contains
     real(dp), intent(in) :: dz(:) !! (nz) thickness of each layer (cm)
     real(dp), optional, intent(in) :: pdensities(:,:) !! (nz,np) particles/cm3
     real(dp), optional, intent(in) :: radii(:,:) !! (nz,np) cm
+    ! Required for custom opacity per pressure decade; otherwise optional.
+    real(dp), optional, intent(in) :: scale_height(:) !! Layer-center hydrostatic pressure scale height (cm).
     class(OpticalPropertiesWork), target, intent(inout) :: opw !! Work space
     class(OpticalPropertiesResult), intent(inout) :: res !! Result
-    character(:), allocatable, intent(out) :: err
 
+    character(:), allocatable, intent(out) :: err
     integer :: nz, ng
     integer :: l
+    if (present(scale_height)) then
+      if (size(scale_height) /= size(dz)) then
+        err = 'scale_height must have one value per layer'
+        return
+      endif
+      if (any(.not.ieee_is_finite(scale_height)) .or. any(scale_height <= 0.0_dp)) then
+        err = 'scale_height must contain finite positive values'
+        return
+      endif
+    elseif (allocated(self%dtau_interp) .and. self%tau_mode == TAU_MODE_DLOG10P) then
+      err = 'scale_height is required for TAU_MODE_DLOG10P custom optical properties'
+      return
+    endif
+
     ! Ensure
     if (self%nk == 0) then
       err = 'There are no k-distributions, yet there must be some to compute total opacity.'
@@ -728,7 +773,7 @@ contains
       endif
 
       ! Custom opacity
-      call self%custom_optical_properties(opw%log10P_cgs, dz, l, wrk%tauc, wrk%w0c, wrk%g0c)
+      call self%custom_optical_properties(opw%log10P_cgs, dz, l, wrk%tauc, wrk%w0c, wrk%g0c, scale_height)
       wrk%tauc = wrk%tauc(nz:1:-1)
       wrk%w0c = wrk%w0c(nz:1:-1)
       wrk%g0c = wrk%g0c(nz:1:-1)

@@ -1,12 +1,13 @@
 module clima_radtran
   use clima_const, only: dp, s_str_len
   use clima_radtran_types, only: OpticalProperties, OpticalPropertiesWork, OpticalPropertiesResult
-  use clima_radtran_types, only: RTChannel, RadiateWork
+  use clima_radtran_types, only: RTChannel, RadiateWork, TAU_MODE_DZ, TAU_MODE_DLOG10P
   implicit none
   private
 
   public :: ClimaRadtranWrk ! Work type that holds results
   public :: Radtran ! IR and solar radiative transfer
+  public :: TAU_MODE_DZ, TAU_MODE_DLOG10P
   
   !> Radiative-transfer results for one spectral channel.
   !!
@@ -240,7 +241,8 @@ contains
   !! By default both opacity and solar radiation are recomputed. Setting
   !! `compute_opacity` false reuses the previously prepared opacity, and setting
   !! `compute_solar` false leaves the current shortwave result unchanged.
-  subroutine Radtran_radiate(self, T_surface, T, P, densities, dz, pdensities, radii, compute_solar, compute_opacity, err)
+  subroutine Radtran_radiate(self, T_surface, T, P, densities, dz, pdensities, radii, &
+                            compute_solar, compute_opacity, scale_height, err)
     use clima_radtran_radiate, only: radiate
     class(Radtran), target, intent(inout) :: self
     real(dp), intent(in) :: T_surface !! Surface temperature (K).
@@ -252,8 +254,11 @@ contains
     logical, optional, intent(in) :: compute_solar
     logical, optional, intent(in) :: compute_opacity
     real(dp), intent(in) :: dz(:) !! Layer thickness, shape `(nz)` (cm).
-    character(:), allocatable, intent(out) :: err
+    ! Required when recomputing custom opacity in TAU_MODE_DLOG10P mode.
+    ! The conversion uses dtau*dz/(scale_height*ln(10)), evaluated at layer centers.
+    real(dp), optional, intent(in) :: scale_height(:) !! Hydrostatic pressure scale height, shape `(nz)` (cm).
 
+    character(:), allocatable, intent(out) :: err
     logical :: compute_solar_, compute_opacity_
 
     type(ClimaRadtranWrk), pointer :: wrk_ir
@@ -276,7 +281,7 @@ contains
 
     if (compute_opacity_) then
       ! First compute opacity
-      call self%op%compute_opacity(P, T, densities, dz, pdensities, radii, self%opw, self%opr, err)
+      call self%op%compute_opacity(P, T, densities, dz, pdensities, radii, scale_height, self%opw, self%opr, err)
       if (allocated(err)) return
     endif
 
@@ -345,7 +350,7 @@ contains
   !! Inputs and side effects are identical to `radiate`. Returned fluxes are in
   !! mW/m^2 and are positive in their named directions.
   subroutine Radtran_TOA_fluxes(self, T_surface, T, P, densities, dz, pdensities, radii, &
-      compute_solar, compute_opacity, ISR, OLR, err)
+      compute_solar, compute_opacity, ISR, OLR, scale_height, err)
     use clima_radtran_radiate, only: radiate
     class(Radtran), target, intent(inout) :: self
     real(dp), intent(in) :: T_surface !! Surface temperature (K).
@@ -358,9 +363,13 @@ contains
     logical, optional, intent(in) :: compute_solar
     logical, optional, intent(in) :: compute_opacity
     real(dp), intent(out) :: ISR, OLR
-    character(:), allocatable, intent(out) :: err
+    ! Required when recomputing custom opacity in TAU_MODE_DLOG10P mode.
+    ! The conversion uses dtau*dz/(scale_height*ln(10)), evaluated at layer centers.
+    real(dp), optional, intent(in) :: scale_height(:) !! Hydrostatic pressure scale height, shape `(nz)` (cm).
       
-    call self%radiate(T_surface, T, P, densities, dz, pdensities, radii, compute_solar, compute_opacity, err)
+    character(:), allocatable, intent(out) :: err
+    call self%radiate(T_surface, T, P, densities, dz, pdensities, radii, &
+                      compute_solar, compute_opacity, scale_height, err)
     if (allocated(err)) return
     
     ISR = (self%wrk_sol%fdn_n(self%nz+1) - self%wrk_sol%fup_n(self%nz+1)) ! Incoming short wave
@@ -527,16 +536,23 @@ contains
   !! strictly decreasing and wavelengths must be strictly increasing; both grids
   !! must be positive. The profiles are retained as interpolation data and
   !! included in subsequent opacity calculations.
-  subroutine Radtran_set_custom_optical_properties(self, wv, P, dtau_dz, w0, g0, err)
+  !! TAU_MODE_DZ interprets dtau as positive extinction per cm.
+  !! TAU_MODE_DLOG10P interprets dtau as positive extinction per pressure decade.
+  !! The latter requires scale_height during opacity calculation and uses the
+  !! hydrostatic layer-center approximation dtau*dz/(scale_height*ln(10)); this
+  !! is a midpoint approximation rather than an exact pressure-interval integral.
+  subroutine Radtran_set_custom_optical_properties(self, wv, P, dtau, w0, g0, tau_mode, err)
     class(Radtran), intent(inout) :: self
     real(dp), intent(in) :: wv(:) !! Wavelengths (nm).
     real(dp), intent(in) :: P(:) !! Pressure grid (dyn/cm^2).
-    real(dp), intent(in) :: dtau_dz(:,:) !! Optical depth per altitude (1/cm).
+    real(dp), intent(in) :: dtau(:,:) !! Extinction per cm or per pressure decade, according to tau_mode.
     real(dp), intent(in) :: w0(:,:) !! Dimensionless single-scattering albedo.
     real(dp), intent(in) :: g0(:,:) !! Dimensionless asymmetry parameter.
-    character(:), allocatable, intent(out) :: err
 
-    call self%op%set_custom_optical_properties(wv, P, dtau_dz, w0, g0, err)
+    integer, intent(in) :: tau_mode !! TAU_MODE_DZ or TAU_MODE_DLOG10P.
+
+    character(:), allocatable, intent(out) :: err
+    call self%op%set_custom_optical_properties(wv, P, dtau, w0, g0, tau_mode, err)
     if (allocated(err)) return
 
   end subroutine

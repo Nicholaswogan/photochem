@@ -162,6 +162,8 @@ contains
   end subroutine
 
   subroutine test_RCE()
+    use clima, only: TAU_MODE_DLOG10P
+    use clima_const, only: Rgas
 
     c = AdiabatClimate(fixture_file('species.yaml'), &
                      fixture_file('settings_rce.yaml'), &
@@ -184,6 +186,20 @@ contains
       print*,err
       stop 1
     endif
+    ! Exercise scale-height forwarding throughout RCE, retaining the base
+    ! atmospheric scale height during Jacobian temperature perturbations.
+    block
+      real(dp) :: dtau(2,2), w0(2,2), g0(2,2)
+      dtau = 1.0e-5_dp
+      w0 = 0.5_dp
+      g0 = 0.3_dp
+      call c%rad%set_custom_optical_properties([1.0_dp, 2.0_dp], [1.0e9_dp, 1.0e-9_dp], &
+                                              dtau, w0, g0, tau_mode=TAU_MODE_DLOG10P, err=err)
+      if (allocated(err)) then
+        print *, err
+        stop 1
+      endif
+    end block
     c%max_rc_iters = 1
     converged = c%RCE( &
         P_i_surf, &
@@ -247,6 +263,22 @@ contains
       if (allocated(err)) then
         print*,err
         stop 1
+      endif
+    end block
+
+    block
+      real(dp) :: mubar(c%nz), expected(c%nz)
+      integer :: j
+      mubar = 0.0_dp
+      do j = 1,c%sp%ng
+        mubar = mubar + c%f_i(:,j)*c%sp%g(j)%mass
+      enddo
+      expected = Rgas*c%T/(mubar*c%gravity)
+      if (any(abs(c%scale_height/expected - 1.0_dp) > 1.0e-12_dp)) then
+        error stop 'Scale height is inconsistent with the final RCE atmosphere'
+      endif
+      if (any(abs(c%scale_height_r(1:2*c%nz:2)/expected - 1.0_dp) > 1.0e-12_dp)) then
+        error stop 'RT scale height is inconsistent with the final RCE atmosphere'
       endif
     end block
 

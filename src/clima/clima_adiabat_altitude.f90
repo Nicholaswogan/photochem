@@ -174,6 +174,7 @@ contains
       self%gravity(i) = gravity(self%planet_radius, self%planet_mass, self%z(i) - z_ref_for_radius)
     enddo
     self%gravity_surf = gravity(self%planet_radius, self%planet_mass, -z_ref_for_radius)
+    call self%compute_scale_height()
 
   end subroutine
 

@@ -85,6 +85,7 @@ module clima_adiabat
     real(dp), allocatable :: P_r(:)
     real(dp), allocatable :: densities_r(:,:)
     real(dp), allocatable :: dz_r(:)
+    real(dp), allocatable :: scale_height_r(:) !! Hydrostatic pressure scale height on the RT grid (cm).
     real(dp), allocatable :: pdensities_r(:,:)
     real(dp), allocatable :: pradii_r(:,:)
 
@@ -178,6 +179,7 @@ module clima_adiabat
     real(dp), allocatable :: f_i(:,:) !! Gas volume mixing ratios, shape `(nz,ng)`.
     real(dp), allocatable :: z(:) !! Layer-center altitude, shape `(nz)` (cm).
     real(dp), allocatable :: dz(:) !! Layer thickness, shape `(nz)` (cm).
+    real(dp), allocatable :: scale_height(:) !! Layer-center hydrostatic pressure scale height, shape `(nz)` (cm).
     real(dp) :: gravity_surf !! Surface gravitational acceleration (cm/s^2).
     real(dp), allocatable :: gravity(:) !! Layer-center gravity, shape `(nz)` (cm/s^2).
     real(dp), allocatable :: densities(:,:) !! Gas number densities, shape `(nz,ng)` (molecules/cm^3).
@@ -228,6 +230,7 @@ module clima_adiabat
     procedure :: heat_redistribution_parameters => AdiabatClimate_heat_redistribution_parameters
 
     ! Private methods
+    procedure, private :: compute_scale_height => AdiabatClimate_compute_scale_height
     procedure, private :: copy_atm_to_radiative_grid => AdiabatClimate_copy_atm_to_radiative_grid
   end type
   
@@ -380,6 +383,7 @@ contains
     else
       c%nz_r = c%nz
     endif
+    allocate(c%scale_height_r(c%nz_r), c%scale_height(c%nz))
     allocate(c%T_r(c%nz_r),c%P_r(c%nz_r),c%densities_r(c%nz_r,c%sp%ng),c%dz_r(c%nz_r))
     allocate(c%pdensities_r(c%nz_r,c%sp%np),c%pradii_r(c%nz_r,c%sp%np))
     ! Make radiative transfer with list of species, from species file
@@ -766,6 +770,20 @@ contains
 
   end subroutine
 
+  !> Refresh the local hydrostatic scale height using the current gas state.
+  subroutine AdiabatClimate_compute_scale_height(self)
+    use clima_const, only: Rgas
+    class(AdiabatClimate), intent(inout) :: self
+    real(dp) :: mubar(self%nz)
+    integer :: j
+
+    mubar = 0.0_dp
+    do j = 1,self%sp%ng
+      mubar = mubar + self%f_i(:,j)*self%sp%g(j)%mass
+    enddo
+    self%scale_height = Rgas*self%T/(mubar*self%gravity)
+  end subroutine
+
   !> Copies the atmosphere to the data used for radiative transfer
   subroutine AdiabatClimate_copy_atm_to_radiative_grid(self)
     class(AdiabatClimate), intent(inout) :: self
@@ -777,6 +795,9 @@ contains
       do i = 1,self%nz
         self%T_r(2*(i-1)+1) = self%T(i)
         self%T_r(2*(i-1)+2) = self%T(i)
+
+        self%scale_height_r(2*(i-1)+1) = self%scale_height(i)
+        self%scale_height_r(2*(i-1)+2) = self%scale_height(i)
 
         self%P_r(2*(i-1)+1) = self%P(i)
         self%P_r(2*(i-1)+2) = self%P(i)
@@ -796,6 +817,7 @@ contains
       ! Fill in ghost layers
       do i = 1,2
         self%T_r(2*self%nz+i) = self%T_r(2*self%nz)
+        self%scale_height_r(2*self%nz+i) = self%scale_height_r(2*self%nz)
         self%P_r(2*self%nz+i) = self%P_r(2*self%nz)
         self%densities_r(2*self%nz+i,:) = self%densities_r(2*self%nz,:)
         self%pdensities_r(2*self%nz+i,:) = self%pdensities_r(2*self%nz,:)
@@ -809,6 +831,7 @@ contains
       self%pdensities_r = self%pdensities
       self%pradii_r = self%pradii
       self%dz_r = self%dz
+      self%scale_height_r = self%scale_height
     endif
 
   end subroutine
@@ -834,7 +857,8 @@ contains
     ! Do radiative transfer
     call self%copy_atm_to_radiative_grid()
     call self%rad%TOA_fluxes(T_surf, self%T_r, self%P_r/1.0e6_dp, self%densities_r, self%dz_r, &
-                             self%pdensities_r, self%pradii_r, ISR=ISR, OLR=OLR, err=err)
+                             self%pdensities_r, self%pradii_r, ISR=ISR, OLR=OLR, &
+                             scale_height=self%scale_height_r, err=err)
     if (allocated(err)) return
     
   end subroutine
@@ -860,7 +884,8 @@ contains
     ! Do radiative transfer
     call self%copy_atm_to_radiative_grid()
     call self%rad%TOA_fluxes(T_surf, self%T_r, self%P_r/1.0e6_dp, self%densities_r, self%dz_r, &
-                             self%pdensities_r, self%pradii_r, ISR=ISR, OLR=OLR, err=err)
+                             self%pdensities_r, self%pradii_r, ISR=ISR, OLR=OLR, &
+                             scale_height=self%scale_height_r, err=err)
     if (allocated(err)) return
 
   end subroutine
@@ -889,7 +914,8 @@ contains
     ! Do radiative transfer
     call self%copy_atm_to_radiative_grid()
     call self%rad%TOA_fluxes(T_surf, self%T_r, self%P_r/1.0e6_dp, self%densities_r, self%dz_r, &
-                             self%pdensities_r, self%pradii_r, ISR=ISR, OLR=OLR, err=err)
+                             self%pdensities_r, self%pradii_r, ISR=ISR, OLR=OLR, &
+                             scale_height=self%scale_height_r, err=err)
     if (allocated(err)) return
 
   end subroutine
@@ -916,7 +942,8 @@ contains
     ! Do radiative transfer
     call self%copy_atm_to_radiative_grid()
     call self%rad%TOA_fluxes(self%T_surf, self%T_r, self%P_r/1.0e6_dp, self%densities_r, self%dz_r, &
-                             self%pdensities_r, self%pradii_r, ISR=ISR, OLR=OLR, err=err)
+                             self%pdensities_r, self%pradii_r, ISR=ISR, OLR=OLR, &
+                             scale_height=self%scale_height_r, err=err)
     if (allocated(err)) return
     
   end subroutine

@@ -714,7 +714,8 @@ contains
     ! radiative transfer
     call self%copy_atm_to_radiative_grid()
     call self%rad%radiate(self%T_surf, self%T_r, self%P_r/1.0e6_dp, self%densities_r, self%dz_r, &
-      self%pdensities_r, self%pradii_r, compute_solar=compute_solar, compute_opacity=compute_opacity, err=err)
+      self%pdensities_r, self%pradii_r, compute_solar=compute_solar, compute_opacity=compute_opacity, &
+      scale_height=self%scale_height_r, err=err)
     if (allocated(err)) return
 
     ! Considers a tidally locked dayside climate. We only compute this for

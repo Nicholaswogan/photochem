@@ -75,29 +75,30 @@ subroutine radtran_opacities2yaml_wrapper_2(ptr, out_cp, out_len, out_c) bind(c)
 end subroutine
 
 subroutine radtran_set_custom_optical_properties(ptr, dim_wv, wv, dim_P, P,  &
-                                                 dim1_dtau_dz, dim2_dtau_dz, dtau_dz, &
+                                                 dim1_dtau, dim2_dtau, dtau, &
                                                  dim1_w0, dim2_w0, w0, &
                                                  dim1_g0, dim2_g0, g0, &
-                                                 err) bind(c)
+                                                 tau_mode, err) bind(c)
   use clima, only: Radtran
   type(c_ptr), value, intent(in) :: ptr
   integer(c_int), intent(in) :: dim_wv
   real(c_double), intent(in) :: wv(dim_wv)
   integer(c_int), intent(in) :: dim_P
   real(c_double), intent(in) :: P(dim_P)
-  integer(c_int), intent(in) :: dim1_dtau_dz, dim2_dtau_dz
-  real(c_double), intent(in) :: dtau_dz(dim1_dtau_dz, dim2_dtau_dz)
+  integer(c_int), intent(in) :: dim1_dtau, dim2_dtau
+  real(c_double), intent(in) :: dtau(dim1_dtau, dim2_dtau)
   integer(c_int), intent(in) :: dim1_w0, dim2_w0
   real(c_double), intent(in) :: w0(dim1_w0, dim2_w0)
   integer(c_int), intent(in) :: dim1_g0, dim2_g0
   real(c_double), intent(in) :: g0(dim1_g0, dim2_g0)
+  integer(c_int), intent(in) :: tau_mode
   character(c_char), intent(out) :: err(err_len+1)
 
   character(:), allocatable :: err_f
   type(Radtran), pointer :: rad
 
   call c_f_pointer(ptr, rad)
-  call rad%set_custom_optical_properties(wv, P, dtau_dz, w0, g0, err_f)
+  call rad%set_custom_optical_properties(wv, P, dtau, w0, g0, tau_mode, err_f)
 
   err(1) = c_null_char
   if (allocated(err_f)) then

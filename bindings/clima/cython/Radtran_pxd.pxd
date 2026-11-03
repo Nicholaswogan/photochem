@@ -20,10 +20,10 @@ cdef extern void radtran_opacities2yaml_wrapper_2(Radtran *ptr, void **out_cp, i
 
 cdef extern void radtran_set_custom_optical_properties(
   Radtran *ptr, int *dim_wv, double *wv, int *dim_P, double *P,  
-  int *dim1_dtau_dz, int *dim2_dtau_dz, double *dtau_dz, 
+  int *dim1_dtau, int *dim2_dtau, double *dtau,
   int *dim1_w0, int *dim2_w0, double *w0, 
   int *dim1_g0, int *dim2_g0, double *g0, 
-  char *err
+  int *tau_mode, char *err
 )
 cdef extern void radtran_unset_custom_optical_properties(
   Radtran *ptr

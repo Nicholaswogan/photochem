@@ -87,7 +87,7 @@ cdef class Radtran:
     rad_pxd.radtran_opacities2yaml_wrapper_2(self._ptr, &out_cp, &out_len, <char *>out_c.data)
     return out_c[:-1].tobytes().decode()
 
-  def set_custom_optical_properties(self, ndarray[double, ndim=1] wv, ndarray[double, ndim=1] P, ndarray[double, ndim=2] dtau_dz, ndarray[double, ndim=2] w0, ndarray[double, ndim=2] g0):
+  def set_custom_optical_properties(self, ndarray[double, ndim=1] wv, ndarray[double, ndim=1] P, ndarray[double, ndim=2] dtau, ndarray[double, ndim=2] w0, ndarray[double, ndim=2] g0, int tau_mode):
     """Set pressure-dependent custom optical properties.
 
     Pressure must be strictly decreasing and wavelength strictly increasing;
@@ -100,18 +100,23 @@ cdef class Radtran:
         Wavelengths (nm).
     P : ndarray, shape (n_pressure,)
         Pressure grid (dyn/cm^2).
-    dtau_dz : ndarray, shape (n_pressure, n_wavelength)
-        Optical depth per altitude (1/cm).
+    dtau : ndarray, shape (n_pressure, n_wavelength)
+        Positive extinction per cm (tau_mode=1) or per pressure decade
+        (tau_mode=2).
     w0 : ndarray, shape (n_pressure, n_wavelength)
         Dimensionless single-scattering albedo.
     g0 : ndarray, shape (n_pressure, n_wavelength)
         Dimensionless asymmetry parameter.
+    tau_mode : int
+        1 for extinction per cm; 2 for extinction per log10 pressure.
     """
+    wv = np.ascontiguousarray(wv)
+    P = np.ascontiguousarray(P)
     cdef int dim_wv = wv.shape[0]
     cdef int dim_P = P.shape[0]
-    cdef int dim1_dtau_dz = dtau_dz.shape[0]
-    cdef int dim2_dtau_dz = dtau_dz.shape[1]
-    dtau_dz = np.asfortranarray(dtau_dz)
+    cdef int dim1_dtau = dtau.shape[0]
+    cdef int dim2_dtau = dtau.shape[1]
+    dtau = np.asfortranarray(dtau)
     cdef int dim1_w0 = w0.shape[0]
     cdef int dim2_w0 = w0.shape[1]
     w0 = np.asfortranarray(w0)
@@ -123,10 +128,10 @@ cdef class Radtran:
 
     rad_pxd.radtran_set_custom_optical_properties(
       self._ptr, &dim_wv, <double *> wv.data, &dim_P, <double *> P.data,  
-      &dim1_dtau_dz, &dim2_dtau_dz, <double *> dtau_dz.data, 
+      &dim1_dtau, &dim2_dtau, <double *> dtau.data,
       &dim1_w0, &dim2_w0, <double *> w0.data, 
       &dim1_g0, &dim2_g0, <double *> g0.data, 
-      err
+      &tau_mode, err
     )
 
     if len(err.strip()) > 0:

@@ -82,8 +82,57 @@ def test_clima_python_surface():
     np.testing.assert_allclose(errors, [np.sqrt(1.25)])
 
 
+def test_custom_optical_properties():
+    """The integer opacity mode reaches Fortran through the Python interface."""
+    c = clima.AdiabatClimate(
+        str(TEST_DIR / "species.yaml"),
+        str(TEST_DIR / "settings_adiabat.yaml"),
+        str(TEST_DIR / "sun.txt"),
+        double_radiative_grid=False,
+    )
+    partial_pressures = 1.0e6 * np.array(
+        [270.0, 400.0e-6, 1.0, 1.0e-10, 1.0e-10, 1.0e-10, 1.0e-10]
+    )
+    baseline = c.TOA_fluxes(280.0, partial_pressures)
+    wavelength = np.array([1.0, 1.0e9])
+    pressure = np.array([1.0e9, 1.0e-9])
+    dtau = np.zeros((2, 2))
+    w0 = np.full((2, 2), 0.5)
+    g0 = np.full((2, 2), 0.3)
+    for mode in (1, 2):
+        c.rad.set_custom_optical_properties(wavelength, pressure, dtau, w0, g0, tau_mode=mode)
+        np.testing.assert_allclose(c.TOA_fluxes(280.0, partial_pressures), baseline)
+
+    dtau[:] = 1.0e-6
+    c.rad.set_custom_optical_properties(wavelength, pressure, dtau, w0, g0, tau_mode=1)
+    c.TOA_fluxes(280.0, partial_pressures)
+    per_cm_tau = c.rad.wrk_sol.tau_band
+    c.rad.set_custom_optical_properties(wavelength, pressure, dtau, w0, g0, tau_mode=2)
+    c.TOA_fluxes(280.0, partial_pressures)
+    assert np.max(per_cm_tau - c.rad.wrk_sol.tau_band) > 1.0e-3
+
+    # Sliced coordinate arrays must reach Fortran in the same order as copies.
+    dtau[:] = [[1.0e-6, 2.0e-6], [3.0e-6, 4.0e-6]]
+    c.rad.set_custom_optical_properties(wavelength, pressure, dtau, w0, g0, tau_mode=2)
+    contiguous_flux = c.TOA_fluxes(280.0, partial_pressures)
+    sliced_wavelength = np.array([1.0, 99.0, 1.0e9])[::2]
+    sliced_pressure = np.array([1.0e-9, 99.0, 1.0e9])[::-2]
+    c.rad.set_custom_optical_properties(sliced_wavelength, sliced_pressure, dtau, w0, g0, tau_mode=2)
+    np.testing.assert_allclose(c.TOA_fluxes(280.0, partial_pressures), contiguous_flux)
+
+    try:
+        c.rad.set_custom_optical_properties(wavelength, pressure, dtau, w0, g0, tau_mode=-1)
+    except clima.ClimaException:
+        pass
+    else:
+        raise AssertionError("Invalid tau_mode was accepted")
+    c.rad.unset_custom_optical_properties()
+    np.testing.assert_allclose(c.TOA_fluxes(280.0, partial_pressures), baseline)
+
+
 def main():
     test_clima_python_surface()
+    test_custom_optical_properties()
 
 
 if __name__ == "__main__":
