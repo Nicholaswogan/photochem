@@ -2,6 +2,7 @@
 program test
   implicit none
 
+  call test_linear_extrapolation()
   call test_Radtran()
   call test_custom_optical_properties()
   print *, "Radiative transfer and custom optical property checks passed."
@@ -109,6 +110,40 @@ contains
 
   end subroutine
   
+  subroutine test_linear_extrapolation()
+    use clima, only: dp
+    use linear_interpolation_module, only: linear_interp_1d
+    type(linear_interp_1d) :: interpolator, uninitialized
+    real(dp) :: value, slope
+    integer :: status
+    call interpolator%initialize([1.0_dp, 2.0_dp], [2.0_dp, 4.0_dp], status)
+    if (status /= 0) error stop 'Interpolation initialization failed'
+    call interpolator%evaluate(0.0_dp, value, status)
+    if (status /= 0 .or. value /= 0.0_dp) error stop 'Default extrapolation changed'
+    call interpolator%evaluate(3.0_dp, value, status, constant_extrap=.false.)
+    if (status /= 0 .or. value /= 6.0_dp) error stop 'Explicit linear extrapolation failed'
+    call interpolator%evaluate(0.0_dp, value, status, constant_extrap=.true.)
+    if (status /= 0 .or. value /= 2.0_dp) error stop 'Lower constant extrapolation failed'
+    call interpolator%evaluate(3.0_dp, value, status, constant_extrap=.true.)
+    if (status /= 0 .or. value /= 4.0_dp) error stop 'Upper constant extrapolation failed'
+    call interpolator%evaluate(1.5_dp, value, status, constant_extrap=.true.)
+    if (status /= 0 .or. value /= 3.0_dp) error stop 'Interior interpolation changed'
+    call interpolator%evaluate(1.0_dp, value, status, constant_extrap=.true.)
+    if (status /= 0 .or. value /= 2.0_dp) error stop 'Lower endpoint interpolation failed'
+    call interpolator%evaluate(2.0_dp, value, status, constant_extrap=.true.)
+    if (status /= 0 .or. value /= 4.0_dp) error stop 'Upper endpoint interpolation failed'
+    call interpolator%evaluate_derivative(0.0_dp, slope, status)
+    if (status /= 0 .or. slope /= 2.0_dp) error stop 'Default extrapolation derivative changed'
+    call interpolator%evaluate_derivative(0.0_dp, slope, status, constant_extrap=.true.)
+    if (status /= 0 .or. slope /= 0.0_dp) error stop 'Lower constant extrapolation derivative is nonzero'
+    call interpolator%evaluate_derivative(3.0_dp, slope, status, constant_extrap=.true.)
+    if (status /= 0 .or. slope /= 0.0_dp) error stop 'Upper constant extrapolation derivative is nonzero'
+    call interpolator%evaluate_derivative(1.5_dp, slope, status, constant_extrap=.true.)
+    if (status /= 0 .or. slope /= 2.0_dp) error stop 'Interior interpolation derivative changed'
+    call uninitialized%evaluate(0.0_dp, value, status, constant_extrap=.true.)
+    if (status /= -1) error stop 'Uninitialized interpolation status changed'
+  end subroutine
+
   subroutine check_error(err)
     character(:), allocatable, intent(in) :: err
     if (allocated(err)) then
@@ -192,6 +227,31 @@ contains
       call rad%set_custom_optical_properties([1.0_dp, 2.0_dp], [1.0_dp, 0.1_dp], &
                                             dtau, w0, g0, tau_mode=-1, err=err)
       if (.not.allocated(err)) error stop 'Invalid tau mode was accepted'
+
+      ! Sloped profiles must hold their endpoint values outside the pressure grid.
+      dtau(1,:) = 1.0e-6_dp
+      dtau(2,:) = 2.0e-7_dp
+      w0(1,:) = 0.8_dp
+      w0(2,:) = 0.2_dp
+      g0(1,:) = 0.6_dp
+      g0(2,:) = -0.2_dp
+      height = 1.0e6_dp
+      do mode = TAU_MODE_DZ,TAU_MODE_DLOG10P
+        call rad%set_custom_optical_properties([1.0_dp, 2.0_dp], [10.0_dp, 1.0_dp], &
+                                              dtau, w0, g0, mode, err)
+        call check_error(err)
+        call rad%op%custom_optical_properties([2.0_dp, 0.5_dp, -1.0_dp, -2.0_dp], &
+                                             dz, 1, tau, w, g, height)
+        expected = [1.0e-6_dp, 6.0e-7_dp, 2.0e-7_dp, 2.0e-7_dp]*dz
+        if (mode == TAU_MODE_DLOG10P) expected = expected/(height*log(10.0_dp))
+        if (any(abs(tau-expected) > 1.0e-12_dp)) error stop 'Custom extinction extrapolation is not constant'
+        if (any(abs(w-[0.8_dp, 0.5_dp, 0.2_dp, 0.2_dp]) > 1.0e-12_dp)) then
+          error stop 'Custom albedo extrapolation is not constant'
+        endif
+        if (any(abs(g-[0.6_dp, 0.2_dp, -0.2_dp, -0.2_dp]) > 1.0e-12_dp)) then
+          error stop 'Custom asymmetry extrapolation is not constant'
+        endif
+      enddo
 
       ! Switching back to per-cm mode must remove the scale-height requirement.
       call rad%set_custom_optical_properties([1.0_dp, 2.0_dp], [1.0_dp, 0.1_dp], &

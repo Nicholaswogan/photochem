@@ -568,7 +568,7 @@ contains
     endif
   end subroutine
 
-  !> Interpolates the custom optical properties
+  !> Interpolate custom optics in log10 pressure with constant extrapolation.
   subroutine OpticalProperties_custom_optical_properties(self, log10P, dz, l, tau, w0, g0, scale_height)
     use clima_eqns, only: ten2power
     class(OpticalProperties), intent(inout) :: self
@@ -592,14 +592,14 @@ contains
     endif
 
     do j = 1,size(log10P)
-      call self%dtau_interp(l)%evaluate(log10P(j), tau(j))
+      call self%dtau_interp(l)%evaluate(log10P(j), tau(j), constant_extrap=.true.)
       tau(j) = tau(j)*dz(j)
       if (self%tau_mode == TAU_MODE_DLOG10P) then
         ! Layer-center hydrostatic approximation: |dlog10(P)/dz| = 1/(H*ln(10)).
         tau(j) = tau(j)/(scale_height(j)*log(10.0_dp))
       endif
-      call self%w0_interp(l)%evaluate(log10P(j), w0(j))
-      call self%g0_interp(l)%evaluate(log10P(j), g0(j))
+      call self%w0_interp(l)%evaluate(log10P(j), w0(j), constant_extrap=.true.)
+      call self%g0_interp(l)%evaluate(log10P(j), g0(j), constant_extrap=.true.)
     enddo
 
   end subroutine

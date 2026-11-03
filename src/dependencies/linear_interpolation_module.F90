@@ -9,6 +9,7 @@
 !  which have been tabulated at the nodes of an n-dimensional rectangular grid.
 !  If any coordinate \( (x_i, y_i, ...) \) lies outside the range of the corresponding
 !  variable, then extrapolation is performed using the two nearest points.
+!  For 1D evaluation, constant_extrap=.true. instead holds endpoint values constant.
 !
 !@note The default real kind (`wp`) can be
 !      changed using optional preprocessor flags.
@@ -230,7 +231,7 @@
 !>
 !  1D linear interpolation routine.
     #:for TYPE1, NAME in TYPES_NAMES
-    pure subroutine interp_1d_${NAME}$(me,x,f,istat)
+    pure subroutine interp_1d_${NAME}$(me,x,f,istat,constant_extrap)
     #:if NAME == 'dual'
     use differentia
     #:endif
@@ -247,12 +248,20 @@
     ${TYPE1}$ :: p1
     ${TYPE1}$ :: q1
     integer :: mflag
+    logical,intent(in),optional :: constant_extrap !! Default false; true selects constant extrapolation.
 
     if (me%initialized) then
 
         call dintrv(me%x,x,me%ilox,ix(1),ix(2),mflag)
 
         q1 = (x-me%x(ix(1)))/(me%x(ix(2))-me%x(ix(1)))
+        if (present(constant_extrap)) then
+            if (constant_extrap) then
+                ! Assigning a constant also zeros the dual-number derivative.
+                if (x < me%x(1)) q1 = zero
+                if (x > me%x(size(me%x))) q1 = one
+            end if
+        end if
         p1 = one-q1
 
         f = p1*me%f(ix(1)) + q1*me%f(ix(2))
@@ -271,12 +280,13 @@
     end subroutine
     #:endfor
 
-    subroutine interp_1d_derivative(me, x, dfdx, istat)
+    subroutine interp_1d_derivative(me, x, dfdx, istat, constant_extrap)
         use differentia, only: derivative
         class(linear_interp_1d),intent(inout) :: me
         real(wp), intent(in) :: x
         real(wp), intent(out) :: dfdx
         integer, intent(out), optional :: istat
+        logical, intent(in), optional :: constant_extrap !! Same default and behavior as evaluate.
         real(wp) :: f
         call derivative(fcn, x, f, dfdx)
     contains
@@ -284,7 +294,7 @@
             use differentia, only: dual
             type(dual), intent(in) :: x_
             type(dual) :: res_
-            call interp_1d_dual(me, x_, res_, istat)
+            call interp_1d_dual(me, x_, res_, istat, constant_extrap)
         end function
     end subroutine
 
