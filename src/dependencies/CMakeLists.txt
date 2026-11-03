@@ -51,7 +51,6 @@ CPMAddPackage(
 
 fypp_f90("" "linear_interpolation_module.F90" finterp_sources)
 add_library(finterp ${finterp_sources})
-target_link_libraries(finterp differentia)
 
 CPMAddPackage(
   NAME dop853

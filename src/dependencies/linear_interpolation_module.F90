@@ -15,9 +15,6 @@
 !      changed using optional preprocessor flags.
 !      This library was built with real kind:
 
-#:set TYPES = ['real(wp)', 'type(dual)']
-#:set NAMES = ['real', 'dual']
-#:set TYPES_NAMES = list(zip(TYPES, NAMES))
 
     module linear_interpolation_module
 
@@ -81,9 +78,6 @@
         final :: finalize_2d
     end type linear_interp_2d
 
-    interface dintrv
-        module procedure :: dintrv_real, dintrv_dual
-    end interface
 
     contains
 !*****************************************************************************************
@@ -230,23 +224,19 @@
 !*****************************************************************************************
 !>
 !  1D linear interpolation routine.
-    #:for TYPE1, NAME in TYPES_NAMES
-    pure subroutine interp_1d_${NAME}$(me,x,f,istat,constant_extrap)
-    #:if NAME == 'dual'
-    use differentia
-    #:endif
+    pure subroutine interp_1d_real(me,x,f,istat,constant_extrap)
 
     implicit none
 
     class(linear_interp_1d),intent(inout) :: me
-    ${TYPE1}$,intent(in)                   :: x
-    ${TYPE1}$,intent(out)                  :: f     !! Interpolated \( f(x) \)
+    real(wp),intent(in)                   :: x
+    real(wp),intent(out)                  :: f     !! Interpolated \( f(x) \)
     integer,intent(out),optional          :: istat !! `0`  : no problems,
                                                    !! `-1` : class has not been initialized
 
     integer,dimension(2) :: ix
-    ${TYPE1}$ :: p1
-    ${TYPE1}$ :: q1
+    real(wp) :: p1
+    real(wp) :: q1
     integer :: mflag
     logical,intent(in),optional :: constant_extrap !! Default false; true selects constant extrapolation.
 
@@ -257,7 +247,6 @@
         q1 = (x-me%x(ix(1)))/(me%x(ix(2))-me%x(ix(1)))
         if (present(constant_extrap)) then
             if (constant_extrap) then
-                ! Assigning a constant also zeros the dual-number derivative.
                 if (x < me%x(1)) q1 = zero
                 if (x > me%x(size(me%x))) q1 = one
             end if
@@ -270,33 +259,41 @@
     else
 
         if (present(istat)) istat = -1
-        #:if NAME == 'dual'
-        allocate(f%der(size(x%der)))
-        #:endif
         f = zero
 
     end if
 
     end subroutine
-    #:endfor
 
-    subroutine interp_1d_derivative(me, x, dfdx, istat, constant_extrap)
-        use differentia, only: derivative
+    !> Return the slope of the same interval selected by evaluate.
+    !! At knots, retain dintrv's interval-selection convention. Outside the
+    !! domain, constant extrapolation has zero slope; linear uses the end interval.
+    pure subroutine interp_1d_derivative(me, x, dfdx, istat, constant_extrap)
         class(linear_interp_1d),intent(inout) :: me
-        real(wp), intent(in) :: x
-        real(wp), intent(out) :: dfdx
-        integer, intent(out), optional :: istat
-        logical, intent(in), optional :: constant_extrap !! Same default and behavior as evaluate.
-        real(wp) :: f
-        call derivative(fcn, x, f, dfdx)
-    contains
-        function fcn(x_) result(res_)
-            use differentia, only: dual
-            type(dual), intent(in) :: x_
-            type(dual) :: res_
-            call interp_1d_dual(me, x_, res_, istat, constant_extrap)
-        end function
-    end subroutine
+        real(wp),intent(in) :: x
+        real(wp),intent(out) :: dfdx
+        integer,intent(out),optional :: istat
+        logical,intent(in),optional :: constant_extrap !! Default false, as in evaluate.
+        integer :: ix(2), mflag
+
+        if (.not.me%initialized) then
+            dfdx = zero
+            if (present(istat)) istat = -1
+            return
+        end if
+
+        call dintrv(me%x, x, me%ilox, ix(1), ix(2), mflag)
+        if (present(istat)) istat = 0
+        if (present(constant_extrap)) then
+            if (constant_extrap) then
+                if (x < me%x(1) .or. x > me%x(size(me%x))) then
+                    dfdx = zero
+                    return
+                end if
+            end if
+        end if
+        dfdx = (me%f(ix(2))-me%f(ix(1)))/(me%x(ix(2))-me%x(ix(1)))
+    end subroutine interp_1d_derivative
 
 !*****************************************************************************************
 
@@ -370,16 +367,12 @@
 !  * Jacob Williams, 2/22/2016 : modified bspline-fortran `dintrv` routine for
 !    linear interpolation/extrapolation use.
 !  * Jacob Williams, 10/9/2019 : added optional `inearest` output.
-    #:for TYPE1, NAME in TYPES_NAMES
-    pure subroutine dintrv_${NAME}$(xt,x,ilo,ileft,iright,mflag,inearest)
-    #:if NAME == 'dual'
-    use differentia
-    #:endif
+    pure subroutine dintrv(xt,x,ilo,ileft,iright,mflag,inearest)
 
     implicit none
 
     real(wp),dimension(:),intent(in) :: xt       !! a knot or break point vector
-    ${TYPE1}$,intent(in)              :: x        !! argument
+    real(wp),intent(in)              :: x        !! argument
     integer,intent(inout)            :: ilo      !! an initialization parameter which must be set
                                                  !! to 1 the first time the array `xt` is
                                                  !! processed by dintrv. `ilo` contains information for
@@ -509,7 +502,6 @@
     end do
 
     end subroutine
-    #:endfor
 !*****************************************************************************************
 
 !*****************************************************************************************
