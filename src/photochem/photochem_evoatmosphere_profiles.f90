@@ -14,6 +14,31 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_profiles
 
 contains
 
+  module subroutine set_custom_optical_properties(self, wv, P, dtau, w0, g0, tau_mode, err)
+    use, intrinsic :: iso_c_binding, only: c_associated
+    class(EvoAtmosphere), intent(inout) :: self
+    real(dp), intent(in) :: wv(:), P(:), dtau(:,:), w0(:,:), g0(:,:)
+    integer, intent(in) :: tau_mode
+    character(:), allocatable, intent(out) :: err
+
+    if (c_associated(self%wrk%sun%cvode_mem)) then
+      err = "Destroy the stepper before changing custom optical properties."
+      return
+    endif
+    call self%var%custom_optical_properties%set_custom_optical_properties(wv, P, dtau, w0, g0, tau_mode, err)
+  end subroutine
+
+  module subroutine unset_custom_optical_properties(self, err)
+    use, intrinsic :: iso_c_binding, only: c_associated
+    class(EvoAtmosphere), intent(inout) :: self
+    character(:), allocatable, intent(out) :: err
+    if (c_associated(self%wrk%sun%cvode_mem)) then
+      err = "Destroy the stepper before changing custom optical properties."
+      return
+    endif
+    call self%var%custom_optical_properties%unset_custom_optical_properties()
+  end subroutine
+
   function initialize_PressTempEddState(self) result(state)
     class(EvoAtmosphere), intent(in) :: self
     type(PressTempEddState) :: state

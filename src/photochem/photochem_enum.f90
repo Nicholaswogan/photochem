@@ -1,4 +1,5 @@
 module photochem_enum
+  use clima_radtran_types, only: TAU_MODE_DZ, TAU_MODE_DLOG10P
   implicit none
   public
   

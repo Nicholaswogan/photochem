@@ -3,7 +3,7 @@ module photochem
   use photochem_const, only: str_len
   use photochem_const, only: dp
   use photochem_enum, only: AnalyticalJacobian, AutodiffJacobian, &
-                            FiniteDifferenceJacobian
+                            FiniteDifferenceJacobian, TAU_MODE_DZ, TAU_MODE_DLOG10P
   use photochem_evoatmosphere, only: EvoAtmosphere, EvoAtmosphereState, ProductionLoss
   use photochem_version, only: version
   implicit none

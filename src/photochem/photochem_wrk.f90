@@ -101,6 +101,10 @@ module photochem_wrk
     !> var%photon_flux gives photons/cm^2/s in each wavelength bin.
     real(dp), allocatable :: amean_grd(:,:)
     real(dp), allocatable :: optical_depth(:,:) !! Dimensionless optical depth, shape (nz,nw).
+    ! Custom optical properties mapped onto the current atmosphere.
+    real(dp), allocatable :: tauc(:,:) !! Custom layer optical depth, shape (nz,nw).
+    real(dp), allocatable :: w0c(:,:) !! Custom single-scattering albedo, shape (nz,nw).
+    real(dp), allocatable :: g0c(:,:) !! Custom scattering asymmetry parameter, shape (nz,nw).
     real(dp), allocatable :: upper_veff_copy(:) !! (nq)
     real(dp), allocatable :: lower_vdep_copy(:) !! (nq)
     real(dp), allocatable :: xp(:) !! (nz)
@@ -165,6 +169,7 @@ contains
     allocate(wrk%surf_radiance(nw))
     allocate(wrk%amean_grd(nz,nw))
     allocate(wrk%optical_depth(nz,nw))
+    allocate(wrk%tauc(nz,nw), wrk%w0c(nz,nw), wrk%g0c(nz,nw))
     allocate(wrk%xp(nz))
     allocate(wrk%xl(nz))
     allocate(wrk%DU(nq,nz))

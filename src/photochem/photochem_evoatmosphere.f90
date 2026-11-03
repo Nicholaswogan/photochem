@@ -2,7 +2,7 @@ module photochem_evoatmosphere
   use photochem_const, only: dp, s_str_len, m_str_len
   use photochem_data, only: PhotochemData, ParticleXsections
   use photochem_vars, only: PhotochemVars, PressureTempEddProfile, &
-                            TOAPressureMaintenance
+                            TOAPressureMaintenance, CustomOpticalProperties
   use photochem_wrk, only: PhotochemWrk
   implicit none
 
@@ -51,6 +51,7 @@ module photochem_evoatmosphere
 
     ! Persistent atmospheric-profile configuration associated with the state.
     type(PressureTempEddProfile) :: press_temp_edd_profile
+    type(CustomOpticalProperties) :: custom_optical_properties
     type(TOAPressureMaintenance) :: toa_pressure_maintenance
   contains
     procedure :: allocate => AtmosphereState_allocate
@@ -83,6 +84,7 @@ module photochem_evoatmosphere
     real(dp) :: planet_radius
 
     type(PressureTempEddProfile) :: press_temp_edd_profile
+    type(CustomOpticalProperties) :: custom_optical_properties
     type(TOAPressureMaintenance) :: toa_pressure_maintenance
   contains
     procedure :: save_to_h5 => EvoAtmosphereState_save_to_h5
@@ -147,6 +149,8 @@ module photochem_evoatmosphere
     procedure :: set_temperature
     procedure :: set_press_temp_edd
     procedure :: set_press_temp_edd_profile
+    procedure :: set_custom_optical_properties
+    procedure :: unset_custom_optical_properties
     procedure :: clear_press_temp_edd_profile
 
     !~~ photochem_evoatmosphere_grid.f90 ~~!
@@ -163,6 +167,28 @@ module photochem_evoatmosphere
     module procedure :: load_EvoAtmosphereState
   end interface
 
+  interface
+    !> Install external aerosol optics on a hydrostatic pressure grid.
+    !! Spectral and log10-pressure interpolation use constant extrapolation.
+    !! TAU_MODE_DZ is extinction per cm; TAU_MODE_DLOG10P is extinction per
+    !! pressure decade, converted with dz/(scale_height*ln(10)) at layer centers.
+    !! The prescription is additive to built-in optics and persists across grid
+    !! changes and snapshots. Requires an inactive stepper; radiative work is
+    !! refreshed on the next atmospheric preparation.
+    module subroutine set_custom_optical_properties(self, wv, P, dtau, w0, g0, tau_mode, err)
+      class(EvoAtmosphere), intent(inout) :: self
+      real(dp), intent(in) :: wv(:) !! Increasing wavelength (nm).
+      real(dp), intent(in) :: P(:) !! Decreasing hydrostatic pressure (dyn/cm^2).
+      real(dp), intent(in) :: dtau(:,:) !! Extinction, shape (size(P),size(wv)); units depend on tau_mode.
+      real(dp), intent(in) :: w0(:,:), g0(:,:) !! Dimensionless albedo and asymmetry, shape as dtau.
+      integer, intent(in) :: tau_mode
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+    module subroutine unset_custom_optical_properties(self, err)
+      class(EvoAtmosphere), intent(inout) :: self
+      character(:), allocatable, intent(out) :: err
+    end subroutine
+  end interface
   interface
 
     !~~ photochem_evoatmosphere_state.f90 ~~!
@@ -223,7 +249,8 @@ module photochem_evoatmosphere
     !! is unallocated.
     module function create_EvoAtmosphereState(species_names, nq, ng, nsl, planet_mass, &
         bottom_atmos, top_atmos, trop_alt, z, dz, temperature, edd, particle_radius, &
-        usol, planet_radius, press_temp_edd_profile, toa_pressure_maintenance, err) result(state)
+        usol, planet_radius, press_temp_edd_profile, toa_pressure_maintenance, &
+        custom_optical_properties, err) result(state)
       character(*), intent(in) :: species_names(:) !! Ordered species names, including hv and M.
       integer, intent(in) :: nq !! Number of evolved particle and gas species.
       integer, intent(in) :: ng !! Number of gases, including short-lived gases.
@@ -239,6 +266,7 @@ module photochem_evoatmosphere
       real(dp), intent(in) :: planet_radius !! Planet radius (cm).
       type(PressureTempEddProfile), intent(in) :: press_temp_edd_profile !! Prescribed profile and sync settings.
       type(TOAPressureMaintenance), intent(in) :: toa_pressure_maintenance !! Model-top maintenance settings.
+      type(CustomOpticalProperties), intent(in) :: custom_optical_properties
       character(:), allocatable, intent(out) :: err
       type(EvoAtmosphereState) :: state
     end function

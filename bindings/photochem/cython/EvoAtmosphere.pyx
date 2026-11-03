@@ -773,6 +773,59 @@ cdef class EvoAtmosphere:
     if len(err.strip()) > 0:
       raise PhotoException(err.decode("utf-8").strip())
 
+  def set_custom_optical_properties(self, ndarray[double, ndim=1] wv, ndarray[double, ndim=1] P,
+                                   ndarray[double, ndim=2] dtau, ndarray[double, ndim=2] w0,
+                                   ndarray[double, ndim=2] g0, int tau_mode):
+    """Set additive custom optics prescribed on hydrostatic pressure.
+
+    Parameters
+    ----------
+    wv : ndarray, shape (n_wavelength,)
+        Positive, increasing wavelengths (nm); at least two points.
+    P : ndarray, shape (n_pressure,)
+        Positive, decreasing hydrostatic pressures (dyn/cm^2); at least two points.
+    dtau : ndarray, shape (n_pressure, n_wavelength)
+        Nonnegative extinction per cm (mode 1) or per pressure decade (mode 2).
+    w0 : ndarray, shape (n_pressure, n_wavelength)
+        Single-scattering albedo between zero and one.
+    g0 : ndarray, shape (n_pressure, n_wavelength)
+        Scattering asymmetry parameter between minus one and one.
+    tau_mode : int
+        1 for extinction per cm; 2 for extinction per log10 pressure.
+
+    Notes
+    -----
+    Profiles are linear in wavelength and log10 hydrostatic pressure, with
+    constant extrapolation. They are mapped at each atmospheric preparation.
+    Mode 2 uses the hydrostatic layer-center approximation
+    dtau*dz/(scale_height*ln(10)). Built-in particle opacity remains additive.
+    Destroy any active stepper before changing the prescription. Existing
+    radiative work outputs are refreshed by the next atmospheric preparation.
+    """
+    wv = np.ascontiguousarray(wv)
+    P = np.ascontiguousarray(P)
+    dtau = np.asfortranarray(dtau)
+    w0 = np.asfortranarray(w0)
+    g0 = np.asfortranarray(g0)
+    cdef int nw = wv.size, np_ = P.size
+    cdef int n1 = dtau.shape[0], n2 = dtau.shape[1]
+    cdef int w1 = w0.shape[0], w2 = w0.shape[1]
+    cdef int g1 = g0.shape[0], g2 = g0.shape[1]
+    cdef char err[ERR_LEN+1]
+    ea_pxd.evoatmosphere_set_custom_optical_properties_wrapper(
+        self._ptr, &nw, <double *>wv.data, &np_, <double *>P.data,
+        &n1, &n2, <double *>dtau.data, &w1, &w2, <double *>w0.data,
+        &g1, &g2, <double *>g0.data, &tau_mode, err)
+    if err[0] != 0:
+      raise PhotoException(err.decode('utf-8'))
+
+  def unset_custom_optical_properties(self):
+    """Remove the custom optical prescription; requires an inactive stepper."""
+    cdef char err[ERR_LEN+1]
+    ea_pxd.evoatmosphere_unset_custom_optical_properties_wrapper(self._ptr, err)
+    if err[0] != 0:
+      raise PhotoException(err.decode('utf-8'))
+
   def set_press_temp_edd_profile(self, ndarray[double, ndim=1] P, ndarray[double, ndim=1] T, ndarray[double, ndim=1] edd,
                                  double trop_p = -1.0, int mode = 1, bint hydro_pressure = True,
                                  bint maintain_toa_pressure = True, double target_pressure = 0.1):

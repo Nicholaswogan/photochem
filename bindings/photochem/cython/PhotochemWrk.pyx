@@ -315,3 +315,30 @@ cdef class PhotochemWrk:
       cdef double val
       wrk_pxd.photochemwrk_vh_esc_get(self._ptr, &val)
       return val
+
+  property tauc:
+    """ndarray[float], shape (nz, nw). Custom layer optical depth."""
+    def __get__(self):
+      cdef int dim1, dim2
+      wrk_pxd.photochemwrk_tauc_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      wrk_pxd.photochemwrk_tauc_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+
+  property w0c:
+    """ndarray[float], shape (nz, nw). Custom single-scattering albedo."""
+    def __get__(self):
+      cdef int dim1, dim2
+      wrk_pxd.photochemwrk_w0c_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      wrk_pxd.photochemwrk_w0c_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr
+
+  property g0c:
+    """ndarray[float], shape (nz, nw). Custom scattering asymmetry parameter."""
+    def __get__(self):
+      cdef int dim1, dim2
+      wrk_pxd.photochemwrk_g0c_get_size(self._ptr, &dim1, &dim2)
+      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
+      wrk_pxd.photochemwrk_g0c_get(self._ptr, &dim1, &dim2, <double *>arr.data)
+      return arr

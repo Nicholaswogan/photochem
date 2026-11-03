@@ -12,5 +12,5 @@ cdef extern void evoatmospherestate_array_get(EvoAtmosphereState *ptr, int *fiel
 cdef extern void evoatmospherestate_create_wrapper(EvoAtmosphereState *ptr, int *integers, double *reals,
     int *lengths, char *names, double *z, double *dz, double *temperature, double *edd,
     double *particle_radius, double *usol, double *profile_pressure, double *profile_temperature,
-    double *profile_edd, char *err)
-
+    double *profile_edd, double *optics_wavelength, double *optics_pressure,
+    double *optics_dtau, double *optics_w0, double *optics_g0, char *err)

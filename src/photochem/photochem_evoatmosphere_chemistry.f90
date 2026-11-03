@@ -184,7 +184,7 @@ contains
   end subroutine
   
   !> Compute photolysis rates and associated radiative-transfer diagnostics.
-  subroutine photorates(dat, var, densities, &
+  subroutine photorates(dat, var, densities, tauc, w0c, g0c, &
                         prates, surf_radiance, amean_grd, optical_depth, err)
     use photochem_radtran, only: two_stream
     use photochem_const, only: pi
@@ -192,6 +192,9 @@ contains
     type(PhotochemData), intent(in) :: dat
     type(PhotochemVars), intent(in) :: var
     real(dp), intent(in) :: densities(:,:) ! (nsp+1,nz)
+    real(dp), intent(in) :: tauc(:,:) !! Custom layer extinction optical depth, shape (nz,nw).
+    real(dp), intent(in) :: w0c(:,:) !! Custom single-scattering albedo, shape (nz,nw).
+    real(dp), intent(in) :: g0c(:,:) !! Custom scattering asymmetry parameter, shape (nz,nw).
     
     ! output
     real(dp), intent(out) :: prates(:,:) ! (nz,kj)
@@ -204,7 +207,7 @@ contains
     real(dp) :: partial_prates(var%nz,dat%kj)
     real(dp) :: tausg(var%nz), taua(var%nz), tau(var%nz), w0(var%nz), gt(var%nz)
     real(dp) :: taup(var%nz), tausp(var%nz)
-    real(dp) :: tauc(var%nz), tausc(var%nz)
+    real(dp) :: tau_custom(var%nz), tausc(var%nz)
     real(dp) :: amean(var%nz+1), surf_rad, flx
     real(dp) :: taup_1, gt_1, tausp_1(dat%np,var%nz)
     real(dp) :: u0
@@ -216,7 +219,7 @@ contains
     prates = 0.0_dp
     !$omp parallel private(l, i, j, k, n, ie, ierr, partial_prates, &
     !$omp& taup, taup_1, tausp, tausp_1, tausg, taua, tau, w0, gt, gt_1, &
-    !$omp& amean, surf_rad, tauc, tausc, &
+    !$omp& amean, surf_rad, tau_custom, tausc, &
     !$omp& flx)
     ierr = 0
     partial_prates = 0.0_dp
@@ -246,8 +249,8 @@ contains
       ! Custom absorption
       do k = 1,var%nz
         n = var%nz+1-k
-        tauc(n) = var%tauc(k,l)
-        tausc(n) = var%w0c(k,l)*var%tauc(k,l)
+        tau_custom(n) = tauc(k,l)
+        tausc(n) = w0c(k,l)*tauc(k,l)
       enddo
       
       ! particles
@@ -277,13 +280,13 @@ contains
                       /(tausp(n) + tausg(n) + tausc(n))
             endif
           enddo
-          gt_1 = gt_1 + var%g0c(k,l)*tausc(n)/(tausp(n) + tausg(n) + tausc(n)) ! Custom opacity
+          gt_1 = gt_1 + g0c(k,l)*tausc(n)/(tausp(n) + tausg(n) + tausc(n)) ! Custom opacity
         endif
         gt(n) = min(gt_1,0.999999e0_dp)
       enddo
       
       ! sum of all contributions
-      tau = tausg + taua + taup + tauc
+      tau = tausg + taua + taup + tau_custom
       optical_depth(:,l) = tau
       do i = 1,var%nz
         if (tau(i) > 0.0_dp) then

@@ -11,6 +11,7 @@ program test_api
 contains
 
   subroutine test()
+    call test_custom_optical_properties()
     call test_initialization_state()
     call test_model_state()
     call test_model_state_hdf5()
@@ -38,6 +39,147 @@ contains
     call test_update_vertical_grid_atomicity()
     call test_methods(data_file('reaction_mechanisms/zahnle_earth.yaml'))
     call test_methods(test_file('no_particle_test.yaml'))
+  end subroutine
+
+  subroutine test_custom_optical_properties()
+    use photochem_vars, only: CustomOpticalProperties
+    use photochem_enum, only: TAU_MODE_DZ, TAU_MODE_DLOG10P
+    type(CustomOpticalProperties) :: optics
+    character(:), allocatable :: err
+    real(dp) :: pressure(4), height(4), dz(4), tau(4,2), w0(4,2), g0(4,2)
+    real(dp) :: expected(4), input_dtau(2,2), input_w0(2,2), input_g0(2,2)
+    input_dtau(:,1) = [4.0_dp, 2.0_dp]
+    input_dtau(:,2) = [8.0_dp, 4.0_dp]
+    input_w0 = 0.5_dp
+    input_g0 = 0.3_dp
+    call optics%set_custom_optical_properties([100.0_dp, 300.0_dp], [100.0_dp, 1.0_dp], &
+      input_dtau, input_w0, input_g0, TAU_MODE_DZ, err)
+    if (allocated(err)) stop 1
+    ! The type owns copies, and a rejected replacement preserves the prescription.
+    input_dtau = -1.0_dp
+    if (any(optics%dtau < 0.0_dp)) error stop 'Optics did not copy the input arrays'
+    call optics%set_custom_optical_properties([100.0_dp, 300.0_dp], [100.0_dp, 1.0_dp], &
+      input_dtau, input_w0, input_g0, TAU_MODE_DZ, err)
+    if (.not.allocated(err)) error stop 'Invalid optical prescription was accepted'
+    if (any(optics%dtau < 0.0_dp)) error stop 'Failed setter changed the optical prescription'
+    pressure = [1000.0_dp, 10.0_dp, 1.0_dp, 0.1_dp]
+    height = [1.0e6_dp, 2.0e6_dp, 3.0e6_dp, 4.0e6_dp]
+    dz = 1.0e5_dp
+    expected = [4.0_dp, 3.0_dp, 2.0_dp, 2.0_dp]*dz
+    optics%tau_mode = TAU_MODE_DZ
+    call optics%evaluate([50.0_dp, 150.0_dp, 450.0_dp], pressure, height, dz, tau, w0, g0, err)
+    if (allocated(err)) stop 1
+    if (any(abs(tau(:,1)-expected) > 1.0e-8_dp)) error stop 'Incorrect pressure mapping'
+    if (any(abs(tau(:,2)-2.0_dp*expected) > 1.0e-8_dp)) error stop 'Incorrect wavelength mapping'
+    if (any(abs(w0-0.5_dp) > 1.0e-12_dp)) error stop 'Incorrect custom albedo'
+    ! Repeated calls reuse the cache; different wavelength grids must rebuild
+    ! it even if the number of wavelength bins is unchanged.
+    call optics%evaluate([50.0_dp, 150.0_dp, 450.0_dp], pressure, height, dz, tau, w0, g0, err)
+    if (allocated(err)) stop 1
+    if (any(abs(tau(:,1)-expected) > 1.0e-8_dp)) error stop 'Cached interpolation changed'
+    call optics%evaluate([150.0_dp, 250.0_dp, 350.0_dp], pressure, height, dz, tau, w0, g0, err)
+    if (allocated(err)) stop 1
+    if (any(abs(tau(:,1)-1.5_dp*expected) > 1.0e-8_dp)) error stop 'Changed wavelengths used a stale cache'
+    block
+      real(dp) :: tau_one(4,1), albedo_one(4,1), asymmetry_one(4,1)
+      call optics%evaluate([50.0_dp, 150.0_dp], pressure, height, dz, tau_one, albedo_one, asymmetry_one, err)
+      if (allocated(err)) stop 1
+      if (any(abs(tau_one(:,1)-expected) > 1.0e-8_dp)) error stop 'Changed bin count used a stale cache'
+    end block
+
+    ! Replacing inputs invalidates an existing cache. Failed setters preserve it.
+    input_dtau(:,1) = [12.0_dp, 6.0_dp]
+    input_dtau(:,2) = [24.0_dp, 12.0_dp]
+    call optics%set_custom_optical_properties([100.0_dp, 300.0_dp], [100.0_dp, 1.0_dp], &
+      input_dtau, input_w0, input_g0, TAU_MODE_DZ, err)
+    if (allocated(err)) stop 1
+    call optics%evaluate([50.0_dp, 150.0_dp, 450.0_dp], pressure, height, dz, tau, w0, g0, err)
+    if (allocated(err)) stop 1
+    if (any(abs(tau(:,1)-3.0_dp*expected) > 1.0e-8_dp)) error stop 'Replacement used a stale cache'
+    call optics%set_custom_optical_properties([100.0_dp, 300.0_dp], [100.0_dp, 1.0_dp], &
+      -input_dtau, input_w0, input_g0, TAU_MODE_DZ, err)
+    if (.not.allocated(err)) error stop 'Invalid cached replacement was accepted'
+    call optics%evaluate([50.0_dp, 150.0_dp, 450.0_dp], pressure, height, dz, tau, w0, g0, err)
+    if (allocated(err)) stop 1
+    if (any(abs(tau(:,1)-3.0_dp*expected) > 1.0e-8_dp)) error stop 'Failed setter changed cached optics'
+    call optics%set_custom_optical_properties([100.0_dp, 300.0_dp], [100.0_dp, 1.0_dp], &
+      input_dtau/3.0_dp, input_w0, input_g0, TAU_MODE_DLOG10P, err)
+    if (allocated(err)) stop 1
+    optics%tau_mode = TAU_MODE_DLOG10P
+    call optics%evaluate([50.0_dp, 150.0_dp, 450.0_dp], pressure, height, dz, tau, w0, g0, err)
+    if (allocated(err)) stop 1
+    if (any(abs(tau(:,1)-expected/(height*log(10.0_dp))) > 1.0e-12_dp)) then
+      error stop 'Incorrect per-decade conversion'
+    endif
+    ! Compare cached wavelength mapping and shared pressure weights with two-stage interpolation
+    ! on nonuniform source grids, including both extrapolation directions.
+    block
+      use futils, only: interp
+      real(dp) :: source_P(3), source_wv(4), edges(6), centers(5), target_P(4)
+      real(dp) :: input_tau(3,4), input_albedo(3,4), input_asymmetry(3,4)
+      real(dp) :: spectral_tau(3,5), spectral_albedo(3,5), spectral_asymmetry(3,5)
+      real(dp) :: reference_tau(4,5), reference_albedo(4,5), reference_asymmetry(4,5)
+      real(dp) :: actual_tau(4,5), actual_albedo(4,5), actual_asymmetry(4,5), width(4)
+      integer :: i, j, mode, ierr
+      source_P = [1.0e4_dp, 1.0e2_dp, 1.0e-2_dp]
+      source_wv = [100.0_dp, 200.0_dp, 400.0_dp, 800.0_dp]
+      edges = [10.0_dp, 50.0_dp, 150.0_dp, 350.0_dp, 650.0_dp, 1250.0_dp]
+      centers = 0.5_dp*(edges(:5)+edges(2:))
+      target_P = [1.0e6_dp, 1.0e3_dp, 1.0_dp, 1.0e-4_dp]
+      do j = 1,4
+        do i = 1,3
+          input_tau(i,j) = 0.1_dp*i**2+j**2
+          input_albedo(i,j) = 0.05_dp*i+0.01_dp*j
+          input_asymmetry(i,j) = -0.8_dp+0.1_dp*i+0.02_dp*j**2
+        enddo
+      enddo
+      do i = 1,3
+        call interp(centers, source_wv, input_tau(i,:), spectral_tau(i,:), ierr=ierr)
+        if (ierr /= 0) stop 1
+        call interp(centers, source_wv, input_albedo(i,:), spectral_albedo(i,:), ierr=ierr)
+        if (ierr /= 0) stop 1
+        call interp(centers, source_wv, input_asymmetry(i,:), spectral_asymmetry(i,:), ierr=ierr)
+        if (ierr /= 0) stop 1
+      enddo
+      do j = 1,5
+        call interp(log10(target_P(4:1:-1)), log10(source_P(3:1:-1)), spectral_tau(3:1:-1,j), reference_tau(4:1:-1,j), ierr=ierr)
+        if (ierr /= 0) stop 1
+        call interp(log10(target_P(4:1:-1)), log10(source_P(3:1:-1)), spectral_albedo(3:1:-1,j), &
+                    reference_albedo(4:1:-1,j), ierr=ierr)
+        if (ierr /= 0) stop 1
+        call interp(log10(target_P(4:1:-1)), log10(source_P(3:1:-1)), spectral_asymmetry(3:1:-1,j), &
+                    reference_asymmetry(4:1:-1,j), ierr=ierr)
+        if (ierr /= 0) stop 1
+      enddo
+      do mode = TAU_MODE_DZ,TAU_MODE_DLOG10P
+        call optics%set_custom_optical_properties(source_wv, source_P, input_tau, input_albedo, &
+                                                  input_asymmetry, mode, err)
+        if (allocated(err)) stop 1
+        call optics%evaluate(edges, target_P, height, dz, actual_tau, actual_albedo, actual_asymmetry, err)
+        if (allocated(err)) stop 1
+        width = dz
+        if (mode == TAU_MODE_DLOG10P) width = width/(height*log(10.0_dp))
+        do j = 1,5
+          if (any(abs(actual_tau(:,j)-reference_tau(:,j)*width) > &
+                  1.0e-12_dp*max(1.0_dp, abs(reference_tau(:,j)*width)))) then
+            error stop 'Cached extinction interpolation differs from two-stage interpolation'
+          endif
+        enddo
+        if (any(abs(actual_albedo-reference_albedo) > 1.0e-12_dp)) error stop 'Incorrect cached albedo interpolation'
+        if (any(abs(actual_asymmetry-reference_asymmetry) > 1.0e-12_dp)) error stop 'Incorrect cached asymmetry interpolation'
+      enddo
+      call optics%evaluate(edges, target_P, height(:3), dz, actual_tau, actual_albedo, actual_asymmetry, err)
+      if (.not.allocated(err)) error stop 'Incorrect target dimensions were accepted'
+    end block
+
+    call optics%unset_custom_optical_properties()
+    if (optics%enabled .or. allocated(optics%wavelength) .or. allocated(optics%pressure) .or. &
+        allocated(optics%dtau) .or. allocated(optics%w0) .or. allocated(optics%g0)) then
+      error stop 'Unset optics retained its input arrays'
+    endif
+    call optics%evaluate([50.0_dp, 150.0_dp, 450.0_dp], pressure, height, dz, tau, w0, g0, err)
+    if (allocated(err)) stop 1
+    if (any(tau /= 0.0_dp) .or. any(w0 /= 0.0_dp) .or. any(g0 /= 0.0_dp)) error stop 'Disabled optics not zero'
   end subroutine
 
   subroutine test_model_state()
@@ -231,6 +373,27 @@ contains
     call source%initialize_from_state(constructed, err)
     call check_model_state_error(err)
 
+    ! The primary-field constructor owns and validates custom optics too.
+    block
+      real(dp) :: opacity(2,2), albedo(2,2), asymmetry(2,2)
+      opacity = 1.0e-7_dp
+      albedo = 0.5_dp
+      asymmetry = 0.3_dp
+      call saved%custom_optical_properties%set_custom_optical_properties( &
+        [1.0_dp, 1.0e9_dp], [1.0e9_dp, 1.0e-12_dp], opacity, albedo, asymmetry, 2, err)
+      call check_model_state_error(err)
+      constructed = model_state_from_fields(saved, err)
+      call check_model_state_error(err)
+      if (.not.constructed%custom_optical_properties%enabled) error stop 'Constructor lost custom optics'
+      if (constructed%custom_optical_properties%tau_mode /= 2) error stop 'Constructor lost optical mode'
+      saved%custom_optical_properties%dtau = 2.0_dp*opacity
+      if (any(constructed%custom_optical_properties%dtau /= opacity)) error stop 'Constructor aliased custom optics'
+      invalid = saved
+      invalid%custom_optical_properties%dtau = -opacity
+      constructed = model_state_from_fields(invalid, err)
+      if (.not.allocated(err)) error stop 'Constructor accepted invalid custom optics'
+    end block
+
   end subroutine
 
   subroutine test_model_state_hdf5()
@@ -314,6 +477,12 @@ contains
     call loaded%initialize_from_h5(filename, err)
     if (.not.allocated(err)) error stop 'Unsupported state schema was accepted'
     call check_hdf5_state_equal(before, loaded)
+    call h%open(filename, 'r+')
+    call h%write('schema_version', 1)
+    call h%close()
+    call loaded%initialize_from_h5(filename, err)
+    if (.not.allocated(err)) error stop 'Schema-1 state was accepted'
+    call check_hdf5_state_equal(before, loaded)
     call before%save_to_h5(filename, err)
     call check_model_state_error(err)
     call h%open(filename, 'r+')
@@ -351,7 +520,7 @@ contains
     if (.not.allocated(err)) error stop 'State file with invalid physical values was accepted'
     call check_hdf5_state_equal(before, loaded)
     call h%open(filename, 'w')
-    call h%write('schema_version', 1)
+    call h%write('schema_version', 2)
     call h%close()
     call loaded%initialize_from_h5(filename, err)
     if (.not.allocated(err)) error stop 'State file with missing datasets was accepted'
@@ -420,6 +589,7 @@ contains
       planet_radius=fields%planet_radius, &
       press_temp_edd_profile=fields%press_temp_edd_profile, &
       toa_pressure_maintenance=fields%toa_pressure_maintenance, &
+      custom_optical_properties=fields%custom_optical_properties, &
       err=err &
     )
 

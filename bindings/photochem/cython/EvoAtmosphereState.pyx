@@ -5,6 +5,7 @@ _STATE_INT_FIELDS = {
     'nq': 1, 'ng': 2, 'nsl': 3,
     'profile_enabled': 6, 'profile_mode': 7,
     'profile_hydro_pressure': 8, 'toa_enabled': 9,
+    'optics_enabled': 10, 'optics_tau_mode': 11,
 }
 _STATE_REAL_FIELDS = (
     'planet_mass', 'bottom_atmos', 'top_atmos', 'trop_alt', 'planet_radius',
@@ -14,9 +15,10 @@ _STATE_REAL_FIELDS = (
 _STATE_ARRAY_FIELDS = (
     'z', 'dz', 'temperature', 'edd', 'particle_radius', 'usol',
     'profile_pressure', 'profile_temperature', 'profile_edd',
+    'optics_wavelength', 'optics_pressure', 'optics_dtau', 'optics_w0', 'optics_g0',
 )
-_STATE_PROFILE_FIELDS = _STATE_ARRAY_FIELDS[6:]
-_STATE_FLAG_FIELDS = ('profile_enabled', 'profile_hydro_pressure', 'toa_enabled')
+_STATE_PROFILE_FIELDS = _STATE_ARRAY_FIELDS[6:9]
+_STATE_FLAG_FIELDS = ('profile_enabled', 'profile_hydro_pressure', 'toa_enabled', 'optics_enabled')
 _STATE_KEYS = frozenset(
     ('schema_version', 'species_names') + tuple(_STATE_INT_FIELDS) +
     _STATE_REAL_FIELDS + _STATE_ARRAY_FIELDS +
@@ -143,7 +145,7 @@ cdef class EvoAtmosphereState:
         particle_radius has shape (nq-ng+nsl,nz). Units follow the
         Fortran state: cm, g, K, dyn/cm², cm²/s, and molecules/cm³.
         Profile array allocation is represented by *_allocated integer
-        flags and empty arrays when unallocated. Schema version is 1.
+        flags and empty arrays when unallocated. Schema version is 2 (custom optical prescriptions included).
 
         Returns
         -------
@@ -151,7 +153,7 @@ cdef class EvoAtmosphereState:
             Primary fields, compatibility metadata, and profile configuration.
         """
         self._require_ready()
-        cdef ndarray integers = np.empty(10, dtype=np.intc)
+        cdef ndarray integers = np.empty(14, dtype=np.intc)
         cdef ndarray reals = np.empty(12, dtype=np.float64)
         cdef ndarray lengths = np.empty(3, dtype=np.intc)
         state_pxd.evoatmospherestate_metadata_get(
@@ -161,7 +163,7 @@ cdef class EvoAtmosphereState:
         state_pxd.evoatmospherestate_species_names_get(self._ptr, &nspecies, <char *>names.data)
         raw_names = names.tobytes()
         result = {
-            'schema_version': np.array(1, dtype=np.int32),
+            'schema_version': np.array(2, dtype=np.int32),
             'species_names': np.array([
                 raw_names[i*S_STR_LEN:(i+1)*S_STR_LEN].rstrip(b' ')
                 for i in range(nspecies)
@@ -174,6 +176,8 @@ cdef class EvoAtmosphereState:
         shapes = [(int(integers[4]),)] * 4
         shapes += [(int(integers[5]), int(integers[4])), (int(integers[1]), int(integers[4]))]
         shapes += [(max(0, int(length)),) for length in lengths]
+        shapes += [(int(integers[13]),), (int(integers[12]),)]
+        shapes += [(int(integers[12]), int(integers[13]))] * 3
         cdef ndarray values
         cdef int field, n
         for index, (key, shape) in enumerate(zip(_STATE_ARRAY_FIELDS, shapes)):
@@ -189,11 +193,11 @@ cdef class EvoAtmosphereState:
 
     @classmethod
     def from_dict(cls, data):
-        """Construct an independent state from a schema-1 array dictionary.
+        """Construct an independent state from a schema-2 array dictionary.
 
         Required keys are those returned by to_dict. Missing or unknown
         fields, invalid scalar/array shapes, and unsupported versions fail
-        explicitly. No defaults are supplied for incomplete saved states.
+        explicitly. Only schema version 2 is supported.
 
         Parameters
         ----------
@@ -210,22 +214,26 @@ cdef class EvoAtmosphereState:
         return result
 
     cdef void _initialize_from_dict(self, object data) except *:
-        cdef ndarray integers = np.zeros(10, dtype=np.intc)
+        cdef ndarray integers = np.zeros(14, dtype=np.intc)
         cdef ndarray reals = np.empty(12, dtype=np.float64)
         cdef ndarray lengths = np.empty(3, dtype=np.intc)
         cdef ndarray names, z, dz, temperature, edd, particle_radius, usol, pp, pt, pe
         cdef char err[ERR_LEN+1]
+        cdef ndarray owv, op, odtau, ow0, og0
 
         if not isinstance(data, dict):
             raise PhotoException('Atmospheric state must be a dictionary of NumPy arrays.')
+        if 'schema_version' not in data:
+            raise PhotoException('Missing atmospheric state schema_version.')
+        version = _state_scalar(data, 'schema_version', integer=True)
+        if version != 2:
+            raise PhotoException('Unsupported atmospheric state dictionary schema version.')
         missing = _STATE_KEYS - set(data)
         unknown = set(data) - _STATE_KEYS
         if missing or unknown:
             raise PhotoException('Invalid state dictionary keys; missing: ' +
                                  ', '.join(sorted(missing)) + '; unknown: ' +
                                  ', '.join(sorted(map(str, unknown))))
-        if _state_scalar(data, 'schema_version', integer=True) != 1:
-            raise PhotoException('Unsupported atmospheric state dictionary schema version.')
         for key, index in _STATE_INT_FIELDS.items():
             integers[index] = _state_scalar(data, key, integer=True)
         for index, key in enumerate(_STATE_REAL_FIELDS):
@@ -273,11 +281,27 @@ cdef class EvoAtmosphereState:
                 raise PhotoException('Unallocated state profile arrays must be empty: ' + key)
             lengths[index] = values.size if allocated else -1
 
+        owv = _state_real_array(data, 'optics_wavelength', 1)
+        op = _state_real_array(data, 'optics_pressure', 1)
+        odtau = _state_real_array(data, 'optics_dtau', 2)
+        ow0 = _state_real_array(data, 'optics_w0', 2)
+        og0 = _state_real_array(data, 'optics_g0', 2)
+        if (odtau.shape[0] != op.size or odtau.shape[1] != owv.size or
+                ow0.shape[0] != op.size or ow0.shape[1] != owv.size or
+                og0.shape[0] != op.size or og0.shape[1] != owv.size):
+            raise PhotoException('Inconsistent custom optical property shapes in state.')
+        if not integers[10] and (op.size or owv.size):
+            raise PhotoException('Disabled state optical properties must have empty arrays.')
+        integers[12] = op.size
+        integers[13] = owv.size
+
         state_pxd.evoatmospherestate_create_wrapper(
             self._ptr, <int *>integers.data, <double *>reals.data, <int *>lengths.data,
             <char *>names.data, <double *>z.data, <double *>dz.data,
             <double *>temperature.data, <double *>edd.data, <double *>particle_radius.data,
-            <double *>usol.data, <double *>pp.data, <double *>pt.data, <double *>pe.data, err)
+            <double *>usol.data, <double *>pp.data, <double *>pt.data, <double *>pe.data,
+            <double *>owv.data, <double *>op.data, <double *>odtau.data,
+            <double *>ow0.data, <double *>og0.data, err)
         if err[0] != 0:
             raise PhotoException(err.decode('utf-8'))
         self._ready = True

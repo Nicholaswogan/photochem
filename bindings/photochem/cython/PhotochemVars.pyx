@@ -430,54 +430,6 @@ cdef class PhotochemVars:
       var_pxd.photochemvars_grav_get(self._ptr, &dim1, <double *>arr.data)
       return arr
       
-  property tauc:
-    """ndarray[float], shape (nz, nw). Custom layer optical depth."""
-    def __get__(self):
-      cdef int dim1, dim2
-      var_pxd.photochemvars_tauc_get_size(self._ptr, &dim1, &dim2)
-      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
-      var_pxd.photochemvars_tauc_get(self._ptr, &dim1, &dim2, <double *>arr.data)
-      return arr
-    def __set__(self, ndarray[double, ndim=2] arr_):
-      cdef int dim1, dim2
-      var_pxd.photochemvars_tauc_get_size(self._ptr, &dim1, &dim2)
-      cdef ndarray arr = np.asfortranarray(arr_)
-      if arr.shape[0] != dim1 or arr.shape[1] != dim2:
-        raise PhotoException("tauc must have shape (nz, nw).")
-      var_pxd.photochemvars_tauc_set(self._ptr, &dim1, &dim2, <double *>arr.data)  
-
-  property w0c:
-    """ndarray[float], shape (nz, nw). Custom single-scattering albedo."""
-    def __get__(self):
-      cdef int dim1, dim2
-      var_pxd.photochemvars_w0c_get_size(self._ptr, &dim1, &dim2)
-      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
-      var_pxd.photochemvars_w0c_get(self._ptr, &dim1, &dim2, <double *>arr.data)
-      return arr
-    def __set__(self, ndarray[double, ndim=2] arr_):
-      cdef int dim1, dim2
-      var_pxd.photochemvars_w0c_get_size(self._ptr, &dim1, &dim2)
-      cdef ndarray arr = np.asfortranarray(arr_)
-      if arr.shape[0] != dim1 or arr.shape[1] != dim2:
-        raise PhotoException("w0c must have shape (nz, nw).")
-      var_pxd.photochemvars_w0c_set(self._ptr, &dim1, &dim2, <double *>arr.data)  
-
-  property g0c:
-    """ndarray[float], shape (nz, nw). Custom scattering asymmetry parameter."""
-    def __get__(self):
-      cdef int dim1, dim2
-      var_pxd.photochemvars_g0c_get_size(self._ptr, &dim1, &dim2)
-      cdef ndarray arr = np.empty((dim1, dim2), np.double, order="F")
-      var_pxd.photochemvars_g0c_get(self._ptr, &dim1, &dim2, <double *>arr.data)
-      return arr
-    def __set__(self, ndarray[double, ndim=2] arr_):
-      cdef int dim1, dim2
-      var_pxd.photochemvars_g0c_get_size(self._ptr, &dim1, &dim2)
-      cdef ndarray arr = np.asfortranarray(arr_)
-      if arr.shape[0] != dim1 or arr.shape[1] != dim2:
-        raise PhotoException("g0c must have shape (nz, nw).")
-      var_pxd.photochemvars_g0c_set(self._ptr, &dim1, &dim2, <double *>arr.data)  
-
   property max_error_reinit_attempts:
     """int. Number of times to reinitialize CVODE when it returns
     a potentially recoverable error during [EvoAtmosphere.evolve][photochem.EvoAtmosphere.evolve].

@@ -851,6 +851,10 @@ contains
     
     wrk%scale_height = (k_boltz*var%temperature(:)*N_avo)/(wrk%mubar(:)*var%grav(:))
 
+    call var%custom_optical_properties%evaluate(dat%wavl, wrk%pressure_hydro, wrk%scale_height, var%dz, &
+                                              wrk%tauc, wrk%w0c, wrk%g0c, err)
+    if (allocated(err)) return
+
     !!! H and H2 escape
     wrk%upper_veff_copy = var%upper_veff
     wrk%lower_vdep_copy = var%lower_vdep
@@ -889,7 +893,7 @@ contains
     if (associated(var%photon_flux_fcn)) then
       call var%photon_flux_fcn(wrk%tn, dat%nw, var%photon_flux)
     endif
-    call photorates(dat, var, wrk%densities, &
+    call photorates(dat, var, wrk%densities, wrk%tauc, wrk%w0c, wrk%g0c, &
                     wrk%prates, wrk%surf_radiance, wrk%amean_grd, wrk%optical_depth, err)
     if (allocated(err)) return
 

@@ -247,6 +247,7 @@ contains
 
     state%press_temp_edd_profile = self%var%press_temp_edd_profile
     state%toa_pressure_maintenance = self%var%toa_pressure_maintenance
+    state%custom_optical_properties = self%var%custom_optical_properties
 
   end function
 
@@ -282,6 +283,7 @@ contains
     candidate%usol = state%usol
     candidate%press_temp_edd_profile = state%press_temp_edd_profile
     candidate%toa_pressure_maintenance = state%toa_pressure_maintenance
+    candidate%custom_optical_properties = state%custom_optical_properties
     call gravity(state%planet_radius, self%dat%planet_mass, candidate%z, candidate%grav)
     if (.not.all(ieee_is_finite(candidate%grav)) .or. any(candidate%grav <= 0.0_dp)) then
       err = 'Atmospheric state geometry produced invalid gravity.'
@@ -312,6 +314,7 @@ contains
       else
         self%var%press_temp_edd_profile = previous_state%press_temp_edd_profile
         self%var%toa_pressure_maintenance = previous_state%toa_pressure_maintenance
+        self%var%custom_optical_properties = previous_state%custom_optical_properties
         self%atmosphere_initialized = .false.
       endif
       return
@@ -362,6 +365,7 @@ contains
     ! Always preserve valid persistent settings
     state%press_temp_edd_profile = self%var%press_temp_edd_profile
     state%toa_pressure_maintenance = self%var%toa_pressure_maintenance
+    state%custom_optical_properties = self%var%custom_optical_properties
 
     if (.not. self%atmosphere_initialized) return
 
@@ -390,6 +394,7 @@ contains
 
     self%var%press_temp_edd_profile = state%press_temp_edd_profile
     self%var%toa_pressure_maintenance = state%toa_pressure_maintenance
+    self%var%custom_optical_properties = state%custom_optical_properties
 
     self%var%bottom_atmos = state%bottom_atmos
     self%var%top_atmos = state%top_atmos

@@ -5,7 +5,7 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_state
   use, intrinsic :: iso_fortran_env, only: int64
   implicit none
 
-  integer, parameter :: state_schema_version = 1
+  integer, parameter :: state_schema_version = 2
 
   interface
     function rename_file(old, new) bind(C, name="rename") result(status)
@@ -19,7 +19,8 @@ contains
 
   module function create_EvoAtmosphereState(species_names, nq, ng, nsl, planet_mass, &
       bottom_atmos, top_atmos, trop_alt, z, dz, temperature, edd, particle_radius, &
-      usol, planet_radius, press_temp_edd_profile, toa_pressure_maintenance, err) result(state)
+      usol, planet_radius, press_temp_edd_profile, toa_pressure_maintenance, &
+        custom_optical_properties, err) result(state)
     character(*), intent(in) :: species_names(:)
     integer, intent(in) :: nq, ng, nsl
     real(dp), intent(in) :: planet_mass, bottom_atmos, top_atmos, trop_alt
@@ -27,6 +28,7 @@ contains
     real(dp), intent(in) :: particle_radius(:,:), usol(:,:), planet_radius
     type(PressureTempEddProfile), intent(in) :: press_temp_edd_profile
     type(TOAPressureMaintenance), intent(in) :: toa_pressure_maintenance
+    type(CustomOpticalProperties), intent(in) :: custom_optical_properties
     character(:), allocatable, intent(out) :: err
     type(EvoAtmosphereState) :: state
 
@@ -52,6 +54,7 @@ contains
     state%planet_radius = planet_radius
     state%press_temp_edd_profile = press_temp_edd_profile
     state%toa_pressure_maintenance = toa_pressure_maintenance
+    state%custom_optical_properties = custom_optical_properties
 
     call validate_atmosphere_state(state, err)
 
@@ -146,6 +149,8 @@ contains
       err = 'Atmospheric state must have positive total gas density in every layer.'
       return
     endif
+    call state%custom_optical_properties%validate(err)
+    if (allocated(err)) return
     call state%press_temp_edd_profile%validate(err)
     if (allocated(err)) return
     call state%toa_pressure_maintenance%validate(err)
@@ -198,8 +203,7 @@ contains
     class(EvoAtmosphereState), intent(inout) :: self
     character(*), intent(in) :: filename
     character(:), allocatable, intent(out) :: err
-    type(EvoAtmosphereState), target :: raw
-    type(EvoAtmosphereState) :: candidate
+    type(EvoAtmosphereState), target :: candidate
     type(hdf5_file) :: h
 
     if (len_trim(filename) == 0 .or. index(filename, c_null_char) /= 0) then
@@ -211,15 +215,11 @@ contains
       return
     endif
     call h%open(filename, 'r')
-    call read_state(h, raw, err)
+    call read_state(h, candidate, err)
     call h%close()
     if (allocated(err)) return
 
-    candidate = EvoAtmosphereState( &
-      raw%species_names, raw%nq, raw%ng, raw%nsl, raw%planet_mass, &
-      raw%bottom_atmos, raw%top_atmos, raw%trop_alt, raw%z, raw%dz, &
-      raw%temperature, raw%edd, raw%particle_radius, raw%usol, raw%planet_radius, &
-      raw%press_temp_edd_profile, raw%toa_pressure_maintenance, err)
+    call validate_atmosphere_state(candidate, err)
     if (allocated(err)) return
 
     ! Commit only after every read, close, and validation has succeeded.
@@ -240,6 +240,7 @@ contains
     self%planet_radius = candidate%planet_radius
     self%press_temp_edd_profile = candidate%press_temp_edd_profile
     self%toa_pressure_maintenance = candidate%toa_pressure_maintenance
+    self%custom_optical_properties = candidate%custom_optical_properties
   end subroutine
 
   module subroutine EvoAtmosphereState_save_to_h5(self, filename, err)
@@ -331,6 +332,15 @@ contains
     call h%write('toa_pressure_maintenance/pressure_factor', state%toa_pressure_maintenance%pressure_factor)
     call h%write('toa_pressure_maintenance/extreme_pressure_factor', &
       state%toa_pressure_maintenance%extreme_pressure_factor)
+    call h%write('custom_optical_properties/enabled', merge(1,0,state%custom_optical_properties%enabled))
+    call h%write('custom_optical_properties/tau_mode', state%custom_optical_properties%tau_mode)
+    if (state%custom_optical_properties%enabled) then
+      call h%write('custom_optical_properties/wavelength', state%custom_optical_properties%wavelength)
+      call h%write('custom_optical_properties/pressure', state%custom_optical_properties%pressure)
+      call h%write('custom_optical_properties/dtau', state%custom_optical_properties%dtau)
+      call h%write('custom_optical_properties/w0', state%custom_optical_properties%w0)
+      call h%write('custom_optical_properties/g0', state%custom_optical_properties%g0)
+    endif
     call write_species_names(h, state%species_names, err)
   end subroutine
 
@@ -380,6 +390,15 @@ contains
       state%toa_pressure_maintenance%pressure_factor, err)
     call read_real_scalar(h, 'toa_pressure_maintenance/extreme_pressure_factor', &
       state%toa_pressure_maintenance%extreme_pressure_factor, err)
+    call read_flag(h, 'custom_optical_properties/enabled', state%custom_optical_properties%enabled, err)
+    call read_integer(h, 'custom_optical_properties/tau_mode', state%custom_optical_properties%tau_mode, err)
+    if (state%custom_optical_properties%enabled) then
+      call read_real_array(h, 'custom_optical_properties/wavelength', state%custom_optical_properties%wavelength, err)
+      call read_real_array(h, 'custom_optical_properties/pressure', state%custom_optical_properties%pressure, err)
+      call read_real_array(h, 'custom_optical_properties/dtau', state%custom_optical_properties%dtau, err)
+      call read_real_array(h, 'custom_optical_properties/w0', state%custom_optical_properties%w0, err)
+      call read_real_array(h, 'custom_optical_properties/g0', state%custom_optical_properties%g0, err)
+    endif
   end subroutine
 
 

@@ -705,3 +705,28 @@
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! getters and setters !!!
   !!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+  subroutine evoatmosphere_set_custom_optical_properties_wrapper(ptr, nw, wv, np, P, &
+      n1, n2, dtau, w1, w2, w0, g1, g2, g0, tau_mode, err) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: nw, np, n1, n2, w1, w2, g1, g2, tau_mode
+    real(c_double), intent(in) :: wv(nw), P(np), dtau(n1,n2), w0(w1,w2), g0(g1,g2)
+    character(c_char), intent(out) :: err(err_len+1)
+    type(EvoAtmosphere), pointer :: pc
+    character(:), allocatable :: err_f
+    call c_f_pointer(ptr, pc)
+    call pc%set_custom_optical_properties(wv, P, dtau, w0, g0, tau_mode, err_f)
+    err(1) = c_null_char
+    if (allocated(err_f)) call copy_string_ftoc(err_f, err)
+  end subroutine
+
+  subroutine evoatmosphere_unset_custom_optical_properties_wrapper(ptr, err) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    character(c_char), intent(out) :: err(err_len+1)
+    type(EvoAtmosphere), pointer :: pc
+    character(:), allocatable :: err_f
+    call c_f_pointer(ptr, pc)
+    call pc%unset_custom_optical_properties(err_f)
+    err(1) = c_null_char
+    if (allocated(err_f)) call copy_string_ftoc(err_f, err)
+  end subroutine

@@ -81,3 +81,10 @@ cdef extern void photochemwrk_molecules_per_particle_get(PhotochemWrk *ptr, int 
 
 cdef extern void photochemwrk_rainout_rates_get_size(PhotochemWrk *ptr, int *dim1, int *dim2)
 cdef extern void photochemwrk_rainout_rates_get(PhotochemWrk *ptr, int *dim1, int *dim2, double *arr)
+
+cdef extern void photochemwrk_tauc_get_size(PhotochemWrk *ptr, int *dim1, int *dim2)
+cdef extern void photochemwrk_tauc_get(PhotochemWrk *ptr, int *dim1, int *dim2, double *val)
+cdef extern void photochemwrk_w0c_get_size(PhotochemWrk *ptr, int *dim1, int *dim2)
+cdef extern void photochemwrk_w0c_get(PhotochemWrk *ptr, int *dim1, int *dim2, double *val)
+cdef extern void photochemwrk_g0c_get_size(PhotochemWrk *ptr, int *dim1, int *dim2)
+cdef extern void photochemwrk_g0c_get(PhotochemWrk *ptr, int *dim1, int *dim2, double *val)

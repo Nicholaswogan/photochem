@@ -2,17 +2,35 @@ module photochem_vars
   use, intrinsic :: iso_c_binding, only: c_double, c_int
   use photochem_const, only: dp
   use photochem_data, only: PhotochemData, ParticleXsections
-  use photochem_enum, only: AnalyticalJacobian, ContinuousPressTempEdd
+  use photochem_enum, only: AnalyticalJacobian, ContinuousPressTempEdd, TAU_MODE_DZ, TAU_MODE_DLOG10P
   use photochem_settings, only: PhotoSettings, CondensationParameters
   implicit none
   private
 
+  public :: CustomOpticalProperties
   public :: PhotochemVars
   public :: PressureTempEddProfile, TOAPressureMaintenance
   public :: time_dependent_flux_fcn, time_dependent_rate_fcn
   public :: binary_diffusion_fcn
   public :: refresh_temperature_dependent_vars, interp2particlexsdata
   public :: tropopause_layer_index
+
+  !> Pressure-based external aerosol optics, independent of the atmospheric grid.
+  type :: CustomOpticalProperties
+    logical :: enabled = .false.
+    integer :: tau_mode = TAU_MODE_DZ
+    real(dp), allocatable :: wavelength(:) !! nm, increasing
+    real(dp), allocatable :: pressure(:) !! dyn/cm^2, decreasing
+    real(dp), allocatable :: dtau(:,:), w0(:,:), g0(:,:) !! (pressure,wavelength)
+    ! Derived lazily for a model wavelength grid; never serialized.
+    real(dp), private, allocatable :: wavelength_edges_cache(:), log10_pressure_cache(:)
+    real(dp), private, allocatable :: dtau_cache(:,:), w0_cache(:,:), g0_cache(:,:)
+  contains
+    procedure :: set_custom_optical_properties => CustomOpticalProperties_set_custom_optical_properties
+    procedure :: unset_custom_optical_properties => CustomOpticalProperties_unset_custom_optical_properties
+    procedure :: validate => CustomOpticalProperties_validate
+    procedure :: evaluate => CustomOpticalProperties_evaluate
+  end type
 
   !> Persistent temperature and eddy-diffusion profiles defined on pressure.
   type :: PressureTempEddProfile
@@ -148,10 +166,8 @@ module photochem_vars
     type(ParticleXsections), allocatable :: particle_xs(:) !! (np)
     real(dp), allocatable :: gibbs_energy(:,:) !! (nz,ng) Joules/mol
 
-    ! Custom optical properties
-    real(dp), allocatable :: tauc(:,:) !! Custom layer optical depth, shape (nz,nw).
-    real(dp), allocatable :: w0c(:,:) !! Custom single-scattering albedo, shape (nz,nw).
-    real(dp), allocatable :: g0c(:,:) !! Custom scattering asymmetry parameter, shape (nz,nw).
+    ! Persistent custom optical prescription and its wavelength interpolation cache.
+    type(CustomOpticalProperties) :: custom_optical_properties
 
     ! other
     !> Number of times to reinitialize CVODE when it returns
@@ -225,6 +241,216 @@ module photochem_vars
   end interface
 
 contains
+
+  !> Validate and copy a pressure-based optical prescription, preserving self on error.
+  subroutine CustomOpticalProperties_set_custom_optical_properties(self, wv, P, dtau, w0, g0, tau_mode, err)
+    class(CustomOpticalProperties), intent(inout) :: self
+    real(dp), intent(in) :: wv(:) !! Increasing wavelength (nm).
+    real(dp), intent(in) :: P(:) !! Decreasing hydrostatic pressure (dyn/cm^2).
+    real(dp), intent(in) :: dtau(:,:) !! Extinction per cm or pressure decade, shape (size(P),size(wv)).
+    real(dp), intent(in) :: w0(:,:), g0(:,:) !! Dimensionless albedo and asymmetry, shape as dtau.
+    integer, intent(in) :: tau_mode !! TAU_MODE_DZ or TAU_MODE_DLOG10P.
+    character(:), allocatable, intent(out) :: err
+    type(CustomOpticalProperties) :: candidate
+
+    candidate%enabled = .true.
+    candidate%tau_mode = tau_mode
+    candidate%wavelength = wv
+    candidate%pressure = P
+    candidate%dtau = dtau
+    candidate%w0 = w0
+    candidate%g0 = g0
+    call candidate%validate(err)
+    if (allocated(err)) return
+
+    call self%unset_custom_optical_properties()
+    self%enabled = candidate%enabled
+    self%tau_mode = candidate%tau_mode
+    self%wavelength = candidate%wavelength
+    self%pressure = candidate%pressure
+    self%dtau = candidate%dtau
+    self%w0 = candidate%w0
+    self%g0 = candidate%g0
+  end subroutine
+
+  !> Disable custom optics and release both the prescription and derived cache.
+  subroutine CustomOpticalProperties_unset_custom_optical_properties(self)
+    class(CustomOpticalProperties), intent(inout) :: self
+    if (allocated(self%wavelength_edges_cache)) deallocate(self%wavelength_edges_cache)
+    if (allocated(self%log10_pressure_cache)) deallocate(self%log10_pressure_cache)
+    if (allocated(self%dtau_cache)) deallocate(self%dtau_cache)
+    if (allocated(self%w0_cache)) deallocate(self%w0_cache)
+    if (allocated(self%g0_cache)) deallocate(self%g0_cache)
+    if (allocated(self%wavelength)) deallocate(self%wavelength)
+    if (allocated(self%pressure)) deallocate(self%pressure)
+    if (allocated(self%dtau)) deallocate(self%dtau)
+    if (allocated(self%w0)) deallocate(self%w0)
+    if (allocated(self%g0)) deallocate(self%g0)
+    self%tau_mode = TAU_MODE_DZ
+    self%enabled = .false.
+  end subroutine
+
+  subroutine CustomOpticalProperties_validate(self, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    class(CustomOpticalProperties), intent(in) :: self
+    character(:), allocatable, intent(out) :: err
+    integer :: n, m
+
+    if (self%tau_mode /= TAU_MODE_DZ .and. self%tau_mode /= TAU_MODE_DLOG10P) then
+      err = 'Invalid custom optical properties tau_mode.'
+      return
+    endif
+    if (.not.self%enabled) return
+    if (.not.allocated(self%wavelength) .or. .not.allocated(self%pressure) .or. &
+        .not.allocated(self%dtau) .or. .not.allocated(self%w0) .or. .not.allocated(self%g0)) then
+      err = 'Enabled custom optical properties require all input arrays.'
+      return
+    endif
+    n = size(self%pressure)
+    m = size(self%wavelength)
+    if (n < 2 .or. m < 2) then
+      err = 'Custom optics require at least two pressures and wavelengths.'
+      return
+    endif
+    if (.not.all(ieee_is_finite(self%pressure)) .or. .not.all(ieee_is_finite(self%wavelength))) then
+      err = 'Custom optics coordinates must be finite.'
+      return
+    endif
+    if (any(self%pressure <= 0.0_dp) .or. any(self%wavelength <= 0.0_dp) .or. &
+        any(self%pressure(2:) >= self%pressure(:n-1)) .or. &
+        any(self%wavelength(2:) <= self%wavelength(:m-1))) then
+      err = 'Custom optics require positive decreasing pressure and increasing wavelength.'
+      return
+    endif
+    if (any(shape(self%dtau) /= [n,m]) .or. any(shape(self%w0) /= [n,m]) .or. &
+        any(shape(self%g0) /= [n,m])) then
+      err = 'Custom optical arrays must have shape (n_pressure,n_wavelength).'
+      return
+    endif
+    if (.not.all(ieee_is_finite(self%dtau)) .or. .not.all(ieee_is_finite(self%w0)) .or. &
+        .not.all(ieee_is_finite(self%g0))) then
+      err = 'Custom optical properties must be finite.'
+      return
+    endif
+    if (any(self%dtau < 0.0_dp) .or. any(self%w0 < 0.0_dp) .or. any(self%w0 > 1.0_dp) .or. &
+        any(abs(self%g0) > 1.0_dp)) then
+      err = 'Custom optics require dtau >= 0, 0 <= w0 <= 1, and -1 <= g0 <= 1.'
+    endif
+  end subroutine
+
+  !> Lazily map wavelengths, then interpolate all optics with shared pressure weights.
+  !! The first evaluation caches optical arrays at the target wavelength-bin
+  !! centers and a single log10-pressure grid. Later calls only map pressure.
+  !! A changed target wavelength grid rebuilds the cache. Both coordinates use
+  !! constant extrapolation. The per-decade mode converts at layer centers using
+  !! dtau*dz/(H*ln(10)). Original arrays remain the authoritative prescription.
+  subroutine CustomOpticalProperties_evaluate(self, wavelength_edges, pressure, scale_height, dz, tauc, w0c, g0c, err)
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    class(CustomOpticalProperties), intent(inout) :: self
+    real(dp), intent(in) :: wavelength_edges(:) !! Increasing target bin edges (nm).
+    real(dp), intent(in) :: pressure(:) !! Target layer-center hydrostatic pressures (dyn/cm^2).
+    real(dp), intent(in) :: scale_height(:), dz(:) !! Layer-center scale heights and thicknesses (cm).
+    real(dp), intent(out) :: tauc(:,:), w0c(:,:), g0c(:,:) !! Shape (size(pressure),size(wavelength_edges)-1).
+    character(:), allocatable, intent(out) :: err
+    integer :: ip(size(pressure))
+    real(dp) :: fp(size(pressure)), width(size(pressure))
+    real(dp) :: wavelength, fraction, logP
+    integer :: i, j, k, lo, hi, mid, nz, nw, np_source, nw_source
+    logical :: rebuild_cache
+
+    tauc = 0.0_dp
+    w0c = 0.0_dp
+    g0c = 0.0_dp
+    if (.not.self%enabled) return
+    nz = size(pressure)
+    nw = size(wavelength_edges)-1
+    if (nz < 1 .or. nw < 1 .or. size(scale_height) /= nz .or. size(dz) /= nz) then
+      err = 'Custom optics require target layers, wavelength bins, and matching atmospheric array sizes.'
+      return
+    endif
+    if (any(shape(tauc) /= [nz,nw]) .or. any(shape(w0c) /= [nz,nw]) .or. any(shape(g0c) /= [nz,nw])) then
+      err = 'Custom optics outputs must have shape (n_layers,n_wavelength_bins).'
+      return
+    endif
+    if (any(.not.ieee_is_finite(pressure)) .or. any(pressure <= 0.0_dp) .or. &
+        any(.not.ieee_is_finite(scale_height)) .or. any(scale_height <= 0.0_dp) .or. &
+        any(.not.ieee_is_finite(dz)) .or. any(dz <= 0.0_dp)) then
+      err = 'Custom optics mapping requires finite positive pressure, scale height, and layer thickness.'
+      return
+    endif
+    if (any(.not.ieee_is_finite(wavelength_edges)) .or. any(wavelength_edges <= 0.0_dp) .or. &
+        any(wavelength_edges(2:) <= wavelength_edges(:nw))) then
+      err = 'Custom optics target wavelength edges must be finite, positive, and increasing.'
+      return
+    endif
+
+    rebuild_cache = .true.
+    if (allocated(self%wavelength_edges_cache)) then
+      if (size(self%wavelength_edges_cache) == size(wavelength_edges)) then
+        rebuild_cache = any(self%wavelength_edges_cache /= wavelength_edges)
+      endif
+    endif
+    if (rebuild_cache) then
+      call self%validate(err)
+      if (allocated(err)) return
+      np_source = size(self%pressure)
+      nw_source = size(self%wavelength)
+      if (allocated(self%dtau_cache)) deallocate(self%dtau_cache, self%w0_cache, self%g0_cache)
+      allocate(self%dtau_cache(np_source,nw), self%w0_cache(np_source,nw), self%g0_cache(np_source,nw))
+      self%log10_pressure_cache = log10(self%pressure)
+      do j = 1,nw
+        wavelength = 0.5_dp*(wavelength_edges(j)+wavelength_edges(j+1))
+        lo = 1
+        hi = nw_source
+        do while (hi-lo > 1)
+          mid = (lo+hi)/2
+          if (wavelength < self%wavelength(mid)) then
+            hi = mid
+          else
+            lo = mid
+          endif
+        enddo
+        wavelength = max(self%wavelength(1), min(self%wavelength(nw_source), wavelength))
+        fraction = min(1.0_dp, max(0.0_dp, &
+          (wavelength-self%wavelength(lo))/(self%wavelength(lo+1)-self%wavelength(lo))))
+        ! All source pressures and all properties share this wavelength bracket.
+        self%dtau_cache(:,j) = (1.0_dp-fraction)*self%dtau(:,lo)+fraction*self%dtau(:,lo+1)
+        self%w0_cache(:,j) = (1.0_dp-fraction)*self%w0(:,lo)+fraction*self%w0(:,lo+1)
+        self%g0_cache(:,j) = (1.0_dp-fraction)*self%g0(:,lo)+fraction*self%g0(:,lo+1)
+      enddo
+      self%wavelength_edges_cache = wavelength_edges
+    endif
+
+    np_source = size(self%log10_pressure_cache)
+    ! Locate each layer's pressure bracket once, shared by every wavelength/property.
+    do i = 1,nz
+      lo = 1
+      hi = np_source
+      do while (hi-lo > 1)
+        mid = (lo+hi)/2
+        if (pressure(i) >= self%pressure(mid)) then
+          hi = mid
+        else
+          lo = mid
+        endif
+      enddo
+      ip(i) = lo
+      logP = log10(max(self%pressure(np_source), min(self%pressure(1), pressure(i))))
+      fp(i) = min(1.0_dp, max(0.0_dp, (logP-self%log10_pressure_cache(lo))/ &
+                                   (self%log10_pressure_cache(lo+1)-self%log10_pressure_cache(lo))))
+    enddo
+    width = dz
+    if (self%tau_mode == TAU_MODE_DLOG10P) width = width/(scale_height*log(10.0_dp))
+    do j = 1,nw
+      do i = 1,nz
+        k = ip(i)
+        fraction = fp(i)
+        tauc(i,j) = ((1.0_dp-fraction)*self%dtau_cache(k,j)+fraction*self%dtau_cache(k+1,j))*width(i)
+        w0c(i,j) = (1.0_dp-fraction)*self%w0_cache(k,j)+fraction*self%w0_cache(k+1,j)
+        g0c(i,j) = (1.0_dp-fraction)*self%g0_cache(k,j)+fraction*self%g0_cache(k+1,j)
+      enddo
+    enddo
+  end subroutine
 
   !> Return the layer index nearest a tropopause altitude.
   pure integer function tropopause_layer_index(z, trop_alt) result(trop_ind)
@@ -424,12 +650,6 @@ contains
 
     if (dat%reverse) allocate(var%gibbs_energy(var%nz,dat%ng))
 
-    allocate(var%tauc(var%nz,dat%nw))
-    var%tauc = 0.0_dp
-    allocate(var%w0c(var%nz,dat%nw))
-    var%w0c = 0.0_dp
-    allocate(var%g0c(var%nz,dat%nw))
-    var%g0c = 0.0_dp
   end subroutine
 
   subroutine read_stellar_flux(star_file, nw, wavl, photon_flux, err)

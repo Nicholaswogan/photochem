@@ -86,3 +86,8 @@ cdef extern void evoatmosphere_robust_step_wrapper(EvoAtmosphere *ptr, bool *giv
 
 cdef extern void evoatmosphere_production_and_loss_wrapper(EvoAtmosphere *ptr, char *species, int *nq, 
                                                         int *nz, double *usol, pl_pxd.ProductionLoss **pl_ptr, char *err)
+
+cdef extern void evoatmosphere_set_custom_optical_properties_wrapper(EvoAtmosphere *ptr,
+    int *nw, double *wv, int *np, double *P, int *n1, int *n2, double *dtau,
+    int *w1, int *w2, double *w0, int *g1, int *g2, double *g0, int *tau_mode, char *err)
+cdef extern void evoatmosphere_unset_custom_optical_properties_wrapper(EvoAtmosphere *ptr, char *err)

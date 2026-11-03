@@ -208,9 +208,9 @@ def _assert_state_dict_equal(left, right):
         np.testing.assert_array_equal(left[key], right[key], err_msg=key)
 
 
-def _expect_state_error(function, *args):
+def _expect_state_error(function, *args, **kwargs):
     try:
-        function(*args)
+        function(*args, **kwargs)
     except PhotoException as exc:
         return str(exc)
     raise AssertionError('Invalid atmospheric state operation was accepted')
@@ -338,11 +338,14 @@ def test_model_state_errors():
     cases.append(unknown)
     for key, value in (
         ('schema_version', np.array(99)),
+        ('schema_version', np.array(1, dtype=np.int32)),
         ('schema_version', np.array(1.0)),
         ('nq', np.array(-1)),
         ('nq', np.array(2**63 - 1, dtype=np.int64)),
         ('planet_mass', np.array(np.nan)),
         ('profile_enabled', np.array(2)),
+        ('optics_enabled', np.array(2)),
+        ('optics_tau_mode', np.array(0)),
         ('temperature', original['temperature'][:-1]),
         ('temperature', np.array([1.])),
         ('temperature', np.full_like(original['temperature'], -1.)),
@@ -1404,8 +1407,142 @@ def test_wrapper():
         pl.integrated_total_production-pl.integrated_total_loss
     )
 
+def test_custom_optical_properties():
+    """External optics remap with hydrostatic pressure and survive restarts."""
+    pc = EvoAtmosphere(zahnle_earth, fixture_file("settings.yaml"),
+                       fixture_file("sun.txt"), fixture_file("atmosphere.txt"))
+    wv = np.array([1.0, 1.0e9])
+    pressure = np.array([1.0e9, 1.0e-12])
+    dtau = np.full((2, 2), 1.0e-7)
+    w0 = np.full((2, 2), 0.5)
+    g0 = np.full((2, 2), 0.3)
+    pc.prep_atmosphere(pc.wrk.usol)
+    baseline = pc.wrk.optical_depth
+    pc.set_custom_optical_properties(wv, pressure, np.zeros_like(dtau), w0, g0, 2)
+    pc.prep_atmosphere(pc.wrk.usol)
+    np.testing.assert_allclose(pc.wrk.optical_depth, baseline)
+    for mode in (1, 2):
+        pc.set_custom_optical_properties(wv, pressure, dtau, w0, g0, mode)
+        pc.prep_atmosphere(pc.wrk.usol)
+        expected = 1.0e-7*pc.var.dz
+        if mode == 2:
+            expected /= pc.wrk.scale_height*np.log(10.0)
+        np.testing.assert_allclose(pc.wrk.tauc, np.broadcast_to(expected[:, None], pc.wrk.tauc.shape))
+        np.testing.assert_allclose(pc.wrk.w0c, 0.5)
+        np.testing.assert_allclose(pc.wrk.g0c, 0.3)
+        assert np.any(pc.wrk.optical_depth > baseline)
+
+    # Pressure dependence must use the hydrostatic coordinate and remap on prep.
+    pressure = np.array([pc.wrk.pressure_hydro[0], pc.wrk.pressure_hydro[-1]])
+    dtau[:] = [[1.0e-6, 1.0e-6], [1.0e-8, 1.0e-8]]
+    pc.set_custom_optical_properties(wv, pressure, dtau, w0, g0, 2)
+    pc.prep_atmosphere(pc.wrk.usol)
+    def check_mapping():
+        fraction = np.clip((np.log10(pc.wrk.pressure_hydro)-np.log10(pressure[1])) /
+                           np.log10(pressure[0]/pressure[1]), 0.0, 1.0)
+        expected = (1.0e-8 + fraction*(1.0e-6-1.0e-8))*pc.var.dz/(pc.wrk.scale_height*np.log(10.0))
+        np.testing.assert_allclose(pc.wrk.tauc, np.broadcast_to(expected[:, None], pc.wrk.tauc.shape))
+    check_mapping()
+    state = pc.model_state()
+    saved = state.to_dict()
+    assert int(saved['schema_version']) == 2
+    assert int(saved['optics_enabled']) == 1
+    np.testing.assert_array_equal(saved['optics_dtau'], dtau)
+    dtau[0, 0] = 999.0
+    np.testing.assert_array_equal(state.to_dict()['optics_dtau'], saved['optics_dtau'])
+    dtau[:] = saved['optics_dtau']
+
+    pc.update_vertical_grid(TOA_alt=1.02*pc.var.top_atmos)
+    check_mapping()
+    trial = pc.wrk.usol
+    trial *= 1.01
+    pc.prep_atmosphere(trial)
+    check_mapping()
+    for restored in (EvoAtmosphereState.from_dict(saved), state):
+        pc.unset_custom_optical_properties()
+        pc.initialize_from_state(restored)
+        check_mapping()
+    with tempfile.TemporaryDirectory() as tmp:
+        filename = Path(tmp) / 'optics.h5'
+        state.save_to_h5(filename)
+        loaded = EvoAtmosphereState(filename)
+        _assert_state_dict_equal(loaded.to_dict(), saved)
+        pc.initialize_from_state(loaded)
+        check_mapping()
+
+    # Nonsquare arrays exercise the common metadata/array layout and constructor.
+    nonsquare = copy.deepcopy(saved)
+    nonsquare['optics_wavelength'] = np.array([1.0, 100.0, 1000.0, 1.0e9])
+    nonsquare['optics_pressure'] = np.array([1.0e9, 1.0e3, 1.0e-8])
+    sequence = np.arange(12, dtype=float).reshape(3, 4)
+    nonsquare['optics_dtau'] = (sequence + 1)*1.0e-8
+    nonsquare['optics_w0'] = 0.1 + 0.05*sequence
+    nonsquare['optics_g0'] = -0.8 + 0.1*sequence
+    imported = EvoAtmosphereState.from_dict(nonsquare)
+    _assert_state_dict_equal(imported.to_dict(), nonsquare)
+    with tempfile.TemporaryDirectory() as tmp:
+        filename = Path(tmp) / 'nonsquare-optics.h5'
+        imported.save_to_h5(filename)
+        _assert_state_dict_equal(EvoAtmosphereState(filename).to_dict(), nonsquare)
+    for key, value in (
+        ('optics_enabled', np.array(2)),
+        ('optics_tau_mode', np.array(0)),
+        ('optics_dtau', -nonsquare['optics_dtau']),
+        ('optics_dtau', np.zeros((4, 3))),
+        ('optics_w0', np.full((3, 4), 1.1)),
+        ('optics_g0', np.full((3, 4), np.nan)),
+        ('optics_pressure', nonsquare['optics_pressure'][::-1]),
+    ):
+        invalid = copy.deepcopy(nonsquare)
+        invalid[key] = value
+        _expect_state_error(EvoAtmosphereState.from_dict, invalid)
+    # Disabled snapshots cannot carry nonempty optical arrays.
+    disabled = pc.model_state().to_dict()
+    disabled['optics_enabled'] = np.array(0, dtype=np.int32)
+    _expect_state_error(EvoAtmosphereState.from_dict, disabled)
+
+    # Invalid prescriptions leave the installed input and derived arrays intact.
+    for kwargs in (dict(tau_mode=0), dict(P=pressure[::-1]),
+                   dict(dtau=-dtau), dict(w0=2*w0+1), dict(g0=4*g0),
+                   dict(wv=wv[:1]), dict(dtau=np.zeros((1, 2)))):
+        args = dict(wv=wv, P=pressure, dtau=dtau, w0=w0, g0=g0, tau_mode=2)
+        args.update(kwargs)
+        _expect_state_error(pc.set_custom_optical_properties, **args)
+        np.testing.assert_array_equal(pc.model_state().to_dict()['optics_dtau'], saved['optics_dtau'])
+        check_mapping()
+    for field in ('tauc', 'w0c', 'g0c'):
+        assert not hasattr(pc.var, field)
+        try:
+            setattr(pc.wrk, field, np.zeros_like(pc.wrk.tauc))
+        except AttributeError:
+            pass
+        else:
+            raise AssertionError('Derived optics must not be writable')
+    pc.initialize_stepper(pc.wrk.usol)
+    _expect_state_error(pc.set_custom_optical_properties, wv, pressure, dtau, w0, g0, 2)
+    _expect_state_error(pc.unset_custom_optical_properties)
+    pc.destroy_stepper()
+    pc.unset_custom_optical_properties()
+    pc.prep_atmosphere(pc.wrk.usol)
+    assert np.all(pc.wrk.tauc == 0.0)
+    # Schema-1 states are explicitly unsupported.
+    old = {key: value for key, value in saved.items() if not key.startswith('optics_')}
+    old['schema_version'] = np.array(1, dtype=np.int32)
+    _expect_state_error(EvoAtmosphereState.from_dict, old)
+    no_particles = EvoAtmosphere(fixture_file("no_particle_test.yaml"),
+                                fixture_file("test_settings_minimal.yaml"),
+                                fixture_file("sun.txt"), data_dir=str(DATA_DIR))
+    no_particles.set_custom_optical_properties(wv, pressure, dtau, w0, g0, 1)
+    z = np.array([0.0, 5.0e6, 1.0e7])
+    no_particles.initialize_atmosphere_z(z, np.array([300., 240., 180.]),
+                                        np.full(3, 1.0e6), 1.0e6, {"H2": np.ones(3)})
+    assert no_particles.model_state().to_dict()['optics_enabled']
+    assert np.all(no_particles.wrk.tauc > 0.0)
+
+
 def main():
 
+    test_custom_optical_properties()
     test_package_version_ownership()
     test_runtime_data_defaults()
     test_packaged_solar_spectrum()
