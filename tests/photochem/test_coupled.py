@@ -21,7 +21,7 @@ def input_files(output_dir):
     zahnle_rx_and_thermo_files(
         atoms_names=['H','N','O','C'],
         rxns_filename=str(output_dir / 'mechanism_coupled.yaml'),
-        thermo_filename=None
+        thermo_filename=None,
     )
     stars.solar_spectrum(
         outputfile=str(output_dir / 'flux_coupled.txt'),
@@ -80,16 +80,22 @@ def run_solver_checks():
     initial = np.array([6.0, 300.0, 200.0])
     restored_states = []
     trials = []
-    model.pc = SimpleNamespace(initialize_from_state=restored_states.append)
+    model.c = SimpleNamespace(T=np.zeros(1), P_top=1.0)
+    model.pc = SimpleNamespace(initialize_from_state=restored_states.append,
+                               model_state=lambda: SimpleNamespace(to_dict=lambda: {}),
+                               var=SimpleNamespace(toa_pressure_maintenance=SimpleNamespace(target_pressure=0.1)))
     state = {'photochem': {'toa_target_pressure': np.array(0.1)}}
-    model._validate_state = lambda value: (value, np.ones(2), np.array([10., 1.]), {})
-    model._fixed_point_state_from_climate = lambda climate: initial.copy()
+    coupling = model._unpack_coupling_state(initial)
+    model._validate_state = lambda value: (value, np.ones(2), np.array([10., 1.]), deepcopy(coupling), np.zeros(1, dtype=bool))
 
     def fixed_point_map(x, require_chemistry_to_converge, *, chemistry_diagnostics):
         assert require_chemistry_to_converge
-        trials.append(x.copy())
+        vector = model._pack_coupling_state(x)
+        trials.append(vector.copy())
         chemistry_diagnostics.update(converged=True, steps=1)
-        return x + np.array([0.2, 20.0, 10.0])
+        output = model._unpack_coupling_state(vector + np.array([0.2, 20.0, 10.0]))
+        model._coupling_state = deepcopy(output)
+        return output
 
     model._fixed_point_map = fixed_point_map
     model.initialize_solver(
@@ -108,6 +114,9 @@ def run_solver_checks():
     assert solver.chemistry_converged
     assert solver.chemistry_diagnostics == {'converged': True, 'steps': 1}
     assert len(solver.solver_history) == 1
+    captured = model.model_state()['coupling']
+    np.testing.assert_allclose(model._pack_coupling_state(captured), solver.fixed_point_gx)
+    assert not np.array_equal(model._pack_coupling_state(captured), solver._next_x)
     assert model.iterate() == (True, False)
     np.testing.assert_allclose(trials[1], initial + [0.05, 5.0, 2.5])
     assert model.iterate() == (True, False)
@@ -115,7 +124,7 @@ def run_solver_checks():
 
     def identity_map(x, require_chemistry_to_converge, *, chemistry_diagnostics):
         chemistry_diagnostics.update(converged=False, steps=7000)
-        return x.copy()
+        return deepcopy(x)
 
     model._fixed_point_map = identity_map
     assert model.find_steady_state(initial_guess=state)
@@ -164,7 +173,12 @@ def run_restart_checks():
     model = initialize()
     model.c.verbose = False
     guess = model.initial_guess(edd=1e5)
-    assert set(guess['climate']) == {'pressure', 'temperature', 'convecting_with_below'}
+    assert guess['schema_version'] == 4
+    assert set(guess) == {'schema_version', 'photochem', 'edd', 'edd_pressure',
+                          'coupling', 'convecting_with_below'}
+    assert set(guess['coupling']) == {'pressure', 'temperature'}
+    assert 'climate' not in guess
+    assert guess['convecting_with_below'].dtype == np.dtype(bool)
     assert model.solver is None
     assert guess['edd'].shape == guess['edd_pressure'].shape == (2,)
     assert_state_equal(model.model_state(), guess)
@@ -176,7 +190,8 @@ def run_restart_checks():
     assert model.solver.chemistry_converged is None
     restored = model.model_state()
     assert_state_equal(restored, guess)
-    restored['climate']['temperature'][0] += 10.0
+    restored['coupling']['temperature'][0] += 10.0
+    restored['convecting_with_below'][:] = False
     restored['edd'][0] *= 2.0
     assert_state_equal(model.model_state(), guess)
 
@@ -192,20 +207,26 @@ def run_restart_checks():
     # Validation failures must leave the existing atmosphere and solver alone.
     saved_solver = fresh.solver
     invalid_states = []
-    for key, value in [('schema_version', 999), ('edd', np.array([-1., 1.]))]:
+    for key, value in [('schema_version', 999), ('schema_version', 1), ('schema_version', 2),
+                       ('schema_version', 3), ('unexpected_field', False), ('edd', np.array([-1., 1.]))]:
         invalid = deepcopy(guess)
         invalid[key] = value
         invalid_states.append(invalid)
     for key, value in [('pressure', np.array([1e6, 1.])),
-                       ('temperature', np.array([np.nan])),
-                       ('convecting_with_below', np.zeros(50, dtype=int))]:
+                       ('temperature', np.array([np.nan]))]:
         invalid = deepcopy(guess)
-        invalid['climate'][key] = value
+        invalid['coupling'][key] = value
         invalid_states.append(invalid)
+    invalid = deepcopy(guess)
+    invalid['convecting_with_below'] = np.zeros(50, dtype=int)
+    invalid_states.append(invalid)
+    invalid = deepcopy(guess)
+    invalid['coupling']['pressure'][1] *= 1.01
+    invalid_states.append(invalid)
     for factor in (1.0, 2.0):
         invalid = deepcopy(guess)
         invalid['photochem']['toa_target_pressure'] = np.array(
-            factor * guess['climate']['pressure'][0])
+            factor * guess['coupling']['pressure'][0])
         invalid_states.append(invalid)
     invalid = deepcopy(guess)
     del invalid['photochem']['temperature']
@@ -232,9 +253,16 @@ def run_grid_checks():
     grid = model._make_pressure_grid(6.0)
     assert grid.size == model.c.T.size + 1
     np.testing.assert_allclose(grid, [6., 4.25, 2.5, 0.75, -1.])
+    coupling = {'pressure': 10.0**model._make_pressure_grid(6.0),
+                'temperature': np.full(model.c.T.size + 1, 250.0)}
+    packed = model._pack_coupling_state(coupling)
+    decoded = model._unpack_coupling_state(packed)
+    assert_state_equal(decoded, coupling)
+    decoded['temperature'][0] = 300.0
+    assert coupling['temperature'][0] == packed[1] == 250.0
     # For a linear T(log10 P), interpolation has an analytical answer.
     x = np.concatenate(([6.0], 200.0 + 10.0*grid))
-    T_init = model._climate_temperature_guess(x)
+    T_init = model._climate_temperature_guess(model._unpack_coupling_state(x))
     np.testing.assert_allclose(T_init, [260., 252.5, 237.5, 222.5, 207.5])
     assert T_init.size == model.c.T.size + 1
     assert not np.allclose(T_init[1:], 0.5*(x[1:-1] + x[2:]))
@@ -243,7 +271,7 @@ def run_grid_checks():
     maintenance.target_pressure = model.c.P_top
     grid = model._make_pressure_grid(6.0)
     x = np.concatenate(([6.0], 200.0 + 10.0*grid))
-    np.testing.assert_allclose(model._climate_temperature_guess(x),
+    np.testing.assert_allclose(model._climate_temperature_guess(model._unpack_coupling_state(x)),
                                np.concatenate(([x[1]], 0.5*(x[1:-1] + x[2:]))))
 
     # A shallower chemical domain uses constant endpoint extrapolation for
@@ -251,14 +279,16 @@ def run_grid_checks():
     maintenance.target_pressure = 10.0
     grid = model._make_pressure_grid(6.0)
     x = np.concatenate(([6.0], 200.0 + 10.0*grid))
-    np.testing.assert_allclose(model._climate_temperature_guess(x),
+    np.testing.assert_allclose(model._climate_temperature_guess(model._unpack_coupling_state(x)),
                                [260., 252.5, 237.5, 222.5, 210.])
 
     # Derive the vector after the saved chemical top has been restored.
     maintenance.target_pressure = 0.01
     climate = {'pressure': np.array([1e6, 1e5, 1e3, 1e1, 2.]),
                'temperature': np.array([300., 280., 240., 200., 180.])}
-    vector = model._fixed_point_state_from_climate(climate)
+    model._profiles_from_climate = lambda: (climate['pressure'], climate['temperature'], {})
+    coupling = model._coupling_state_from_climate()
+    vector = model._pack_coupling_state(coupling)
     assert vector.size == model.c.T.size + 2
     np.testing.assert_allclose(vector[[0, 1, -1]], [6., 300., 180.])
     np.testing.assert_allclose(model._make_pressure_grid(vector[0])[-1], -2.0)
@@ -272,14 +302,16 @@ def run_acceleration_checks():
         calls = []
 
         def evaluate(x, require_chemistry_to_converge, *, chemistry_diagnostics):
-            calls.append(x.copy())
+            vector = physical_model._pack_coupling_state(x)
+            calls.append(vector.copy())
             chemistry_diagnostics['converged'] = True
-            return mapping(x)
+            return physical_model._unpack_coupling_state(mapping(vector))
 
-        physical_model = SimpleNamespace(
-            _fixed_point_map=evaluate, c=SimpleNamespace(P_top=1.0),
-            pc=SimpleNamespace(var=SimpleNamespace(
-                toa_pressure_maintenance=SimpleNamespace(target_pressure=0.1))))
+        physical_model = coupled.CoupledPhotochemistryClimate.__new__(coupled.CoupledPhotochemistryClimate)
+        physical_model.c = SimpleNamespace(P_top=1.0, T=np.zeros(1))
+        physical_model.pc = SimpleNamespace(var=SimpleNamespace(
+            toa_pressure_maintenance=SimpleNamespace(target_pressure=0.1)))
+        physical_model._fixed_point_map = evaluate
         solver = coupled.FixedPointSolver(
             physical_model, anderson_memory=memory, max_iterations=500, **options)
         return solver, calls

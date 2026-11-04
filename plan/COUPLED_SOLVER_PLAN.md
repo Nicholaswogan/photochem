@@ -4,9 +4,8 @@
 
 Atmospheric state support is implemented through `EvoAtmosphereState`, including in-memory capture/restore, HDF5 persistence, and NumPy dictionary interchange. This document covers coupled-solver architecture and the additional rollback requirements for future adaptive coupling.
 
-The concrete four-mode extension (haze-free/haze-coupled, each with free or prescribed surface temperature) is planned in [COUPLED_HAZE_FIXED_T_PLAN.md](COUPLED_HAZE_FIXED_T_PLAN.md). It starts with single-sweep fixed-point updates: chemistry, then climate with trial haze optics fixed, then microphysics. Prescribed-temperature updates use a climate-only CO2 search before the one microphysical solve. A future quasi-static endpoint update will repeat the same fast sweep to self-consistency. That companion plan supersedes the generic cloud–climate interface proposal below; this document retains the baseline solver and future quasi-static/rollback design.
 
-The initial implementation alternates photochemical steady-state integration and radiative-convective climate solves with under-relaxation. The local `tests/photochem/test_coupled.py --full` case converged in 10 coupled iterations in about four minutes. Every chemical solve converged, with no integration or resync errors. Default test execution remains constructor-only smoke coverage; the full coupled calculation is local and outside CI.
+The initial implementation alternates photochemical steady-state integration and radiative-convective climate solves with under-relaxation. The local `tests/photochem/test_coupled.py --full` case converged in 10 coupled iterations in about four minutes. Every chemical solve converged, with no integration or resync errors. Default test execution remains inexpensive smoke coverage; the full coupled calculation is local and outside CI.
 
 ## Physical model and public API
 
@@ -118,7 +117,7 @@ Local result on 2026-10-29, using the current Earth coupled test:
 
 Anderson saved four map evaluations and 21.5% elapsed time (1.27x speedup). Chemistry converged throughout both runs, with zero integration errors or resynchronization failures. The accelerated run required no history resets. Final climate surface temperatures were 294.5903 K and 294.5832 K; the maximum photochemical temperature difference on common pressure coordinates was 0.0542%, and surface pressures differed by 2.063e-5 dex.
 
-Recommendation: retain plain damping as the default and offer memory-3 Anderson as an optional mode. This is a useful improvement on one atmosphere, not evidence of robustness across different compositions, condensation transitions, or future haze feedback. Broader physical cases should precede a default change. Deterministic local checks also verify faster convergence on an affine map, bounded history, one evaluation per iteration, and damping fallback for dependent secants, invalid temperatures, and residual growth.
+The current default uses memory-3 Anderson acceleration; set `anderson_memory=0` for plain damping. This is a useful improvement on one atmosphere, not evidence of robustness across different compositions, condensation transitions, or future haze feedback. Broader physical cases should precede a default change. Deterministic local checks also verify faster convergence on an affine map, bounded history, one evaluation per iteration, and damping fallback for dependent secants, invalid temperatures, and residual growth.
 
 ## Quasi-static adaptive coupling
 
@@ -183,7 +182,6 @@ HDF5 persistence is a later phase and is not needed for in-memory trial branchin
 
 ## Future cloud and haze coupling
 
-The following is an earlier interface proposal. Use [COUPLED_HAZE_FIXED_T_PLAN.md](COUPLED_HAZE_FIXED_T_PLAN.md) for the current implementation scope, exchanged variables, and work order.
 
 Add this after the basic solvers and state support are complete. Allow a replaceable cloud–climate component that internally converges climate and cloud/haze microphysics together. Its inputs may include composition, particle production rates from photochemistry, and atmospheric temperature, pressure, altitude, and density. Keep climate-specific exchange behind a few helpers now; defer the detailed component interface.
 
@@ -226,4 +224,3 @@ The replaceable component must expose its resulting profiles and convergence sta
 5. Add change-limited adaptive intervals and acceptance/rejection first, then add step doubling with scaled error measurement using the same framework.
 6. Verify rollback, time-dependent callbacks, behavior under interval refinement, and final chemical/climate status for both controllers. Compare representative solutions and cost with the existing fixed-point method.
 7. Add HDF5 coupled-state persistence and flat dictionary interchange separately. The initial public coupled warm-start API is described above; stronger rollback guarantees remain separate.
-8. Implement the concrete haze and prescribed-temperature modes in [COUPLED_HAZE_FIXED_T_PLAN.md](COUPLED_HAZE_FIXED_T_PLAN.md). A general replaceable climate-component interface is deferred.

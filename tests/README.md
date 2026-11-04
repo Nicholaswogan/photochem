@@ -27,6 +27,7 @@ Test inputs are resolved from the source tree, so the Fortran executables and Py
 - `test_memory` broadly exercises `EvoAtmosphere` workflows. It checks returned errors, but does not comprehensively validate numerical outputs; its primary purpose is execution under Valgrind.
 - `test_evolution` is a longer end-to-end evolution exercise. It is built in CI to prevent source drift, but is intended for manual runs and is not executed in CI.
 - `test_python.py` is a smoke test for the installed Python wrappers.
+- `test_coupled.py` defaults to inexpensive haze-free initialization and solver smoke checks. `--restart` exercises grid exchange, solver behavior, and state restoration without chemical integration; `--full` runs the longer coupled convergence and converged warm-start checks locally, outside CI.
 
 The analytical chemistry Jacobian is the production default. Automatic differentiation remains selectable as an independent correctness oracle. Any new composition-dependent chemistry tendency must receive a matching analytical derivative and analytical-versus-autodiff coverage in `test_jacobian`; unsupported terms must not be silently omitted from the analytical path.
 
