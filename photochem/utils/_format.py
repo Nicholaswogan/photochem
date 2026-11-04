@@ -291,7 +291,8 @@ def resave_mechanism_with_atoms(
         atoms_names, 
         exclude_species=[], 
         remove_particles=False, 
-        remove_reaction_particles=False
+        remove_reaction_particles=False,
+        remove_haze_optics=False
     ):
     """Alters a reaction mechanism file with altered atoms.
 
@@ -309,6 +310,9 @@ def resave_mechanism_with_atoms(
         If True, then all particles are removed, by default False
     remove_reaction_particles : bool, optional
         If True, then partcles forming from reactions are removed, by default False
+    remove_haze_optics : bool, optional
+        Set optical-properties to 'none' for retained HCaer1, HCaer2, and
+        HCaer3 particles, preserving their chemistry. Default False.
     """    
 
     with open(infile,'r') as f:
@@ -321,6 +325,11 @@ def resave_mechanism_with_atoms(
         remove_particles,
         remove_reaction_particles
     )
+
+    if remove_haze_optics:
+        for particle in out.get('particles', []):
+            if particle['name'] in ('HCaer1', 'HCaer2', 'HCaer3'):
+                particle['optical-properties'] = 'none'
 
     out = FormatReactions_main(out)
     with open(outfile,'w') as f:
@@ -376,7 +385,8 @@ def zahnle_rx_and_thermo_files(
         thermo_filename='photochem_thermo.yaml',
         exclude_species=[],
         remove_particles=False, 
-        remove_reaction_particles=False
+        remove_reaction_particles=False,
+        remove_haze_optics=False
     ):
     """Generates input reactions and thermodynamic files for photochem by altering the main
     reaction network (zahnle_earth.yaml).
@@ -395,12 +405,19 @@ def zahnle_rx_and_thermo_files(
         If True, then particles will be removed, by default False.
     remove_reaction_particles : bool, optional
         If True, then reactions particles are removed, by default False.
+    remove_haze_optics : bool, optional
+        Disable native optics for retained HCaer1, HCaer2, and HCaer3 particles
+        in the reaction file, preserving their chemistry. Default False.
     """
 
     zahnle_earth = DATA_DIR+'/reaction_mechanisms/zahnle_earth.yaml'
     # Kinetics
     if rxns_filename is not None:
-        resave_mechanism_with_atoms(zahnle_earth, rxns_filename, atoms_names, exclude_species, remove_particles, remove_reaction_particles)
+        resave_mechanism_with_atoms(
+            zahnle_earth, rxns_filename, atoms_names, exclude_species,
+            remove_particles, remove_reaction_particles,
+            remove_haze_optics=remove_haze_optics
+        )
 
     # Thermodynamics
     if thermo_filename is not None:

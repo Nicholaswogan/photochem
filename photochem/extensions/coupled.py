@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import constants
 
 from copy import deepcopy
 from collections import deque
@@ -8,7 +9,13 @@ from tempfile import TemporaryDirectory
 
 from photochem.utils import climate
 from photochem.clima import AdiabatClimate, ClimaException
-from photochem import EvoAtmosphere, EvoAtmosphereState, PhotoException, PressureBC, CondensingParticle
+from photochem import EvoAtmosphere, EvoAtmosphereState, PhotoException, PressureBC, CondensingParticle, ReactionParticle
+
+# CGS constants and the numerical unit for the linear particle-column block.
+_K_BOLTZ = constants.Boltzmann*1e7
+_AVOGADRO = constants.Avogadro
+_G = constants.G*1e3
+_HAZE_COLUMN_SCALE = 1e10  # particles/cm² per pressure decade
 
 
 class CoupledPhotochemistryClimate():
@@ -34,6 +41,18 @@ class CoupledPhotochemistryClimate():
     climate_top_pressure : float, optional
         Climate top pressure in dyn/cm², default 1.0. Independent of the
         photochemical top pressure.
+    haze_microphysics : bool, optional
+        Enable external hydrocarbon haze microphysics, default false. Requires
+        at least one of HCaer1, HCaer2, or HCaer3, formed by reaction and with
+        native optical properties set to ``'none'``.
+    haze_microphysics_options : dict, optional
+        Options for ``haze_microphysics.microphysics``: particle_density,
+        monomer_radius, charging_radius, max_radius, sweep_below, rtol, atol,
+        and method. Uses that function's defaults and CGS units. Production,
+        atmospheric inputs, and column normalization are supplied internally.
+        The additional option sweep_below_pressure (dyn/cm²) removes particles
+        at larger pressures. It is converted with each updated atmosphere and
+        cannot be combined with the altitude-based sweep_below. Default None.
     data_dir : str, optional
         Model data directory. Defaults to the package data directory.
 
@@ -45,6 +64,11 @@ class CoupledPhotochemistryClimate():
         Climate model, available for configuration and inspection.
     solver : FixedPointSolver or None
         Coupling solver created by ``initialize_solver``.
+    haze_diagnostics : dict or None
+        Last completed haze solve: native pressure, particle profiles, mass
+        flux, source and retained column production, and mass-column comparison.
+        CGS units; reset on initialization and at the start of each evaluation.
+
     """
 
     def __init__(
@@ -55,6 +79,8 @@ class CoupledPhotochemistryClimate():
             climate_condensates=('H2O', 'CO2'),
             climate_number_of_layers=50,
             climate_top_pressure=1.0,
+            haze_microphysics=False,
+            haze_microphysics_options=None,
             data_dir=None,
         ):
 
@@ -69,6 +95,11 @@ class CoupledPhotochemistryClimate():
         self.pc.var.nsteps_before_giveup = 7000
         self.pc.var.conv_longdy = 1.0e-3
 
+        # Validate Photochem
+        self.haze_microphysics = bool(haze_microphysics)
+        self._haze_options = self._validate_haze_options(haze_microphysics_options)
+        self.haze_diagnostics = None
+        self._haze_indices = self._validate_photochem_for_haze(self.pc, haze_microphysics)
 
         # Validate and save the climate condensibles
         self.climate_condensates = tuple(climate_condensates)
@@ -93,6 +124,55 @@ class CoupledPhotochemistryClimate():
         self._coupling_state = None
         self._state_ready = False
 
+    def _validate_haze_options(self, options):
+        """Copy and validate microphysics controls, using the standalone defaults."""
+        defaults = dict(particle_density=1.0, monomer_radius=1e-7,
+                        charging_radius=9e-6, max_radius=None, sweep_below=None,
+                        sweep_below_pressure=None,
+                        rtol=1e-6, atol=1e-10, method='LSODA')
+        if options is not None:
+            if not isinstance(options, dict) or set(options)-set(defaults):
+                raise ValueError('Unknown haze microphysics options.')
+            defaults.update(options)
+        pressure = defaults['sweep_below_pressure']
+        if pressure is not None:
+            pressure = float(pressure)
+            if not np.isfinite(pressure) or pressure <= 0.:
+                raise ValueError('sweep_below_pressure must be finite and positive (dyn/cm²).')
+            if defaults['sweep_below'] is not None:
+                raise ValueError('Specify only one of sweep_below and sweep_below_pressure.')
+            defaults['sweep_below_pressure'] = pressure
+        if self.haze_microphysics:
+            from .haze_microphysics import microphysics
+            microphysics(np.array([0., 1.]), np.full(2, 300.), np.zeros(2),
+                         np.ones(2), np.ones(2), np.zeros(2),
+                         **{key: value for key, value in defaults.items() if key != 'sweep_below_pressure'})
+        elif options:
+            raise ValueError('haze_microphysics_options requires haze_microphysics=True.')
+        return deepcopy(defaults)
+
+    def _validate_photochem_for_haze(self, pc, haze_microphysics):
+        """Return selected haze particle indices after validating their setup."""
+
+        if not haze_microphysics:
+            return np.empty(0, dtype=int)
+
+        names = pc.dat.species_names[:pc.dat.np]
+        indices = np.array([i for i, name in enumerate(names)
+                            if name in ('HCaer1', 'HCaer2', 'HCaer3')], dtype=int)
+        if indices.size == 0:
+            raise ValueError('Haze microphysics requires at least one of HCaer1, HCaer2, or HCaer3.')
+
+        formation = pc.dat.particle_formation_method
+        invalid = [names[i] for i in indices if formation[i] != ReactionParticle]
+        if invalid:
+            raise ValueError('Haze particles must use reaction formation: ' + ', '.join(invalid))
+
+        optical_properties = pc.dat.particle_optical_prop
+        invalid = [names[i] for i in indices if optical_properties[i] != 'none']
+        if invalid:
+            raise ValueError("Haze particles must have optical-properties: none: " + ', '.join(invalid))
+        return indices
 
     def _set_climate_from_photochem(
             self,
@@ -335,6 +415,11 @@ class CoupledPhotochemistryClimate():
         self._state_ready = False
         self._climate_convecting_with_below = None
         self._coupling_state = None
+        self.haze_diagnostics = None
+        if self.haze_microphysics:
+            self.pc.destroy_stepper()
+            self.pc.unset_custom_optical_properties()
+            self.c.rad.unset_custom_optical_properties()
 
         # Solve for steady-state climate.
         if not self.c.RCE_robust(P_i):
@@ -363,6 +448,10 @@ class CoupledPhotochemistryClimate():
         self._edd = edd.copy()
         self._edd_pressure = edd_pressure.copy()
         self._coupling_state = self._coupling_state_from_climate()
+        if self.haze_microphysics:
+            self._coupling_state.update(
+                particle_radius=np.full(self.c.T.size + 1, self._haze_options['monomer_radius']),
+                particle_column=np.zeros(self.c.T.size + 1))
 
         self._state_ready = True
         return self.model_state()
@@ -385,10 +474,12 @@ class CoupledPhotochemistryClimate():
         return np.linspace(log10P_surf, log10P_top, self.c.T.size + 1)
 
     def _validate_coupling_state(self, state, target_pressure=None):
-        """Copy valid pressure (dyn/cm²) and temperature (K) profiles."""
+        """Copy valid profiles: P (dyn/cm²), T (K), optional r (cm) and A (cm⁻²/dex)."""
         keys = {'pressure', 'temperature'}
+        if self.haze_microphysics:
+            keys.update(('particle_radius', 'particle_column'))
         if not isinstance(state, dict) or set(state) != keys:
-            raise ValueError('Coupling state must contain pressure and temperature.')
+            raise ValueError('Invalid coupling fields for the selected haze mode.')
         pressure = np.array(state['pressure'], dtype=float, copy=True)
         temperature = np.array(state['temperature'], dtype=float, copy=True)
         if (pressure.shape != (self.c.T.size + 1,) or temperature.shape != pressure.shape or
@@ -400,24 +491,45 @@ class CoupledPhotochemistryClimate():
         if not np.allclose(np.log10(pressure), expected, rtol=0.0, atol=1e-12):
             raise ValueError('Coupling pressures must follow the shared log-pressure grid and saved TOA target.')
         result = {'pressure': pressure, 'temperature': temperature}
+        if self.haze_microphysics:
+            radius = np.array(state['particle_radius'], dtype=float, copy=True)
+            column = np.array(state['particle_column'], dtype=float, copy=True)
+            if (radius.shape != pressure.shape or column.shape != pressure.shape or
+                    not np.all(np.isfinite(radius)) or np.any(radius <= 0.) or
+                    not np.all(np.isfinite(column)) or np.any(column < 0.)):
+                raise ValueError('Haze profiles require positive finite radii and nonnegative finite columns.')
+            if np.any(radius < self._haze_options['monomer_radius']*(1.-1e-12)):
+                raise ValueError('Haze radius cannot be smaller than the monomer radius.')
+            cap = self._haze_options['max_radius']
+            if cap is not None and np.any(radius > cap*(1.+1e-12)):
+                raise ValueError('Haze radius exceeds max_radius.')
+            result.update(particle_radius=radius, particle_column=column)
         return result
 
     def _pack_coupling_state(self, coupling):
-        """Pack pressure and T as [log10(surface pressure), temperatures]."""
+        """Pack pressure, T, and optional log-radius and scaled linear column."""
         coupling = self._validate_coupling_state(coupling)
         blocks = [[np.log10(coupling['pressure'][0])], coupling['temperature']]
+        if self.haze_microphysics:
+            blocks += [np.log10(coupling['particle_radius']),
+                       coupling['particle_column']/_HAZE_COLUMN_SCALE]
         return np.concatenate(blocks)
 
     def _unpack_coupling_state(self, x):
         """Decode a numerical iterate into independent physical profiles."""
         x = np.asarray(x, dtype=float)
         n = self.c.T.size + 1
-        size = 1 + n
+        size = 1 + n*(3 if self.haze_microphysics else 1)
         if (x.shape != (size,) or not np.all(np.isfinite(x)) or
                 np.any(x[1:1+n] <= 0.0)):
             raise ValueError('Invalid fixed-point vector.')
         result = {'pressure': 10.0**self._make_pressure_grid(x[0]),
                   'temperature': x[1:1+n].copy()}
+        if self.haze_microphysics:
+            if np.any(x[1+n:1+2*n] > np.log10(np.finfo(float).max)):
+                raise ValueError('Haze radius exceeds the floating-point range.')
+            result.update(particle_radius=10.0**x[1+n:1+2*n],
+                          particle_column=x[1+2*n:]*_HAZE_COLUMN_SCALE)
         return self._validate_coupling_state(result)
 
     def model_state(self):
@@ -428,6 +540,7 @@ class CoupledPhotochemistryClimate():
         The coupling profiles hold the latest physical map output, while the
         photochemical snapshot retains the atmosphere evaluated with the trial
         inputs. Numerical proposals and Anderson history are not saved.
+        Haze configuration is supplied by the destination model and is not saved.
 
         """
         if not self._state_ready:
@@ -491,6 +604,7 @@ class CoupledPhotochemistryClimate():
         if self.solver is not None:
             self.solver._initialized = False
         self._state_ready = False
+        self.haze_diagnostics = None
         self.pc.initialize_from_state(pc_state)
         self._edd, self._edd_pressure = edd, pressure
         self._climate_convecting_with_below = conv
@@ -569,6 +683,10 @@ class CoupledPhotochemistryClimate():
             'target_pressure': target_pressure,
         }
         inputs = {'profile': profile_inputs}
+        if self.haze_microphysics:
+            edges = self.pc.dat.wavl
+            inputs['optical_properties'] = self._haze_optics_inputs(
+                coupling, 0.5*(edges[:-1]+edges[1:]))
         return inputs
 
     def _run_photochem(self, inputs):
@@ -579,6 +697,8 @@ class CoupledPhotochemistryClimate():
         """
         pc = self.pc
         pc.destroy_stepper()
+        if self.haze_microphysics:
+            pc.set_custom_optical_properties(**inputs['optical_properties'])
         pc.set_press_temp_edd_profile(**inputs['profile'])
         try:
             converged = pc.find_steady_state()
@@ -645,6 +765,11 @@ class CoupledPhotochemistryClimate():
             'T_init': self._climate_temperature_guess(coupling),
             'convecting_with_below_init': self._climate_convecting_with_below.copy(),
         }
+        if self.haze_microphysics:
+            edges_sol, edges_ir = self.c.rad.sol.wavl, self.c.rad.ir.wavl
+            wavelength = np.unique(np.concatenate((0.5*(edges_sol[:-1]+edges_sol[1:]),
+                                                   0.5*(edges_ir[:-1]+edges_ir[1:]))))
+            inputs['optical_properties'] = self._haze_optics_inputs(coupling, wavelength)
         return inputs
 
     def _run_climate(self, inputs):
@@ -652,7 +777,10 @@ class CoupledPhotochemistryClimate():
 
         Does not update the saved coupled state.
         """
-        converged = self.c.RCE_robust(**inputs)
+        if self.haze_microphysics:
+            self.c.rad.set_custom_optical_properties(**inputs['optical_properties'])
+        climate_inputs = {key: value for key, value in inputs.items() if key != 'optical_properties'}
+        converged = self.c.RCE_robust(**climate_inputs)
         if not converged:
             converged = self.c.RCE_robust(inputs['P_i'], inputs['custom_dry_mix'])
         if not converged:
@@ -671,6 +799,200 @@ class CoupledPhotochemistryClimate():
             'temperature': np.interp(log_pressure, np.log10(pressure[::-1]), temperature[::-1]),
         }
 
+    def _haze_optics_inputs(self, coupling, wavelength):
+        """Compute external optics per pressure decade at wavelengths in nm."""
+        from .haze_optics import haze_optics
+        # Unit number density yields the numerical extinction cross section
+        # (cm²). Multiplying by column per decade gives optical depth per decade.
+        cross_section, w0, g0 = haze_optics(
+            wavelength*1e-7, coupling['particle_radius'],
+            np.ones_like(coupling['particle_radius']))
+        return dict(wv=wavelength.copy(), P=coupling['pressure'].copy(),
+                    dtau=cross_section*coupling['particle_column'][:, None],
+                    w0=np.clip(w0, 0., 1.), g0=np.clip(g0, -1., 1.), tau_mode=2)
+
+    def _haze_exchange_from_photochem(self):
+        """Snapshot chemical haze production and dry composition on hydrostatic P.
+
+        Reaction production alone supplies mass (g/cm³/s). Transport, boundary
+        fluxes, and other diagnostic processes are excluded. Source cell mass
+        columns are retained for clipping against the receiving pressure domain.
+        Diagnostic calls refresh prepared work arrays without advancing chemistry.
+        """
+        pc = self.pc
+        reactions = set(pc.dat.reaction_equations)
+        names, masses = pc.dat.species_names, pc.dat.species_mass
+        production = np.zeros(pc.var.nz)
+        usol = pc.wrk.usol
+        for index in self._haze_indices:
+            budget = pc.production_and_loss(names[index], usol)
+            chemical = np.array([label in reactions for label in budget.production_rx], dtype=bool)
+            production += np.sum(budget.production[:, chemical], axis=1)*masses[index]/_AVOGADRO
+        pressure = pc.wrk.pressure_hydro
+        if (not np.all(np.isfinite(production)) or np.any(production < 0.) or
+                not np.all(np.isfinite(pressure)) or np.any(pressure <= 0.) or
+                np.any(np.diff(pressure) >= 0.)):
+            raise PhotoException('Invalid chemical haze production or hydrostatic pressure.')
+        u = np.log10(pressure)
+        edges = np.concatenate(([np.log10(pc.wrk.surface_pressure*1e6)],
+                                0.5*(u[:-1]+u[1:]), [u[-1]-0.5*(u[-2]-u[-1])]))
+        if np.any(np.diff(edges) >= 0.):
+            raise PhotoException('Invalid hydrostatic source-cell pressure edges.')
+        gas_density = pc.wrk.densities[pc.dat.np:pc.dat.nsp]
+        if not np.all(np.isfinite(gas_density)):
+            raise PhotoException('Invalid photochemical gas composition for haze.')
+        gas_density = np.maximum(gas_density, 0.)
+        total = np.sum(gas_density, axis=0)
+        if np.any(total <= 0.):
+            raise PhotoException('Haze atmosphere requires positive gas density.')
+        mix = {sp: gas_density[i]/total for i, sp in enumerate(names[pc.dat.np:pc.dat.nsp])}
+        native_mass_column = np.sum(
+            usol[self._haze_indices]*masses[self._haze_indices, None]/_AVOGADRO*pc.var.dz)
+        return dict(pressure=pressure.copy(), pressure_edges=10.0**edges,
+                    production_column=production*pc.var.dz, mix=mix,
+                    photochemical_haze_mass_column=float(native_mass_column))
+
+    def _microphysics_inputs_from_climate(self, exchange, coupling_pressure):
+        """Build a hydrostatic climate-adjusted atmosphere and remap production.
+
+        Pressure is in dyn/cm², altitude in cm, T in K, mass density in g/cm³,
+        number density in cm⁻³, gravity in cm/s², and production in g/cm³/s.
+        Chemical dry ratios are combined with climate condensables. Climate
+        temperatures and condensables are held constant above climate top.
+        The pointwise source is linear in log-pressure, normalized to the source
+        cell mass columns overlapping this domain; excluded production is not
+        relocated below a moving surface. Neither physical model is modified.
+        """
+        climate_P, climate_T, climate_mix = self._profiles_from_climate()
+        bottom, top = coupling_pressure[0], coupling_pressure[-1]
+        knots = np.concatenate((coupling_pressure, climate_P, exchange['pressure'],
+                                exchange['pressure_edges']))
+        if self._haze_options['sweep_below_pressure'] is not None:
+            knots = np.append(knots, self._haze_options['sweep_below_pressure'])
+        pressure = np.unique(knots[(knots >= top) & (knots <= bottom)])[::-1]
+        u = np.log10(pressure)
+        pressure = pressure[np.concatenate(([True], -np.diff(u) > 1e-10))]
+        pressure[-1] = top
+        u = np.log10(pressure)
+        temperature = np.interp(u, np.log10(climate_P[::-1]), climate_T[::-1])
+        source_u = np.log10(exchange['pressure'][::-1])
+        dry_species = [sp for sp in self.c.species_names if sp not in self.climate_condensates]
+        fractions = {}
+        for sp in self.climate_condensates:
+            fractions[sp] = np.interp(u, np.log10(climate_P[::-1]), climate_mix[sp][::-1])
+        condensate_total = sum(fractions.values(), np.zeros(pressure.size))
+        if (not np.all(np.isfinite(condensate_total)) or np.any(condensate_total < 0.) or
+                np.any(condensate_total > 1.+1e-12)):
+            raise ValueError('Invalid climate condensable composition for haze.')
+        dry = np.array([np.interp(u, source_u, exchange['mix'][sp][::-1]) for sp in dry_species])
+        if dry_species:
+            dry_total = np.sum(dry, axis=0)
+            if np.any(dry_total <= 0.):
+                raise ValueError('Haze atmosphere requires positive dry-gas abundance.')
+            dry = dry/dry_total*np.maximum(1.-condensate_total, 0.)
+            fractions.update(zip(dry_species, dry))
+        masses = dict(zip(self.pc.dat.species_names, self.pc.dat.species_mass))
+        mean_mass = sum(fractions[sp]*masses[sp] for sp in self.c.species_names)/_AVOGADRO
+        if not np.all(np.isfinite(mean_mass)) or np.any(mean_mass <= 0.):
+            raise ValueError('Invalid mean molecular mass for haze atmosphere.')
+        # d(1/r)/dln(P) = k*T/(G*M*m); trapezoidal integration permits varying
+        # temperature, composition, and spherical gravity without an altitude ODE.
+        radius_surface = self.pc.dat.planet_radius + self.pc.var.bottom_atmos
+        integrand = _K_BOLTZ*temperature/(_G*self.pc.dat.planet_mass*mean_mass)
+        inverse_radius = np.concatenate(([1./radius_surface], 1./radius_surface + np.cumsum(
+            0.5*(integrand[:-1]+integrand[1:])*np.diff(np.log(pressure)))))
+        if np.any(inverse_radius <= 0.) or not np.all(np.isfinite(inverse_radius)):
+            raise ValueError('Haze atmosphere extends beyond a finite hydrostatic solution.')
+        radius = 1./inverse_radius
+        altitude = radius-self.pc.dat.planet_radius
+        gravity = _G*self.pc.dat.planet_mass/radius**2
+        height = _K_BOLTZ*temperature/(mean_mass*gravity)
+        number_density = pressure/(_K_BOLTZ*temperature)
+        source_edges = np.log10(exchange['pressure_edges'])
+        widths = -np.diff(source_edges)
+        overlap = np.maximum(0., np.minimum(source_edges[:-1], u[0])-
+                             np.maximum(source_edges[1:], u[-1]))
+        column = float(np.sum(exchange['production_column']*overlap/widths))
+        shape = np.interp(u, source_u, (exchange['production_column']/widths)[::-1])
+        shape[(u > source_edges[0]) | (u < source_edges[-1])] = 0.
+        return dict(altitude=altitude, temperature=temperature,
+                    air_density=number_density*mean_mass, air_number_density=number_density,
+                    gravity=gravity, production_rate=shape/(height*np.log(10.)),
+                    column_production=column, pressure=pressure, scale_height=height,
+                    source_column_production=float(np.sum(exchange['production_column'])),
+                    photochemical_haze_mass_column=exchange['photochemical_haze_mass_column'])
+
+    def _run_haze_microphysics(self, atmosphere, coupling_pressure):
+        """Solve particles once, conserving particle and mass columns on remapping.
+
+        A pressure sweep is translated to altitude in this atmosphere. A cutoff
+        below its bottom has no effect; at or above its top it removes all haze.
+        """
+        from .haze_microphysics import microphysics
+        names = ('altitude', 'temperature', 'air_density', 'air_number_density',
+                 'gravity', 'production_rate', 'column_production')
+        options = self._haze_options.copy()
+        sweep_pressure = options.pop('sweep_below_pressure')
+        if sweep_pressure is not None:
+            pressure, altitude = atmosphere['pressure'], atmosphere['altitude']
+            if sweep_pressure >= pressure[0]:
+                options['sweep_below'] = None
+            elif sweep_pressure <= pressure[-1]:
+                options['sweep_below'] = np.nextafter(altitude[-1], np.inf)
+            else:
+                options['sweep_below'] = float(np.interp(
+                    np.log10(sweep_pressure), np.log10(pressure[::-1]), altitude[::-1]))
+        radius, number, flux = microphysics(
+            **{name: atmosphere[name] for name in names}, **options)
+        u = np.log10(atmosphere['pressure'][::-1])
+        abundance = (number*atmosphere['scale_height']*np.log(10.))[::-1]
+        target_u = np.log10(coupling_pressure[::-1])
+        edges = np.concatenate(([target_u[0]], 0.5*(target_u[:-1]+target_u[1:]), [target_u[-1]]))
+        # Integrate piecewise-linear number and mass columns over dual cells.
+        # Their widths are the trapezoidal weights for the target point grid.
+        knots = np.unique(np.concatenate((u, edges)))
+        def integrals(values):
+            sampled = np.interp(knots, u, values)
+            cumulative = np.concatenate(([0.], np.cumsum(0.5*(sampled[:-1]+sampled[1:])*np.diff(knots))))
+            return np.diff(np.interp(edges, knots, cumulative))
+        columns = integrals(abundance)
+        mass_moment = integrals(abundance*radius[::-1]**3)
+        # Keep empty top/source-free regions and the optional sweep boundary
+        # empty at the coupling nodes. Move boundary-bin contributions to the
+        # nearest occupied node, conserving both number and mass columns.
+        retained = np.interp(target_u, u, number[::-1]) > 0.
+        if sweep_pressure is not None:
+            retained &= coupling_pressure[::-1] <= sweep_pressure
+        elif options['sweep_below'] is not None:
+            retained &= np.interp(target_u, u, atmosphere['altitude'][::-1]) >= options['sweep_below']
+        occupied_nodes = np.flatnonzero(retained)
+        if np.any(columns > 0.) and occupied_nodes.size == 0:
+            raise ValueError('The coupling grid cannot resolve the retained haze; increase climate_number_of_layers.')
+        for i in np.flatnonzero((columns > 0.) & ~retained):
+            j = occupied_nodes[np.argmin(np.abs(target_u[occupied_nodes]-target_u[i]))]
+            columns[j] += columns[i]
+            mass_moment[j] += mass_moment[i]
+            columns[i] = mass_moment[i] = 0.
+        mapped_radius = 10.0**np.interp(target_u, u, np.log10(radius[::-1]))
+        occupied = columns > 0.
+        mapped_radius[occupied] = np.cbrt(mass_moment[occupied]/columns[occupied])
+        mapped_radius = np.maximum(mapped_radius, self._haze_options['monomer_radius'])
+        if self._haze_options['max_radius'] is not None:
+            mapped_radius = np.minimum(mapped_radius, self._haze_options['max_radius'])
+        particle_column = np.maximum(columns/np.diff(edges), 0.)
+        diagnostics = dict(pressure=atmosphere['pressure'].copy(),
+                           altitude=atmosphere['altitude'].copy(),
+                           temperature=atmosphere['temperature'].copy(), particle_radius=radius,
+                           particle_number_density=number, haze_mass_flux=flux,
+                           column_production=atmosphere['column_production'],
+                           source_column_production=atmosphere['source_column_production'],
+                           excluded_column_production=max(0., atmosphere['source_column_production']-
+                                                          atmosphere['column_production']),
+                           photochemical_haze_mass_column=atmosphere['photochemical_haze_mass_column'],
+                           haze_mass_column=float(np.trapezoid(abundance*radius[::-1]**3, u)*
+                                                  (4.*np.pi/3.)*self._haze_options['particle_density']))
+        return dict(particle_radius=mapped_radius[::-1].copy(),
+                    particle_column=particle_column[::-1].copy()), diagnostics
 
     def _fixed_point_map(self, coupling, require_chemistry_to_converge=False, *,
                          chemistry_diagnostics):
@@ -706,6 +1028,7 @@ class CoupledPhotochemistryClimate():
 
         # Incomplete map evaluations cannot be captured as coupled states.
         self._state_ready = False
+        self.haze_diagnostics = None
         chemistry_diagnostics.update(self._run_photochem(photochem_inputs))
         if not chemistry_diagnostics['converged']:
             if require_chemistry_to_converge:
@@ -713,9 +1036,15 @@ class CoupledPhotochemistryClimate():
             if not chemistry_diagnostics['step_limit_reached']:
                 raise PhotoException('Photochemistry gave up before reaching its step limit during _fixed_point_map.')
 
+        haze_exchange = self._haze_exchange_from_photochem() if self.haze_microphysics else None
         climate_inputs = self._climate_inputs_from_photochem(coupling)
         self._run_climate(climate_inputs)
         output = self._coupling_state_from_climate()
+        if self.haze_microphysics:
+            atmosphere = self._microphysics_inputs_from_climate(haze_exchange, output['pressure'])
+            particles, diagnostics = self._run_haze_microphysics(atmosphere, output['pressure'])
+            output.update(particles)
+            self.haze_diagnostics = diagnostics
         output = self._validate_coupling_state(output)
 
         self._climate_convecting_with_below = self.c.convecting_with_below.copy()
@@ -770,12 +1099,21 @@ class FixedPointSolver:
         Number of recent iterate/residual differences used for Anderson
         acceleration. Default 3; 0 disables acceleration. Resets and accelerated
         updates are recorded in solver_history.
+    radius_tol : float, optional
+        Maximum log10-radius mismatch (dex), default 0.01, excluding nodes
+        whose trial and output particle columns are both below the absolute tolerance.
+    particle_column_tol : float, optional
+        Relative particle-column tolerance, default 0.01.
+    particle_column_atol : float, optional
+        Absolute column tolerance (particles/cm² per pressure decade), default
+        1e4. The column residual is |dA|/(atol + tol*max(A_trial,A_output)).
     """
 
     def __init__(self, model, *, temperature_tol=1e-3, log10pressure_tol=1e-3,
                  relaxation=0.5, max_iterations=30,
                  require_chemistry_to_converge=False, verbose=False,
-                 anderson_memory=3):
+                 anderson_memory=3, radius_tol=1e-2,
+                 particle_column_tol=1e-2, particle_column_atol=1e4):
         temperature_tol = float(temperature_tol)
         log10pressure_tol = float(log10pressure_tol)
         relaxation = float(relaxation)
@@ -792,6 +1130,18 @@ class FixedPointSolver:
                 not isinstance(anderson_memory, (int, np.integer)) or anderson_memory < 0):
             raise ValueError('anderson_memory must be a nonnegative integer.')
 
+        radius_tol = float(radius_tol)
+        particle_column_tol = float(particle_column_tol)
+        particle_column_atol = float(particle_column_atol)
+        for name, value in (('radius_tol', radius_tol), ('particle_column_tol', particle_column_tol),
+                            ('particle_column_atol', particle_column_atol)):
+            if not np.isfinite(value) or value < 0.:
+                raise ValueError(name + ' must be finite and nonnegative.')
+        self.radius_tol = float(radius_tol)
+        self.particle_column_tol = float(particle_column_tol)
+        self.particle_column_atol = float(particle_column_atol)
+        self.radius_residual = None
+        self.particle_column_residual = None
         self._model = model
         self.temperature_tol = temperature_tol
         self.log10pressure_tol = log10pressure_tol
@@ -831,6 +1181,13 @@ class FixedPointSolver:
                 [self.log10pressure_tol if self.log10pressure_tol > 0.0 else 1.0],
                 x[1:1+self._model.c.T.size+1] * (self.temperature_tol if self.temperature_tol > 0.0 else 1.0),
             ))
+        if self.anderson_memory and self._model.haze_microphysics:
+            n = self._model.c.T.size + 1
+            column_scale = (self.particle_column_atol + self.particle_column_tol*
+                            np.maximum(x[1+2*n:]*_HAZE_COLUMN_SCALE, _HAZE_COLUMN_SCALE))/_HAZE_COLUMN_SCALE
+            self._anderson_scale = np.concatenate((
+                self._anderson_scale, np.full(n, self.radius_tol if self.radius_tol else 1.),
+                np.where(column_scale > 0., column_scale, 1.)))
         self._initialized = True
 
     def _restart_anderson(self, x, residual, reason):
@@ -935,6 +1292,20 @@ class FixedPointSolver:
         self.log10pressure_residual = float(abs(gx[0] - x[0]))
         self.converged = (self.temperature_residual <= self.temperature_tol and
                           self.log10pressure_residual <= self.log10pressure_tol)
+        if self._model.haze_microphysics:
+            trial = self._model._unpack_coupling_state(x)
+            # Compare corresponding normalized pressure-grid nodes, as for T.
+            # Radius has no convergence meaning where both columns are trace.
+            active = np.maximum(trial['particle_column'], output['particle_column']) > self.particle_column_atol
+            self.radius_residual = float(np.max(np.abs(
+                np.log10(output['particle_radius'][active]/trial['particle_radius'][active])), initial=0.))
+            difference = np.abs(output['particle_column']-trial['particle_column'])
+            tolerance = self.particle_column_atol + self.particle_column_tol*np.maximum(
+                trial['particle_column'], output['particle_column'])
+            ratio = np.divide(difference, tolerance, out=np.where(difference == 0., 0., np.inf), where=tolerance > 0.)
+            self.particle_column_residual = float(np.max(ratio))
+            self.converged = (self.converged and self.radius_residual <= self.radius_tol
+                              and self.particle_column_residual <= 1.)
         self.give_up = not self.converged and self.niterations >= self.max_iterations
         self._step_method = None
         self._anderson_reset = None
@@ -948,6 +1319,9 @@ class FixedPointSolver:
             'step_method': self._step_method,
             'anderson_reset': self._anderson_reset,
         })
+        if self._model.haze_microphysics:
+            self.solver_history[-1].update(radius_residual=self.radius_residual,
+                                           particle_column_residual=self.particle_column_residual)
         self._initialized = True
         if self.verbose:
             self._print_iteration()
@@ -959,7 +1333,8 @@ class FixedPointSolver:
         if not self._verbose_header_printed:
             print(
                 f'{"Iteration":<{iteration_width}} '
-                f'{"dT/T":<14} {"dlog10P (dex)":<14} '
+                f'{"dT/T":<14} {"dlog10P (dex)":<14} ' +
+                (f'{"dlog10r":<14} {"dA/tol":<14} ' if self._model.haze_microphysics else '') +
                 f'{"Chem. conv.":<12} {"Status":<12}',
                 flush=True,
             )
@@ -968,8 +1343,9 @@ class FixedPointSolver:
         chemistry = 'unknown' if self.chemistry_converged is None else str(self.chemistry_converged)
         print(
             f'{self.niterations:<{iteration_width}d} '
-            f'{self.temperature_residual:<14.3e} {self.log10pressure_residual:<14.3e} '
-            f'{chemistry:<12} {status:<12}',
+            f'{self.temperature_residual:<14.3e} {self.log10pressure_residual:<14.3e} ' +
+            (f'{self.radius_residual:<14.3e} {self.particle_column_residual:<14.3e} '
+             if self._model.haze_microphysics else '') + f'{chemistry:<12} {status:<12}',
             flush=True,
         )
 

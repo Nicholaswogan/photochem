@@ -8,7 +8,7 @@ import numpy as np
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from photochem import CondensingParticle
+from photochem import CondensingParticle, ReactionParticle
 from photochem.extensions import coupled
 
 from photochem.utils import stars
@@ -16,12 +16,13 @@ from photochem.utils import zahnle_rx_and_thermo_files
 
 TEST_DIR = Path(__file__).resolve().parent
 
-def input_files(output_dir):
+def input_files(output_dir, remove_haze_optics=False):
     output_dir = Path(output_dir)
     zahnle_rx_and_thermo_files(
         atoms_names=['H','N','O','C'],
         rxns_filename=str(output_dir / 'mechanism_coupled.yaml'),
         thermo_filename=None,
+        remove_haze_optics=remove_haze_optics
     )
     stars.solar_spectrum(
         outputfile=str(output_dir / 'flux_coupled.txt'),
@@ -45,6 +46,9 @@ def test_smoke():
     assert model.solver is None
     assert not model.pc.atmosphere_initialized
     assert model.c.P_top == 1.0
+    assert not model.haze_microphysics
+    assert model._haze_indices.shape == (0,)
+    assert np.issubdtype(model._haze_indices.dtype, np.integer)
 
     # Climate inherits the photochemical condensation RH.
     formation = model.pc.dat.particle_formation_method
@@ -73,9 +77,250 @@ def test_smoke():
         assert not model.pc.atmosphere_initialized
 
 
+def test_haze_initialization():
+    """Validate haze configuration without climate or chemical integration."""
+    with TemporaryDirectory() as tmp:
+        output_dir = Path(tmp)
+        input_files(output_dir)
+        mechanism_file = output_dir / 'mechanism_coupled.yaml'
+        kwargs = dict(mechanism_file=str(mechanism_file),
+                      settings_file=str(TEST_DIR / 'settings_coupled.yaml'),
+                      flux_file=str(output_dir / 'flux_coupled.txt'),
+                      haze_microphysics=True)
+        try:
+            coupled.CoupledPhotochemistryClimate(**kwargs)
+        except ValueError as exc:
+            assert 'optical-properties: none' in str(exc)
+            assert all(name in str(exc) for name in ('HCaer1', 'HCaer2', 'HCaer3'))
+        else:
+            raise AssertionError('Native haze opacity was accepted')
+
+        input_files(output_dir, remove_haze_optics=True)
+        model = coupled.CoupledPhotochemistryClimate(**kwargs)
+        assert model.haze_microphysics
+        assert not model.pc.atmosphere_initialized
+        names = model.pc.dat.species_names
+        assert [names[i] for i in model._haze_indices] == ['HCaer1', 'HCaer2', 'HCaer3']
+        options = model._validate_haze_options({'sweep_below_pressure': 1e3})
+        assert options['sweep_below_pressure'] == 1e3 and options['sweep_below'] is None
+        for invalid in ({'sweep_below_pressure': 0.}, {'sweep_below_pressure': -1.},
+                        {'sweep_below_pressure': np.nan}, {'sweep_below_pressure': np.inf},
+                        {'sweep_below_pressure': 1e3, 'sweep_below': 0.}):
+            try:
+                model._validate_haze_options(invalid)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError('Invalid pressure sweep accepted')
+
+    # A single supported haze is sufficient; other reaction particles keep optics.
+    pc = SimpleNamespace(dat=SimpleNamespace(
+        np=2, species_names=['S8aer', 'HCaer2'],
+        particle_formation_method=np.array([ReactionParticle, ReactionParticle]),
+        particle_optical_prop=['S8', 'none']))
+    np.testing.assert_array_equal(model._validate_photochem_for_haze(pc, True), [1])
+    pc.dat.particle_formation_method[1] = CondensingParticle
+    try:
+        model._validate_photochem_for_haze(pc, True)
+    except ValueError as exc:
+        assert 'reaction formation' in str(exc) and 'HCaer2' in str(exc)
+    else:
+        raise AssertionError('Condensing haze was accepted')
+    pc.dat.np = 1
+    try:
+        model._validate_photochem_for_haze(pc, True)
+    except ValueError as exc:
+        assert 'at least one' in str(exc)
+    else:
+        raise AssertionError('Missing hydrocarbon haze was accepted')
+    pc.dat.np = 0
+    assert model._validate_photochem_for_haze(pc, False).size == 0
+
+
+def test_haze_blocks():
+    """Smoke-test particle packing, zero haze, and independent residual blocks."""
+    model = coupled.CoupledPhotochemistryClimate.__new__(coupled.CoupledPhotochemistryClimate)
+    model.haze_microphysics = True
+    model._haze_options = dict(monomer_radius=1e-7, max_radius=None)
+    model.c = SimpleNamespace(T=np.zeros(2), P_top=1.)
+    model.pc = SimpleNamespace(var=SimpleNamespace(
+        toa_pressure_maintenance=SimpleNamespace(target_pressure=0.1)))
+    state = dict(pressure=10.**model._make_pressure_grid(6.), temperature=np.full(3, 250.),
+                 particle_radius=np.full(3, 1e-7), particle_column=np.zeros(3))
+    x = model._pack_coupling_state(state)
+    assert x.size == 10
+    assert_state_equal(model._unpack_coupling_state(x), state)
+    def identity(trial, require_chemistry_to_converge, *, chemistry_diagnostics):
+        chemistry_diagnostics['converged'] = True
+        return deepcopy(trial)
+    model._fixed_point_map = identity
+    solver = coupled.FixedPointSolver(model)
+    solver._initialize(x)
+    assert solver.iterate() == (False, True)
+    assert solver.radius_residual == solver.particle_column_residual == 0.
+    state['particle_column'][:] = 1e8
+    x = model._pack_coupling_state(state)
+    def grow(trial, require_chemistry_to_converge, *, chemistry_diagnostics):
+        chemistry_diagnostics['converged'] = True
+        trial['particle_radius'] *= 2.
+        trial['particle_column'] *= 2.
+        return trial
+    model._fixed_point_map = grow
+    solver = coupled.FixedPointSolver(model)
+    solver._initialize(x)
+    assert solver.iterate() == (False, False)
+    assert solver.temperature_residual == solver.log10pressure_residual == 0.
+    assert solver.radius_residual > solver.radius_tol
+    assert solver.particle_column_residual > 1.
+    proposal = model._unpack_coupling_state(solver._next_x)
+    np.testing.assert_allclose(proposal['particle_radius'], np.sqrt(2.)*1e-7)
+    np.testing.assert_allclose(proposal['particle_column'], 1.5e8)
+    bad = x.copy()
+    bad[-1] = -1.
+    try:
+        model._unpack_coupling_state(bad)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('Negative particle column accepted')
+
+
+def run_haze_checks():
+    """Opt-in real haze adapters, one bounded chemical update, and restarts."""
+    with TemporaryDirectory() as tmp:
+        input_files(tmp, remove_haze_optics=True)
+        kwargs = dict(mechanism_file=str(Path(tmp)/'mechanism_coupled.yaml'),
+                      settings_file=str(TEST_DIR/'settings_coupled.yaml'),
+                      flux_file=str(Path(tmp)/'flux_coupled.txt'), haze_microphysics=True)
+        model = coupled.CoupledPhotochemistryClimate(**kwargs)
+        model.c.verbose = False
+        model.pc.var.verbose = 0
+        guess = model.initial_guess(edd=1e5)
+        assert np.all(guess['coupling']['particle_column'] == 0.)
+        model.initialize_solver(guess)
+        assert_state_equal(model.model_state(), guess)
+        # A short accepted-step budget exercises real integration, not full convergence.
+        model.pc.var.nsteps_before_giveup = 50
+        assert model.iterate() in ((False, False), (False, True))
+        state = model.model_state()
+        assert model.haze_diagnostics is not None
+        assert model.pc.model_state().to_dict()['optics_enabled']
+        fresh = coupled.CoupledPhotochemistryClimate(**kwargs)
+        fresh.initialize_solver(state)
+        assert_state_equal(fresh.model_state(), state)
+        # Atmospheric warm starts do not restore or constrain haze configuration.
+        assert 'haze_microphysics' not in state
+        assert 'haze_microphysics_options' not in state
+        changed = coupled.CoupledPhotochemistryClimate(
+            **kwargs, haze_microphysics_options={
+                'charging_radius': np.inf, 'monomer_radius': 5e-8,
+                'particle_density': 0.8, 'sweep_below_pressure': 1e4,
+                'rtol': 2e-6,
+            })
+        options = deepcopy(changed._haze_options)
+        changed.initialize_solver(state)
+        assert_state_equal(changed.model_state(), state)
+        assert changed._haze_options == options
+        invalid = deepcopy(state)
+        del invalid['coupling']['particle_radius']
+        del invalid['coupling']['particle_column']
+        try:
+            fresh.initialize_solver(invalid)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('Haze-mode mismatch accepted')
+
+        exchange = model._haze_exchange_from_photochem()
+        exchange['production_column'] = 1e-15*np.exp(-((np.log10(exchange['pressure'])-2.)/1.5)**2)
+        trial = deepcopy(state['coupling'])
+        atmosphere = model._microphysics_inputs_from_climate(exchange, trial['pressure'])
+        particles, diagnostics = model._run_haze_microphysics(atmosphere, trial['pressure'])
+        assert np.all(np.diff(atmosphere['altitude']) > 0.)
+        assert particles['particle_column'][-1] == 0.
+        original_profiles = model._profiles_from_climate
+        P, T, mix = original_profiles()
+        model._profiles_from_climate = lambda: (P, T*1.2, mix)
+        warmer = model._microphysics_inputs_from_climate(exchange, trial['pressure'])
+        model._profiles_from_climate = original_profiles
+        assert warmer['column_production'] == atmosphere['column_production']
+        assert warmer['altitude'][-1] > atmosphere['altitude'][-1]
+        uniform = deepcopy(exchange)
+        uniform['production_column'][:] = 1e-15
+        full = model._microphysics_inputs_from_climate(uniform, trial['pressure'])
+        shallower = 10.**model._make_pressure_grid(np.log10(trial['pressure'][0]/2.))
+        clipped = model._microphysics_inputs_from_climate(uniform, shallower)
+        assert clipped['column_production'] < full['column_production']
+        np.testing.assert_allclose(diagnostics['haze_mass_flux'][0], atmosphere['column_production'], rtol=1e-6)
+        native_A = diagnostics['particle_number_density']*atmosphere['scale_height']*np.log(10.)
+        native_count = np.trapezoid(native_A[::-1], np.log10(atmosphere['pressure'][::-1]))
+        mapped_count = np.trapezoid(particles['particle_column'][::-1], np.log10(trial['pressure'][::-1]))
+        np.testing.assert_allclose(mapped_count, native_count, rtol=1e-10)
+        mapped_mass = np.trapezoid((particles['particle_column']*particles['particle_radius']**3)[::-1],
+                                   np.log10(trial['pressure'][::-1]))*(4*np.pi/3.)*model._haze_options['particle_density']
+        np.testing.assert_allclose(mapped_mass, diagnostics['haze_mass_column'], rtol=1e-9)
+        zero = deepcopy(atmosphere)
+        zero['production_rate'][:] = 0.
+        zero['column_production'] = 0.
+        empty, _ = model._run_haze_microphysics(zero, trial['pressure'])
+        assert np.all(empty['particle_column'] == 0.)
+        original_options = model._haze_options
+        for cutoff in (1e3, trial['pressure'][0]*2., trial['pressure'][-1]/2.):
+            model._haze_options = model._validate_haze_options({'sweep_below_pressure': cutoff})
+            swept_atmosphere = model._microphysics_inputs_from_climate(exchange, trial['pressure'])
+            swept, swept_diagnostics = model._run_haze_microphysics(swept_atmosphere, trial['pressure'])
+            assert np.all(swept['particle_column'][trial['pressure'] > cutoff] == 0.)
+            native_below = swept_diagnostics['pressure'] > cutoff
+            assert np.all(swept_diagnostics['particle_number_density'][native_below] == 0.)
+            if cutoff > trial['pressure'][0]:
+                np.testing.assert_allclose(swept['particle_column'], particles['particle_column'])
+            elif cutoff < trial['pressure'][-1]:
+                assert np.all(swept['particle_column'] == 0.)
+            else:
+                assert np.any(swept['particle_column'] > 0.)
+        model._haze_options = original_options
+
+        # Freeze chemistry and prescribe a known source to constrain the full sweep's ordering.
+        trial.update(particles)
+        events = []
+        original_climate = model._run_climate
+        original_microphysics = model._run_haze_microphysics
+        expected_optics = model._photochem_inputs_from_coupling(trial)['optical_properties']
+        def frozen_chemistry(inputs):
+            events.append('chemistry')
+            model.pc.destroy_stepper()
+            model.pc.set_custom_optical_properties(**inputs['optical_properties'])
+            model.pc.set_press_temp_edd_profile(**inputs['profile'])
+            model.pc.prep_atmosphere(model.pc.wrk.usol)
+            np.testing.assert_allclose(inputs['optical_properties']['dtau'], expected_optics['dtau'])
+            return dict(converged=True, step_limit_reached=False)
+        def source():
+            events.append('production')
+            return deepcopy(exchange)
+        def climate(inputs):
+            events.append('climate')
+            assert inputs['optical_properties']['dtau'].shape[1] != expected_optics['dtau'].shape[1]
+            original_climate(inputs)
+        def microphysics(inputs, pressure):
+            events.append('microphysics')
+            np.testing.assert_allclose(inputs['temperature'][0], model.c.T_surf, rtol=1e-12)
+            return original_microphysics(inputs, pressure)
+        model._run_photochem = frozen_chemistry
+        model._haze_exchange_from_photochem = source
+        model._run_climate = climate
+        model._run_haze_microphysics = microphysics
+        output = model._fixed_point_map(trial, chemistry_diagnostics={})
+        assert events == ['chemistry', 'production', 'climate', 'microphysics']
+        assert_state_equal(model.model_state()['coupling'], output)
+        np.testing.assert_allclose(model.pc.model_state().to_dict()['optics_dtau'], expected_optics['dtau'])
+    print('Local haze coupling, conservation, ordering, and restart checks passed.', flush=True)
+
+
 def run_solver_checks():
     """Check the extracted solver locally without chemistry/climate solves."""
     model = coupled.CoupledPhotochemistryClimate.__new__(coupled.CoupledPhotochemistryClimate)
+    model.haze_microphysics = False
+    model._haze_options = {}
     model.solver = None
     initial = np.array([6.0, 300.0, 200.0])
     restored_states = []
@@ -208,7 +453,8 @@ def run_restart_checks():
     saved_solver = fresh.solver
     invalid_states = []
     for key, value in [('schema_version', 999), ('schema_version', 1), ('schema_version', 2),
-                       ('schema_version', 3), ('unexpected_field', False), ('edd', np.array([-1., 1.]))]:
+                       ('schema_version', 3), ('haze_microphysics', False),
+                       ('haze_microphysics_options', {}), ('edd', np.array([-1., 1.]))]:
         invalid = deepcopy(guess)
         invalid[key] = value
         invalid_states.append(invalid)
@@ -246,6 +492,8 @@ def run_restart_checks():
 def run_grid_checks():
     """Check shared-grid coordinates and climate guesses without model solves."""
     model = coupled.CoupledPhotochemistryClimate.__new__(coupled.CoupledPhotochemistryClimate)
+    model.haze_microphysics = False
+    model._haze_options = {}
     model.c = SimpleNamespace(P_top=1.0, T=np.zeros(4))
     maintenance = SimpleNamespace(target_pressure=0.1)
     model.pc = SimpleNamespace(var=SimpleNamespace(toa_pressure_maintenance=maintenance))
@@ -308,6 +556,8 @@ def run_acceleration_checks():
             return physical_model._unpack_coupling_state(mapping(vector))
 
         physical_model = coupled.CoupledPhotochemistryClimate.__new__(coupled.CoupledPhotochemistryClimate)
+        physical_model.haze_microphysics = False
+        physical_model._haze_options = {}
         physical_model.c = SimpleNamespace(P_top=1.0, T=np.zeros(1))
         physical_model.pc = SimpleNamespace(var=SimpleNamespace(
             toa_pressure_maintenance=SimpleNamespace(target_pressure=0.1)))
@@ -512,6 +762,8 @@ def run_full():
 
 def main():
     parser = argparse.ArgumentParser(description='Run the coupled-model smoke test by default.')
+    parser.add_argument('--haze', action='store_true',
+                        help='Run local haze adapters, one short chemical update, and a physical haze sweep.')
     parser.add_argument('--full', action='store_true',
                         help='Run the expensive full coupled convergence test locally.')
     parser.add_argument('--restart', action='store_true',
@@ -522,7 +774,9 @@ def main():
     parser.add_argument('--grid', action='store_true',
                         help='Run inexpensive coupling-grid interpolation checks without model solves.')
     args = parser.parse_args()
-    if args.grid:
+    if args.haze:
+        run_haze_checks()
+    elif args.grid:
         run_grid_checks()
     elif args.benchmark:
         run_acceleration_checks()
@@ -539,6 +793,8 @@ def main():
         run_restart_checks()
     else:
         test_smoke()
+        test_haze_initialization()
+        test_haze_blocks()
         print('Coupled-model smoke test passed.')
 
 
