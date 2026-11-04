@@ -56,6 +56,9 @@ cdef extern void photochemdata_particle_formation_method_get(PhotochemData *ptr,
 cdef extern void photochemdata_particle_gas_phase_get_size(PhotochemData *ptr, int *dim1)
 cdef extern void photochemdata_particle_gas_phase_get(PhotochemData *ptr, int *dim1, char *arr)
 
+cdef extern void photochemdata_particle_optical_prop_get_size(PhotochemData *ptr, int *dim1)
+cdef extern void photochemdata_particle_optical_prop_get(PhotochemData *ptr, int *dim1, char *arr)
+
 cdef extern void photochem_condensing_particle_get(int *val)
 
 cdef extern void photochem_reaction_particle_get(int *val)

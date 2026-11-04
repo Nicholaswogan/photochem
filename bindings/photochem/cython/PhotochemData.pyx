@@ -192,6 +192,19 @@ cdef class PhotochemData:
       dat_pxd.photochemdata_particle_gas_phase_get(self._ptr, &dim1, <char *>arr.data)
       return c2stringarr(arr, S_STR_LEN, dim1)
 
+  property particle_optical_prop:
+    """list[str], length ``np``. Native particle optical-property identifiers.
+
+    Entries follow ``species_names[:np]``. ``'none'`` disables native optics
+    for that particle. Returns an independent list; this property is read-only.
+    """
+    def __get__(self):
+      cdef int dim1
+      dat_pxd.photochemdata_particle_optical_prop_get_size(self._ptr, &dim1)
+      cdef ndarray arr = np.empty(dim1*S_STR_LEN + 1, 'S1')
+      dat_pxd.photochemdata_particle_optical_prop_get(self._ptr, &dim1, <char *>arr.data)
+      return c2stringarr(arr, S_STR_LEN, dim1)
+
   property particle_sat:
     """list[SaturationData], length ``np``. Particle saturation models.
 

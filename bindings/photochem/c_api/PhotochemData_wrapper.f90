@@ -308,6 +308,32 @@
     names(dim1*s_str_len+1) = c_null_char
   end subroutine
 
+  subroutine photochemdata_particle_optical_prop_get_size(ptr, dim1) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(out) :: dim1
+    type(PhotochemData), pointer :: dat
+    call c_f_pointer(ptr, dat)
+    dim1 = 0
+    if (.not.allocated(dat%particle_optical_prop)) return
+    dim1 = size(dat%particle_optical_prop)
+  end subroutine
+
+  subroutine photochemdata_particle_optical_prop_get(ptr, dim1, names) bind(c)
+    type(c_ptr), value, intent(in) :: ptr
+    integer(c_int), intent(in) :: dim1
+    character(kind=c_char), intent(out) :: names(dim1*s_str_len+1)
+    type(PhotochemData), pointer :: dat
+    integer :: i, j, k
+    call c_f_pointer(ptr, dat)
+    do i = 1,dim1
+      do j = 1,s_str_len
+        k = j + (i - 1) * s_str_len
+        names(k) = dat%particle_optical_prop(i)(j:j)
+      enddo
+    enddo
+    names(dim1*s_str_len+1) = c_null_char
+  end subroutine
+
   subroutine photochem_condensing_particle_get(val) bind(c)
     use photochem_enum, only: CondensingParticle
     integer(c_int), intent(out) :: val

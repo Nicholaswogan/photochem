@@ -110,6 +110,18 @@ def test_exposed_photochem_state():
     water = pc.dat.species_names.index("H2Oaer")
     assert formation[water] == photochem.CondensingParticle
     assert gas_phase[water] == "H2O"
+    optics = pc.dat.particle_optical_prop
+    assert len(optics) == pc.dat.np
+    haze = pc.dat.species_names.index("HCaer1")
+    assert optics[haze] == "khare1984"
+    optics[haze] = "none"
+    assert pc.dat.particle_optical_prop[haze] == "khare1984"
+    try:
+        pc.dat.particle_optical_prop = optics
+    except AttributeError:
+        pass
+    else:
+        raise AssertionError('Particle optical metadata must be read-only')
 
     for name, value in [("surface_albedo", 0.3), ("photon_scale_factor", 0.8)]:
         original = getattr(pc.var, name)
@@ -151,6 +163,7 @@ def test_exposed_photochem_state():
     assert no_particles.dat.particle_formation_method.shape == (0,)
     assert np.issubdtype(no_particles.dat.particle_formation_method.dtype, np.integer)
     assert no_particles.dat.particle_gas_phase == []
+    assert no_particles.dat.particle_optical_prop == []
     z = np.array([0.0, 5.0e6, 1.0e7])
     no_particles.initialize_atmosphere_z(
         z,
