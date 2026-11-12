@@ -20,6 +20,8 @@ Test inputs are resolved from the source tree, so the Fortran executables and Py
 
 ### Photochem
 
+- `test_ptc` checks experimental banded Euler PTC, stiff oscillation damping, nonlinear relaxation, rejected-trial rollback, bounded trace-negative projection, and a short atmospheric TOA resynchronization. Long PTC comparisons remain opt-in under `integration_benchmarks/`.
+
 - `test_input` contains focused input parsing and validation tests, including thermodynamic polynomial continuity at gas-phase joins.
 - `test_api` contains focused correctness and error-behavior tests for public `EvoAtmosphere` operations, including continuous and periodic pressure-based profiles, combined TOA maintenance, and robust-stepper restart limits.
 - `test_jacobian` compares the analytical and automatic-differentiation chemistry Jacobians over focused numerical cases.
@@ -54,6 +56,7 @@ After configuring and building the project:
 ./build/tests/photochem/test_input
 ./build/tests/photochem/test_api
 ./build/tests/photochem/test_jacobian
+./build/tests/photochem/test_ptc
 ./build/tests/photochem/test_production_loss
 ./build/tests/photochem/test_memory
 ```

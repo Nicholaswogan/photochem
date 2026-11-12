@@ -1,0 +1,17 @@
+
+atmosphere-grid:
+  number-of-layers: 100
+
+planet:
+  planet-mass: 4.867e27
+  planet-radius: 6.0518e8
+  surface-albedo: 0.1
+  solar-zenith-angle: 60.0
+  photon-scale-factor: 1.93
+  hydrogen-escape: {type: none}
+  water: {fix-water-in-troposphere: false, gas-rainout: false, water-condensation: false}
+    
+boundary-conditions:
+- name: H2
+  lower-boundary: {type: vdep, vdep: 0.0}
+  upper-boundary: {type: veff, veff: 0.0}

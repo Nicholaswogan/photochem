@@ -1,5 +1,5 @@
 set(PHOTOCHEM_TESTS test_input test_api test_jacobian test_production_loss
-                    test_memory test_evolution)
+                    test_memory test_evolution test_ptc)
 
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
 configure_file(

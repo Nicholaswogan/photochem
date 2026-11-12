@@ -1210,7 +1210,7 @@ contains
 
     ! If we have an extreme diagreement, then we fix it and return
     if (extreme_out_of_tol) then
-      call resync_and_restart(self, updated, err)
+      call resync_and_restart(self, updated, err=err)
       if (allocated(err)) return
 
       if (chemistry_converged .and. updated) then
@@ -1222,7 +1222,7 @@ contains
     ! If chemistry is converged but we are NOT within tolerance
     ! then we fix it and return.
     if (chemistry_converged .and. out_of_tol) then
-      call resync_and_restart(self, updated, err)
+      call resync_and_restart(self, updated, err=err)
       if (allocated(err)) return
 
       if (updated) then
@@ -1233,7 +1233,7 @@ contains
 
     ! Reset
     if (self%wrk%nsteps >= var%nsteps_before_reinit) then
-      call resync_and_restart(self, updated, err)
+      call resync_and_restart(self, updated, err=err)
       if (allocated(err)) return
       return
     endif
@@ -1370,11 +1370,12 @@ contains
 
   end function
 
-  ! Resynchronize enabled maintenance, then restart CVODE at the accepted state.
-  subroutine resync_and_restart(self, updated, err)
+  ! Shared atmospheric resynchronization, optionally followed by a CVODE restart.
+  subroutine resync_and_restart(self, updated, restart_cvode, err)
     use photochem_enum, only: PeriodicPressTempEdd, ContinuousPressTempEdd
     class(EvoAtmosphere), target, intent(inout) :: self
     logical, intent(out) :: updated
+    logical, optional, intent(in) :: restart_cvode
     character(:), allocatable, intent(out) :: err
 
     real(dp), allocatable :: usol_restart(:,:)
@@ -1453,6 +1454,15 @@ contains
       self%wrk%n_resync_failures = 0
     endif
 
+    ! PTC shares the atmospheric transaction but owns its numerical workspace.
+    if (present(restart_cvode)) then
+      if (.not.restart_cvode) then
+        self%wrk%tn = t_current
+        self%wrk%t_history(1) = t_current
+        updated = .true.
+        return
+      endif
+    endif
     call restart_robust_stepper(self, usol_restart, t_current, err)
     if (allocated(err)) then
       self%wrk%robust_stepper_initialized = .false.
@@ -1463,6 +1473,38 @@ contains
     self%wrk%robust_stepper_initialized = .true.
     updated = .true.
 
+  end subroutine
+
+  module subroutine maintain_ptc_atmosphere(self, finished, updated, initializing, err)
+    use photochem_enum, only: WithinTol, ExtremeOutOfTol
+    class(EvoAtmosphere), target, intent(inout) :: self
+    logical, intent(inout) :: finished
+    logical, intent(out) :: updated
+    logical, optional, intent(in) :: initializing
+    character(:), allocatable, intent(out) :: err
+    integer :: toa, profile
+    real(dp), allocatable :: initial(:,:)
+    updated = .false.
+    call self%require_atmosphere_initialized('maintain_ptc_atmosphere', err)
+    if (allocated(err)) return
+    call validate_robust_stepper_settings(self, err)
+    if (allocated(err)) return
+    if (present(initializing)) then
+      if (initializing) then
+        initial = self%wrk%usol
+        call prep_atmosphere_unchecked(self, initial, SyncProfileIfEnabled, err)
+        return
+      endif
+    endif
+    toa = toa_pressure_state(self, err)
+    if (allocated(err)) return
+    profile = press_temp_edd_state(self, err)
+    if (allocated(err)) return
+    if (toa == WithinTol.and.profile == WithinTol) return
+    if (finished.or.toa == ExtremeOutOfTol.or.profile == ExtremeOutOfTol) then
+      finished = .false.
+      call resync_and_restart(self, updated, restart_cvode=.false., err=err)
+    endif
   end subroutine
 
   subroutine restart_robust_stepper(self, usol_restart, tstart, err)

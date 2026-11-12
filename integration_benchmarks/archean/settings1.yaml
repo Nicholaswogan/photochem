@@ -1,0 +1,132 @@
+atmosphere-grid:
+  number-of-layers: 100
+
+planet:
+  planet-mass: 5.972e27 # g
+  planet-radius: 6.371e8 # cm
+  surface-albedo: 0.25
+  solar-zenith-angle: 60.0 # degrees
+  hydrogen-escape: {type: diffusion limited}
+  water: {gas-rainout: false}
+
+particles:
+- {name: H2Oaer, RH-condensation: 0.5}
+
+boundary-conditions:
+- name: H2O
+  lower-boundary: {type: press, press: 270.0e6}
+  upper-boundary: {type: veff, veff: 0.0}
+# Adopted 0.78 bar N2, consistent with Catling and Zahnle (2020), Fig. 5.
+- name: N2
+  lower-boundary: {type: press, press: 0.78e6}
+  upper-boundary: {type: veff, veff: 0.0}
+
+- name: CO2
+  lower-boundary: {type: press, press: 0.01e6}
+  upper-boundary: {type: veff, veff: 0.0}
+- name: CH4
+  lower-boundary: {type: press, press: 0.0017e6}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Kharecha et al. (2005), Eq. 6: efficient biological ocean uptake,
+# using the maximum air-sea-transfer-limited CO deposition velocity.
+# Catling and Kasting (2017), Table 7.3: present surface-volcanic CO
+# outgassing, 0.1 Tmol/yr. Applied without an ancient enhancement;
+# 1 Tmol/yr = 3.74e9 molecules/cm^2/s.
+- name: CO
+  lower-boundary: {type: vdep + dist flux, vdep: 1.2e-4, flux: 3.74e+8, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Kharecha et al. (2005), Case 3: maximum biological H2 uptake velocity.
+# Catling and Kasting (2017), Table 7.3: present surface + submarine
+# volcanic H2, (1.0 + 0.4) Tmol/yr, rounded to 5.24e9 molecules/cm^2/s.
+- name: H2
+  lower-boundary: {type: vdep + dist flux, vdep: 2.4e-4, flux: 5.24e+9, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Remaining boundaries follow Ranjan et al. (2023).
+
+# Ranjan et al. (2023), Table 6: atomic oxygen deposition.
+- name: O
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+# Ranjan et al. (2023), Table 6: ozone deposition.
+- name: O3
+  lower-boundary: {type: vdep, vdep: 0.4}
+  upper-boundary: {type: veff, veff: 0.0}
+# Ranjan et al. (2023), Table 6: hydroxyl deposition.
+- name: OH
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+# Ranjan et al. (2023), Table 6: hydroperoxyl deposition.
+- name: HO2
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+# Ranjan et al. (2023), Table 6: hydrogen peroxide deposition.
+- name: H2O2
+  lower-boundary: {type: vdep, vdep: 0.5}
+  upper-boundary: {type: veff, veff: 0.0}
+# Ranjan et al. (2023), Table 6 (CH2O): formaldehyde deposition.
+- name: H2CO
+  lower-boundary: {type: vdep, vdep: 0.1}
+  upper-boundary: {type: veff, veff: 0.0}
+# Ranjan et al. (2023), Table 6 (CHO): formyl deposition.
+- name: HCO
+  lower-boundary: {type: vdep, vdep: 0.1}
+  upper-boundary: {type: veff, veff: 0.0}
+# Ranjan et al. (2023), Table 6: methoxy deposition.
+- name: CH3O
+  lower-boundary: {type: vdep, vdep: 0.1}
+  upper-boundary: {type: veff, veff: 0.0}
+# Ranjan et al. (2023), Section 2.2/Table 6, following Hu et al. (2012):
+# ad hoc ethane sink compensating for omitted organic haze, not a
+# measured deposition velocity. Revisit if haze becomes important.
+- name: C2H6
+  lower-boundary: {type: vdep, vdep: 1.0e-5}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Hu et al. (2012) deposition, also used by Ranjan et al. (2023), Table 6.
+- name: NH3
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Ranjan et al. (2023), Table 5/6: nominal lightning-only NO source,
+# replacing the modern lightning + soil source. Deposition also follows
+# Ranjan et al. (2023), Table 6.
+- name: "NO"
+  lower-boundary: {type: vdep + dist flux, vdep: 0.02, flux: 1.0e+8, height: -1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Ranjan et al. (2023), Table 6: NO2 deposition, no emission.
+- name: NO2
+  lower-boundary: {type: vdep, vdep: 0.02}
+  upper-boundary: {type: veff, veff: 0.0}
+# Ranjan et al. (2023), Table 6: NO3 deposition, no emission.
+- name: NO3
+  lower-boundary: {type: vdep, vdep: 1.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Ranjan et al. (2023), Table 6: nitrous acid deposition.
+- name: HNO2
+  lower-boundary: {type: vdep, vdep: 0.5}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Ranjan et al. (2023), Table 6; also Tsai et al. (2021): HNO3 deposition.
+- name: HNO3
+  lower-boundary: {type: vdep, vdep: 4.0}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Ranjan et al. (2023), Table 6: HCN deposition. Omit the modern
+# imposed emission (Li et al. 2003); zero source is a scenario assumption.
+- name: HCN
+  lower-boundary: {type: vdep, vdep: 0.01}
+  upper-boundary: {type: veff, veff: 0.0}
+
+# Ranjan et al. (2023), Table 6: CN deposition.
+- name: CN
+  lower-boundary: {type: vdep, vdep: 0.01}
+  upper-boundary: {type: veff, veff: 0.0}
+# Assumed equal to the Ranjan et al. (2023), Table 6 HCN velocity (0.01),
+- name: HCCCN
+  lower-boundary: {type: vdep, vdep: 0.01}
+  upper-boundary: {type: veff, veff: 0.0}

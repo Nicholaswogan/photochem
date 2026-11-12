@@ -1,0 +1,1812 @@
+[
+  {
+    "species": "H2",
+    "model": "Shomate",
+    "temperature": 1000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": -0.002739999999992193,
+    "enthalpy_shift": 2.558166666658508,
+    "entropy_shift": -5.999999984851456e-06,
+    "gibbs_jump_before": 0.17583333334732743
+  },
+  {
+    "species": "H2",
+    "model": "Shomate",
+    "temperature": 2500.0,
+    "adjusted_segment": 3,
+    "heat_capacity_shift": 0.003337750000014239,
+    "enthalpy_shift": -12.125718750015949,
+    "entropy_shift": -0.005528077080839466,
+    "gibbs_jump_before": -2.3929754763746587
+  },
+  {
+    "species": "H2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -5.292168615866899e-05,
+    "enthalpy_shift": 0.01494467844764813,
+    "entropy_shift": -6.98865810022653e-05,
+    "gibbs_jump_before": 0.0009072786134396438
+  },
+  {
+    "species": "H2O",
+    "model": "Shomate",
+    "temperature": 1700.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.00815304881314205,
+    "enthalpy_shift": -10.931505839689635,
+    "entropy_shift": -0.0027214948944447315,
+    "gibbs_jump_before": -0.2006138078525055
+  },
+  {
+    "species": "H2O",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -5.29664511361716e-07,
+    "enthalpy_shift": -0.042786672041984275,
+    "entropy_shift": 4.885043261992905e-05,
+    "gibbs_jump_before": -0.057693031845360565
+  },
+  {
+    "species": "OH",
+    "model": "Shomate",
+    "temperature": 1300.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.05428033069821936,
+    "enthalpy_shift": -67.24705906538293,
+    "entropy_shift": -0.011366295093694134,
+    "gibbs_jump_before": 0.4200302861881937
+  },
+  {
+    "species": "OH",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 8.087091804753754e-05,
+    "enthalpy_shift": -0.023271469290193636,
+    "entropy_shift": 7.137280312008443e-05,
+    "gibbs_jump_before": 0.008735353475458396
+  },
+  {
+    "species": "O",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.00012658283642963397,
+    "enthalpy_shift": 0.0024765687994658947,
+    "entropy_shift": 0.0001312423399610907,
+    "gibbs_jump_before": 0.046756239860997084
+  },
+  {
+    "species": "O2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -0.00012746107050176647,
+    "enthalpy_shift": 0.03826367307091516,
+    "entropy_shift": -0.00016970791966741672,
+    "gibbs_jump_before": 0.004868184187174052
+  },
+  {
+    "species": "CO",
+    "model": "Shomate",
+    "temperature": 1300.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": -0.02650642528401903,
+    "enthalpy_shift": 34.775979696787545,
+    "entropy_shift": 0.0060156191209159715,
+    "gibbs_jump_before": -1.537962375634379
+  },
+  {
+    "species": "CO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 1.528609072920517e-05,
+    "enthalpy_shift": -0.03327120089670643,
+    "entropy_shift": -3.076859292150402e-05,
+    "gibbs_jump_before": -0.014032031916542564
+  },
+  {
+    "species": "CO2",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.03463616955556148,
+    "enthalpy_shift": -38.39621493330924,
+    "entropy_shift": -0.001523935293505474,
+    "gibbs_jump_before": 2.581993540115036
+  },
+  {
+    "species": "CO2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0004642422039324856,
+    "enthalpy_shift": -0.1349843784701079,
+    "entropy_shift": 0.0005301943824633781,
+    "gibbs_jump_before": 0.012849881344493497
+  },
+  {
+    "species": "HCO",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.024179110444450203,
+    "enthalpy_shift": -25.122505066668964,
+    "entropy_shift": -0.0014435472515970105,
+    "gibbs_jump_before": -0.33463649882651225
+  },
+  {
+    "species": "HCO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 1.4677879889291034e-05,
+    "enthalpy_shift": -0.0022182598695508204,
+    "entropy_shift": 2.8607426060034413e-05,
+    "gibbs_jump_before": -0.0010738200139712717
+  },
+  {
+    "species": "H2CO",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.12693183666662833,
+    "enthalpy_shift": -143.1833679999545,
+    "entropy_shift": -0.015075042356897939,
+    "gibbs_jump_before": 0.5460052530233952
+  },
+  {
+    "species": "H2CO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 5.033159979461743e-06,
+    "enthalpy_shift": 0.020303680532379076,
+    "entropy_shift": -1.460206479464432e-05,
+    "gibbs_jump_before": 0.02797082695536801
+  },
+  {
+    "species": "C",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 1.3613451486094164e-06,
+    "enthalpy_shift": 0.01952120428904891,
+    "entropy_shift": -3.625897352321772e-05,
+    "gibbs_jump_before": 0.031223201559441804
+  },
+  {
+    "species": "CH",
+    "model": "Shomate",
+    "temperature": 1100.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.24952870587603115,
+    "enthalpy_shift": -260.847556635621,
+    "entropy_shift": -0.008673148256292507,
+    "gibbs_jump_before": 2.986405495766917
+  },
+  {
+    "species": "CH",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 5.044268043263855e-07,
+    "enthalpy_shift": -0.02542652632109821,
+    "entropy_shift": -1.8675423746117303e-05,
+    "gibbs_jump_before": -0.019528945161312095
+  },
+  {
+    "species": "CH2",
+    "model": "Shomate",
+    "temperature": 1400.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.010741233142852025,
+    "enthalpy_shift": -10.756995466654189,
+    "entropy_shift": -0.0002600803985046696,
+    "gibbs_jump_before": 0.4149339441637494
+  },
+  {
+    "species": "CH2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 1.1655554928324818e-05,
+    "enthalpy_shift": 0.0006439030403271317,
+    "entropy_shift": -1.0856955185545303e-05,
+    "gibbs_jump_before": 0.01155768970443205
+  },
+  {
+    "species": "CH3",
+    "model": "Shomate",
+    "temperature": 1400.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.10095384065309077,
+    "enthalpy_shift": -134.12353782862192,
+    "entropy_shift": -0.028818295676728667,
+    "gibbs_jump_before": -0.0020226491155881376
+  },
+  {
+    "species": "CH3",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.00025645958496767207,
+    "enthalpy_shift": -0.10989759024232626,
+    "entropy_shift": 0.0003221758902611782,
+    "gibbs_jump_before": -0.03695627461439699
+  },
+  {
+    "species": "CH4",
+    "model": "Shomate",
+    "temperature": 1300.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.18557678446154569,
+    "enthalpy_shift": -228.34359218334248,
+    "entropy_shift": -0.03870638134856108,
+    "gibbs_jump_before": 0.07080815493213777
+  },
+  {
+    "species": "CH4",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -1.2624115932169389e-05,
+    "enthalpy_shift": 0.008156831943779252,
+    "entropy_shift": -6.05518195300192e-05,
+    "gibbs_jump_before": 0.017884794254371172
+  },
+  {
+    "species": "S",
+    "model": "Shomate",
+    "temperature": 1400.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": -0.051736034938773656,
+    "enthalpy_shift": 71.31285382848,
+    "entropy_shift": 0.016747184731201514,
+    "gibbs_jump_before": 0.19281856376528594
+  },
+  {
+    "species": "S",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.000281682161510588,
+    "enthalpy_shift": -0.0747655700542964,
+    "entropy_shift": 0.0003227230664322178,
+    "gibbs_jump_before": 0.01462874581682172
+  },
+  {
+    "species": "S2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.00014838979711839784,
+    "enthalpy_shift": -0.06268895580433309,
+    "entropy_shift": 0.0001490113199906773,
+    "gibbs_jump_before": -0.009338512021429324
+  },
+  {
+    "species": "S3",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0014150936697490124,
+    "enthalpy_shift": -0.38268609551596455,
+    "entropy_shift": 0.0017152605357750872,
+    "gibbs_jump_before": 0.03839773034292193
+  },
+  {
+    "species": "S4",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.007381831901255964,
+    "enthalpy_shift": -2.1933868032938335,
+    "entropy_shift": 0.008916581713151572,
+    "gibbs_jump_before": 0.012454501473712298
+  },
+  {
+    "species": "S8",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.15757681934815082,
+    "enthalpy_shift": -46.95156505412888,
+    "entropy_shift": 0.19082455733746428,
+    "gibbs_jump_before": -0.009265074629524861
+  },
+  {
+    "species": "H2S",
+    "model": "Shomate",
+    "temperature": 1400.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.020693058612259563,
+    "enthalpy_shift": -23.480335447624384,
+    "entropy_shift": -0.004477698340508596,
+    "gibbs_jump_before": -2.011028686958525
+  },
+  {
+    "species": "H2S",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 1.685056958677933e-05,
+    "enthalpy_shift": -0.008091844028967898,
+    "entropy_shift": 1.1366392243417067e-05,
+    "gibbs_jump_before": -0.00037825762620968817
+  },
+  {
+    "species": "HS",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.020434335111112034,
+    "enthalpy_shift": -19.81952426666976,
+    "entropy_shift": 0.0003245681352268548,
+    "gibbs_jump_before": 0.15854764303821867
+  },
+  {
+    "species": "HS",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.000345806079593558,
+    "enthalpy_shift": -0.06942040074500255,
+    "entropy_shift": 0.00040796739506276936,
+    "gibbs_jump_before": 0.03681448126900477
+  },
+  {
+    "species": "SO",
+    "model": "Shomate",
+    "temperature": 1400.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": -0.027034465959168585,
+    "enthalpy_shift": 32.122296019035275,
+    "entropy_shift": 0.0047760786200115035,
+    "gibbs_jump_before": -0.3224197262338748
+  },
+  {
+    "species": "SO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -6.603107323144286e-07,
+    "enthalpy_shift": 0.0012420661723808735,
+    "entropy_shift": -3.599482030836043e-05,
+    "gibbs_jump_before": 0.011533524964988828
+  },
+  {
+    "species": "SO2",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.027900159111105438,
+    "enthalpy_shift": -32.81170986665529,
+    "entropy_shift": -0.004403989385536988,
+    "gibbs_jump_before": 0.15089220343270426
+  },
+  {
+    "species": "SO2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.00034901172569590244,
+    "enthalpy_shift": -0.09684078325517476,
+    "entropy_shift": 0.0004384816379001677,
+    "gibbs_jump_before": 0.0024126609667973753
+  },
+  {
+    "species": "CS",
+    "model": "Shomate",
+    "temperature": 600.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.04553835466666811,
+    "enthalpy_shift": -23.227171599981375,
+    "entropy_shift": 0.029974016743636867,
+    "gibbs_jump_before": -0.06872621058050754
+  },
+  {
+    "species": "CS",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -3.78267746725669e-06,
+    "enthalpy_shift": 0.00013382354518398643,
+    "entropy_shift": -4.647620076525527e-05,
+    "gibbs_jump_before": 0.0114917896715383
+  },
+  {
+    "species": "CS2",
+    "model": "Shomate",
+    "temperature": 1000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.0279430000000076,
+    "enthalpy_shift": -25.604166666656965,
+    "entropy_shift": 0.002344499999992422,
+    "gibbs_jump_before": 0.005666666650085972
+  },
+  {
+    "species": "CS2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0020629665533320463,
+    "enthalpy_shift": -0.6490279704303248,
+    "entropy_shift": 0.0024817391898181995,
+    "gibbs_jump_before": -0.029550890078780867
+  },
+  {
+    "species": "OCS",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.03133597088888962,
+    "enthalpy_shift": -33.33151413335872,
+    "entropy_shift": 0.0006608183936691603,
+    "gibbs_jump_before": 3.3771987344516674
+  },
+  {
+    "species": "OCS",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0011011969618337503,
+    "enthalpy_shift": -0.35805594082921743,
+    "entropy_shift": 0.0013260772516332509,
+    "gibbs_jump_before": -0.027783495064966246
+  },
+  {
+    "species": "CN",
+    "model": "Shomate",
+    "temperature": 1100.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": -0.32048433680165545,
+    "enthalpy_shift": 333.32680275524035,
+    "entropy_shift": 0.011789931850330504,
+    "gibbs_jump_before": -1.4250689795642302
+  },
+  {
+    "species": "CN",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 6.5996475875351734e-06,
+    "enthalpy_shift": -0.01725991111015901,
+    "entropy_shift": 2.7071141886381156e-05,
+    "gibbs_jump_before": -0.020979413963971183
+  },
+  {
+    "species": "HCN",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.09827956711112051,
+    "enthalpy_shift": -110.68324906667112,
+    "entropy_shift": -0.010389904566807218,
+    "gibbs_jump_before": 1.782063465245301
+  },
+  {
+    "species": "HCN",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0003500185766753816,
+    "enthalpy_shift": -0.1344092192739481,
+    "entropy_shift": 0.0004447691672737619,
+    "gibbs_jump_before": -0.0363661682800398
+  },
+  {
+    "species": "N",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -1.989996297524499e-05,
+    "enthalpy_shift": 0.0398680986254476,
+    "entropy_shift": -1.634160193475509e-05,
+    "gibbs_jump_before": 0.03162825381275525
+  },
+  {
+    "species": "N2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -4.138954836818698e-05,
+    "enthalpy_shift": 0.011408674412294317,
+    "entropy_shift": -1.7180191292709424e-05,
+    "gibbs_jump_before": -0.010738119955249203
+  },
+  {
+    "species": "NH",
+    "model": "Shomate",
+    "temperature": 800.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.19154486400000081,
+    "enthalpy_shift": -139.79936639999505,
+    "entropy_shift": 0.059159991904635945,
+    "gibbs_jump_before": -0.3021322274917111
+  },
+  {
+    "species": "NH",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -1.3054620282559881e-06,
+    "enthalpy_shift": 0.0397007669089362,
+    "entropy_shift": -4.042780403779034e-06,
+    "gibbs_jump_before": 0.040045506815886256
+  },
+  {
+    "species": "NH2",
+    "model": "Shomate",
+    "temperature": 1300.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": -0.10792791845561567,
+    "enthalpy_shift": 141.63825410959544,
+    "entropy_shift": 0.023960095698413397,
+    "gibbs_jump_before": -6.995193332805002
+  },
+  {
+    "species": "NH2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -6.553511994411565e-06,
+    "enthalpy_shift": 0.0068104469391983,
+    "entropy_shift": 4.45855591237887e-05,
+    "gibbs_jump_before": -0.010793354049894788
+  },
+  {
+    "species": "NH3",
+    "model": "Shomate",
+    "temperature": 1400.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.06150402922449416,
+    "enthalpy_shift": -71.68099849525424,
+    "entropy_shift": -0.016258542831224077,
+    "gibbs_jump_before": -8.214444798542445
+  },
+  {
+    "species": "NH3",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 2.1898471366910144e-05,
+    "enthalpy_shift": -0.004026692622574046,
+    "entropy_shift": 7.671158394373379e-05,
+    "gibbs_jump_before": -0.012460530676605686
+  },
+  {
+    "species": "C2",
+    "model": "Shomate",
+    "temperature": 700.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.037230574346942547,
+    "enthalpy_shift": -20.621617210796103,
+    "entropy_shift": 0.02106165375397495,
+    "gibbs_jump_before": 0.007923683119997804
+  },
+  {
+    "species": "C2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0023800536901248392,
+    "enthalpy_shift": -0.7329550634603947,
+    "entropy_shift": 0.0029390767109305216,
+    "gibbs_jump_before": -0.04087478367574704
+  },
+  {
+    "species": "C2H",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": -0.15215571288889151,
+    "enthalpy_shift": 175.8297109332634,
+    "entropy_shift": 0.020017151412332623,
+    "gibbs_jump_before": -2.511793510518146
+  },
+  {
+    "species": "C2H",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 6.288098574458445e-05,
+    "enthalpy_shift": 0.022857870091684163,
+    "entropy_shift": 9.789759249656527e-05,
+    "gibbs_jump_before": 0.035108948108415916
+  },
+  {
+    "species": "C2H2",
+    "model": "Shomate",
+    "temperature": 1100.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.2279840045123933,
+    "enthalpy_shift": -233.1323600106407,
+    "entropy_shift": -0.0006895222288108016,
+    "gibbs_jump_before": 5.493596704142192
+  },
+  {
+    "species": "C2H2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0013068265099747123,
+    "enthalpy_shift": -0.4102076631388627,
+    "entropy_shift": 0.0016070955689713173,
+    "gibbs_jump_before": -0.028214615080059957
+  },
+  {
+    "species": "C2H4",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.32493418666668106,
+    "enthalpy_shift": -376.53270399999747,
+    "entropy_shift": -0.047156729061725855,
+    "gibbs_jump_before": 1.114613248250862
+  },
+  {
+    "species": "C2H4",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.00018793773013214832,
+    "enthalpy_shift": -0.05469344523589825,
+    "entropy_shift": 0.00020117266808483691,
+    "gibbs_jump_before": 0.00916619397469276
+  },
+  {
+    "species": "NO",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.00422684355556413,
+    "enthalpy_shift": -2.6233685333427275,
+    "entropy_shift": 0.001466158323239597,
+    "gibbs_jump_before": 0.23531989141201848
+  },
+  {
+    "species": "NO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 7.597369060263759e-05,
+    "enthalpy_shift": -0.023432640824466944,
+    "entropy_shift": 0.00010282801846983602,
+    "gibbs_jump_before": -0.004025654074951035
+  },
+  {
+    "species": "HNO",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.06729896333332874,
+    "enthalpy_shift": -76.95405600001686,
+    "entropy_shift": -0.009279150688371374,
+    "gibbs_jump_before": -0.21561870733694377
+  },
+  {
+    "species": "HNO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 3.871353548845491e-06,
+    "enthalpy_shift": -0.005196318932576105,
+    "entropy_shift": -1.5941870799451863e-05,
+    "gibbs_jump_before": 0.002104718078555834
+  },
+  {
+    "species": "HO2",
+    "model": "Shomate",
+    "temperature": 2000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.2324039999999954,
+    "enthalpy_shift": -467.18933333335735,
+    "entropy_shift": -0.15117082609776844,
+    "gibbs_jump_before": 22.220035839630327
+  },
+  {
+    "species": "HO2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -3.5711370507840456e-05,
+    "enthalpy_shift": 0.011897422520632972,
+    "entropy_shift": -9.601896798017151e-05,
+    "gibbs_jump_before": 0.01698523780260075
+  },
+  {
+    "species": "HNCO",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.12851165022222233,
+    "enthalpy_shift": -148.79807253331091,
+    "entropy_shift": -0.018051877432185393,
+    "gibbs_jump_before": 1.0383723095856112
+  },
+  {
+    "species": "HNCO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0007909039113513927,
+    "enthalpy_shift": -0.22131362836807966,
+    "entropy_shift": 0.0009161916350421961,
+    "gibbs_jump_before": 0.026690739772732286
+  },
+  {
+    "species": "N2O",
+    "model": "Shomate",
+    "temperature": 1400.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.02811865012243686,
+    "enthalpy_shift": -39.51684100952116,
+    "entropy_shift": -0.009976999339357917,
+    "gibbs_jump_before": -0.5714651006182976
+  },
+  {
+    "species": "N2O",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0006836536466678922,
+    "enthalpy_shift": -0.20250079449033365,
+    "entropy_shift": 0.000827872829233911,
+    "gibbs_jump_before": 0.0011685472045428469
+  },
+  {
+    "species": "H2O2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0005004914615440725,
+    "enthalpy_shift": -0.17315576545661315,
+    "entropy_shift": 0.0005654179434202433,
+    "gibbs_jump_before": -0.011937941840642452
+  },
+  {
+    "species": "O3",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.034848146666654145,
+    "enthalpy_shift": -41.42487999997684,
+    "entropy_shift": -0.0034872501095151165,
+    "gibbs_jump_before": 3.046685890547451
+  },
+  {
+    "species": "O3",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.00017411549715262709,
+    "enthalpy_shift": -0.01986609396408312,
+    "entropy_shift": 0.00024176108217943693,
+    "gibbs_jump_before": 0.022792425690283835
+  },
+  {
+    "species": "NO2",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.02714137733334354,
+    "enthalpy_shift": -32.560345600009896,
+    "entropy_shift": -0.004890043366003738,
+    "gibbs_jump_before": 0.06079056352155021
+  },
+  {
+    "species": "NO2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.00011714674057117236,
+    "enthalpy_shift": -0.03665856341831386,
+    "entropy_shift": 0.00012233993911081598,
+    "gibbs_jump_before": 0.0040577381416255776
+  },
+  {
+    "species": "NO3",
+    "model": "Shomate",
+    "temperature": 1100.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.060823596421499815,
+    "enthalpy_shift": -69.03351591895625,
+    "entropy_shift": -0.006920110102669241,
+    "gibbs_jump_before": 0.8922574447885836
+  },
+  {
+    "species": "NO3",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0007272537120215361,
+    "enthalpy_shift": -0.21351126486842986,
+    "entropy_shift": 0.0008387243470622252,
+    "gibbs_jump_before": 0.015647054103339997
+  },
+  {
+    "species": "SO3",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.050715189111087966,
+    "enthalpy_shift": -60.612901866668835,
+    "entropy_shift": -0.010867382426795302,
+    "gibbs_jump_before": -2.190417300691479
+  },
+  {
+    "species": "SO3",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0017349227158192093,
+    "enthalpy_shift": -0.49627387535292655,
+    "entropy_shift": 0.0020766563092138313,
+    "gibbs_jump_before": 0.027810098058125732
+  },
+  {
+    "species": "HNO2",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.11634696733334238,
+    "enthalpy_shift": -136.36628960003145,
+    "entropy_shift": -0.01773564172196984,
+    "gibbs_jump_before": 0.9222309886008588
+  },
+  {
+    "species": "HNO2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0008333199219805465,
+    "enthalpy_shift": -0.24660150773706846,
+    "entropy_shift": 0.0009779744291904535,
+    "gibbs_jump_before": 0.010934289080637427
+  },
+  {
+    "species": "HNO3",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.14775806444444584,
+    "enthalpy_shift": -175.46452266666165,
+    "entropy_shift": -0.024658889630700287,
+    "gibbs_jump_before": 0.8915541825153923
+  },
+  {
+    "species": "HNO3",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0019149353064094043,
+    "enthalpy_shift": -0.5878574745729566,
+    "entropy_shift": 0.0022845885108608854,
+    "gibbs_jump_before": -0.0071491043289597656
+  },
+  {
+    "species": "H2SO4",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.24691250577777168,
+    "enthalpy_shift": -295.20161386660766,
+    "entropy_shift": -0.042217147641054,
+    "gibbs_jump_before": 2.266996698424009
+  },
+  {
+    "species": "H2SO4",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.015569472071433665,
+    "enthalpy_shift": -4.6273652939125896,
+    "entropy_shift": 0.018805077108197565,
+    "gibbs_jump_before": 0.02553516494026553
+  },
+  {
+    "species": "HCl",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.04937757888888683,
+    "enthalpy_shift": -54.8697733333247,
+    "entropy_shift": -0.005368827038040536,
+    "gibbs_jump_before": -0.022797314481977082
+  },
+  {
+    "species": "HCl",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -3.02728107115513e-06,
+    "enthalpy_shift": -0.039062529904185794,
+    "entropy_shift": -3.086500666427128e-05,
+    "gibbs_jump_before": -0.03185906170301678
+  },
+  {
+    "species": "Cl",
+    "model": "Shomate",
+    "temperature": 600.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": -0.0961880977777767,
+    "enthalpy_shift": 50.86737733332848,
+    "entropy_shift": -0.06193446473426434,
+    "gibbs_jump_before": -0.8339904795122948
+  },
+  {
+    "species": "Cl",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 3.544548275158377e-05,
+    "enthalpy_shift": -0.002185600300435908,
+    "entropy_shift": 3.2499822964382474e-05,
+    "gibbs_jump_before": 0.01148012883015781
+  },
+  {
+    "species": "Cl2",
+    "model": "Shomate",
+    "temperature": 1000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.13250499999999477,
+    "enthalpy_shift": -142.53716666666514,
+    "entropy_shift": -0.009393499999930555,
+    "gibbs_jump_before": 0.6386666667372083
+  },
+  {
+    "species": "Cl2",
+    "model": "Shomate",
+    "temperature": 3000.0,
+    "adjusted_segment": 3,
+    "heat_capacity_shift": 0.14523433333333458,
+    "enthalpy_shift": -181.57091666666383,
+    "entropy_shift": -0.02367201567921029,
+    "gibbs_jump_before": 153.52053963850767
+  },
+  {
+    "species": "Cl2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0003044790651003382,
+    "enthalpy_shift": -0.09126820819815862,
+    "entropy_shift": 0.00033923350184750234,
+    "gibbs_jump_before": 0.008224078522488298
+  },
+  {
+    "species": "HOCl",
+    "model": "Shomate",
+    "temperature": 1400.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.12441460555101713,
+    "enthalpy_shift": -172.24169420951148,
+    "entropy_shift": -0.04057832672691575,
+    "gibbs_jump_before": -0.14152614221438853
+  },
+  {
+    "species": "HOCl",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.00012001701594499536,
+    "enthalpy_shift": -0.031439290338312276,
+    "entropy_shift": 0.00013155576084500353,
+    "gibbs_jump_before": 0.008421568345511332
+  },
+  {
+    "species": "N2H4",
+    "model": "Shomate",
+    "temperature": 2000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.2764587499999749,
+    "enthalpy_shift": -571.6269999999786,
+    "entropy_shift": -0.2007408132625983,
+    "gibbs_jump_before": 0.4810796820011092
+  },
+  {
+    "species": "N2H4",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0009864286281739965,
+    "enthalpy_shift": -0.291536030228599,
+    "entropy_shift": 0.0012243036005656904,
+    "gibbs_jump_before": -0.006541799538069881
+  },
+  {
+    "species": "ClO",
+    "model": "Shomate",
+    "temperature": 600.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.032437598222223585,
+    "enthalpy_shift": -17.291585866682,
+    "entropy_shift": 0.02020795718425461,
+    "gibbs_jump_before": 0.011827436688690796
+  },
+  {
+    "species": "ClO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 7.7469442615552e-05,
+    "enthalpy_shift": -0.021733184315962717,
+    "entropy_shift": 5.732485553266997e-05,
+    "gibbs_jump_before": 0.012219112326192771
+  },
+  {
+    "species": "C2H6",
+    "model": "Shomate",
+    "temperature": 3000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": -0.029351111111083128,
+    "enthalpy_shift": -16.918333333393093,
+    "entropy_shift": 0.03621306610659758,
+    "gibbs_jump_before": 116.87439092836576
+  },
+  {
+    "species": "C2H6",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0017990731419175177,
+    "enthalpy_shift": -0.5376170614908915,
+    "entropy_shift": 0.002211516237395017,
+    "gibbs_jump_before": -0.011460507748040527
+  },
+  {
+    "species": "CH3OH",
+    "model": "Shomate",
+    "temperature": 3000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.03348988888886595,
+    "enthalpy_shift": -57.814333333284594,
+    "entropy_shift": -0.05218749169051762,
+    "gibbs_jump_before": -88.8405979664517
+  },
+  {
+    "species": "CH3OH",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.000977005851943602,
+    "enthalpy_shift": -0.32352520478889346,
+    "entropy_shift": 0.0012125322120937199,
+    "gibbs_jump_before": -0.041230610639161114
+  },
+  {
+    "species": "CH2CO",
+    "model": "Shomate",
+    "temperature": 1500.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.027795055555543513,
+    "enthalpy_shift": 9959.653895833355,
+    "entropy_shift": -0.03579617690576242,
+    "gibbs_jump_before": -10038.135856716706
+  },
+  {
+    "species": "CH2CO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.001937465491764101,
+    "enthalpy_shift": -0.5742399992013816,
+    "entropy_shift": 0.0023728190665224247,
+    "gibbs_jump_before": -0.004981961834914728
+  },
+  {
+    "species": "CH3CHO",
+    "model": "Shomate",
+    "temperature": 3000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.05220822222221955,
+    "enthalpy_shift": -173.74933333328227,
+    "entropy_shift": -0.024816854139544375,
+    "gibbs_jump_before": 114.74388775654188
+  },
+  {
+    "species": "CH3CHO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0031330995919134352,
+    "enthalpy_shift": -0.8891962995985523,
+    "entropy_shift": 0.0038042204605517327,
+    "gibbs_jump_before": 0.04116062397872611
+  },
+  {
+    "species": "C3H4",
+    "model": "Shomate",
+    "temperature": 1400.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": -0.03880437142854021,
+    "enthalpy_shift": 54.48517333337804,
+    "entropy_shift": 0.003095480514900828,
+    "gibbs_jump_before": -14.104611715917144
+  },
+  {
+    "species": "C3H4",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.004037030836016697,
+    "enthalpy_shift": -1.1680683854792733,
+    "entropy_shift": 0.004907252851296562,
+    "gibbs_jump_before": 0.02907419245480014
+  },
+  {
+    "species": "C3H6",
+    "model": "Shomate",
+    "temperature": 1400.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": -0.10540066938776249,
+    "enthalpy_shift": -99837.66825904755,
+    "entropy_shift": 4.641553149203048,
+    "gibbs_jump_before": 106433.75344651635
+  },
+  {
+    "species": "C3H6",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.004960093439649427,
+    "enthalpy_shift": -1.4819706825546746,
+    "entropy_shift": 0.005999113674363343,
+    "gibbs_jump_before": -0.002110019382939754
+  },
+  {
+    "species": "C4H2",
+    "model": "Shomate",
+    "temperature": 2500.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.0347125799999759,
+    "enthalpy_shift": -86.07592083327472,
+    "entropy_shift": -0.01490940756866621,
+    "gibbs_jump_before": 41.537990245162746
+  },
+  {
+    "species": "C4H2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.01353011854192232,
+    "enthalpy_shift": -4.082122831896413,
+    "entropy_shift": 0.01635403799065216,
+    "gibbs_jump_before": -0.04229235278762644
+  },
+  {
+    "species": "C4H4",
+    "model": "Shomate",
+    "temperature": 3000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.01157733333343458,
+    "enthalpy_shift": 13.285999999614432,
+    "entropy_shift": -0.0027698231349404523,
+    "gibbs_jump_before": -18.170467394351363
+  },
+  {
+    "species": "C4H4",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.01002106886133447,
+    "enthalpy_shift": -2.9918062367360108,
+    "entropy_shift": 0.012151074704036091,
+    "gibbs_jump_before": -0.011174671197409225
+  },
+  {
+    "species": "OClO",
+    "model": "Shomate",
+    "temperature": 1000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.07351899999999745,
+    "enthalpy_shift": -67.10133333335398,
+    "entropy_shift": 0.00833766666670499,
+    "gibbs_jump_before": 1.9200000000296313
+  },
+  {
+    "species": "OClO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0005392236636438952,
+    "enthalpy_shift": -0.16268933007086162,
+    "entropy_shift": 0.0006473783812452893,
+    "gibbs_jump_before": -0.00037982472485964536
+  },
+  {
+    "species": "HCS",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.024179110444450203,
+    "enthalpy_shift": -25.122505066683516,
+    "entropy_shift": -0.0014435472515970105,
+    "gibbs_jump_before": -0.3346364987828565
+  },
+  {
+    "species": "HCS",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 1.4677879889291034e-05,
+    "enthalpy_shift": -0.0022182598477229476,
+    "entropy_shift": 2.8607426031612704e-05,
+    "gibbs_jump_before": -0.0010738200346054327
+  },
+  {
+    "species": "C2H3",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.32493418666668106,
+    "enthalpy_shift": -376.5327039999538,
+    "entropy_shift": -0.047156729061725855,
+    "gibbs_jump_before": 1.1146132481781024
+  },
+  {
+    "species": "C2H3",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.00018793773013214832,
+    "enthalpy_shift": -0.07469344517448917,
+    "entropy_shift": 0.00020117266808483691,
+    "gibbs_jump_before": -0.01083380598572603
+  },
+  {
+    "species": "C2H5",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.32493418666668106,
+    "enthalpy_shift": -376.532704000012,
+    "entropy_shift": -0.047156729061725855,
+    "gibbs_jump_before": 1.1146132482654139
+  },
+  {
+    "species": "C2H5",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.00018793773013214832,
+    "enthalpy_shift": -0.07469344521814492,
+    "entropy_shift": 0.00020117266808483691,
+    "gibbs_jump_before": -0.010833806014829861
+  },
+  {
+    "species": "NCO",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.03463616955556148,
+    "enthalpy_shift": -38.39621493330924,
+    "entropy_shift": -0.0015239352934486305,
+    "gibbs_jump_before": 2.581993540183248
+  },
+  {
+    "species": "NCO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0004642422039324856,
+    "enthalpy_shift": -0.13498437849921174,
+    "entropy_shift": 0.0005301943824633781,
+    "gibbs_jump_before": 0.012849881336023827
+  },
+  {
+    "species": "1CH2",
+    "model": "Shomate",
+    "temperature": 1400.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.010741233142852025,
+    "enthalpy_shift": -10.756995466654189,
+    "entropy_shift": -0.0002600803985330913,
+    "gibbs_jump_before": 0.4149339442035398
+  },
+  {
+    "species": "1CH2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 1.1655554928324818e-05,
+    "enthalpy_shift": 0.0006439030403271317,
+    "entropy_shift": -1.0856955157123593e-05,
+    "gibbs_jump_before": 0.011557689695962381
+  },
+  {
+    "species": "HCCO",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.12851165022222233,
+    "enthalpy_shift": -148.79807253330364,
+    "entropy_shift": -0.018051877432185393,
+    "gibbs_jump_before": 1.038372309607439
+  },
+  {
+    "species": "HCCO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0016745086645215679,
+    "enthalpy_shift": -0.5350183644040953,
+    "entropy_shift": 0.001994630890891358,
+    "gibbs_jump_before": -0.026290216764834895
+  },
+  {
+    "species": "NNH",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.024179110444450203,
+    "enthalpy_shift": -25.122505066683516,
+    "entropy_shift": -0.0014435472515970105,
+    "gibbs_jump_before": -0.3346364987828565
+  },
+  {
+    "species": "NNH",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 1.4677879889291034e-05,
+    "enthalpy_shift": -0.002218259876826778,
+    "entropy_shift": 2.8607426031612704e-05,
+    "gibbs_jump_before": -0.0010738200055016023
+  },
+  {
+    "species": "HSO",
+    "model": "Shomate",
+    "temperature": 2000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.2324039999999954,
+    "enthalpy_shift": -467.1893333333501,
+    "entropy_shift": -0.15117082609782528,
+    "gibbs_jump_before": 22.220035839395678
+  },
+  {
+    "species": "HSO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -3.5711370507840456e-05,
+    "enthalpy_shift": 0.009897422522044508,
+    "entropy_shift": -9.601896800859322e-05,
+    "gibbs_jump_before": 0.014985237810662966
+  },
+  {
+    "species": "CH3O",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.12693183666662833,
+    "enthalpy_shift": -143.1833679999545,
+    "entropy_shift": -0.015075042356841095,
+    "gibbs_jump_before": 0.5460052530916073
+  },
+  {
+    "species": "CH3O",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 5.033159979461743e-06,
+    "enthalpy_shift": 0.0003036805283045396,
+    "entropy_shift": -1.460206479464432e-05,
+    "gibbs_jump_before": 0.007970826947655496
+  },
+  {
+    "species": "H2COH",
+    "model": "Shomate",
+    "temperature": 3000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.03348988888886595,
+    "enthalpy_shift": -57.814333333284594,
+    "entropy_shift": -0.05218749169051762,
+    "gibbs_jump_before": -88.8405979664517
+  },
+  {
+    "species": "H2COH",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.000977005851943602,
+    "enthalpy_shift": -0.2935252047791437,
+    "entropy_shift": 0.0012125322120652982,
+    "gibbs_jump_before": -0.011230610615484693
+  },
+  {
+    "species": "H2CN",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.12693183666662833,
+    "enthalpy_shift": -143.18336799996905,
+    "entropy_shift": -0.015075042356841095,
+    "gibbs_jump_before": 0.5460052530479516
+  },
+  {
+    "species": "H2CN",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 5.033159979461743e-06,
+    "enthalpy_shift": 0.020303680503275245,
+    "entropy_shift": -1.460206479464432e-05,
+    "gibbs_jump_before": 0.02797082692626418
+  },
+  {
+    "species": "N2H2",
+    "model": "Shomate",
+    "temperature": 1100.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.2279840045123933,
+    "enthalpy_shift": -233.1323600106116,
+    "entropy_shift": -0.0006895222288108016,
+    "gibbs_jump_before": 5.493596704142192
+  },
+  {
+    "species": "N2H2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0005151830034719751,
+    "enthalpy_shift": -0.11494369772844948,
+    "entropy_shift": 0.0006111440482357011,
+    "gibbs_jump_before": 0.0423261997074178
+  },
+  {
+    "species": "C4H",
+    "model": "Shomate",
+    "temperature": 2500.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.0347125799999759,
+    "enthalpy_shift": -86.07592083327472,
+    "entropy_shift": -0.01490940756866621,
+    "gibbs_jump_before": 41.537990245162746
+  },
+  {
+    "species": "C4H",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.01353011854192232,
+    "enthalpy_shift": -4.0821228318382055,
+    "entropy_shift": 0.01635403799065216,
+    "gibbs_jump_before": -0.0422923528458341
+  },
+  {
+    "species": "HCNOH",
+    "model": "Shomate",
+    "temperature": 1500.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.027795055555543513,
+    "enthalpy_shift": 9959.653895833355,
+    "entropy_shift": -0.03579617690576242,
+    "gibbs_jump_before": -10038.135856716714
+  },
+  {
+    "species": "HCNOH",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.001937465491764101,
+    "enthalpy_shift": -0.5742399992013816,
+    "entropy_shift": 0.0023728190665224247,
+    "gibbs_jump_before": -0.004981961834914728
+  },
+  {
+    "species": "C2H2OH",
+    "model": "Shomate",
+    "temperature": 1500.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.027795055555543513,
+    "enthalpy_shift": 9959.653895833355,
+    "entropy_shift": -0.03579617690576242,
+    "gibbs_jump_before": -10038.135856716714
+  },
+  {
+    "species": "C2H2OH",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.001937465491764101,
+    "enthalpy_shift": -0.5542399991827551,
+    "entropy_shift": 0.0023728190665224247,
+    "gibbs_jump_before": 0.015018038169159809
+  },
+  {
+    "species": "CH3CO",
+    "model": "Shomate",
+    "temperature": 1500.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.027795055555543513,
+    "enthalpy_shift": 9959.653895833355,
+    "entropy_shift": -0.03579617690576242,
+    "gibbs_jump_before": -10038.135856716714
+  },
+  {
+    "species": "CH3CO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.001937465491764101,
+    "enthalpy_shift": -0.5742399991977436,
+    "entropy_shift": 0.0023728190665224247,
+    "gibbs_jump_before": -0.004981961834914728
+  },
+  {
+    "species": "CH2CHO",
+    "model": "Shomate",
+    "temperature": 3000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.05220822222221955,
+    "enthalpy_shift": -173.74933333334047,
+    "entropy_shift": -0.024816854139544375,
+    "gibbs_jump_before": 114.74388775654188
+  },
+  {
+    "species": "CH2CHO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0031330995919134352,
+    "enthalpy_shift": -0.9361962995790236,
+    "entropy_shift": 0.0038042204605517327,
+    "gibbs_jump_before": -0.005839375994469265
+  },
+  {
+    "species": "C2H3OH",
+    "model": "Shomate",
+    "temperature": 3000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.05220822222221955,
+    "enthalpy_shift": -173.74933333331137,
+    "entropy_shift": -0.024816854139544375,
+    "gibbs_jump_before": 114.74388775654188
+  },
+  {
+    "species": "C2H3OH",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0031330995919134352,
+    "enthalpy_shift": -0.8891962995840004,
+    "entropy_shift": 0.0038042204605517327,
+    "gibbs_jump_before": 0.04116062399327802
+  },
+  {
+    "species": "C2H4OH",
+    "model": "Shomate",
+    "temperature": 3000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.05220822222221955,
+    "enthalpy_shift": -173.74933333334047,
+    "entropy_shift": -0.024816854139544375,
+    "gibbs_jump_before": 114.74388775654188
+  },
+  {
+    "species": "C2H4OH",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0031330995919134352,
+    "enthalpy_shift": -0.9391962995832728,
+    "entropy_shift": 0.0038042204605517327,
+    "gibbs_jump_before": -0.008839375995080445
+  },
+  {
+    "species": "CH3O2",
+    "model": "Shomate",
+    "temperature": 1500.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.027795055555543513,
+    "enthalpy_shift": 9959.653895833355,
+    "entropy_shift": -0.03579617690576242,
+    "gibbs_jump_before": -10038.135856716714
+  },
+  {
+    "species": "CH3O2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.001937465491764101,
+    "enthalpy_shift": -0.5782399991967395,
+    "entropy_shift": 0.0023728190665224247,
+    "gibbs_jump_before": -0.008981961833910646
+  },
+  {
+    "species": "HSO3",
+    "model": "Shomate",
+    "temperature": 1200.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.14775806444444584,
+    "enthalpy_shift": -175.4645226666471,
+    "entropy_shift": -0.024658889630700287,
+    "gibbs_jump_before": 0.8915541825372202
+  },
+  {
+    "species": "HSO3",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0019149353064094043,
+    "enthalpy_shift": -0.5878574745729566,
+    "entropy_shift": 0.002284588510804042,
+    "gibbs_jump_before": -0.007149104341124257
+  },
+  {
+    "species": "O1D",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.00012658283642963397,
+    "enthalpy_shift": 0.0024765688576735556,
+    "entropy_shift": 0.00013124233993266898,
+    "gibbs_jump_before": 0.046756239898570584
+  },
+  {
+    "species": "N2H3",
+    "model": "Shomate",
+    "temperature": 2000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.2764587499999749,
+    "enthalpy_shift": -571.6269999999786,
+    "entropy_shift": -0.20074081326271198,
+    "gibbs_jump_before": 0.48107968171552784
+  },
+  {
+    "species": "N2H3",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.0009864286281739965,
+    "enthalpy_shift": -0.2915360302431509,
+    "entropy_shift": 0.001224303600508847,
+    "gibbs_jump_before": -0.006541799550234373
+  },
+  {
+    "species": "NH2CO",
+    "model": "Shomate",
+    "temperature": 1500.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.027795055555543513,
+    "enthalpy_shift": 9959.653895833355,
+    "entropy_shift": -0.03579617690576242,
+    "gibbs_jump_before": -10038.135856716714
+  },
+  {
+    "species": "NH2CO",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.001937465491764101,
+    "enthalpy_shift": -0.5742399991977436,
+    "entropy_shift": 0.0023728190665224247,
+    "gibbs_jump_before": -0.004981961834914728
+  },
+  {
+    "species": "HS4",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.007381831901255964,
+    "enthalpy_shift": -2.2033868033176987,
+    "entropy_shift": 0.008916581713208416,
+    "gibbs_jump_before": 0.002454501462011649
+  },
+  {
+    "species": "C4H3",
+    "model": "Shomate",
+    "temperature": 3000.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.01157733333343458,
+    "enthalpy_shift": 13.285999999614432,
+    "entropy_shift": -0.0027698231349404523,
+    "gibbs_jump_before": -18.170467394351363
+  },
+  {
+    "species": "C4H3",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.01002106886133447,
+    "enthalpy_shift": -2.9918062367360108,
+    "entropy_shift": 0.012151074704036091,
+    "gibbs_jump_before": -0.011174671197409225
+  },
+  {
+    "species": "CH2N2",
+    "model": "Shomate",
+    "temperature": 1500.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.027795055555543513,
+    "enthalpy_shift": 9959.653895833355,
+    "entropy_shift": -0.03579617690576242,
+    "gibbs_jump_before": -10038.135856716684
+  },
+  {
+    "species": "CH2N2",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.001937465491764101,
+    "enthalpy_shift": -0.5542399991827551,
+    "entropy_shift": 0.0023728190665224247,
+    "gibbs_jump_before": 0.015018038169159809
+  },
+  {
+    "species": "N2D",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": -1.989996297524499e-05,
+    "enthalpy_shift": 0.03986809845082462,
+    "entropy_shift": -1.634160193475509e-05,
+    "gibbs_jump_before": 0.03162825381275525
+  },
+  {
+    "species": "CH2CN",
+    "model": "Shomate",
+    "temperature": 1500.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.027795055555543513,
+    "enthalpy_shift": 9959.653895833355,
+    "entropy_shift": -0.03579617690576242,
+    "gibbs_jump_before": -10038.135856716684
+  },
+  {
+    "species": "CH2CN",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.001937465491764101,
+    "enthalpy_shift": -0.5542399991827551,
+    "entropy_shift": 0.0023728190665224247,
+    "gibbs_jump_before": 0.015018038169159809
+  },
+  {
+    "species": "CH3CN",
+    "model": "Shomate",
+    "temperature": 1500.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.027795055555543513,
+    "enthalpy_shift": 9959.653895833355,
+    "entropy_shift": -0.03579617690576242,
+    "gibbs_jump_before": -10038.135856716714
+  },
+  {
+    "species": "CH3CN",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.001937465491764101,
+    "enthalpy_shift": -0.5742399992013816,
+    "entropy_shift": 0.0023728190665224247,
+    "gibbs_jump_before": -0.004981961834914728
+  },
+  {
+    "species": "HCCCN",
+    "model": "Shomate",
+    "temperature": 2500.0,
+    "adjusted_segment": 2,
+    "heat_capacity_shift": 0.0347125799999759,
+    "enthalpy_shift": -86.07592083327472,
+    "entropy_shift": -0.01490940756866621,
+    "gibbs_jump_before": 41.537990245162746
+  },
+  {
+    "species": "HCCCN",
+    "model": "Shomate",
+    "temperature": 298.0,
+    "adjusted_segment": 0,
+    "heat_capacity_shift": 0.01353011854192232,
+    "enthalpy_shift": -4.082122831896413,
+    "entropy_shift": 0.01635403799065216,
+    "gibbs_jump_before": -0.04229235278762644
+  }
+]

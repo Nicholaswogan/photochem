@@ -7,6 +7,7 @@ fypp_f90("" "${fppFiles}" outFiles)
 
 set(PHOTOCHEM_MODULES
   photochem_const.f90
+  photochem_ptc.f90
   photochem_radtran.f90
   photochem_enum.f90
   photochem_settings.f90
@@ -20,6 +21,7 @@ set(PHOTOCHEM_EVOATMOSPHERE
   photochem_evoatmosphere_init.f90
   photochem_evoatmosphere_state.f90
   photochem_evoatmosphere_integrate.f90
+  photochem_evoatmosphere_ptc.f90
   photochem_evoatmosphere_output.f90
   photochem_evoatmosphere_profiles.f90
   photochem_evoatmosphere_grid.f90)

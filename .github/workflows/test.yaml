@@ -67,6 +67,7 @@ jobs:
         ./tests/photochem/test_api
         ./tests/photochem/test_input
         ./tests/photochem/test_jacobian
+        ./tests/photochem/test_ptc
         ./tests/photochem/test_production_loss
 
     - name: build python

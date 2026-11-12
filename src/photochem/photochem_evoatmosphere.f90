@@ -8,6 +8,7 @@ module photochem_evoatmosphere
 
   private
   public :: EvoAtmosphere, EvoAtmosphereState, ProductionLoss
+  public :: maintain_ptc_atmosphere
 
   !> Process-resolved production and loss rates for one chemical species.
   !!
@@ -168,6 +169,15 @@ module photochem_evoatmosphere
   end interface
 
   interface
+    !> Experimental Fortran-only maintenance for an accepted PTC state.
+    !! Shares CVODE's pressure/profile measurements and resynchronization.
+    module subroutine maintain_ptc_atmosphere(self, finished, updated, initializing, err)
+      class(EvoAtmosphere), target, intent(inout) :: self
+      logical, intent(inout) :: finished
+      logical, intent(out) :: updated
+      logical, optional, intent(in) :: initializing
+      character(:), allocatable, intent(out) :: err
+    end subroutine
     !> Install external aerosol optics on a hydrostatic pressure grid.
     !! Spectral and log10-pressure interpolation use constant extrapolation.
     !! TAU_MODE_DZ is extinction per cm; TAU_MODE_DLOG10P is extinction per
