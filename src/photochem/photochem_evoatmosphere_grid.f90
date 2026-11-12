@@ -21,7 +21,7 @@ contains
     use futils, only: brent_class
     class(EvoAtmosphere), target, intent(in) :: self
     real(dp), intent(in) :: TOA_pressure !! Target top-of-atmosphere pressure (dyn/cm^2).
-    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereCandidate), intent(inout) :: state
     type(VerticalGridWork), intent(inout) :: work
     character(:), allocatable, intent(out) :: err
     real(dp) :: top_atmos !! cm
@@ -161,7 +161,7 @@ contains
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     class(EvoAtmosphere), target, intent(in) :: self
     real(dp), intent(in) :: top_atmos_new !! cm
-    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereCandidate), intent(inout) :: state
     type(VerticalGridWork), intent(inout) :: work
     character(:), allocatable, intent(out) :: err
 
@@ -195,7 +195,7 @@ contains
     use photochem_eqns, only: vertical_grid, gravity
     class(EvoAtmosphere), target, intent(in) :: self
     real(dp), intent(in) :: top_atmos_new !! cm
-    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereCandidate), intent(inout) :: state
     character(:), allocatable, intent(out) :: err
 
     type(PhotochemData), pointer :: dat
@@ -221,7 +221,7 @@ contains
   subroutine seed_candidate_temperature_edd(self, state, err)
     use futils, only: interp
     class(EvoAtmosphere), target, intent(in) :: self
-    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereCandidate), intent(inout) :: state
     character(:), allocatable, intent(out) :: err
 
     integer :: ierr
@@ -248,7 +248,7 @@ contains
 
   subroutine validate_candidate_temperature_edd(state, err)
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    type(AtmosphereState), intent(in) :: state
+    type(AtmosphereCandidate), intent(in) :: state
     character(:), allocatable, intent(out) :: err
 
     if (.not.all(ieee_is_finite(state%temperature)) .or. &
@@ -266,7 +266,7 @@ contains
     use futils, only: interp
     use photochem_const, only: small_real
     class(EvoAtmosphere), target, intent(in) :: self
-    type(AtmosphereState), intent(in) :: state
+    type(AtmosphereCandidate), intent(in) :: state
     type(VerticalGridWork), intent(inout) :: work
     character(:), allocatable, intent(out) :: err
 
@@ -323,7 +323,7 @@ contains
     use futils, only: interp
     use photochem_const, only: k_boltz, N_avo
     class(EvoAtmosphere), target, intent(in) :: self
-    type(AtmosphereState), intent(in) :: state
+    type(AtmosphereCandidate), intent(in) :: state
     type(VerticalGridWork), intent(inout) :: work
     character(:), allocatable, intent(out) :: err
 
@@ -383,7 +383,7 @@ contains
     use futils, only: interp
     use photochem_const, only: small_real
     class(EvoAtmosphere), target, intent(in) :: self
-    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereCandidate), intent(inout) :: state
     character(:), allocatable, intent(out) :: err
 
     type(PhotochemData), pointer :: dat
@@ -415,7 +415,7 @@ contains
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use photochem_const, only: k_boltz
     class(EvoAtmosphere), target, intent(in) :: self
-    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereCandidate), intent(inout) :: state
     type(VerticalGridWork), intent(inout) :: work
     character(:), allocatable, intent(out) :: err
 
@@ -448,7 +448,7 @@ contains
   subroutine build_vertical_grid_state_z(self, top_atmos_new, state, work, err)
     class(EvoAtmosphere), target, intent(in) :: self
     real(dp), intent(in) :: top_atmos_new !! cm
-    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereCandidate), intent(inout) :: state
     type(VerticalGridWork), intent(inout) :: work
     character(:), allocatable, intent(out) :: err
 
@@ -475,7 +475,7 @@ contains
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     class(EvoAtmosphere), target, intent(in) :: self
     real(dp), intent(in) :: top_atmos_new !! cm
-    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereCandidate), intent(inout) :: state
     type(VerticalGridWork), intent(inout) :: work
     character(:), allocatable, intent(out) :: err
 
@@ -606,7 +606,7 @@ contains
     character(:), allocatable, intent(out) :: err
 
     real(dp) :: top_atmos_new
-    type(AtmosphereState) :: previous_state, state
+    type(AtmosphereCandidate) :: previous_state, state
     type(VerticalGridWork) :: work
 
     type(PhotochemData), pointer :: dat

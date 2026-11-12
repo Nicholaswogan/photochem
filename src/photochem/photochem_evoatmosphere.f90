@@ -31,7 +31,7 @@ module photochem_evoatmosphere
 
   !> Internal transactional handoff used to validate atmospheric changes
   !! before committing them to the live model.
-  type :: AtmosphereState
+  type :: AtmosphereCandidate
     real(dp) :: bottom_atmos
     real(dp) :: top_atmos
     real(dp) :: trop_alt
@@ -54,7 +54,7 @@ module photochem_evoatmosphere
     type(CustomOpticalProperties) :: custom_optical_properties
     type(TOAPressureMaintenance) :: toa_pressure_maintenance
   contains
-    procedure :: allocate => AtmosphereState_allocate
+    procedure :: allocate => AtmosphereCandidate_allocate
   end type
 
   !> Independent atmospheric snapshot for initialization and persistence.
@@ -273,15 +273,15 @@ module photochem_evoatmosphere
 
     !~~ photochem_evoatmosphere_init.f90 ~~!
 
-    module subroutine AtmosphereState_allocate(self, dat, nz)
-      class(AtmosphereState), intent(inout) :: self
+    module subroutine AtmosphereCandidate_allocate(self, dat, nz)
+      class(AtmosphereCandidate), intent(inout) :: self
       type(PhotochemData), intent(in) :: dat
       integer, intent(in) :: nz
     end subroutine
 
     module subroutine finalize_atmosphere_state(dat, state, err)
       type(PhotochemData), intent(in) :: dat
-      type(AtmosphereState), intent(inout) :: state
+      type(AtmosphereCandidate), intent(inout) :: state
       character(:), allocatable, intent(out) :: err
     end subroutine
 
@@ -372,12 +372,12 @@ module photochem_evoatmosphere
 
     module subroutine copy_model_to_state(self, state)
       class(EvoAtmosphere), intent(in) :: self
-      type(AtmosphereState), intent(inout) :: state
+      type(AtmosphereCandidate), intent(inout) :: state
     end subroutine
 
     module subroutine copy_state_to_model(self, state)
       class(EvoAtmosphere), intent(inout) :: self
-      type(AtmosphereState), intent(in) :: state
+      type(AtmosphereCandidate), intent(in) :: state
     end subroutine
 
     !> Initialize atmosphere-dependent model state from altitude-based profiles.

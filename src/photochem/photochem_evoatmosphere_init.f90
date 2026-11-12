@@ -17,8 +17,8 @@ submodule(photochem_evoatmosphere) photochem_evoatmosphere_init
 
 contains
 
-  module subroutine AtmosphereState_allocate(self, dat, nz)
-    class(AtmosphereState), intent(inout) :: self
+  module subroutine AtmosphereCandidate_allocate(self, dat, nz)
+    class(AtmosphereCandidate), intent(inout) :: self
     type(PhotochemData), intent(in) :: dat
     integer, intent(in) :: nz
     integer :: i
@@ -94,7 +94,7 @@ contains
     character(len=*), intent(in) :: atmosphere_txt
     character(:), allocatable, intent(out) :: err
 
-    type(AtmosphereState) :: state, previous_state
+    type(AtmosphereCandidate) :: state, previous_state
     logical :: was_initialized
 
     was_initialized = self%atmosphere_initialized
@@ -153,7 +153,7 @@ contains
     real(dp), intent(in) :: particle_radius(:,:)
     character(:), allocatable, intent(out) :: err
 
-    type(AtmosphereState) :: state, previous_state
+    type(AtmosphereCandidate) :: state, previous_state
     real(dp), allocatable :: mix_(:,:)
     logical :: was_initialized
 
@@ -258,7 +258,7 @@ contains
     type(EvoAtmosphereState), intent(in) :: state
     character(:), allocatable, intent(out) :: err
 
-    type(AtmosphereState) :: candidate, previous_state
+    type(AtmosphereCandidate) :: candidate, previous_state
     real(dp) :: previous_radius
     logical :: was_initialized
     character(:), allocatable :: original_err, rollback_err
@@ -360,7 +360,7 @@ contains
 
   module subroutine copy_model_to_state(self, state)
     class(EvoAtmosphere), intent(in) :: self
-    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereCandidate), intent(inout) :: state
 
     ! Always preserve valid persistent settings
     state%press_temp_edd_profile = self%var%press_temp_edd_profile
@@ -390,7 +390,7 @@ contains
 
   module subroutine copy_state_to_model(self, state)
     class(EvoAtmosphere), intent(inout) :: self
-    type(AtmosphereState), intent(in) :: state
+    type(AtmosphereCandidate), intent(in) :: state
 
     self%var%press_temp_edd_profile = state%press_temp_edd_profile
     self%var%toa_pressure_maintenance = state%toa_pressure_maintenance
@@ -431,7 +431,7 @@ contains
     real(dp), optional, intent(in) :: target_pressure
     character(:), allocatable, intent(out) :: err
 
-    type(AtmosphereState) :: state, previous_state
+    type(AtmosphereCandidate) :: state, previous_state
     real(dp), allocatable :: mix_(:,:)
     logical :: was_initialized
     logical :: persistent_
@@ -1208,7 +1208,7 @@ contains
     real(dp), intent(in) :: z(:), temperature(:), edd(:)
     real(dp), intent(in) :: surface_pressure
     real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
-    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereCandidate), intent(inout) :: state
     character(:), allocatable, intent(out) :: err
 
     real(dp), parameter :: mixing_ratio_floor = 1.0e-40_dp
@@ -1361,7 +1361,7 @@ contains
     real(dp), intent(in) :: profile_pressure(:), temperature(:), edd(:)
     real(dp), intent(in) :: mix(:,:), particle_radius(:,:)
     real(dp), optional, intent(in) :: trop_p
-    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereCandidate), intent(inout) :: state
     character(:), allocatable, intent(out) :: err
 
     real(dp), allocatable :: z(:), profile_mubar(:)
@@ -1500,7 +1500,7 @@ contains
     type(PhotochemData), intent(in) :: dat
     character(len=*), intent(in) :: atmosphere_txt
     real(dp), intent(in) :: trop_alt_default
-    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereCandidate), intent(inout) :: state
     character(:), allocatable, intent(out) :: err
     type(AtmosphereFileProfile) :: profile
     integer :: i
@@ -1647,7 +1647,7 @@ contains
     use photochem_vars, only: refresh_temperature_dependent_vars, &
                               interp2particlexsdata
     type(PhotochemData), intent(in) :: dat
-    type(AtmosphereState), intent(inout) :: state
+    type(AtmosphereCandidate), intent(inout) :: state
     character(:), allocatable, intent(out) :: err
 
     call interp2particlexsdata(dat, state%particle_radius, state%particle_xs, err)
