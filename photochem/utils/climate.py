@@ -44,7 +44,7 @@ def species_dict_for_climate(species, condensates, particles=None, input_filenam
 
     # Get saturation information
     saturation = {}
-    for sp in dat['particles']:
+    for sp in dat.get('particles', []):
         if 'gas-phase' not in sp:
             continue
         saturation[sp['gas-phase']] = sp['saturation']

@@ -790,9 +790,9 @@ class EvoAtmosphereGasGiant(EvoAtmosphere):
         """Being phased out; use ``model_state().to_dict()`` instead."""
         return self.model_state().to_dict()
 
-    def initialize_from_dict(self, data):
-        """Being phased out; use ``initialize_from_state(GasGiantState.from_dict(data))`` instead."""
-        return self.initialize_from_state(GasGiantState.from_dict(data))
+    def initialize_from_dict(self, out):
+        """Being phased out; use ``initialize_from_state(GasGiantState.from_dict(out))`` instead."""
+        return self.initialize_from_state(GasGiantState.from_dict(out))
 
     def _gas_lower_boundaries(self):
         """Copy the supported gas boundary prescription."""

@@ -861,6 +861,9 @@ def test_gas_giant_shared_limits_and_state_restore():
     assert pc.var.press_temp_edd_profile.edd_tol == 0.025
     assert pc.var.press_temp_edd_profile.extreme_factor == 12.0
     _assert_state_dict_equal(pc.model_state().photochem.to_dict(), saved['photochem'])
+    # The deprecated wrapper retains its original keyword argument.
+    pc.initialize_from_dict(out=pc.model_state_to_dict())
+    _assert_state_dict_equal(pc.model_state().photochem.to_dict(), saved['photochem'])
 
     # State, dictionary exports, and restored model own their metadata.
     for key in ('P_clima_grid', 'T_clima_grid', 'Kzz_clima_grid',

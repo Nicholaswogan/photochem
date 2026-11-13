@@ -444,6 +444,7 @@ contains
   !! is a midpoint approximation rather than an exact pressure-interval integral.
   subroutine OpticalProperties_set_custom_optical_properties(self, wv, P, dtau, w0, g0, tau_mode, err)
     use futils, only: interp
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     class(OpticalProperties), intent(inout) :: self
     real(dp), intent(in) :: wv(:) !! Wavelengths (nm).
     real(dp), intent(in) :: P(:) !! Pressure grid (dyn/cm^2).
@@ -455,6 +456,7 @@ contains
 
     character(:), allocatable, intent(out) :: err
     real(dp), allocatable :: wv1(:), log10P(:), dtau_tmp(:,:), w0_tmp(:,:), g0_tmp(:,:)
+    type(linear_interp_1d), allocatable :: dtau_interp(:), w0_interp(:), g0_interp(:)
     integer :: i, j, ierr
 
     if (tau_mode /= TAU_MODE_DZ .and. tau_mode /= TAU_MODE_DLOG10P) then
@@ -463,12 +465,24 @@ contains
     endif
 
     ! Check inputs
+    if (size(wv) < 2 .or. size(P) < 2) then
+      err = 'Custom optics require at least two pressures and wavelengths'
+      return
+    endif
+    if (any(.not.ieee_is_finite(wv)) .or. any(.not.ieee_is_finite(P))) then
+      err = 'Custom optics coordinates must be finite'
+      return
+    endif
     if (any(wv <= 0.0_dp)) then
       err = 'All elements of `wv` must be larger than zero'
       return
     endif
     if (any(P <= 0.0_dp)) then
       err = 'All elements of `P` must be larger than zero'
+      return
+    endif
+    if (any(wv(2:) <= wv(:size(wv)-1)) .or. any(P(2:) >= P(:size(P)-1))) then
+      err = 'Custom optics require increasing wavelength and decreasing pressure'
       return
     endif
     if (size(P) /= size(dtau,1)) then
@@ -493,6 +507,16 @@ contains
     endif
     if (size(wv) /= size(g0,2)) then
       err = '`wv` and `g0` have incompatible shapes'
+      return
+    endif
+    if (any(.not.ieee_is_finite(dtau)) .or. any(.not.ieee_is_finite(w0)) .or. &
+        any(.not.ieee_is_finite(g0))) then
+      err = 'Custom optical properties must be finite'
+      return
+    endif
+    if (any(dtau < 0.0_dp) .or. any(w0 < 0.0_dp) .or. any(w0 > 1.0_dp) .or. &
+        any(abs(g0) > 1.0_dp)) then
+      err = 'Custom optics require dtau >= 0, 0 <= w0 <= 1, and -1 <= g0 <= 1'
       return
     endif
 
@@ -528,31 +552,30 @@ contains
     log10P = log10(P)
     log10P = log10P(size(log10P):1:-1)
 
-    if (.not.allocated(self%dtau_interp)) then
-      allocate(self%dtau_interp(self%nw))
-      allocate(self%w0_interp(self%nw))
-      allocate(self%g0_interp(self%nw))
-    endif
+    allocate(dtau_interp(self%nw), w0_interp(self%nw), g0_interp(self%nw))
    
     ! At each wavelength bin, create an interpolator in log10 pressure
     do i = 1,size(wv1)
-      call self%dtau_interp(i)%initialize(log10P, dtau_tmp(:,i), ierr)
+      call dtau_interp(i)%initialize(log10P, dtau_tmp(:,i), ierr)
       if (ierr /= 0) then
         err = 'Interpolation initialization error in `set_custom_optical_properties`'
         return
       endif
-      call self%w0_interp(i)%initialize(log10P, w0_tmp(:,i), ierr)
+      call w0_interp(i)%initialize(log10P, w0_tmp(:,i), ierr)
       if (ierr /= 0) then
         err = 'Interpolation initialization error in `set_custom_optical_properties`'
         return
       endif
-      call self%g0_interp(i)%initialize(log10P, g0_tmp(:,i), ierr)
+      call g0_interp(i)%initialize(log10P, g0_tmp(:,i), ierr)
       if (ierr /= 0) then
         err = 'Interpolation initialization error in `set_custom_optical_properties`'
         return
       endif
     enddo
 
+    call move_alloc(dtau_interp, self%dtau_interp)
+    call move_alloc(w0_interp, self%w0_interp)
+    call move_alloc(g0_interp, self%g0_interp)
     self%tau_mode = tau_mode
 
   end subroutine

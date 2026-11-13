@@ -72,6 +72,16 @@ def test_smoke():
         assert model.solver is None
         assert not model.pc.atmosphere_initialized
 
+    # A dry mechanism can omit the optional particles section entirely.
+    dry = coupled.CoupledPhotochemistryClimate(
+        str(TEST_DIR / 'no_particle_test.yaml'),
+        str(TEST_DIR / 'test_settings_minimal.yaml'),
+        str(TEST_DIR / 'sun.txt'),
+        climate_condensates=(),
+    )
+    assert dry.pc.dat.np == 0
+    assert dry.climate_condensates == ()
+
 
 def run_solver_checks():
     """Check the extracted solver locally without chemistry/climate solves."""

@@ -120,12 +120,23 @@ def test_custom_optical_properties():
     c.rad.set_custom_optical_properties(sliced_wavelength, sliced_pressure, dtau, w0, g0, tau_mode=2)
     np.testing.assert_allclose(c.TOA_fluxes(280.0, partial_pressures), contiguous_flux)
 
-    try:
-        c.rad.set_custom_optical_properties(wavelength, pressure, dtau, w0, g0, tau_mode=-1)
-    except clima.ClimaException:
-        pass
-    else:
-        raise AssertionError("Invalid tau_mode was accepted")
+    # Invalid replacements must preserve the installed prescription.
+    for changes in (
+            {'tau_mode': -1}, {'wv': wavelength[:1]},
+            {'wv': wavelength[::-1]}, {'P': pressure[::-1]},
+            {'P': np.array([np.nan, 1.0])},
+            {'dtau': -dtau}, {'dtau': np.full((2, 2), np.nan)},
+            {'w0': w0 + 1.0}, {'g0': g0 + 1.0},
+            {'dtau': np.zeros((1, 2))}):
+        args = dict(wv=wavelength, P=pressure, dtau=dtau, w0=w0, g0=g0, tau_mode=2)
+        args.update(changes)
+        try:
+            c.rad.set_custom_optical_properties(**args)
+        except clima.ClimaException:
+            pass
+        else:
+            raise AssertionError('Invalid custom optical properties were accepted')
+        np.testing.assert_allclose(c.TOA_fluxes(280.0, partial_pressures), contiguous_flux)
     c.rad.unset_custom_optical_properties()
     np.testing.assert_allclose(c.TOA_fluxes(280.0, partial_pressures), baseline)
 
