@@ -11,8 +11,8 @@
         - return_atmosphere_climate_grid
         - return_atmosphere
         - robust_step
-        - model_state_to_dict
-        - initialize_from_dict
+        - model_state
+        - initialize_from_state
 
 The inherited photochemical methods and `dat`, `var`, and `wrk` state views are documented in the [Photochem API](photochem.md). Gas-giant-specific configuration and saved climate profiles are stored in `pc.gdat`.
 

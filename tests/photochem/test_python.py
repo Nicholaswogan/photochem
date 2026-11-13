@@ -846,207 +846,176 @@ def test_gas_giant_shared_limits_and_state_restore():
     assert not converged
     assert pc.wrk.nsteps_total == 1
 
-    state = pc.model_state_to_dict()
-    assert state['max_resync_failures'] == pc.var.max_resync_failures
-    assert state['press_temp_edd_profile']['hydro_pressure'] is False
+    from photochem.extensions import EvoAtmosphereGasGiant, GasGiantState
+
+    state = pc.model_state()
+    assert isinstance(state, GasGiantState)
+    saved = state.to_dict()
     pc.var.max_resync_failures = 4
-    pc.initialize_from_dict(state)
-    assert pc.var.max_resync_failures == state['max_resync_failures']
+    pc.initialize_from_state(GasGiantState.from_dict(saved))
+    assert pc.var.max_resync_failures == 4  # General settings belong to the destination.
     assert not pc.wrk.robust_stepper_initialized
-    assert pc.var.press_temp_edd_profile.hydro_pressure is False
     assert pc.var.press_temp_edd_profile.mode == 0
+    assert pc.var.press_temp_edd_profile.hydro_pressure is False
     assert pc.var.press_temp_edd_profile.temperature_tol == 0.008
     assert pc.var.press_temp_edd_profile.edd_tol == 0.025
     assert pc.var.press_temp_edd_profile.extreme_factor == 12.0
-    assert np.array_equal(pc.gdat.T_clima_grid, state['T_clima_grid'])
-    assert np.array_equal(pc.gdat.Kzz_clima_grid, state['Kzz_clima_grid'])
+    _assert_state_dict_equal(pc.model_state().photochem.to_dict(), saved['photochem'])
 
-    for missing_key in ('T_clima_grid', 'Kzz_clima_grid',
-                        'toa_pressure_target', 'press_temp_edd_profile', 'max_resync_failures',
-                        'species_names', 'particle_radius', 'maintain_toa_pressure'):
-        incomplete_state = state.copy()
-        incomplete_state.pop(missing_key)
-        temperature_before = pc.var.temperature.copy()
-        try:
-            pc.initialize_from_dict(incomplete_state)
-        except KeyError as exc:
-            assert exc.args == (missing_key,)
-        else:
-            raise AssertionError(f'Missing {missing_key} was accepted')
-        assert pc.var.press_temp_edd_profile.mode == 0
-        assert np.array_equal(pc.var.temperature, temperature_before)
-        pc.initialize_from_dict(state)
-
-    for missing_key in ('pressure', 'temperature', 'edd', 'trop_p',
-                        'mode', 'hydro_pressure', 'temperature_tol', 'edd_tol', 'extreme_factor'):
-        incomplete_state = state.copy()
-        incomplete_state['press_temp_edd_profile'] = state['press_temp_edd_profile'].copy()
-        incomplete_state['press_temp_edd_profile'].pop(missing_key)
-        temperature_before = pc.var.temperature.copy()
-        try:
-            pc.initialize_from_dict(incomplete_state)
-        except KeyError as exc:
-            assert exc.args == (missing_key,)
-        else:
-            raise AssertionError(f'Missing profile {missing_key} was accepted')
-        assert pc.var.press_temp_edd_profile.mode == 0
-        assert np.array_equal(pc.var.temperature, temperature_before)
-        pc.initialize_from_dict(state)
-    invalid_state = state.copy()
-    invalid_state['press_temp_edd_profile'] = state['press_temp_edd_profile'].copy()
-    invalid_state['press_temp_edd_profile']['temperature_tol'] = np.nan
-    try:
-        pc.initialize_from_dict(invalid_state)
-    except ValueError:
-        pass
-    else:
-        raise AssertionError('A non-finite profile tolerance was accepted')
-    assert pc.var.press_temp_edd_profile.mode == 0
-    maintenance = pc.var.toa_pressure_maintenance
-    assert maintenance.enabled
-    assert np.isclose(maintenance.target_pressure, custom_target)
-    assert maintenance.pressure_factor == 3.0
-    assert maintenance.extreme_pressure_factor == 10.0
-    assert pc.var.max_resync_failures == 2
-
-    # Saved and restored metadata must own their arrays independently.
+    # State, dictionary exports, and restored model own their metadata.
     for key in ('P_clima_grid', 'T_clima_grid', 'Kzz_clima_grid',
                 'P_desired', 'T_desired', 'Kzz_desired'):
-        assert not np.shares_memory(getattr(pc.gdat, key), state[key])
-        another_state = pc.model_state_to_dict()
-        assert not np.shares_memory(getattr(pc.gdat, key), another_state[key])
+        assert not np.shares_memory(getattr(pc.gdat, key), state.gas_giant[key])
+        assert not np.shares_memory(state.gas_giant[key], saved['gas_giant'][key])
+        assert np.array_equal(getattr(pc.gdat, key), saved['gas_giant'][key])
 
-    # Restore into a fresh object, including disabled TOA maintenance.
-    from photochem.extensions.gasgiants import EvoAtmosphereGasGiant
+    # Fresh-object restoration preserves the actual boundary prescription,
+    # including Moses gases, and disabled TOA maintenance.
     pc.var.toa_pressure_maintenance.enabled = False
-    state = pc.model_state_to_dict()
+    state = pc.model_state()
     fresh = EvoAtmosphereGasGiant(
         fixture_file("no_particle_test.yaml"), fixture_file("sun.txt"),
         5.972e27, 6.371e8, nz=20, data_dir=str(DATA_DIR),
     )
-    assert not fresh.atmosphere_initialized
-    fresh.initialize_from_dict(state)
-    assert fresh.atmosphere_initialized
-    assert not fresh.wrk.robust_stepper_initialized
+    fresh.gdat.verbose = False
+    fresh.initialize_from_state(state)
     assert not fresh.var.toa_pressure_maintenance.enabled
     assert fresh.var.toa_pressure_maintenance.target_pressure == custom_target
-    assert np.allclose(fresh.wrk.usol, pc.wrk.usol)
-    assert fresh.var.top_atmos == state['top_atmos']
-    assert np.allclose(fresh.var.temperature, pc.var.temperature)
-    assert np.allclose(fresh.var.edd, pc.var.edd)
+    assert np.array_equal(fresh.var.lowerboundcond, pc.var.lowerboundcond)
+    mask = state.gas_giant['fixed_pressure']
+    assert np.array_equal(fresh.var.lower_fix_press[mask], pc.var.lower_fix_press[mask])
+    _assert_state_dict_equal(fresh.model_state().photochem.to_dict(), state.photochem.to_dict())
+    for key, values in pc.return_atmosphere_climate_grid().items():
+        np.testing.assert_allclose(fresh.return_atmosphere_climate_grid()[key], values)
 
-    # Predictable invalid inputs must not destroy an existing robust stepper.
+    # Invalid snapshots must not modify the atmosphere, metadata, or stepper.
     fresh.initialize_robust_stepper(fresh.wrk.usol)
-    usol_before = fresh.wrk.usol.copy()
-    temperature_before = fresh.var.temperature.copy()
-    invalid_values = {
-        'temperature': state['temperature'][:-1],
-        'edd': np.full(20, np.nan),
-        'usol': state['usol'][:, :-1],
-        'particle_radius': np.ones((1, 20)),
-        'P_i_surf': np.zeros_like(state['P_i_surf']),
-        'P_desired': state['P_desired'][::-1],
-        'ind_b': 1000,
-        'max_resync_failures': 2**40,
-        'species_names': state['species_names'][::-1],
-        'maintain_toa_pressure': 1,
-    }
-    for key, value in invalid_values.items():
-        invalid_state = copy.deepcopy(state)
-        invalid_state[key] = value
+    before = fresh.model_state().to_dict()
+    invalid_states = []
+    for key, value in (
+            ('P_desired', state.gas_giant['P_desired'][::-1]),
+            ('ind_b', 1000), ('P_ref', 2.0e6),
+            ('surface_partial_pressures', np.full(mask.size, np.nan))):
+        invalid = copy.deepcopy(state.to_dict())
+        invalid['gas_giant'][key] = value
+        invalid_states.append(invalid)
+    invalid = state.to_dict()
+    invalid['photochem']['planet_mass'] *= 2
+    invalid_states.append(invalid)
+    for invalid in invalid_states:
         try:
-            fresh.initialize_from_dict(invalid_state)
+            fresh.initialize_from_state(GasGiantState.from_dict(invalid))
+        except (ValueError, PhotoException):
+            pass
+        else:
+            raise AssertionError('Invalid gas-giant state was accepted')
+        assert fresh.wrk.robust_stepper_initialized
+        _assert_state_dict_equal(fresh.model_state().photochem.to_dict(), before['photochem'])
+        assert np.array_equal(fresh.gdat.P_desired, before['gas_giant']['P_desired'])
+    for invalid in ({'temperature': np.ones(20)}, dict(state.to_dict(), schema_version=0)):
+        try:
+            GasGiantState.from_dict(invalid)
         except ValueError:
             pass
         else:
-            raise AssertionError(f'Invalid saved {key} was accepted')
-        assert fresh.wrk.robust_stepper_initialized
-        assert np.array_equal(fresh.wrk.usol, usol_before)
-        assert np.array_equal(fresh.var.temperature, temperature_before)
+            raise AssertionError('Old or invalid schema was accepted')
+    for invalid in (state.to_dict(), state.photochem):
+        try:
+            fresh.initialize_from_state(invalid)
+        except TypeError:
+            pass
+        else:
+            raise AssertionError('Wrong state type was accepted')
+    fresh.robust_step()
+    assert fresh.wrk.nsteps_total == 1
     fresh.destroy_stepper()
 
-    # The installed prescription can differ from the full climate metadata.
-    # Restoring above its original top must retain its constant extension.
+    # A candidate rejected by native preparation must preserve an ordinary
+    # stepper as well as the destination boundary prescription.
+    ordinary = _make_initialized_gas_giant(mode=1)
+    ordinary.var.toa_pressure_maintenance.enabled = False
+    ordinary.initialize_stepper(ordinary.wrk.usol)
+    before = ordinary.model_state().to_dict()
+    invalid = copy.deepcopy(before)
+    invalid['photochem']['planet_radius'][...] = 1.0e200
+    invalid['gas_giant']['surface_partial_pressures'] *= 0.8
+    try:
+        ordinary.initialize_from_state(GasGiantState.from_dict(invalid))
+    except PhotoException:
+        pass
+    else:
+        raise AssertionError('Invalid derived gravity was accepted')
+    _assert_state_dict_equal(ordinary.model_state().photochem.to_dict(), before['photochem'])
+    assert np.array_equal(ordinary.model_state().gas_giant['surface_partial_pressures'],
+                          before['gas_giant']['surface_partial_pressures'])
+    assert ordinary.step() > 0.0
+    ordinary.destroy_stepper()
+
+    # Subsequent climate exchange still works after a fresh-object restore.
+    sol = fresh.return_atmosphere_climate_grid()
+    gases = fresh.dat.species_names[fresh.dat.np:fresh.dat.nq]
+    fresh.reinitialize_to_new_climate_PT(
+        sol['pressure'], sol['temperature'], sol['Kzz'],
+        {name: sol[name] for name in gases})
+    assert np.array_equal(fresh.gdat.P_clima_grid, sol['pressure'])
+
+    # Both synchronization modes retain saved mismatch and base-API profile
+    # replacements, rather than reinstalling the original climate prescription.
     for mode in (0, 1):
         source = _make_initialized_gas_giant(mode=mode)
         source.update_vertical_grid(TOA_pressure=0.04)
         profile = source.var.press_temp_edd_profile
-        assert source.wrk.pressure[-1] < profile.pressure[-1]
-        assert source.wrk.pressure[-1] > source.var.toa_pressure_maintenance.target_pressure / 3.0
-        snapshot = source.model_state_to_dict()
-        destination = _make_initialized_gas_giant(mode=mode)
-        destination.initialize_from_dict(snapshot)
-        np.testing.assert_allclose(destination.var.temperature, source.var.temperature, rtol=1e-8)
-        np.testing.assert_allclose(destination.var.edd, source.var.edd, rtol=1e-8)
-        for key in ('pressure', 'temperature', 'edd'):
-            expected = snapshot['press_temp_edd_profile'][key]
-            assert np.array_equal(getattr(destination.var.press_temp_edd_profile, key), expected)
-            view_copy = getattr(profile, key)
-            view_copy[:] = -1.0
-            assert np.array_equal(getattr(profile, key), expected)
-            assert not np.shares_memory(getattr(destination.var.press_temp_edd_profile, key), expected)
-            try:
-                setattr(profile, key, expected)
-            except AttributeError:
-                pass
-            else:
-                raise AssertionError(f'Installed profile {key} is writable')
-        assert destination.var.press_temp_edd_profile.trop_p == profile.trop_p
-
-        # A base-API replacement must also round-trip without being replaced
-        # by the original climate-grid prescription.
-        replacement_pressure = np.array([2.0 * profile.pressure[0], 0.5 * profile.pressure[-1]])
-        replacement_temperature = np.array([330.0, 200.0])
-        replacement_edd = np.array([2.0e5, 8.0e6])
         source.set_press_temp_edd_profile(
-            replacement_pressure, replacement_temperature, replacement_edd,
-            trop_p=-2.0, mode=mode, maintain_toa_pressure=False,
-        )
-        snapshot = source.model_state_to_dict()
-        destination.initialize_from_dict(snapshot)
-        np.testing.assert_allclose(destination.var.temperature, source.var.temperature, rtol=1e-8)
-        np.testing.assert_allclose(destination.var.edd, source.var.edd, rtol=1e-8)
-        assert destination.var.press_temp_edd_profile.trop_p == -2.0
-        assert np.array_equal(destination.var.press_temp_edd_profile.pressure, replacement_pressure)
+            np.array([2.0 * profile.pressure[0], 0.5 * profile.pressure[-1]]),
+            np.array([330., 200.]), np.array([2.0e5, 8.0e6]),
+            trop_p=-2.0, mode=mode, maintain_toa_pressure=False)
+        snapshot = source.model_state()
+        if mode == 0:
+            raw = snapshot.photochem.to_dict()
+            raw['temperature'][1:] += 1.0
+            snapshot.photochem = EvoAtmosphereState.from_dict(raw)
+        destination = _make_initialized_gas_giant(mode=mode)
+        destination.initialize_from_state(snapshot)
+        _assert_state_dict_equal(destination.model_state().photochem.to_dict(),
+                                 snapshot.photochem.to_dict())
         assert np.array_equal(destination.gdat.P_desired, source.gdat.P_desired)
 
-        destination.initialize_robust_stepper(destination.wrk.usol)
-        usol_before = destination.wrk.usol.copy()
-        for key, value in (
-                ('pressure', replacement_pressure[::-1]),
-                ('temperature', np.array([330.0])),
-                ('edd', np.array([2.0e5, np.nan])),
-                ('trop_p', np.nan), ('trop_p', 1.0)):
-            invalid_state = copy.deepcopy(snapshot)
-            invalid_state['press_temp_edd_profile'][key] = value
-            try:
-                destination.initialize_from_dict(invalid_state)
-            except ValueError:
-                pass
-            else:
-                raise AssertionError(f'Invalid installed profile {key} was accepted')
-            assert destination.wrk.robust_stepper_initialized
-            assert np.array_equal(destination.wrk.usol, usol_before)
-        destination.robust_step()
-        assert destination.wrk.nsteps_total == 1
-        destination.destroy_stepper()
-        destination.clear_press_temp_edd_profile()
-        for key in ('pressure', 'temperature', 'edd'):
-            assert getattr(destination.var.press_temp_edd_profile, key).size == 0
+    # Prescribed pressures are captured directly, even when the current
+    # bottom cell has not yet been prepared with a newly assigned boundary.
+    fixed_index = np.flatnonzero(pc.var.lowerboundcond == photochem.PressureBC)[0]
+    fixed_name = pc.dat.species_names[fixed_index]
+    prescribed = 0.8 * pc.var.lower_fix_press[fixed_index]
+    pc.set_lower_bc(fixed_name, bc_type='press', press=prescribed)
+    fresh.initialize_from_state(pc.model_state())
+    assert fresh.var.lower_fix_press[fixed_index] == prescribed
+    assert fresh.wrk.usol[fixed_index, 0] != pc.wrk.usol[fixed_index, 0]
+    pc.set_lower_bc(fixed_name, bc_type='flux', flux=0.0)
+    try:
+        pc.model_state()
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('An unsupported gas boundary was silently omitted')
 
-    # Particle radii affect the physical model and belong to the saved state.
+    # Particle radii and pressure-aware custom optics use the base snapshot.
     particles = _make_initialized_gas_giant(mechanism_file=zahnle_earth)
     radius = particles.var.particle_radius
     radius[:] = np.linspace(1.0e-4, 3.0e-4, particles.var.nz)
     particles.var.particle_radius = radius
-    particle_state = particles.model_state_to_dict()
+    pressure = np.array([1.0e8, 1.0e-3])
+    dtau = np.full((2, 2), 0.01)
+    particles.set_custom_optical_properties(
+        np.array([100., 1000.]), pressure, dtau, 0.5 * np.ones_like(dtau),
+        np.zeros_like(dtau), 2)
+    particles.prep_atmosphere(particles.wrk.usol)
+    particle_state = particles.model_state()
     particle_fresh = EvoAtmosphereGasGiant(
         zahnle_earth, fixture_file("sun.txt"), 5.972e27, 6.371e8,
-        nz=20, data_dir=str(DATA_DIR),
-    )
-    particle_fresh.initialize_from_dict(particle_state)
+        nz=20, data_dir=str(DATA_DIR))
+    particle_fresh.initialize_from_state(particle_state)
     assert np.array_equal(particle_fresh.var.particle_radius, radius)
-    assert np.allclose(particle_fresh.wrk.usol, particles.wrk.usol)
+    _assert_state_dict_equal(particle_fresh.model_state().photochem.to_dict(),
+                             particle_state.photochem.to_dict())
 
 
 def test_initialize_atmosphere_z_no_particles():

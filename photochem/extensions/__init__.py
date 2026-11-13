@@ -1,1 +1,1 @@
-from .gasgiants import EvoAtmosphereGasGiant
+from .gasgiants import EvoAtmosphereGasGiant, GasGiantState
